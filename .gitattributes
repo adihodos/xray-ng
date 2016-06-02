@@ -5,6 +5,8 @@
 *.hpp text eol=lf
 *.cpp text eol=lf
 *.txt text eol=lf
+*.y text eol=lf
+*.l text eol=lf
 
 # shaders
 *.fs text eol=lf
@@ -22,3 +24,8 @@
 *.conf text eol=lf
 *.cfg text eol=lf
 *.ini text eol=lf
+
+
+*.cmake text eol=lf
+*.bat text eol=lf
+*.sh text eol=lf
