@@ -1,0 +1,3 @@
+-std=c++14
+-I/home/ahodos/opt/dev/sdks/glfw/include
+-I/home/ahodos/opt/dev/sdks/intel-tbb/include
