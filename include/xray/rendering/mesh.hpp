@@ -37,6 +37,7 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -47,6 +48,12 @@ struct geometry_data_t;
 
 struct mesh_load_option {
   enum { remove_points_lines = 1u << 1, convert_left_handed = 1u << 2 };
+};
+
+struct vertex_format_info {
+  uint32_t                        components;
+  size_t                          element_size;
+  const vertex_format_entry_desc* description;
 };
 
 class simple_mesh {
@@ -81,7 +88,16 @@ private:
                        const uint32_t mesh_process_opts,
                        const uint32_t mesh_import_opts);
 
-  void create_vertexarray();
+  struct create_buffers_args {
+    const void*               vertexbuffer_data;
+    size_t                    vertexbuffer_bytes;
+    size_t                    vertexcount;
+    const void*               indexbuffer_data;
+    size_t                    indexbuffer_size;
+    const vertex_format_info* fmt_into;
+  };
+
+  void create_buffers(const create_buffers_args* args);
 
 private:
   xray::rendering::scoped_buffer       _vertexbuffer;

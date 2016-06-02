@@ -234,6 +234,5 @@ void app::edge_detect_demo::init() {
   }();
 
   app_cfg.lookup_value("app.scene.shininess", _mat_spec_pwr);
-
   _valid = true;
 }

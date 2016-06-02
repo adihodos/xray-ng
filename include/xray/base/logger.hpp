@@ -37,6 +37,11 @@
     START_EASYLOGGINGPP(argc, argv);                                           \
   } while (0)
 
+#define XR_LOGGER_CONFIG_FILE(path)                                            \
+  do {                                                                         \
+    el::Loggers::reconfigureAllLoggers(el::Configurations{path});              \
+  } while (0)
+
 #define XR_LOG_ERR(msg, ...)                                                   \
   do {                                                                         \
     LOG(ERROR) << fmt::format(msg, ##__VA_ARGS__);                             \

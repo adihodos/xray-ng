@@ -72,12 +72,6 @@ inline OutputVectorType vector_cast(const InputVectorType& input_vec) noexcept {
   return vector_cast_impl<OutputVectorType, InputVectorType>::cast(input_vec);
 }
 
-struct vertex_format_info {
-  uint32_t                        components;
-  size_t                          element_size;
-  const vertex_format_entry_desc* description;
-};
-
 template <xray::rendering::vertex_format vfmt>
 vertex_format_info                       describe_vertex_format() {
   using fmt_traits = vertex_format_traits<vfmt>;
@@ -256,31 +250,11 @@ bool xray::rendering::simple_mesh::load_model_impl(
     }
   }
 
-  _indexcount = num_indices;
+  _indexcount            = num_indices;
+  const auto fmt_desc    = get_vertex_format_description(_vertexformat);
+  const auto vbuff_bytes = fmt_desc.element_size * num_vertices;
 
-  auto buffer_alloc_fn = [ num_vertices, fmt = _vertexformat ]()->void* {
-    switch (fmt) {
-    case vertex_format::pn:
-      return malloc(num_vertices * sizeof(vertex_pn));
-      break;
-
-    case vertex_format::pnt:
-      return malloc(num_vertices * sizeof(vertex_pnt));
-      break;
-
-    case vertex_format::pntt:
-      return malloc(num_vertices * sizeof(vertex_pntt));
-      break;
-
-    default:
-      assert(false && "Unsupported vertex format!");
-      break;
-    };
-
-    return nullptr;
-  };
-
-  unique_pointer<void, malloc_deleter> imported_geometry{buffer_alloc_fn()};
+  unique_pointer<void, malloc_deleter> imported_geometry{malloc(vbuff_bytes)};
   if (num_indices > 65535)
     _indexformat = index_format::u32;
 
@@ -342,61 +316,14 @@ bool xray::rendering::simple_mesh::load_model_impl(
     base_vertex += curr_mesh->mNumVertices;
   }
 
-  const auto fmt_desc = [fmt = _vertexformat]() {
-    switch (fmt) {
-    case vertex_format::pn:
-      return describe_vertex_format<vertex_format::pn>();
-      break;
+  const create_buffers_args create_args{raw_ptr(imported_geometry),
+                                        vbuff_bytes,
+                                        num_vertices,
+                                        raw_ptr(indices_buff),
+                                        index_buffer_bytes_size,
+                                        &fmt_desc};
 
-    case vertex_format::pnt:
-      return describe_vertex_format<vertex_format::pnt>();
-      break;
-
-    case vertex_format::pntt:
-      return describe_vertex_format<vertex_format::pntt>();
-      break;
-
-    default:
-      assert(false && "Unsupported vertex format!");
-      break;
-    }
-
-    return vertex_format_info{};
-  }
-  ();
-
-  _vertexbuffer =
-      [ buffdata = raw_ptr(imported_geometry), num_vertices, &fmt_desc ]() {
-    GLuint vbuff{};
-    gl::CreateBuffers(1, &vbuff);
-    gl::NamedBufferStorage(vbuff, num_vertices * fmt_desc.element_size,
-                           buffdata, 0);
-
-    return vbuff;
-  }
-  ();
-
-  _indexbuffer =
-      [ buffdata = raw_ptr(indices_buff), index_buffer_bytes_size ]() {
-    GLuint ibuff{};
-    gl::CreateBuffers(1, &ibuff);
-    gl::NamedBufferStorage(ibuff, index_buffer_bytes_size, buffdata, 0);
-
-    return ibuff;
-  }
-  ();
-
-  create_vertexarray();
-
-  _boundingbox = [
-    geom = raw_ptr(imported_geometry), num_vertices,
-    fmt  = get_vertex_format_description(_vertexformat)
-  ]() {
-    return bounding_box3_axis_aligned(static_cast<const float3*>(geom),
-                                      num_vertices, fmt.element_size);
-  }
-  ();
-
+  create_buffers(&create_args);
   return true;
 }
 
@@ -500,13 +427,12 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format    fmt,
 
   const auto fmt_desc = get_vertex_format_description(_vertexformat);
   unique_pointer<void, malloc_deleter> vbuff_data;
-  void*      buffer_init_data{nullptr};
-  GLsizeiptr buffer_bytes{};
+  void*  buffer_init_data{nullptr};
+  size_t buffer_bytes{};
 
   if (fmt != vertex_format::pntt) {
-    buffer_bytes =
-        static_cast<GLsizeiptr>(geometry.vertex_count * fmt_desc.element_size);
-    vbuff_data = unique_pointer<void, malloc_deleter>(malloc(buffer_bytes));
+    buffer_bytes = geometry.vertex_count * fmt_desc.element_size;
+    vbuff_data   = unique_pointer<void, malloc_deleter>(malloc(buffer_bytes));
 
     buffer_init_data = raw_ptr(vbuff_data);
 
@@ -525,31 +451,19 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format    fmt,
     }
 
   } else {
-    buffer_bytes =
-        static_cast<GLsizeiptr>(geometry.vertex_count * sizeof(vertex_pntt));
+    buffer_bytes     = geometry.vertex_count * sizeof(vertex_pntt);
     buffer_init_data = raw_ptr(geometry.geometry);
   }
 
-  _vertexbuffer = [buffer_bytes, buffer_init_data]() {
-    GLuint vbuff{};
-    gl::CreateBuffers(1, &vbuff);
-    gl::NamedBufferStorage(vbuff, buffer_bytes, buffer_init_data, 0);
-    return vbuff;
-  }();
+  const create_buffers_args create_args{
+      buffer_init_data,
+      buffer_bytes,
+      geometry.vertex_count,
+      raw_ptr(geometry.indices),
+      geometry.index_count * sizeof(geometry.indices[0]),
+      &fmt_desc};
 
-  _indexbuffer = [
-    data     = raw_ptr(geometry.indices),
-    bytesize = geometry.index_count * sizeof(uint32_t)
-  ]() {
-    GLuint vbuff{};
-    gl::CreateBuffers(1, &vbuff);
-    gl::NamedBufferStorage(vbuff, static_cast<GLsizeiptr>(bytesize), data, 0);
-    return vbuff;
-  }
-  ();
-
-  create_vertexarray();
-
+  create_buffers(&create_args);
   _valid = true;
 }
 
@@ -571,20 +485,40 @@ struct helpers {
   }
 };
 
-void xray::rendering::simple_mesh::create_vertexarray() {
+void xray::rendering::simple_mesh::create_buffers(
+    const create_buffers_args* args) {
+  assert(args != nullptr);
+
+  _vertexbuffer = [args]() {
+    GLuint vbuff{};
+    gl::CreateBuffers(1, &vbuff);
+    gl::NamedBufferStorage(vbuff,
+                           static_cast<GLsizeiptr>(args->vertexbuffer_bytes),
+                           args->vertexbuffer_data, 0);
+    return vbuff;
+  }();
+
+  _indexbuffer = [args]() {
+    GLuint ibuff{};
+    gl::CreateBuffers(1, &ibuff);
+    gl::NamedBufferStorage(ibuff,
+                           static_cast<GLsizeiptr>(args->indexbuffer_size),
+                           args->indexbuffer_data, 0);
+    return ibuff;
+  }();
+
   _vertexarray = [
-    vb = raw_handle(_vertexbuffer), ib = raw_handle(_indexbuffer),
-    fmt_desc = get_vertex_format_description(_vertexformat)
+    vb = raw_handle(_vertexbuffer), ib = raw_handle(_indexbuffer), args
   ]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
     gl::BindVertexArray(vao);
     gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ib);
-    gl::VertexArrayVertexBuffer(vao, 0, vb, 0,
-                                static_cast<GLsizei>(fmt_desc.element_size));
+    gl::VertexArrayVertexBuffer(
+        vao, 0, vb, 0, static_cast<GLsizei>(args->fmt_into->element_size));
 
-    for (uint32_t idx = 0; idx < fmt_desc.components; ++idx) {
-      const auto& component_desc = fmt_desc.description[idx];
+    for (uint32_t idx = 0; idx < args->fmt_into->components; ++idx) {
+      const auto& component_desc = args->fmt_into->description[idx];
       gl::EnableVertexArrayAttrib(vao, idx);
       gl::VertexArrayAttribFormat(
           vao, idx, static_cast<GLint>(component_desc.component_count),
@@ -598,4 +532,17 @@ void xray::rendering::simple_mesh::create_vertexarray() {
     return vao;
   }
   ();
+
+  timer_highp bbox_timer;
+  {
+    scoped_timing_object<timer_highp> sto{&bbox_timer};
+
+    _boundingbox = bounding_box3_axis_aligned(
+        static_cast<const float3*>(args->vertexbuffer_data), args->vertexcount,
+        args->fmt_into->element_size);
+  }
+
+  XR_LOG_INFO("Ce zici {} pa mata {} ori", "daca tzo fut", 123.56f);
+  XR_LOG_INFO("Bounding box computation : vertices {}, time (millisecs) {}",
+              args->vertexcount, bbox_timer.elapsed_millis());
 }

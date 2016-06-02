@@ -292,6 +292,7 @@ int main(int argc, char** argv) {
   using namespace xray::base;
 
   XR_LOGGER_START(argc, argv);
+  XR_LOGGER_CONFIG_FILE("config/logging.conf");
   XR_LOG_INFO("Starting up ...");
 
   app_config app_cfg{"config/app_config.conf"};
