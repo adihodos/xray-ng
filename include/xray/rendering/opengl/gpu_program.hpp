@@ -30,7 +30,7 @@
 
 #include "xray/xray.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_handle.hpp"
 #include "xray/base/unique_pointer.hpp"

@@ -1,7 +1,7 @@
 #include "colored_circle.hpp"
 #include "xray/xray.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/opengl/shader_base.hpp"

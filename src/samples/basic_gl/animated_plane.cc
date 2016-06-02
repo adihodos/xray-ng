@@ -1,7 +1,7 @@
 #include "animated_plane.hpp"
 #include "animated_plane_model.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3x3.hpp"

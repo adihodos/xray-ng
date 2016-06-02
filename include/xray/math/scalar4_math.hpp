@@ -94,6 +94,20 @@ inline scalar4<real_type> operator/(const scalar4<real_type>& vec,
   return res;
 }
 
+/// \brief Returns a vector whose components have the maximum values of the
+/// components of the two input vectors.
+template <typename T>
+scalar4<T> max(const scalar4<T>& a, const scalar4<T>& b) noexcept {
+  return {max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w)};
+}
+
+/// \brief Returns a vector whose components have the minimum values of the
+/// components of the two input vectors.
+template <typename T>
+scalar4<T> min(const scalar4<T>& a, const scalar4<T>& b) noexcept {
+  return {min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w)};
+}
+
 /// @}
 
 } // namespace math

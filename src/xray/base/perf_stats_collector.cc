@@ -1,6 +1,6 @@
 #include "xray/base/perf_stats_collector.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include <fmt/format.h>
 #include <platformstl/filesystem/path.hpp>
 #include <platformstl/filesystem/path_functions.hpp>

@@ -1,6 +1,6 @@
 #include "xray/xray.hpp"
 #include "xray/base/basic_timer.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/delegate_list.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/maybe.hpp"

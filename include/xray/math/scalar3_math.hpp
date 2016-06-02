@@ -32,6 +32,7 @@
 
 #include "xray/xray.hpp"
 #include "xray/math/math_base.hpp"
+#include "xray/math/math_std.hpp"
 #include "xray/math/scalar3.hpp"
 
 namespace xray {

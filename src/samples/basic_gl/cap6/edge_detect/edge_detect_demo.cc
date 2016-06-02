@@ -106,14 +106,6 @@ void app::edge_detect_demo::init() {
   uint32_t render_wnd_width{1024};
   uint32_t render_wnd_height{1024};
 
-  vector<float3> pts;
-  aabb3f         aabb{bounding_box3_axis_aligned<float>(
-      begin(pts), end(pts),
-      [](const float3& a, const float3& b) { return min(a, b); },
-      [](const float3& a, const float3& b) { return max(a, b); })};
-
-  sphere3f sph{};
-
   _fbo.fbo_texture = [ w = render_wnd_width, h = render_wnd_height ]() {
     GLuint texh{};
     gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);

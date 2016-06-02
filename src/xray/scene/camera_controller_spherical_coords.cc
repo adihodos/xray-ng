@@ -1,6 +1,5 @@
 #include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/base/config_settings.hpp"
-#include "xray/base/debug/debug_ext.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
@@ -26,7 +25,6 @@ xray::scene::camera_controller_spherical_coords::
   if (!cam_conf)
     return;
 
-  OUTPUT_DBG_MSG("Controller config loaded.");
   // struct controller_params_t {
   //   float radius_{5.0f};
   //   float theta_{0.0f};

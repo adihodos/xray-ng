@@ -45,7 +45,7 @@ struct box_config {
 struct sphere_config {
   float    radius{3.0f};
   uint32_t max_subdivisions{3};
-} sphere;
+} sph;
 
 bool import_light(xray::base::config_file* cfile, const char* cfg_path,
                   app::light_source4* ls) {
@@ -347,12 +347,11 @@ void app::render_texture_demo::init() {
       _dbg_opts.frontface_cw = box.wind_cw;
 
     } else if (!strcmp("sphere", shape_type)) {
-      demo_cfg.lookup_value("app.shape_config.sphere.radius", sphere.radius);
+      demo_cfg.lookup_value("app.shape_config.sphere.radius", sph.radius);
       demo_cfg.lookup_value("app.shape_config.sphere.max_subdiv",
-                            sphere.max_subdivisions);
+                            sph.max_subdivisions);
 
-      geometry_factory::geosphere(sphere.radius, sphere.max_subdivisions,
-                                  &obj_mesh);
+      geometry_factory::geosphere(sph.radius, sph.max_subdivisions, &obj_mesh);
     } else {
       XR_LOG_ERR("Unsupported shape!");
       return simple_mesh{};

@@ -1,6 +1,5 @@
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/debug/debug_ext.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/shims/string.hpp"
 #include "xray/base/unique_pointer.hpp"

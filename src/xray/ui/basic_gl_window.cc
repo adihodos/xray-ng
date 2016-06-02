@@ -1,5 +1,5 @@
 #include "xray/ui/basic_gl_window.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/ui/input_event.hpp"
 #include "xray/ui/key_symbols.hpp"

@@ -24,8 +24,8 @@ set(project_sources
     ${proj_inc_dir}/logger.hpp
     ${proj_src_dir}/logger.cc
     ${proj_inc_dir}/unique_pointer.hpp
-    ${proj_inc_dir}/debug/debug_ext.hpp
-    ${proj_src_dir}/debug/debug_ext.cc
+    ${proj_inc_dir}/dbg/debug_ext.hpp
+    ${proj_src_dir}/dbg/debug_ext.cc
     ${proj_inc_dir}/perf_stats_collector.hpp
     ${proj_src_dir}/perf_stats_collector.cc
     ${proj_inc_dir}/windows/com_ptr.hpp

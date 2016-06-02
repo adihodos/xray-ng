@@ -1,13 +1,13 @@
 #include "xray/rendering/opengl/shader_base.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/logger.hpp"
 #include <cassert>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <stlsoft/memory/auto_buffer.hpp>
 
-GLuint xray::rendering::make_shader(const uint32_t shader_type,
-                                    const char * const* src_code_strings,
-                                    const uint32_t strings_count) noexcept {
+GLuint xray::rendering::make_shader(const uint32_t     shader_type,
+                                    const char* const* src_code_strings,
+                                    const uint32_t     strings_count) noexcept {
   assert(src_code_strings != nullptr);
 
   scoped_shader_handle tmp_handle{gl::CreateShader(shader_type)};
@@ -54,15 +54,15 @@ GLuint xray::rendering::make_shader(const uint32_t shader_type,
 }
 
 GLuint xray::rendering::make_shader(const uint32_t shader_type,
-                                    const char *source_file) noexcept {
+                                    const char*    source_file) noexcept {
   assert(source_file != nullptr);
 
   try {
     platformstl::memory_mapped_file shader_code_file{source_file};
-    const char *src_code = static_cast<const char *>(shader_code_file.memory());
+    const char* src_code = static_cast<const char*>(shader_code_file.memory());
 
     return make_shader(shader_type, &src_code, 1u);
-  } catch (const std::exception &ex) {
+  } catch (const std::exception& ex) {
     XR_LOG_ERR("Failed to open shader file [{}], error [{}]", source_file,
                ex.what());
     //    OUTPUT_DBG_MSG("Failed to open shader file %s, error %s", source_file,

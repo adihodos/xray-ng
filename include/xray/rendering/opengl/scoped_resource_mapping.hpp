@@ -29,15 +29,9 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/base/debug/debug_ext.hpp"
 #include "xray/base/logger.hpp"
-#include <algorithm>
-#include <cassert>
-#include <cstddef>
 #include <cstdint>
 #include <opengl/opengl.hpp>
-#include <string>
-#include <vector>
 
 namespace xray {
 namespace rendering {

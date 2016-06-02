@@ -1,7 +1,7 @@
 #include "xray/rendering/mesh.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/basic_timer.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/constants.hpp"

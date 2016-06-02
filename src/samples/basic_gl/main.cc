@@ -22,7 +22,7 @@
 #include "subroutine_test.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/perf_stats_collector.hpp"

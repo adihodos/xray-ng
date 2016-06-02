@@ -1,6 +1,6 @@
 #include "soubroutines_demo.hpp"
 #include "std_assets.hpp"
-#include "xray/base/debug/debug_ext.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4.hpp"
@@ -41,7 +41,7 @@ void app::soubroutines_demo::init() {
 
     std::transform(raw_ptr(torus_mesh.geometry),
                    raw_ptr(torus_mesh.geometry) + torus_mesh.vertex_count,
-                   back_inserter(mesh_verts), [](const auto &in_vertex) {
+                   back_inserter(mesh_verts), [](const auto& in_vertex) {
                      return vertex_pn{in_vertex.position, in_vertex.normal};
                    });
 
@@ -95,9 +95,9 @@ void app::soubroutines_demo::init() {
   }
 
   {
-    constexpr const char *const VS_FILE =
+    constexpr const char* const VS_FILE =
         "shaders/cap3/soubroutines/vert_shader.glsl";
-    constexpr const char *const FS_FILE =
+    constexpr const char* const FS_FILE =
         "shaders/cap3/soubroutines/frag_shader.glsl";
 
     auto vert_shader = make_shader(gl::VERTEX_SHADER, VS_FILE);
@@ -115,7 +115,7 @@ void app::soubroutines_demo::init() {
 
 void app::soubroutines_demo::update(const float) {}
 
-void app::soubroutines_demo::draw(const draw_context_t &draw_ctx) {
+void app::soubroutines_demo::draw(const draw_context_t& draw_ctx) {
   assert(*this);
 
   gl::BindVertexArray(raw_handle(vertex_layout_));
@@ -123,8 +123,8 @@ void app::soubroutines_demo::draw(const draw_context_t &draw_ctx) {
 
   {
     struct light_info {
-      float3 pos{0.0f, 12.0f, 0.0f};
-      float pad1;
+      float3    pos{0.0f, 12.0f, 0.0f};
+      float     pad1;
       rgb_color ka{0.1f, 0.1f, 0.1f};
       rgb_color kd{1.0f, 1.0f, 1.0f};
       rgb_color ks{1.0f, 1.0f, 1.0f};
@@ -163,12 +163,12 @@ void app::soubroutines_demo::draw(const draw_context_t &draw_ctx) {
     } tf;
 
     tf.wvp = draw_ctx.proj_view_matrix;
-    tf.mv = draw_ctx.view_matrix;
-    tf.nv = draw_ctx.view_matrix;
+    tf.mv  = draw_ctx.view_matrix;
+    tf.nv  = draw_ctx.view_matrix;
 
     draw_prog_.set_uniform_block("transforms", tf);
 
-    static constexpr const char *const SHADING_MODEL_SUBROUTINES[] = {
+    static constexpr const char* const SHADING_MODEL_SUBROUTINES[] = {
         "light_model_diffuse", "light_model_ads"};
 
     draw_prog_.set_subroutine_uniform(
