@@ -49,16 +49,20 @@
 
 #define XR_LOG_TRACE(msg, ...)                                                 \
   do {                                                                         \
+    LOG(TRACE) << fmt::format(msg, ##__VA_ARGS__);                             \
   } while (0)
 
 #define XR_LOG_DEBUG(msg, ...)                                                 \
   do {                                                                         \
+    LOG(DEBUG) << fmt::format(msg, ##__VA_ARGS__);                             \
   } while (0)
 
 #define XR_LOG_WARN(msg, ...)                                                  \
   do {                                                                         \
+    LOG(WARNING) << fmt::format(msg, ##__VA_ARGS__);                           \
   } while (0)
 
 #define XR_LOG_CRITICAL(msg, ...)                                              \
   do {                                                                         \
+    LOG(FATAL) << fmt::format(msg, ##__VA_ARGS__);                             \
   } while (0)

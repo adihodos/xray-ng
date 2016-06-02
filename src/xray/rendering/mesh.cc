@@ -7,9 +7,10 @@
 #include "xray/math/constants.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
+#include "xray/math/objects/aabb3_math.hpp"
+#include "xray/math/objects/sphere_math.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
-#include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/opengl/scoped_state.hpp"
@@ -385,31 +386,17 @@ bool xray::rendering::simple_mesh::load_model_impl(
   }
   ();
 
-  //  _vertexarray = [
-  //    vb = raw_handle(_vertexbuffer), ib = raw_handle(_indexbuffer), &fmt_desc
-  //  ]() {
-  //    GLuint vao{};
-  //    gl::CreateVertexArrays(1, &vao);
-  //    gl::BindVertexArray(vao);
-  //    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ib);
-  //    gl::VertexArrayVertexBuffer(vao, 0, vb, 0, fmt_desc.element_size);
-
-  //    for (uint32_t idx = 0; idx < fmt_desc.components; ++idx) {
-  //      const auto& component_desc = fmt_desc.description[idx];
-  //      gl::EnableVertexArrayAttrib(vao, idx);
-  //      gl::VertexArrayAttribFormat(vao, idx, component_desc.component_count,
-  //                                  component_desc.component_type, gl::FALSE_,
-  //                                  component_desc.component_offset);
-  //      gl::VertexArrayAttribBinding(vao, idx, 0);
-  //    }
-
-  //    gl::BindVertexArray(0);
-  //    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, 0);
-  //    return vao;
-  //  }
-  //  ();
-
   create_vertexarray();
+
+  _boundingbox = [
+    geom = raw_ptr(imported_geometry), num_vertices,
+    fmt  = get_vertex_format_description(_vertexformat)
+  ]() {
+    return bounding_box3_axis_aligned(static_cast<const float3*>(geom),
+                                      num_vertices, fmt.element_size);
+  }
+  ();
+
   return true;
 }
 
@@ -562,6 +549,7 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format    fmt,
   ();
 
   create_vertexarray();
+
   _valid = true;
 }
 

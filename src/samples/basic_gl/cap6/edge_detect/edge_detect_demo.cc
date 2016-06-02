@@ -6,6 +6,9 @@
 #include "xray/base/logger.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
+#include "xray/math/objects/aabb3.hpp"
+#include "xray/math/objects/aabb3_math.hpp"
+#include "xray/math/objects/sphere.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar3x3_math.hpp"
@@ -103,6 +106,14 @@ void app::edge_detect_demo::init() {
   uint32_t render_wnd_width{1024};
   uint32_t render_wnd_height{1024};
 
+  vector<float3> pts;
+  aabb3f         aabb{bounding_box3_axis_aligned<float>(
+      begin(pts), end(pts),
+      [](const float3& a, const float3& b) { return min(a, b); },
+      [](const float3& a, const float3& b) { return max(a, b); })};
+
+  sphere3f sph{};
+
   _fbo.fbo_texture = [ w = render_wnd_width, h = render_wnd_height ]() {
     GLuint texh{};
     gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
@@ -197,8 +208,7 @@ void app::edge_detect_demo::init() {
                                             edge_detect_demo::max_lights);
 
     for (uint32_t idx = 0; idx < _lightcount; ++idx) {
-      const auto  le = lights_entry[idx];
-      point_light pl;
+      const auto le = lights_entry[idx];
       config_scene_reader::read_point_light(le, &_lights[idx]);
     }
   }
@@ -230,36 +240,6 @@ void app::edge_detect_demo::init() {
 
     return texh;
   }();
-
-  //  _obj_diffuse_map = [&app_cfg]() {
-  //    const char* file_name{};
-  //    app_cfg.lookup_value("app.scene.diffuse_map.file", file_name);
-  //    if (!file_name)
-  //      return GLuint{};
-
-  //    bool flip_yaxis{false};
-  //    app_cfg.lookup_value("app.scene.diffuse_map.flip_y", flip_yaxis);
-
-  //    texture_loader tex_ldr{xr_app_config->texture_path(file_name),
-  //                           flip_yaxis ? texture_load_options::flip_y
-  //                                      : texture_load_options::none};
-  //    if (!tex_ldr) {
-  //      XR_LOG_ERR("Failed to load texture!");
-  //      return GLuint{};
-  //    }
-
-  //    GLuint texh{};
-  //    gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
-  //    const auto tex_internal_fmt = tex_ldr.depth() == 4 ? gl::RGBA8 :
-  //    gl::RGB8;
-  //    gl::TextureStorage2D(texh, 1, tex_internal_fmt, tex_ldr.width(),
-  //                         tex_ldr.height());
-  //    const auto tex_format = tex_ldr.depth() == 4 ? gl::RGBA : gl::RGB;
-  //    gl::TextureSubImage2D(texh, 0, 0, 0, tex_ldr.width(), tex_ldr.height(),
-  //                          tex_format, gl::UNSIGNED_BYTE, tex_ldr.data());
-
-  //    return texh;
-  //  }();
 
   app_cfg.lookup_value("app.scene.shininess", _mat_spec_pwr);
 

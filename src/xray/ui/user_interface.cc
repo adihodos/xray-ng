@@ -2,7 +2,7 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/pod_zero.hpp"
 #include "xray/math/projection.hpp"
-#include "xray/math/rectangle.hpp"
+#include "xray/math/objects/rectangle.hpp"
 #include "xray/math/scalar4x4.hpp"
 #if defined(XRAY_RENDERER_DIRECTX)
 #include "xray/rendering/directx/scoped_mapping.hpp"

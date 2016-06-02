@@ -46,6 +46,12 @@ inline T length_squared(const scalar3<T>& a) noexcept {
   return a.x * a.x + a.y * a.y + a.z * a.z;
 }
 
+/// \brief Returns the square of the vector's length.
+template <typename T>
+inline T length_squared(const T x, const T y, const T z) noexcept {
+  return x * x + y * y + z * z;
+}
+
 template <typename T>
 inline bool is_zero_length(const scalar3<T>& v) noexcept {
   return is_zero(length_squared(v));
@@ -112,6 +118,12 @@ inline scalar3<T> cross(const scalar3<T>& a, const scalar3<T>& b) noexcept {
 template <typename T>
 inline T length(const scalar3<T>& v) noexcept {
   return std::sqrt(length_squared(v));
+}
+
+/// \brief Returns the length of the vector.
+template <typename T>
+inline T length(const T x, const T y, const T z) noexcept {
+  return std::sqrt(length_squared(x, y, z));
 }
 
 /// \brief Returns a unit length vector for the input vector.
@@ -184,10 +196,24 @@ inline T squared_distance(const scalar3<T>& a, const scalar3<T>& b) noexcept {
   return length_squared(b - a);
 }
 
+/// \brief Returns the square of the distance between two points.
+template <typename T>
+inline T squared_distance(const T ax, const T ay, const T az, const T bx,
+                          const T by, const T bz) noexcept {
+  return length_squared(bx - ax, by - ay, bz - az);
+}
+
 /// \brief Returns the distance between two points.
 template <typename T>
 inline T distance(const scalar3<T>& a, const scalar3<T>& b) noexcept {
   return length(b - a);
+}
+
+/// \brief Returns the square of the distance between two points.
+template <typename T>
+inline T distance(const T ax, const T ay, const T az, const T bx, const T by,
+                  const T bz) noexcept {
+  return length(bx - ax, by - ay, bz - az);
 }
 
 /// Returns the signed area of the triangle spanned by three points.

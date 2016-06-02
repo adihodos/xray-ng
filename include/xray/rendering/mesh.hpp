@@ -32,8 +32,11 @@
 ///         geometrical shapes.
 
 #include "xray/xray.hpp"
+#include "xray/math/objects/aabb3.hpp"
+#include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
+#include <cassert>
 #include <cstdint>
 #include <string>
 
@@ -66,6 +69,11 @@ public:
   explicit operator bool() const noexcept { return valid(); }
   bool valid() const noexcept { return _valid; }
 
+  xray::math::aabb3f aabb() const noexcept {
+    assert(valid());
+    return _boundingbox;
+  }
+
   void draw();
 
 private:
@@ -82,6 +90,7 @@ private:
   vertex_format                        _vertexformat{vertex_format::undefined};
   index_format                         _indexformat{index_format::u16};
   uint32_t                             _indexcount{};
+  xray::math::aabb3f                   _boundingbox;
   bool                                 _valid{false};
 
 private:
