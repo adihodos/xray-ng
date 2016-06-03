@@ -491,6 +491,18 @@ public:
     return config_entry{config_setting_lookup(setting_, path)};
   }
 
+  maybe<float> lookup_float(const char* path) const noexcept {
+    assert(valid());
+    assert(path != nullptr);
+
+    double val;
+    if (config_setting_lookup_float(setting_, path, &val) != CONFIG_TRUE) {
+      return nothing{};
+    }
+
+    return static_cast<float>(val);
+  }
+
   maybe<int32_t> lookup_int32(const char* path) const noexcept {
     assert(valid());
     assert(path != nullptr);

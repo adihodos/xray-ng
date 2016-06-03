@@ -81,7 +81,7 @@ public:
     return _boundingbox;
   }
 
-  void draw();
+  void draw() const noexcept;
 
 private:
   bool load_model_impl(const char* model_data, const size_t data_size,

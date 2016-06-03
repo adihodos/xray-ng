@@ -5,6 +5,7 @@
 #include "xray/base/config_settings.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/shims/string.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/objects/aabb3.hpp"
@@ -26,12 +27,11 @@
 #include "xray/rendering/vertex_format/vertex_pc.hpp"
 #include "xray/rendering/vertex_format/vertex_pn.hpp"
 #include "xray/scene/camera.hpp"
+#include "xray/scene/config_reader_rgb_color.hpp"
 #include "xray/scene/config_reader_scene.hpp"
 #include "xray/scene/point_light.hpp"
 #include <algorithm>
 #include <imgui/imgui.h>
-#include <span.h>
-#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -43,44 +43,73 @@ using namespace xray::rendering;
 using namespace xray::scene;
 using namespace std;
 
-enum class mtl_type { textured, colored };
+const app::basic_material*
+app::material_cache::get_material(const char* mtl_name) const {
+  const auto hashed_name = FNV::fnv1a(mtl_name);
+  const auto cache_entry = _cached_materials.find(hashed_name);
+  return cache_entry == std::end(_cached_materials) ? nullptr
+                                                    : &cache_entry->second;
+}
 
-union material {
-  struct {
-    uint32_t diffuse_map;
-    uint32_t specular_map;
-    uint32_t texture_unit;
-    uint32_t sampler_diffuse;
-    uint32_t sampler_specular;
-    uint32_t fst_sampler;
-  } tex;
-  struct {
-    xray::rendering::rgb_color kd;
-    xray::rendering::rgb_color ks;
-  } clr;
-  float        spec_pwr;
-  gpu_program* draw_prg;
-  mtl_type     type;
-};
+void app::material_cache::add_material(const char*                mtl_name,
+                                       const app::basic_material& mtl) {
+  const auto hashed_name = FNV::fnv1a(mtl_name);
+  const auto cache_entry = _cached_materials.find(hashed_name);
+  if (cache_entry != std::end(_cached_materials)) {
+    XR_LOG_ERR("Material {} already cached!", mtl_name);
+    return;
+  }
 
-enum class mtl_load_status { error, already_loaded, success };
+  _cached_materials[hashed_name] = mtl;
+}
 
-class mtl_cache {
-public:
-  using texture_handle_type = GLuint;
+app::texture_cache::texture_cache() {
+  using namespace xray::rendering;
 
-  xray::base::maybe<texture_handle_type> get_texture(const char* name) noexcept;
+  _cached_textures[FNV::fnv1a("__null_pink_texture")] =
+      make_color_texture(color_palette::web::pink, 1u, 1u);
+  _cached_textures[FNV::fnv1a("__null_black_texture")] =
+      make_color_texture(color_palette::web::black, 1u, 1u);
+}
 
-  mtl_load_status add_material(const char* name, const char* texture_path,
-                               xray::rendering::texture_load_options load_opts =
-                                   xray::rendering::texture_load_options::none);
+app::texture_cache::~texture_cache() {
+  for (auto& name_tex_pair : _cached_textures)
+    gl::DeleteTextures(1, &name_tex_pair.second);
+}
 
-private:
-  std::unordered_map<uint32_t, texture_handle_type> _cached_textures;
-};
+app::texture_cache::texture_handle_type
+app::texture_cache::make_color_texture(const xray::rendering::rgb_color& clr,
+                                       const uint32_t                    width,
+                                       const uint32_t height) noexcept {
+  GLuint texh{};
+  gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
+  gl::TextureStorage2D(texh, 1, gl::RGBA8, static_cast<GLsizei>(width),
+                       static_cast<GLsizei>(height));
+  gl::TextureSubImage2D(texh, 0, 0, 0, static_cast<GLsizei>(width),
+                        static_cast<GLsizei>(height), gl::RGBA, gl::FLOAT,
+                        clr.components);
 
-xray::base::maybe<mtl_cache::texture_handle_type>
-mtl_cache::get_texture(const char* name) noexcept {
+  return texh;
+}
+
+app::texture_cache::texture_handle_type app::texture_cache::pink_texture() const
+    noexcept {
+  const auto pink_tex_entry =
+      _cached_textures.find(FNV::fnv1a("__null_pink_texture"));
+  assert(pink_tex_entry != std::end(_cached_textures));
+  return pink_tex_entry->second;
+}
+
+app::texture_cache::texture_handle_type
+app::texture_cache::black_texture() const noexcept {
+  const auto pink_tex_entry =
+      _cached_textures.find(FNV::fnv1a("__null_black_texture"));
+  assert(pink_tex_entry != std::end(_cached_textures));
+  return pink_tex_entry->second;
+}
+
+app::texture_cache::texture_handle_type
+app::texture_cache::get_texture(const char* name) noexcept {
   using namespace xray::base;
 
   const auto hashed_name = FNV::fnv1a(name);
@@ -88,76 +117,387 @@ mtl_cache::get_texture(const char* name) noexcept {
 
   if (tbl_entry == std::end(_cached_textures)) {
     XR_LOG_ERR("Texture {} not in cache !", name);
-    return nothing{};
+    return pink_texture();
   }
 
   return tbl_entry->second;
 }
 
-mtl_load_status
-mtl_cache::add_material(const char* name, const char* texture_path,
-                        xray::rendering::texture_load_options load_opts) {
+app::texture_cache::texture_handle_type app::texture_cache::add_from_file(
+    const char* name, const char* texture_path,
+    xray::rendering::texture_load_options load_opts) {
   assert(texture_path != nullptr);
   const auto hashed_name    = FNV::fnv1a(name);
   auto       existing_entry = _cached_textures.find(hashed_name);
 
-  if (existing_entry != std::end(_cached_textures))
-    return mtl_load_status::already_loaded;
+  if (existing_entry != std::end(_cached_textures)) {
+    XR_LOG_ERR("Texture {} already cached!", name);
+    return existing_entry->second;
+  }
 
   using namespace xray::rendering;
 
   texture_loader tex_ldr{texture_path, load_opts};
   if (!tex_ldr) {
-    return mtl_load_status::error;
+    return pink_texture();
   }
 
   GLuint texh{};
   gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
+  gl::TextureStorage2D(texh, 1, tex_ldr.depth() == 4 ? gl::RGBA8 : gl::RGB8,
+                       tex_ldr.width(), tex_ldr.height());
+  gl::TextureSubImage2D(texh, 0, 0, 0, tex_ldr.width(), tex_ldr.height(),
+                        tex_ldr.depth() == 4 ? gl::RGBA : gl::RGB,
+                        gl::UNSIGNED_BYTE, tex_ldr.data());
 
-  return mtl_load_status::success;
+  _cached_textures[hashed_name] = texh;
+  return texh;
 }
 
-struct graphics_obj {
-  const material*               mtl;
-  xray::rendering::simple_mesh* mesh;
-  xray::math::float4x4          world_mtx;
+app::texture_cache::texture_handle_type
+app::texture_cache::add_from_color(const char*                       name,
+                                   const xray::rendering::rgb_color& color) {
+  assert(name != nullptr);
+  const auto hashed_name    = FNV::fnv1a(name);
+  const auto existing_entry = _cached_textures.find(hashed_name);
 
-  void draw(const xray::rendering::draw_context_t& dc) {
-    struct matrix_pack_t {
-      float4x4 world_view_mtx;
-      float4x4 normal_view_mtx;
-      float4x4 world_view_proj_mtx;
-    } const obj_transforms{dc.view_matrix * world_mtx,
-                           dc.view_matrix * world_mtx,
-                           dc.proj_view_matrix * world_mtx};
+  if (existing_entry != std::end(_cached_textures)) {
+    XR_LOG_ERR("Material {} already cached!", name);
+    return existing_entry->second;
+  }
 
-    mtl->draw_prg->set_uniform_block("object_transforms", obj_transforms);
+  const auto mtl_handle         = make_color_texture(color, 1u, 1u);
+  _cached_textures[hashed_name] = mtl_handle;
+  return mtl_handle;
+}
 
-    if (mtl->type == mtl_type::textured) {
-      {
-        const GLuint textures[] = {mtl->tex.diffuse_map, mtl->tex.specular_map};
-        gl::BindTextures(mtl->tex.texture_unit, XR_U32_COUNTOF__(textures),
-                         textures);
-      }
+const xray::rendering::simple_mesh*
+app::mesh_cache::get_mesh(const char* name) const noexcept {
+  const auto hashed_name  = FNV::fnv1a(name);
+  const auto cached_entry = _cached_meshes.find(hashed_name);
+  return cached_entry == std::end(_cached_meshes) ? nullptr
+                                                  : &cached_entry->second;
+}
 
-      {
-        const GLuint samplers[] = {mtl->tex.sampler_diffuse,
-                                   mtl->tex.sampler_specular};
-        gl::BindSamplers(mtl->tex.fst_sampler, XR_U32_COUNTOF__(samplers),
-                         samplers);
-      }
+const xray::rendering::simple_mesh*
+app::mesh_cache::add_mesh(const char*                          name,
+                          const xray::rendering::vertex_format fmt) {
 
-      mtl->draw_prg->set_uniform("mtl_diffuse", 0);
-      mtl->draw_prg->set_uniform("mtl_specular", 1);
+  const auto hashed_name = FNV::fnv1a(name);
+  assert((_cached_meshes.find(hashed_name) == std::end(_cached_meshes)) &&
+         "Mesh already loaded into cache!");
+
+  using namespace xray::rendering;
+  auto loaded_mesh = simple_mesh{fmt, name};
+  if (!loaded_mesh)
+    return nullptr;
+
+  _cached_meshes[hashed_name] = std::move(loaded_mesh);
+  return &_cached_meshes[hashed_name];
+}
+
+void app::graphics_object::draw(
+    const xray::rendering::draw_context_t& dc) noexcept {
+  struct matrix_pack_t {
+    float4x4 world_view_mtx;
+    float4x4 normal_view_mtx;
+    float4x4 world_view_proj_mtx;
+  } const obj_transforms{dc.view_matrix * world_mtx, dc.view_matrix * world_mtx,
+                         dc.proj_view_matrix * world_mtx};
+
+  mtl->draw_prg->set_uniform_block("object_transforms", obj_transforms);
+
+  {
+    const GLuint textures[] = {mtl->ambient_map, mtl->diffuse_map,
+                               mtl->specular_map};
+    gl::BindTextures(0, XR_U32_COUNTOF__(textures), textures);
+  }
+
+  {
+    const GLuint samplers[] = {mtl->sampler, mtl->sampler, mtl->sampler};
+    gl::BindSamplers(0, XR_U32_COUNTOF__(samplers), samplers);
+  }
+
+  mtl->draw_prg->set_uniform("mtl_ambient", 0);
+  mtl->draw_prg->set_uniform("mtl_diffuse", 1);
+  mtl->draw_prg->set_uniform("mtl_specular", 2);
+  mtl->draw_prg->set_uniform("mtl_spec_pwr", mtl->spec_pwr);
+  mesh->draw();
+}
+
+struct helpers {
+  static void read_texture_materials(const xray::base::config_file& cfg,
+                                     app::texture_cache*            tex_cache,
+                                     app::material_cache*           mtl_cache);
+
+  static void read_color_materials(const xray::base::config_file& cfg,
+                                   app::texture_cache*            tex_cache,
+                                   app::material_cache*           mtl_cache);
+
+  static void load_graphics_objects(const xray::base::config_file& cfg,
+                                    const app::material_cache*     mtl_cache,
+                                    app::mesh_cache*               meshes,
+                                    std::vector<app::graphics_object>* objs);
+
+  static void load_shaders(const xray::base::config_file& cfg,
+                           app::shader_cache*             scache);
+};
+
+void helpers::load_shaders(const xray::base::config_file& cfg,
+                           app::shader_cache*             scache) {
+
+  const auto shaders_sec = cfg.lookup_entry("app.scene.shaders");
+  if (!shaders_sec) {
+    XR_LOG_INFO("No shaders section in config file!");
+    return;
+  }
+
+  const auto root_path = shaders_sec.lookup_string("root_path");
+  assert(root_path && "No root path defined in shaders section!");
+
+  using namespace xray::base;
+
+  for (uint32_t idx = 1, entries = shaders_sec.length(); idx < entries; ++idx) {
+    const auto prg_def = shaders_sec[idx];
+
+    const auto id = prg_def.lookup_string("id");
+
+    struct shader_load_info {
+      const char*      entry_name;
+      app::shader_type type;
+      bool             must_be_defined;
+    } const entries_to_load[] = {
+        {"vertex", app::shader_type::vertex, true},
+        {"tess_control", app::shader_type::tess_control, false},
+        {"tess_eval", app::shader_type::tess_eval, false},
+        {"geometry", app::shader_type::geometry, false},
+        {"fragment", app::shader_type::fragment, true}};
+
+    app::program_build_info pbi;
+    pbi.id = value_of(id);
+
+    transform(begin(entries_to_load), end(entries_to_load),
+              begin(pbi.shaders_by_stage),
+              [ s_id = value_of(id), &prg_def ](const auto& entry_desc) {
+                const auto path = prg_def.lookup_string(entry_desc.entry_name);
+
+                if (!path && entry_desc.must_be_defined) {
+                  XR_LOG_ERR("Program section {} is marked as mandatory but "
+                             "was not found, id {}!",
+                             entry_desc.entry_name, s_id);
+                  return;
+                }
+
+                return app::shader_type_path_id_tuple{}
+              });
+  }
+}
+
+void helpers::load_graphics_objects(const xray::base::config_file& cfg,
+                                    const app::material_cache*     mtl_cache,
+                                    app::mesh_cache*               meshes,
+                                    std::vector<app::graphics_object>* objs) {
+
+  const auto objects_section = cfg.lookup_entry("app.scene.objects");
+  if (!objects_section) {
+    XR_LOG_INFO("No objects section in config file!");
+    return;
+  }
+
+  objs->resize(objects_section.length());
+  for (uint32_t idx = 0, entries = objects_section.length(); idx < entries;
+       ++idx) {
+    const auto obj_entry = objects_section[idx];
+    const auto obj_id    = obj_entry.lookup_string("id");
+    assert(obj_id && "Missing object id !");
+
+    const auto mesh_id = obj_entry.lookup_string("mesh");
+    assert(mesh_id && "Missing mesh id !");
+
+    const auto mesh_path = xr_app_config->model_path(value_of(mesh_id));
+
+    app::graphics_object go;
+    go.hash = FNV::fnv1a(value_of(mesh_id));
+
+    if (const auto mesh = meshes->get_mesh(raw_str(mesh_path))) {
+      go.mesh = mesh;
     } else {
-      mtl->draw_prg->set_uniform("obj_material.kd", mtl->clr.kd);
-      mtl->draw_prg->set_uniform("obj_material.ks", mtl->clr.ks);
+      const auto fmt_desc = obj_entry.lookup_string("format");
+      const auto fmt = [fstr = value_of(fmt_desc)]() {
+        if (!strcmp(fstr, "pnt"))
+          return vertex_format::pnt;
+
+        if (!strcmp(fstr, "pn"))
+          return vertex_format::pn;
+
+        return vertex_format::undefined;
+      }
+      ();
+
+      auto loaded_mesh = meshes->add_mesh(raw_str(mesh_path), fmt);
+      if (!loaded_mesh) {
+        XR_LOG_INFO("Failed to load mesh {}", mesh_path);
+        continue;
+      }
+
+      go.mesh = loaded_mesh;
     }
 
-    mtl->draw_prg->set_uniform("mtl_spec_pwr", mtl->spec_pwr);
-    mesh->draw();
+    const auto mat_id = obj_entry.lookup_string("material");
+    assert(mat_id && "Missing material entry for object!");
+    go.mtl = mtl_cache->get_material(value_of(mat_id));
   }
-};
+}
+
+void helpers::read_texture_materials(const xray::base::config_file& cfg,
+                                     app::texture_cache*            tex_cache,
+                                     app::material_cache*           mtl_cache) {
+  const auto mtl_entry = cfg.lookup_entry("app.scene.materials");
+  if (!mtl_entry) {
+    XR_LOG_ERR("Error reading materials from file !");
+    return;
+  }
+
+  for (uint32_t idx = 0, entries = mtl_entry.length(); idx < entries; ++idx) {
+    const auto mtl = mtl_entry[idx];
+
+    const auto mtl_id = mtl.lookup_string("id");
+    if (!mtl_id) {
+      XR_LOG_ERR("Id section not found for material {}", idx);
+      continue;
+    }
+
+    app::basic_material m;
+    m.ambient_map  = tex_cache->black_texture();
+    m.diffuse_map  = tex_cache->pink_texture();
+    m.specular_map = tex_cache->pink_texture();
+
+    struct section_t {
+      const char* name;
+      uint32_t*   texid;
+    } mtl_cfg_sections[] = {{"diffuse", &m.diffuse_map},
+                            {"specular", &m.specular_map},
+                            {"ambient", &m.ambient_map}};
+
+    for (auto& sec : mtl_cfg_sections) {
+      const auto sec_entry = mtl.lookup(sec.name);
+
+      if (!sec_entry) {
+        continue;
+      }
+
+      const auto mtl_name = sec_entry.lookup_string("file");
+      if (!mtl_name) {
+        continue;
+      }
+
+      const auto texture_full_path =
+          xr_app_config->texture_path(value_of(mtl_name));
+      const auto flip_img      = sec_entry.lookup_bool("flip_y");
+      const auto img_load_opts = flip_img && value_of(flip_img)
+                                     ? texture_load_options::flip_y
+                                     : texture_load_options::none;
+
+      *sec.texid = tex_cache->add_from_file(
+          value_of(mtl_name), raw_str(texture_full_path), img_load_opts);
+    }
+
+    if (const auto spow = mtl.lookup_float("spec_pwr"))
+      m.spec_pwr = value_of(spow);
+
+    mtl_cache->add_material(value_of(mtl_id), m);
+  }
+}
+
+void helpers::read_color_materials(const xray::base::config_file& cfg,
+                                   app::texture_cache*            tex_cache,
+                                   app::material_cache*           mtl_cache) {
+  const auto colors_sec = cfg.lookup_entry("app.scene.colors");
+  if (!colors_sec)
+    return;
+
+  for (uint32_t idx = 0, entries = colors_sec.length(); idx < entries; ++idx) {
+    const auto entry = colors_sec[idx];
+
+    const auto          id = entry.lookup_string("id");
+    app::basic_material m;
+    m.ambient_map  = tex_cache->black_texture();
+    m.diffuse_map  = tex_cache->pink_texture();
+    m.specular_map = tex_cache->pink_texture();
+
+    struct section_t {
+      const char* name;
+      uint32_t*   texhandle;
+    } sections[] = {{"ka", &m.ambient_map},
+                    {"kd", &m.diffuse_map},
+                    {"ks", &m.specular_map}};
+
+    for (auto& sec : sections) {
+      const auto color_def = entry.lookup(sec.name);
+      if (!color_def)
+        continue;
+
+      rgb_color mat_clr;
+      if (!rgb_color_reader::read_rgb_color(color_def, &mat_clr))
+        continue;
+
+      char                        tmp_str[256];
+      fmt::BasicArrayWriter<char> fmtbuff{tmp_str};
+      fmtbuff.write("{}_{}", value_of(id), sec.name);
+      *sec.texhandle = tex_cache->add_from_color(fmtbuff.c_str(), mat_clr);
+    }
+
+    if (const auto spow = entry.lookup_float("spec_pwr"))
+      m.spec_pwr = value_of(spow);
+
+    mtl_cache->add_material(value_of(id), m);
+  }
+}
+
+xray::rendering::gpu_program*
+app::shader_cache::add_program(const program_build_info& pbi) {
+
+  const auto hashed_name = FNV::fnv1a(pbi.id);
+  const auto cache_entry = _cached_programs.find(hashed_name);
+  if (cache_entry != std::end(_cached_programs))
+    return &cache_entry->second;
+
+  using namespace xray::rendering;
+  using namespace std;
+
+  static constexpr GLuint NATIVE_SHADER_TYPES[] = {
+      gl::VERTEX_SHADER, gl::TESS_CONTROL_SHADER, gl::TESS_EVALUATION_SHADER,
+      gl::GEOMETRY_SHADER, gl::FRAGMENT_SHADER};
+
+  GLuint compiled_shaders[5] = {0};
+  transform(pbi.shaders_by_stage, pbi.shaders_by_stage + pbi.stage_count,
+            begin(compiled_shaders),
+            [mapping = &NATIVE_SHADER_TYPES[0]](const auto& par) {
+              return make_shader(mapping[static_cast<uint32_t>(par.type)],
+                                 par.file_name);
+            });
+
+  auto linked_prg = gpu_program{compiled_shaders, pbi.stage_count};
+  if (!linked_prg) {
+    XR_LOG_ERR("Failed to compile/link program {}", pbi.id);
+    return nullptr;
+  }
+
+  _cached_programs[hashed_name] = std::move(linked_prg);
+  return &_cached_programs[hashed_name];
+}
+
+xray::rendering::gpu_program* app::shader_cache::get_program(const char* id) {
+  assert(id != nullptr);
+
+  const auto hashed_name = FNV::fnv1a(id);
+  const auto cache_entry = _cached_programs.find(hashed_name);
+  if (cache_entry != std::end(_cached_programs))
+    return &cache_entry->second;
+
+  XR_LOG_ERR("Shader {} not in cache !", id);
+  return nullptr;
+}
 
 app::edge_detect_demo::edge_detect_demo() { init(); }
 
@@ -200,7 +540,6 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
     {
       const GLuint samplers[] = {raw_handle(_fbo.fbo_sampler),
                                  raw_handle(_fbo.fbo_sampler)};
-
       gl::BindSamplers(0, XR_U32_COUNTOF__(samplers), samplers);
     }
 
@@ -220,7 +559,30 @@ void app::edge_detect_demo::key_event(const int32_t /*key_code*/,
                                       const int32_t /*action*/,
                                       const int32_t /*mods*/) {}
 
+void test_shit() {
+  app::texture_cache  tc;
+  app::material_cache mc;
+
+  config_file app_cfg{"config/cap6/edge_detect/app.conf"};
+  if (!app_cfg) {
+    XR_LOG_ERR("Fatal error : config file not found !");
+    return;
+  }
+
+  helpers::read_texture_materials(app_cfg, &tc, &mc);
+  helpers::read_color_materials(app_cfg, &tc, &mc);
+
+  for (const auto& kvp : tc.table()) {
+    XR_LOG_INFO("Texture {}, handle {}", kvp.first, kvp.second);
+  }
+
+  XR_LOG_INFO("Done!");
+}
+
 void app::edge_detect_demo::init() {
+
+  test_shit();
+
   uint32_t render_wnd_width{1024};
   uint32_t render_wnd_height{1024};
 

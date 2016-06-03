@@ -371,7 +371,7 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format fmt,
   }
 }
 
-void xray::rendering::simple_mesh::draw() {
+void xray::rendering::simple_mesh::draw() const noexcept {
   assert(valid());
 
   scoped_vertex_array_binding vao_binding{raw_handle(_vertexarray)};

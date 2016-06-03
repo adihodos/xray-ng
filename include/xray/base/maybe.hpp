@@ -182,6 +182,16 @@ private:
   /// @}
 };
 
+template <typename value_type>
+const value_type& value_of(const maybe<value_type>& opt) noexcept {
+  return opt.value();
+}
+
+template <typename value_type>
+value_type& value_of(maybe<value_type>& opt) noexcept {
+  return opt.value();
+}
+
 /// @}
 
 } // namespace base
