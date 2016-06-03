@@ -528,18 +528,18 @@ public:
     assert(valid());
     assert(path != nullptr);
 
-    int64_t val{};
+    long long int val{};
     if (config_setting_lookup_int64(setting_, path, &val) != CONFIG_TRUE)
       return nothing{};
 
-    return {val};
+    return {static_cast<int64_t>(val)};
   }
 
   maybe<uint64_t> lookup_uint64(const char* path) const noexcept {
     assert(valid());
     assert(path != nullptr);
 
-    int64_t val{};
+    long long int val{};
     if (config_setting_lookup_int64(setting_, path, &val) != CONFIG_TRUE)
       return nothing{};
 

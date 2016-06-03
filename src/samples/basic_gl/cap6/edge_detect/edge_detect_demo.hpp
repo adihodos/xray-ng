@@ -72,6 +72,7 @@ private:
   } _fbo;
   xray::rendering::gpu_program    _drawprog_first_pass;
   xray::rendering::simple_mesh    _object;
+  xray::rendering::simple_mesh    _object2;
   xray::rendering::scoped_texture _obj_material;
   xray::rendering::scoped_texture _obj_diffuse_map;
   xray::scene::point_light        _lights[edge_detect_demo::max_lights];

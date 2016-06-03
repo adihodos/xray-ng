@@ -3,6 +3,7 @@
 #include "std_assets.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
+#include "xray/base/fnv_hash.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
@@ -31,6 +32,7 @@
 #include <imgui/imgui.h>
 #include <span.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 extern xray::base::app_config* xr_app_config;
@@ -40,6 +42,122 @@ using namespace xray::math;
 using namespace xray::rendering;
 using namespace xray::scene;
 using namespace std;
+
+enum class mtl_type { textured, colored };
+
+union material {
+  struct {
+    uint32_t diffuse_map;
+    uint32_t specular_map;
+    uint32_t texture_unit;
+    uint32_t sampler_diffuse;
+    uint32_t sampler_specular;
+    uint32_t fst_sampler;
+  } tex;
+  struct {
+    xray::rendering::rgb_color kd;
+    xray::rendering::rgb_color ks;
+  } clr;
+  float        spec_pwr;
+  gpu_program* draw_prg;
+  mtl_type     type;
+};
+
+enum class mtl_load_status { error, already_loaded, success };
+
+class mtl_cache {
+public:
+  using texture_handle_type = GLuint;
+
+  xray::base::maybe<texture_handle_type> get_texture(const char* name) noexcept;
+
+  mtl_load_status add_material(const char* name, const char* texture_path,
+                               xray::rendering::texture_load_options load_opts =
+                                   xray::rendering::texture_load_options::none);
+
+private:
+  std::unordered_map<uint32_t, texture_handle_type> _cached_textures;
+};
+
+xray::base::maybe<mtl_cache::texture_handle_type>
+mtl_cache::get_texture(const char* name) noexcept {
+  using namespace xray::base;
+
+  const auto hashed_name = FNV::fnv1a(name);
+  const auto tbl_entry   = _cached_textures.find(hashed_name);
+
+  if (tbl_entry == std::end(_cached_textures)) {
+    XR_LOG_ERR("Texture {} not in cache !", name);
+    return nothing{};
+  }
+
+  return tbl_entry->second;
+}
+
+mtl_load_status
+mtl_cache::add_material(const char* name, const char* texture_path,
+                        xray::rendering::texture_load_options load_opts) {
+  assert(texture_path != nullptr);
+  const auto hashed_name    = FNV::fnv1a(name);
+  auto       existing_entry = _cached_textures.find(hashed_name);
+
+  if (existing_entry != std::end(_cached_textures))
+    return mtl_load_status::already_loaded;
+
+  using namespace xray::rendering;
+
+  texture_loader tex_ldr{texture_path, load_opts};
+  if (!tex_ldr) {
+    return mtl_load_status::error;
+  }
+
+  GLuint texh{};
+  gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
+
+  return mtl_load_status::success;
+}
+
+struct graphics_obj {
+  const material*               mtl;
+  xray::rendering::simple_mesh* mesh;
+  xray::math::float4x4          world_mtx;
+
+  void draw(const xray::rendering::draw_context_t& dc) {
+    struct matrix_pack_t {
+      float4x4 world_view_mtx;
+      float4x4 normal_view_mtx;
+      float4x4 world_view_proj_mtx;
+    } const obj_transforms{dc.view_matrix * world_mtx,
+                           dc.view_matrix * world_mtx,
+                           dc.proj_view_matrix * world_mtx};
+
+    mtl->draw_prg->set_uniform_block("object_transforms", obj_transforms);
+
+    if (mtl->type == mtl_type::textured) {
+      {
+        const GLuint textures[] = {mtl->tex.diffuse_map, mtl->tex.specular_map};
+        gl::BindTextures(mtl->tex.texture_unit, XR_U32_COUNTOF__(textures),
+                         textures);
+      }
+
+      {
+        const GLuint samplers[] = {mtl->tex.sampler_diffuse,
+                                   mtl->tex.sampler_specular};
+        gl::BindSamplers(mtl->tex.fst_sampler, XR_U32_COUNTOF__(samplers),
+                         samplers);
+      }
+
+      mtl->draw_prg->set_uniform("mtl_diffuse", 0);
+      mtl->draw_prg->set_uniform("mtl_specular", 1);
+    } else {
+      mtl->draw_prg->set_uniform("obj_material.kd", mtl->clr.kd);
+      mtl->draw_prg->set_uniform("obj_material.ks", mtl->clr.ks);
+    }
+
+    mtl->draw_prg->set_uniform("mtl_spec_pwr", mtl->spec_pwr);
+    mesh->draw();
+  }
+};
 
 app::edge_detect_demo::edge_detect_demo() { init(); }
 

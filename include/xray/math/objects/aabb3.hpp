@@ -66,7 +66,7 @@ struct axis_aligned_bounding_box3 {
                              const point_type& max) noexcept
       : axis_aligned_bounding_box3{min.x, min.y, min.z, max.x, max.y, max.z} {}
 
-  point_type center() const noexcept { return (max + min) / 2; }
+  point_type center() const noexcept { return (max + min) / real_type{2}; }
 
   real_type width() const noexcept { return std::abs(max.x - min.x); }
 
@@ -75,7 +75,7 @@ struct axis_aligned_bounding_box3 {
   real_type depth() const noexcept { return std::abs(max.z - min.z); }
 
   struct stdc {
-    ///<    The identity bounding box.
+    ///< The identity bounding box.
     static const axis_aligned_bounding_box3<real_type> identity;
   };
 };

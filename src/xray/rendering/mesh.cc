@@ -377,9 +377,10 @@ void xray::rendering::simple_mesh::draw() {
   scoped_vertex_array_binding vao_binding{raw_handle(_vertexarray)};
   XR_UNUSED_ARG(vao_binding);
 
-  const GLuint element_type[] = {gl::UNSIGNED_SHORT, gl::UNSIGNED_INT};
+  const GLuint index_element_type[] = {gl::UNSIGNED_SHORT, gl::UNSIGNED_INT};
   gl::DrawElements(gl::TRIANGLES, _indexcount,
-                   element_type[_indexformat == index_format::u32], nullptr);
+                   index_element_type[_indexformat == index_format::u32],
+                   nullptr);
 }
 
 template <typename OutputFormatType, typename InputFormatType>
@@ -542,7 +543,13 @@ void xray::rendering::simple_mesh::create_buffers(
         args->fmt_into->element_size);
   }
 
-  XR_LOG_INFO("Ce zici {} pa mata {} ori", "daca tzo fut", 123.56f);
-  XR_LOG_INFO("Bounding box computation : vertices {}, time (millisecs) {}",
-              args->vertexcount, bbox_timer.elapsed_millis());
+  XR_LOG_TRACE("Bounding box computation : vertices {}, time (millisecs) {}",
+               args->vertexcount, bbox_timer.elapsed_millis());
+  XR_LOG_TRACE("Bounding box : min [{}, {}, {}], max [{}, {}, {}], center [{}, "
+               "{}, {}], width {}, height {}, depth {}",
+               _boundingbox.min.x, _boundingbox.min.y, _boundingbox.min.z,
+               _boundingbox.max.x, _boundingbox.max.y, _boundingbox.max.z,
+               _boundingbox.center().x, _boundingbox.center().y,
+               _boundingbox.center().z, _boundingbox.width(),
+               _boundingbox.height(), _boundingbox.depth());
 }
