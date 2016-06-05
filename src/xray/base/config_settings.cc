@@ -1,5 +1,5 @@
 #include "xray/base/config_settings.hpp"
-#include <libconfig.h>
+#include <fmt/format.h>
 
 int32_t xray::base::detail::setting_type_to_library_type(
     const xray::base::config_entry_type st) noexcept {
@@ -67,4 +67,16 @@ xray::base::detail::library_type_to_setting_type(const int32_t lt) noexcept {
   }
 
   return config_entry_type::none;
+}
+
+std::string xray::base::config_file::error() const noexcept {
+  const auto err_type = config_error_type(&conf_);
+  if (err_type == CONFIG_ERR_NONE)
+    return "No error";
+
+  if (err_type == CONFIG_ERR_FILE_IO)
+    return "File IO error";
+
+  return fmt::format("Config parse error {}:{}:{}", config_error_text(&conf_),
+                     config_error_file(&conf_), config_error_line(&conf_));
 }

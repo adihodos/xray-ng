@@ -3,6 +3,7 @@
 #include "std_assets.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
+#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/shims/string.hpp"
@@ -225,133 +226,62 @@ void app::graphics_object::draw(
   mesh->draw();
 }
 
-struct helpers {
-  static void read_texture_materials(const xray::base::config_file& cfg,
-                                     app::texture_cache*            tex_cache,
-                                     app::material_cache*           mtl_cache);
+xray::rendering::gpu_program*
+app::shader_cache::add_program(const program_build_info& pbi) {
 
-  static void read_color_materials(const xray::base::config_file& cfg,
-                                   app::texture_cache*            tex_cache,
-                                   app::material_cache*           mtl_cache);
+  const auto hashed_name = FNV::fnv1a(pbi.id);
+  const auto cache_entry = _cached_programs.find(hashed_name);
+  if (cache_entry != std::end(_cached_programs))
+    return &cache_entry->second;
 
-  static void load_graphics_objects(const xray::base::config_file& cfg,
-                                    const app::material_cache*     mtl_cache,
-                                    app::mesh_cache*               meshes,
-                                    std::vector<app::graphics_object>* objs);
+  using namespace xray::rendering;
+  using namespace std;
 
-  static void load_shaders(const xray::base::config_file& cfg,
-                           app::shader_cache*             scache);
-};
+  static constexpr GLuint NATIVE_SHADER_TYPES[] = {
+      gl::VERTEX_SHADER, gl::TESS_CONTROL_SHADER, gl::TESS_EVALUATION_SHADER,
+      gl::GEOMETRY_SHADER, gl::FRAGMENT_SHADER};
 
-void helpers::load_shaders(const xray::base::config_file& cfg,
-                           app::shader_cache*             scache) {
+  GLuint compiled_shaders[5] = {0};
+  transform(pbi.shaders_by_stage, pbi.shaders_by_stage + pbi.stage_count,
+            begin(compiled_shaders),
+            [ mapping = &NATIVE_SHADER_TYPES[0],
+              rpath   = pbi.rootpath ](const auto& par) {
 
-  const auto shaders_sec = cfg.lookup_entry("app.scene.shaders");
-  if (!shaders_sec) {
-    XR_LOG_INFO("No shaders section in config file!");
-    return;
+              const auto shader_file_path =
+                  fmt::format("{}/{}", rpath, par.file_name);
+              return make_shader(mapping[static_cast<uint32_t>(par.type)],
+                                 raw_str(shader_file_path));
+            });
+
+  auto linked_prg = gpu_program{compiled_shaders, pbi.stage_count};
+  if (!linked_prg) {
+    XR_LOG_ERR("Failed to compile/link program {}", pbi.id);
+    return nullptr;
   }
 
-  const auto root_path = shaders_sec.lookup_string("root_path");
-  assert(root_path && "No root path defined in shaders section!");
-
-  using namespace xray::base;
-
-  for (uint32_t idx = 1, entries = shaders_sec.length(); idx < entries; ++idx) {
-    const auto prg_def = shaders_sec[idx];
-
-    const auto id = prg_def.lookup_string("id");
-
-    struct shader_load_info {
-      const char*      entry_name;
-      app::shader_type type;
-      bool             must_be_defined;
-    } const entries_to_load[] = {
-        {"vertex", app::shader_type::vertex, true},
-        {"tess_control", app::shader_type::tess_control, false},
-        {"tess_eval", app::shader_type::tess_eval, false},
-        {"geometry", app::shader_type::geometry, false},
-        {"fragment", app::shader_type::fragment, true}};
-
-    app::program_build_info pbi;
-    pbi.id = value_of(id);
-
-    transform(begin(entries_to_load), end(entries_to_load),
-              begin(pbi.shaders_by_stage),
-              [ s_id = value_of(id), &prg_def ](const auto& entry_desc) {
-                const auto path = prg_def.lookup_string(entry_desc.entry_name);
-
-                if (!path && entry_desc.must_be_defined) {
-                  XR_LOG_ERR("Program section {} is marked as mandatory but "
-                             "was not found, id {}!",
-                             entry_desc.entry_name, s_id);
-                  return;
-                }
-
-                return app::shader_type_path_id_tuple{}
-              });
-  }
+  _cached_programs[hashed_name] = std::move(linked_prg);
+  return &_cached_programs[hashed_name];
 }
 
-void helpers::load_graphics_objects(const xray::base::config_file& cfg,
-                                    const app::material_cache*     mtl_cache,
-                                    app::mesh_cache*               meshes,
-                                    std::vector<app::graphics_object>* objs) {
+xray::rendering::gpu_program*
+app::shader_cache::get_program(const char* id) noexcept {
+  assert(id != nullptr);
 
-  const auto objects_section = cfg.lookup_entry("app.scene.objects");
-  if (!objects_section) {
-    XR_LOG_INFO("No objects section in config file!");
-    return;
-  }
+  const auto hashed_name = FNV::fnv1a(id);
+  const auto cache_entry = _cached_programs.find(hashed_name);
+  if (cache_entry != std::end(_cached_programs))
+    return &cache_entry->second;
 
-  objs->resize(objects_section.length());
-  for (uint32_t idx = 0, entries = objects_section.length(); idx < entries;
-       ++idx) {
-    const auto obj_entry = objects_section[idx];
-    const auto obj_id    = obj_entry.lookup_string("id");
-    assert(obj_id && "Missing object id !");
-
-    const auto mesh_id = obj_entry.lookup_string("mesh");
-    assert(mesh_id && "Missing mesh id !");
-
-    const auto mesh_path = xr_app_config->model_path(value_of(mesh_id));
-
-    app::graphics_object go;
-    go.hash = FNV::fnv1a(value_of(mesh_id));
-
-    if (const auto mesh = meshes->get_mesh(raw_str(mesh_path))) {
-      go.mesh = mesh;
-    } else {
-      const auto fmt_desc = obj_entry.lookup_string("format");
-      const auto fmt = [fstr = value_of(fmt_desc)]() {
-        if (!strcmp(fstr, "pnt"))
-          return vertex_format::pnt;
-
-        if (!strcmp(fstr, "pn"))
-          return vertex_format::pn;
-
-        return vertex_format::undefined;
-      }
-      ();
-
-      auto loaded_mesh = meshes->add_mesh(raw_str(mesh_path), fmt);
-      if (!loaded_mesh) {
-        XR_LOG_INFO("Failed to load mesh {}", mesh_path);
-        continue;
-      }
-
-      go.mesh = loaded_mesh;
-    }
-
-    const auto mat_id = obj_entry.lookup_string("material");
-    assert(mat_id && "Missing material entry for object!");
-    go.mtl = mtl_cache->get_material(value_of(mat_id));
-  }
+  XR_LOG_ERR("Shader {} not in cache !", id);
+  return nullptr;
 }
 
-void helpers::read_texture_materials(const xray::base::config_file& cfg,
-                                     app::texture_cache*            tex_cache,
-                                     app::material_cache*           mtl_cache) {
+app::resource_store::~resource_store() {}
+
+void app::resource_store::load_texture_materials(
+    const xray::base::config_file& cfg, shader_cache* sstore,
+    app::texture_cache* tex_cache, app::material_cache* mtl_cache) {
+
   const auto mtl_entry = cfg.lookup_entry("app.scene.materials");
   if (!mtl_entry) {
     XR_LOG_ERR("Error reading materials from file !");
@@ -405,13 +335,27 @@ void helpers::read_texture_materials(const xray::base::config_file& cfg,
     if (const auto spow = mtl.lookup_float("spec_pwr"))
       m.spec_pwr = value_of(spow);
 
+    const auto shader_id = mtl.lookup_string("shader");
+    if (!shader_id) {
+      XR_LOG_CRITICAL("Material {} has no assigned shader!", value_of(mtl_id));
+      XR_NOT_REACHED();
+    }
+
+    m.draw_prg = sstore->get_program(value_of(shader_id));
+    if (!m.draw_prg) {
+      XR_LOG_CRITICAL("Material {} required shader {} not found",
+                      value_of(mtl_id), value_of(shader_id));
+      XR_NOT_REACHED();
+    }
+
     mtl_cache->add_material(value_of(mtl_id), m);
   }
 }
 
-void helpers::read_color_materials(const xray::base::config_file& cfg,
-                                   app::texture_cache*            tex_cache,
-                                   app::material_cache*           mtl_cache) {
+void app::resource_store::load_color_materials(
+    const xray::base::config_file& cfg, shader_cache* sstore,
+    app::texture_cache* tex_cache, app::material_cache* mtl_cache) {
+
   const auto colors_sec = cfg.lookup_entry("app.scene.colors");
   if (!colors_sec)
     return;
@@ -450,53 +394,172 @@ void helpers::read_color_materials(const xray::base::config_file& cfg,
     if (const auto spow = entry.lookup_float("spec_pwr"))
       m.spec_pwr = value_of(spow);
 
+    const auto shader_id = entry.lookup_string("shader");
+    if (!shader_id) {
+      XR_LOG_CRITICAL("Material {} has no assigned shader!", value_of(id));
+      XR_NOT_REACHED();
+    }
+
+    m.draw_prg = sstore->get_program(value_of(shader_id));
+    if (!m.draw_prg) {
+      XR_LOG_CRITICAL("Material {} required shader {} not found", value_of(id),
+                      value_of(shader_id));
+      XR_NOT_REACHED();
+    }
+
     mtl_cache->add_material(value_of(id), m);
   }
 }
 
-xray::rendering::gpu_program*
-app::shader_cache::add_program(const program_build_info& pbi) {
+void app::resource_store::load_graphics_objects(
+    const xray::base::config_file& cfg, const app::material_cache* mtl_cache,
+    app::mesh_cache* meshes, std::vector<graphics_object>* objects) {
 
-  const auto hashed_name = FNV::fnv1a(pbi.id);
-  const auto cache_entry = _cached_programs.find(hashed_name);
-  if (cache_entry != std::end(_cached_programs))
-    return &cache_entry->second;
-
-  using namespace xray::rendering;
-  using namespace std;
-
-  static constexpr GLuint NATIVE_SHADER_TYPES[] = {
-      gl::VERTEX_SHADER, gl::TESS_CONTROL_SHADER, gl::TESS_EVALUATION_SHADER,
-      gl::GEOMETRY_SHADER, gl::FRAGMENT_SHADER};
-
-  GLuint compiled_shaders[5] = {0};
-  transform(pbi.shaders_by_stage, pbi.shaders_by_stage + pbi.stage_count,
-            begin(compiled_shaders),
-            [mapping = &NATIVE_SHADER_TYPES[0]](const auto& par) {
-              return make_shader(mapping[static_cast<uint32_t>(par.type)],
-                                 par.file_name);
-            });
-
-  auto linked_prg = gpu_program{compiled_shaders, pbi.stage_count};
-  if (!linked_prg) {
-    XR_LOG_ERR("Failed to compile/link program {}", pbi.id);
-    return nullptr;
+  const auto objects_section = cfg.lookup_entry("app.scene.objects");
+  if (!objects_section) {
+    XR_LOG_INFO("No objects section in config file!");
+    return;
   }
 
-  _cached_programs[hashed_name] = std::move(linked_prg);
-  return &_cached_programs[hashed_name];
+  const auto max_entries = objects_section.length();
+  objects->resize(max_entries);
+
+  for (uint32_t idx = 0; idx < max_entries; ++idx) {
+
+    const auto obj_entry = objects_section[idx];
+    const auto obj_id    = obj_entry.lookup_string("id");
+    if (!obj_id) {
+      XR_LOG_CRITICAL("Missing object id!");
+      XR_NOT_REACHED();
+    }
+
+    const auto mesh_id = obj_entry.lookup_string("mesh");
+    if (!mesh_id) {
+      XR_LOG_CRITICAL("Missing mesh id !");
+      XR_NOT_REACHED();
+    }
+
+    const auto mesh_path = xr_app_config->model_path(value_of(mesh_id));
+
+    app::graphics_object graphic_obj;
+    graphic_obj.hash = FNV::fnv1a(value_of(mesh_id));
+
+    if (const auto mesh = meshes->get_mesh(raw_str(mesh_path))) {
+      graphic_obj.mesh = mesh;
+    } else {
+      const auto fmt_desc = obj_entry.lookup_string("format");
+      const auto fmt = [fstr = value_of(fmt_desc)]() {
+        if (!strcmp(fstr, "pnt"))
+          return vertex_format::pnt;
+
+        if (!strcmp(fstr, "pn"))
+          return vertex_format::pn;
+
+        return vertex_format::undefined;
+      }
+      ();
+
+      auto loaded_mesh = meshes->add_mesh(raw_str(mesh_path), fmt);
+      if (!loaded_mesh) {
+        XR_LOG_CRITICAL("Failed to load mesh {}", mesh_path);
+        XR_NOT_REACHED();
+      }
+
+      graphic_obj.mesh = loaded_mesh;
+    }
+
+    const auto mat_id = obj_entry.lookup_string("material");
+    assert(mat_id && "Missing material entry for object!");
+    graphic_obj.mtl = mtl_cache->get_material(value_of(mat_id));
+
+    objects->push_back(graphic_obj);
+  }
 }
 
-xray::rendering::gpu_program* app::shader_cache::get_program(const char* id) {
-  assert(id != nullptr);
+void app::resource_store::load_shaders(const xray::base::config_file& cfg,
+                                       app::shader_cache*             scache) {
 
-  const auto hashed_name = FNV::fnv1a(id);
-  const auto cache_entry = _cached_programs.find(hashed_name);
-  if (cache_entry != std::end(_cached_programs))
-    return &cache_entry->second;
+  const auto shaders_sec = cfg.lookup_entry("app.scene.shaders");
+  if (!shaders_sec) {
+    XR_LOG_INFO("No shaders section in config file!");
+    return;
+  }
 
-  XR_LOG_ERR("Shader {} not in cache !", id);
-  return nullptr;
+  const auto root_path = shaders_sec.lookup_string("root_path");
+  if (!root_path) {
+    XR_LOG_CRITICAL("No root path defined for shaders section!");
+    XR_NOT_REACHED();
+  }
+
+  using namespace xray::base;
+  const auto shader_list_sec = shaders_sec.lookup("entries");
+  if (!shader_list_sec || shader_list_sec.length() == 0) {
+    XR_LOG_CRITICAL("No shaders defined!");
+    XR_NOT_REACHED();
+  }
+
+  for (uint32_t idx = 0, entries = shader_list_sec.length(); idx < entries;
+       ++idx) {
+    const auto prg_def = shader_list_sec[idx];
+
+    const auto id = prg_def.lookup_string("id");
+
+    struct shader_load_info {
+      const char*      entry_name;
+      app::shader_type type;
+      bool             must_be_defined;
+    } const entries_to_load[] = {
+        {"vertex", app::shader_type::vertex, true},
+        {"tess_control", app::shader_type::tess_control, false},
+        {"tess_eval", app::shader_type::tess_eval, false},
+        {"geometry", app::shader_type::geometry, false},
+        {"fragment", app::shader_type::fragment, true}};
+
+    app::program_build_info pbi;
+    pbi.id       = value_of(id);
+    pbi.rootpath = value_of(root_path);
+
+    [
+      prg_id = value_of(id), &prg_def, &pbi, fst_entry = begin(entries_to_load),
+      lst_entry   = end(entries_to_load),
+      output_info = begin(pbi.shaders_by_stage)
+    ]() mutable {
+
+      for (; fst_entry != lst_entry; ++fst_entry) {
+        const auto file_name = prg_def.lookup_string(fst_entry->entry_name);
+        if (!file_name) {
+          if (fst_entry->must_be_defined) {
+            XR_LOG_CRITICAL("Program id [{}] required entry {} is missing",
+                            prg_id, fst_entry->entry_name);
+            XR_NOT_REACHED();
+          } else {
+            continue;
+          }
+        }
+
+        output_info->file_name = value_of(file_name);
+        output_info->type      = fst_entry->type;
+
+        ++output_info;
+        ++pbi.stage_count;
+      }
+    }
+    ();
+
+    scache->add_program(pbi);
+  }
+}
+
+void app::resource_store::load_graphics_objects(
+    const xray::base::config_file& cfg_file,
+    std::vector<graphics_object>*  objects) {
+
+  load_shaders(cfg_file, this->shader_store);
+  load_color_materials(cfg_file, this->shader_store, this->texture_store,
+                       this->mat_store);
+  load_texture_materials(cfg_file, this->shader_store, this->texture_store,
+                         this->mat_store);
+  load_graphics_objects(cfg_file, this->mat_store, this->mesh_store, objects);
 }
 
 app::edge_detect_demo::edge_detect_demo() { init(); }
@@ -560,22 +623,17 @@ void app::edge_detect_demo::key_event(const int32_t /*key_code*/,
                                       const int32_t /*mods*/) {}
 
 void test_shit() {
-  app::texture_cache  tc;
-  app::material_cache mc;
-
   config_file app_cfg{"config/cap6/edge_detect/app.conf"};
   if (!app_cfg) {
     XR_LOG_ERR("Fatal error : config file not found !");
     return;
   }
 
-  helpers::read_texture_materials(app_cfg, &tc, &mc);
-  helpers::read_color_materials(app_cfg, &tc, &mc);
+  app::resource_store               rstore;
+  std::vector<app::graphics_object> objs;
+  rstore.load_graphics_objects(app_cfg, &objs);
 
-  for (const auto& kvp : tc.table()) {
-    XR_LOG_INFO("Texture {}, handle {}", kvp.first, kvp.second);
-  }
-
+  XR_LOG_INFO("Loaded {} graphics objects!", objs.size());
   XR_LOG_INFO("Done!");
 }
 
@@ -625,9 +683,10 @@ void app::edge_detect_demo::init() {
 
     const auto fbo_status =
         gl::CheckNamedFramebufferStatus(fbo, gl::DRAW_FRAMEBUFFER);
+
     if (fbo_status != gl::FRAMEBUFFER_COMPLETE) {
-      XR_LOG_ERR("Framebuffer is not complete!");
-      return GLuint{};
+      XR_LOG_CRITICAL("Framebuffer is not complete!");
+      XR_NOT_REACHED();
     }
 
     return fbo;
@@ -635,8 +694,8 @@ void app::edge_detect_demo::init() {
   ();
 
   if (!_fbo.fbo_object) {
-    XR_LOG_ERR("Failed to cretae/init framebuffer!!");
-    return;
+    XR_LOG_CRITICAL("Failed to create/init framebuffer!!");
+    XR_NOT_REACHED();
   }
 
   _drawprog_first_pass = []() {
@@ -650,30 +709,30 @@ void app::edge_detect_demo::init() {
 
   config_file app_cfg{"config/cap6/edge_detect/app.conf"};
   if (!app_cfg) {
-    XR_LOG_ERR("Fatal error : config file not found !");
-    return;
+    XR_LOG_CRITICAL("Config file error {}", app_cfg.error());
+    XR_NOT_REACHED();
   }
 
   {
     const char* model_file{nullptr};
     if (!app_cfg.lookup_value("app.scene.model", model_file)) {
-      XR_LOG_ERR("Failed to read model file name from config!");
-      return;
+      XR_LOG_CRITICAL("Failed to read model file name from config!");
+      XR_NOT_REACHED();
     }
 
     _object =
         simple_mesh{vertex_format::pnt, xr_app_config->model_path(model_file)};
     if (!_object) {
-      XR_LOG_ERR("Failed to load model from file!");
-      return;
+      XR_LOG_CRITICAL("Failed to load model from file!");
+      XR_NOT_REACHED();
     }
   }
 
   {
     auto lights_entry = app_cfg.lookup_entry("app.scene.lights");
     if (!lights_entry) {
-      XR_LOG_ERR("Lights section not found in config file!");
-      return;
+      XR_LOG_CRITICAL("Lights section not found in config file!");
+      XR_NOT_REACHED();
     }
 
     _lightcount = xray::math::min<uint32_t>(lights_entry.length(),

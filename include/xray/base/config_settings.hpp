@@ -34,8 +34,8 @@
 #include "xray/xray.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/maybe.hpp"
-#include "xray/base/shims/stl_type_traits_shims.hpp"
-#include <algorithm>
+//#include "xray/base/shims/stl_type_traits_shims.hpp"
+//#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <libconfig.h>
@@ -634,7 +634,7 @@ public:
 
   inline bool read_file(const char* file_name) noexcept;
 
-  const char* error() const noexcept { return config_error_text(&conf_); }
+  std::string error() const noexcept;
 
 public:
   config_t conf_;

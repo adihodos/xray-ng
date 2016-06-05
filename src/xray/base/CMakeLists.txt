@@ -8,6 +8,7 @@ set(project_sources
     ${proj_inc_dir}/app_config.hpp
     ${proj_src_dir}/app_config.cc
     ${proj_inc_dir}/basic_timer.hpp
+    ${proj_inc_dir}/base_fwd.hpp
     ${proj_inc_dir}/config_settings.hpp
     ${proj_src_dir}/config_settings.cc
     ${proj_inc_dir}/debug_output.hpp
