@@ -33,6 +33,8 @@
 #include "xray/scene/point_light.hpp"
 #include <algorithm>
 #include <imgui/imgui.h>
+#include <stlsoft/memory/auto_buffer.hpp>
+#include <tbb/tbb.h>
 #include <unordered_map>
 #include <vector>
 
@@ -195,6 +197,26 @@ app::mesh_cache::add_mesh(const char*                          name,
 
   _cached_meshes[hashed_name] = std::move(loaded_mesh);
   return &_cached_meshes[hashed_name];
+}
+
+const xray::rendering::simple_mesh*
+app::mesh_cache::get_mesh(const app::model_id& id) const noexcept {
+  const auto cached_entry = _stored_meshes.find(id);
+  if (cached_entry == std::end(_stored_meshes)) {
+    XR_LOG_ERR("Model id {} not found in cache !", id.hashed_name);
+    return nullptr;
+  }
+
+  return &cached_entry->second;
+}
+
+const xray::rendering::simple_mesh*
+app::mesh_cache::add_mesh(const app::model_id&         id,
+                          xray::rendering::simple_mesh mesh) {
+
+  assert(_stored_meshes.find(id) == std::end(_stored_meshes));
+  _stored_meshes[id] = std::move(mesh);
+  return &_stored_meshes[id];
 }
 
 void app::graphics_object::draw(
@@ -415,65 +437,221 @@ void app::resource_store::load_graphics_objects(
     const xray::base::config_file& cfg, const app::material_cache* mtl_cache,
     app::mesh_cache* meshes, std::vector<graphics_object>* objects) {
 
+  std::unordered_map<model_id, const char*> loadable_models;
+
+  auto map_format = [](const char* fmt_desc) noexcept {
+    if (!strcmp(fmt_desc, "pnt"))
+      return vertex_format::pnt;
+
+    if (!strcmp(fmt_desc, "pn"))
+      return vertex_format::pn;
+
+    return vertex_format::undefined;
+  };
+
+  {
+    const auto section_models = cfg.lookup_entry("models");
+    if (!section_models) {
+      XR_LOG_CRITICAL("No models section defined!");
+      XR_NOT_REACHED();
+    }
+
+    for (uint32_t idx = 0; idx < section_models.length(); ++idx) {
+      const auto entry = section_models[idx];
+
+      const auto id = entry.lookup_string("id");
+      assert(id && "Missing id entry!");
+      const auto fmt = entry.lookup_string("format");
+      assert(fmt && "Missing format entry!");
+      const auto file_name = entry.lookup_string("file");
+      assert(file_name && "Missing file name entry!");
+
+      const auto mdl_id = model_id{value_of(id), map_format(value_of(fmt))};
+      assert(loadable_models.find(mdl_id) == std::end(loadable_models));
+      loadable_models[mdl_id] = value_of(file_name);
+    }
+  }
+
+  unordered_map<model_id, const char*> models_to_load;
+
+  {
+    const auto objects_section = cfg.lookup_entry("objects");
+    if (!objects_section) {
+      XR_LOG_CRITICAL("No objects section defined!");
+      XR_NOT_REACHED();
+    }
+
+    objects->reserve(objects_section.length());
+    for (uint32_t idx = 0, entries = objects_section.length(); idx < entries;
+         ++idx) {
+      const auto obj_def = objects_section[idx];
+
+      const auto id = obj_def.lookup_string("id");
+      assert(id && "Object id missing!");
+
+      const auto mid = obj_def.lookup_string("model");
+      assert(mid && "Objects missing model id !");
+      const auto model_fmt = obj_def.lookup_string("format");
+      assert(model_fmt && "Object missing model format!");
+
+      const auto mdl_id =
+          model_id{value_of(mid), map_format(value_of(model_fmt))};
+
+      const auto loadable = loadable_models.find(mdl_id);
+      if (loadable == end(loadable_models)) {
+        XR_LOG_CRITICAL("Model {} is not in the list of loadable models",
+                        value_of(mid));
+        XR_NOT_REACHED();
+      }
+
+      models_to_load[mdl_id] = loadable->second;
+
+      const auto mat_id = obj_def.lookup_string("material");
+      assert(mat_id && "Object missing material id!");
+    }
+  }
+
+  struct loadable_model {
+    model_id    id;
+    const char* file_name;
+  };
+
+  vector<loadable_model> model_load_list;
+  transform(begin(models_to_load), end(models_to_load),
+            back_inserter(model_load_list), [](const auto& kvp) {
+              loadable_model lm;
+              lm.id        = kvp.first;
+              lm.file_name = kvp.second;
+              return lm;
+            });
+
+  vector<geometry_data_t> loaded_geometry{model_load_list.size()};
+
+  using load_task_range_type = tbb::blocked_range<uint32_t>;
+
+  tbb::parallel_for(
+      load_task_range_type{0u, static_cast<uint32_t>(model_load_list.size())},
+      [&model_load_list, &loaded_geometry](const auto& subrange) {
+
+        for (uint32_t idx = subrange.begin(), range_end = subrange.end();
+             idx != range_end; ++idx) {
+
+          auto&      mdl       = model_load_list[idx];
+          const auto file_path = xr_app_config->model_path(mdl.file_name);
+
+          if (!geometry_factory::load_model(
+                  &loaded_geometry[idx], file_path,
+                  mesh_import_options::remove_points_lines)) {
+            return;
+          }
+        }
+      });
+
+  const auto any_failed =
+      any_of(begin(loaded_geometry), end(loaded_geometry),
+             [](const auto& geom) { return geom.vertex_count == 0; });
+
+  if (any_failed) {
+    XR_LOG_CRITICAL("Failed to load some models!");
+    XR_NOT_REACHED();
+  }
+
   const auto objects_section = cfg.lookup_entry("app.scene.objects");
   if (!objects_section) {
     XR_LOG_INFO("No objects section in config file!");
     return;
   }
 
-  const auto max_entries = objects_section.length();
-  objects->resize(max_entries);
+  for (uint32_t idx = 0, cnt = model_load_list.size(); idx < cnt; ++idx) {
+    const auto& mdl      = model_load_list[idx];
+    const auto& geometry = loaded_geometry[idx];
 
-  for (uint32_t idx = 0; idx < max_entries; ++idx) {
-
-    const auto obj_entry = objects_section[idx];
-    const auto obj_id    = obj_entry.lookup_string("id");
-    if (!obj_id) {
-      XR_LOG_CRITICAL("Missing object id!");
+    simple_mesh sm{mdl.id.format, geometry};
+    if (!sm) {
+      XR_LOG_CRITICAL("Failed to create mesh! {}", mdl.file_name);
       XR_NOT_REACHED();
     }
 
-    const auto mesh_id = obj_entry.lookup_string("mesh");
-    if (!mesh_id) {
-      XR_LOG_CRITICAL("Missing mesh id !");
-      XR_NOT_REACHED();
-    }
-
-    const auto mesh_path = xr_app_config->model_path(value_of(mesh_id));
-
-    app::graphics_object graphic_obj;
-    graphic_obj.hash = FNV::fnv1a(value_of(mesh_id));
-
-    if (const auto mesh = meshes->get_mesh(raw_str(mesh_path))) {
-      graphic_obj.mesh = mesh;
-    } else {
-      const auto fmt_desc = obj_entry.lookup_string("format");
-      const auto fmt = [fstr = value_of(fmt_desc)]() {
-        if (!strcmp(fstr, "pnt"))
-          return vertex_format::pnt;
-
-        if (!strcmp(fstr, "pn"))
-          return vertex_format::pn;
-
-        return vertex_format::undefined;
-      }
-      ();
-
-      auto loaded_mesh = meshes->add_mesh(raw_str(mesh_path), fmt);
-      if (!loaded_mesh) {
-        XR_LOG_CRITICAL("Failed to load mesh {}", mesh_path);
-        XR_NOT_REACHED();
-      }
-
-      graphic_obj.mesh = loaded_mesh;
-    }
-
-    const auto mat_id = obj_entry.lookup_string("material");
-    assert(mat_id && "Missing material entry for object!");
-    graphic_obj.mtl = mtl_cache->get_material(value_of(mat_id));
-
-    objects->push_back(graphic_obj);
+    meshes->add_mesh(mdl.id, move(sm));
   }
+
+//  const auto max_entries = objects_section.length();
+//  objects->resize(max_entries);
+
+//  struct graphic_object_load_info {
+//    const char*   model_name{};
+//    vertex_format vformat{vertex_format::undefined};
+//    bool          valid{false};
+//  };
+
+//  stlsoft::auto_buffer<graphic_object_load_info, 16> objects_to_load{
+//      max_entries};
+
+//  for (uint32_t idx = 0; idx < max_entries; ++idx) {
+//    auto& obj = objects_to_load[idx];
+
+//    const auto obj_entry = objects_section[idx];
+
+//    const auto name_entry = obj_entry.lookup_string("mesh");
+
+//    if (!name_entry) {
+//      XR_LOG_CRITICAL("Missing model name !!");
+//      XR_NOT_REACHED();
+//    }
+
+//    obj.model_name = value_of(name_entry);
+//  }
+
+//  for (uint32_t idx = 0; idx < max_entries; ++idx) {
+
+//    const auto obj_entry = objects_section[idx];
+//    const auto obj_id    = obj_entry.lookup_string("id");
+//    if (!obj_id) {
+//      XR_LOG_CRITICAL("Missing object id!");
+//      XR_NOT_REACHED();
+//    }
+
+//    const auto mesh_id = obj_entry.lookup_string("mesh");
+//    if (!mesh_id) {
+//      XR_LOG_CRITICAL("Missing mesh id !");
+//      XR_NOT_REACHED();
+//    }
+
+//    const auto mesh_path = xr_app_config->model_path(value_of(mesh_id));
+
+//    app::graphics_object graphic_obj;
+//    graphic_obj.hash = FNV::fnv1a(value_of(mesh_id));
+
+//    if (const auto mesh = meshes->get_mesh(raw_str(mesh_path))) {
+//      graphic_obj.mesh = mesh;
+//    } else {
+//      const auto fmt_desc = obj_entry.lookup_string("format");
+//      const auto fmt = [fstr = value_of(fmt_desc)]() {
+//        if (!strcmp(fstr, "pnt"))
+//          return vertex_format::pnt;
+
+//        if (!strcmp(fstr, "pn"))
+//          return vertex_format::pn;
+
+//        return vertex_format::undefined;
+//      }
+//      ();
+
+//      auto loaded_mesh = meshes->add_mesh(raw_str(mesh_path), fmt);
+//      if (!loaded_mesh) {
+//        XR_LOG_CRITICAL("Failed to load mesh {}", mesh_path);
+//        XR_NOT_REACHED();
+//      }
+
+//      graphic_obj.mesh = loaded_mesh;
+//    }
+
+//    const auto mat_id = obj_entry.lookup_string("material");
+//    assert(mat_id && "Missing material entry for object!");
+//    graphic_obj.mtl = mtl_cache->get_material(value_of(mat_id));
+
+//    objects->push_back(graphic_obj);
+//  }
 }
 
 void app::resource_store::load_shaders(const xray::base::config_file& cfg,

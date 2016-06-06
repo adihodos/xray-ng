@@ -32,6 +32,7 @@
 #include "demo_base.hpp"
 #include "material.hpp"
 #include "xray/base/base_fwd.hpp"
+#include "xray/base/fnv_hash.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
@@ -40,8 +41,51 @@
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/scene/point_light.hpp"
+#include <functional>
+#include <string>
 #include <unordered_map>
 #include <vector>
+
+namespace app {
+
+struct model_id {
+  uint32_t                       hashed_name{};
+  xray::rendering::vertex_format format{
+      xray::rendering::vertex_format::undefined};
+
+  model_id() noexcept = default;
+
+  model_id(const char* name, const xray::rendering::vertex_format fmt) noexcept
+      : hashed_name{FNV::fnv1a(name)}, format{fmt} {}
+
+  model_id(const std::string&                   name,
+           const xray::rendering::vertex_format fmt) noexcept
+      : model_id{name.c_str(), fmt} {}
+};
+
+inline bool operator==(const model_id& lhs, const model_id& rhs) noexcept {
+  return lhs.hashed_name == rhs.hashed_name && lhs.format == rhs.format;
+}
+
+inline bool operator!=(const model_id& lhs, const model_id& rhs) noexcept {
+  return !(lhs == rhs);
+}
+
+} // namespace app
+
+namespace std {
+
+template <>
+struct hash<app::model_id> {
+  using argument_type = app::model_id;
+  using result_type   = std::size_t;
+
+  result_type operator()(const argument_type& arg) const {
+    return FNV::fnv1a(&arg, sizeof(arg));
+  }
+};
+
+} // namespace std
 
 namespace app {
 
@@ -116,8 +160,15 @@ public:
   const xray::rendering::simple_mesh*
   add_mesh(const char* name, const xray::rendering::vertex_format fmt);
 
+  const xray::rendering::simple_mesh* get_mesh(const model_id& id) const
+      noexcept;
+
+  const xray::rendering::simple_mesh*
+  add_mesh(const model_id& id, xray::rendering::simple_mesh mesh);
+
 private:
   std::unordered_map<uint32_t, xray::rendering::simple_mesh> _cached_meshes;
+  std::unordered_map<model_id, xray::rendering::simple_mesh> _stored_meshes;
 
 private:
   XRAY_NO_COPY(mesh_cache);
