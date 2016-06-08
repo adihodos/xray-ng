@@ -534,17 +534,63 @@ void xray::rendering::simple_mesh::create_buffers(
   }
   ();
 
-  timer_highp bbox_timer;
-  {
-    scoped_timing_object<timer_highp> sto{&bbox_timer};
+  timer_highp tmr{};
+  tmr.start();
+  _boundingbox = [args]() {
 
-    _boundingbox = bounding_box3_axis_aligned(
-        static_cast<const float3*>(args->vertexbuffer_data), args->vertexcount,
-        args->fmt_into->element_size);
-  }
+    //    XRAY_TIMED_SCOPE("mesh aabb computation");
+    //    _boundingbox = bounding_box3_axis_aligned(
+    //        static_cast<const float3*>(args->vertexbuffer_data),
+    //        args->vertexcount,
+    //        args->fmt_into->element_size);
 
-  XR_LOG_TRACE("Bounding box computation : vertices {}, time (millisecs) {}",
-               args->vertexcount, bbox_timer.elapsed_millis());
+    struct aabb_reduce_body {
+      using reduce_range_type = tbb::blocked_range<size_t>;
+
+      aabb_reduce_body(const void* points, const size_t stride) noexcept
+          : _points{points}, _stride{stride} {}
+
+      aabb_reduce_body(const aabb_reduce_body& other, tbb::split) noexcept
+          : _points{other._points}
+          , _stride{other._stride}
+          , _boundingbox{other._boundingbox} {}
+
+      void operator()(const reduce_range_type& range) noexcept {
+        for (size_t idx = range.begin(), pts_cnt = range.end(); idx < pts_cnt;
+             ++idx) {
+          const auto pt = reinterpret_cast<const float3*>(
+              static_cast<const uint8_t*>(_points) + idx * _stride);
+
+          _boundingbox.min.x = math::min(_boundingbox.min.x, pt->x);
+          _boundingbox.min.y = math::min(_boundingbox.min.y, pt->y);
+          _boundingbox.min.z = math::min(_boundingbox.min.z, pt->z);
+
+          _boundingbox.max.x = math::max(_boundingbox.max.x, pt->x);
+          _boundingbox.max.y = math::max(_boundingbox.max.y, pt->y);
+          _boundingbox.max.z = math::max(_boundingbox.max.z, pt->z);
+        }
+      }
+
+      void join(const aabb_reduce_body& rhs) noexcept {
+        _boundingbox = math::merge(_boundingbox, rhs._boundingbox);
+      }
+
+      const void* _points{nullptr};
+      size_t      _stride{};
+      aabb3f      _boundingbox{aabb3f::stdc::identity};
+    };
+
+    aabb_reduce_body body{args->vertexbuffer_data,
+                          args->fmt_into->element_size};
+    tbb::parallel_reduce(
+        aabb_reduce_body::reduce_range_type{0, args->vertexcount}, body);
+
+    return body._boundingbox;
+  }();
+
+  tmr.end();
+  XR_LOG_TRACE("Mesh aabb parallel reduce took {} msec", tmr.elapsed_millis());
+
   XR_LOG_TRACE("Bounding box : min [{}, {}, {}], max [{}, {}, {}], center [{}, "
                "{}, {}], width {}, height {}, depth {}",
                _boundingbox.min.x, _boundingbox.min.y, _boundingbox.min.z,

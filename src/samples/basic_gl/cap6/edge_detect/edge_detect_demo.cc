@@ -437,6 +437,7 @@ void app::resource_store::load_graphics_objects(
     const xray::base::config_file& cfg, const app::material_cache* mtl_cache,
     app::mesh_cache* meshes, std::vector<graphics_object>* objects) {
 
+  XRAY_TIMED_FUNC();
   std::unordered_map<model_id, const char*> loadable_models;
 
   auto map_format = [](const char* fmt_desc) noexcept {
@@ -450,7 +451,7 @@ void app::resource_store::load_graphics_objects(
   };
 
   {
-    const auto section_models = cfg.lookup_entry("models");
+    const auto section_models = cfg.lookup_entry("app.scene.models");
     if (!section_models) {
       XR_LOG_CRITICAL("No models section defined!");
       XR_NOT_REACHED();
@@ -475,7 +476,7 @@ void app::resource_store::load_graphics_objects(
   unordered_map<model_id, const char*> models_to_load;
 
   {
-    const auto objects_section = cfg.lookup_entry("objects");
+    const auto objects_section = cfg.lookup_entry("app.scene.objects");
     if (!objects_section) {
       XR_LOG_CRITICAL("No objects section defined!");
       XR_NOT_REACHED();
@@ -527,25 +528,29 @@ void app::resource_store::load_graphics_objects(
 
   vector<geometry_data_t> loaded_geometry{model_load_list.size()};
 
-  using load_task_range_type = tbb::blocked_range<uint32_t>;
+  {
+    XRAY_TIMED_SCOPE("parallel load models");
 
-  tbb::parallel_for(
-      load_task_range_type{0u, static_cast<uint32_t>(model_load_list.size())},
-      [&model_load_list, &loaded_geometry](const auto& subrange) {
+    using load_task_range_type = tbb::blocked_range<uint32_t>;
 
-        for (uint32_t idx = subrange.begin(), range_end = subrange.end();
-             idx != range_end; ++idx) {
+    tbb::parallel_for(
+        load_task_range_type{0u, static_cast<uint32_t>(model_load_list.size())},
+        [&model_load_list, &loaded_geometry](const auto& subrange) {
 
-          auto&      mdl       = model_load_list[idx];
-          const auto file_path = xr_app_config->model_path(mdl.file_name);
+          for (uint32_t idx = subrange.begin(), range_end = subrange.end();
+               idx != range_end; ++idx) {
 
-          if (!geometry_factory::load_model(
-                  &loaded_geometry[idx], file_path,
-                  mesh_import_options::remove_points_lines)) {
-            return;
+            auto&      mdl       = model_load_list[idx];
+            const auto file_path = xr_app_config->model_path(mdl.file_name);
+
+            if (!geometry_factory::load_model(
+                    &loaded_geometry[idx], file_path,
+                    mesh_import_options::remove_points_lines)) {
+              return;
+            }
           }
-        }
-      });
+        });
+  }
 
   const auto any_failed =
       any_of(begin(loaded_geometry), end(loaded_geometry),
@@ -575,83 +580,83 @@ void app::resource_store::load_graphics_objects(
     meshes->add_mesh(mdl.id, move(sm));
   }
 
-//  const auto max_entries = objects_section.length();
-//  objects->resize(max_entries);
+  //  const auto max_entries = objects_section.length();
+  //  objects->resize(max_entries);
 
-//  struct graphic_object_load_info {
-//    const char*   model_name{};
-//    vertex_format vformat{vertex_format::undefined};
-//    bool          valid{false};
-//  };
+  //  struct graphic_object_load_info {
+  //    const char*   model_name{};
+  //    vertex_format vformat{vertex_format::undefined};
+  //    bool          valid{false};
+  //  };
 
-//  stlsoft::auto_buffer<graphic_object_load_info, 16> objects_to_load{
-//      max_entries};
+  //  stlsoft::auto_buffer<graphic_object_load_info, 16> objects_to_load{
+  //      max_entries};
 
-//  for (uint32_t idx = 0; idx < max_entries; ++idx) {
-//    auto& obj = objects_to_load[idx];
+  //  for (uint32_t idx = 0; idx < max_entries; ++idx) {
+  //    auto& obj = objects_to_load[idx];
 
-//    const auto obj_entry = objects_section[idx];
+  //    const auto obj_entry = objects_section[idx];
 
-//    const auto name_entry = obj_entry.lookup_string("mesh");
+  //    const auto name_entry = obj_entry.lookup_string("mesh");
 
-//    if (!name_entry) {
-//      XR_LOG_CRITICAL("Missing model name !!");
-//      XR_NOT_REACHED();
-//    }
+  //    if (!name_entry) {
+  //      XR_LOG_CRITICAL("Missing model name !!");
+  //      XR_NOT_REACHED();
+  //    }
 
-//    obj.model_name = value_of(name_entry);
-//  }
+  //    obj.model_name = value_of(name_entry);
+  //  }
 
-//  for (uint32_t idx = 0; idx < max_entries; ++idx) {
+  //  for (uint32_t idx = 0; idx < max_entries; ++idx) {
 
-//    const auto obj_entry = objects_section[idx];
-//    const auto obj_id    = obj_entry.lookup_string("id");
-//    if (!obj_id) {
-//      XR_LOG_CRITICAL("Missing object id!");
-//      XR_NOT_REACHED();
-//    }
+  //    const auto obj_entry = objects_section[idx];
+  //    const auto obj_id    = obj_entry.lookup_string("id");
+  //    if (!obj_id) {
+  //      XR_LOG_CRITICAL("Missing object id!");
+  //      XR_NOT_REACHED();
+  //    }
 
-//    const auto mesh_id = obj_entry.lookup_string("mesh");
-//    if (!mesh_id) {
-//      XR_LOG_CRITICAL("Missing mesh id !");
-//      XR_NOT_REACHED();
-//    }
+  //    const auto mesh_id = obj_entry.lookup_string("mesh");
+  //    if (!mesh_id) {
+  //      XR_LOG_CRITICAL("Missing mesh id !");
+  //      XR_NOT_REACHED();
+  //    }
 
-//    const auto mesh_path = xr_app_config->model_path(value_of(mesh_id));
+  //    const auto mesh_path = xr_app_config->model_path(value_of(mesh_id));
 
-//    app::graphics_object graphic_obj;
-//    graphic_obj.hash = FNV::fnv1a(value_of(mesh_id));
+  //    app::graphics_object graphic_obj;
+  //    graphic_obj.hash = FNV::fnv1a(value_of(mesh_id));
 
-//    if (const auto mesh = meshes->get_mesh(raw_str(mesh_path))) {
-//      graphic_obj.mesh = mesh;
-//    } else {
-//      const auto fmt_desc = obj_entry.lookup_string("format");
-//      const auto fmt = [fstr = value_of(fmt_desc)]() {
-//        if (!strcmp(fstr, "pnt"))
-//          return vertex_format::pnt;
+  //    if (const auto mesh = meshes->get_mesh(raw_str(mesh_path))) {
+  //      graphic_obj.mesh = mesh;
+  //    } else {
+  //      const auto fmt_desc = obj_entry.lookup_string("format");
+  //      const auto fmt = [fstr = value_of(fmt_desc)]() {
+  //        if (!strcmp(fstr, "pnt"))
+  //          return vertex_format::pnt;
 
-//        if (!strcmp(fstr, "pn"))
-//          return vertex_format::pn;
+  //        if (!strcmp(fstr, "pn"))
+  //          return vertex_format::pn;
 
-//        return vertex_format::undefined;
-//      }
-//      ();
+  //        return vertex_format::undefined;
+  //      }
+  //      ();
 
-//      auto loaded_mesh = meshes->add_mesh(raw_str(mesh_path), fmt);
-//      if (!loaded_mesh) {
-//        XR_LOG_CRITICAL("Failed to load mesh {}", mesh_path);
-//        XR_NOT_REACHED();
-//      }
+  //      auto loaded_mesh = meshes->add_mesh(raw_str(mesh_path), fmt);
+  //      if (!loaded_mesh) {
+  //        XR_LOG_CRITICAL("Failed to load mesh {}", mesh_path);
+  //        XR_NOT_REACHED();
+  //      }
 
-//      graphic_obj.mesh = loaded_mesh;
-//    }
+  //      graphic_obj.mesh = loaded_mesh;
+  //    }
 
-//    const auto mat_id = obj_entry.lookup_string("material");
-//    assert(mat_id && "Missing material entry for object!");
-//    graphic_obj.mtl = mtl_cache->get_material(value_of(mat_id));
+  //    const auto mat_id = obj_entry.lookup_string("material");
+  //    assert(mat_id && "Missing material entry for object!");
+  //    graphic_obj.mtl = mtl_cache->get_material(value_of(mat_id));
 
-//    objects->push_back(graphic_obj);
-//  }
+  //    objects->push_back(graphic_obj);
+  //  }
 }
 
 void app::resource_store::load_shaders(const xray::base::config_file& cfg,
@@ -660,7 +665,7 @@ void app::resource_store::load_shaders(const xray::base::config_file& cfg,
   const auto shaders_sec = cfg.lookup_entry("app.scene.shaders");
   if (!shaders_sec) {
     XR_LOG_INFO("No shaders section in config file!");
-    return;
+    XR_NOT_REACHED();
   }
 
   const auto root_path = shaders_sec.lookup_string("root_path");
@@ -817,7 +822,7 @@ void test_shit() {
 
 void app::edge_detect_demo::init() {
 
-  test_shit();
+//  test_shit();
 
   uint32_t render_wnd_width{1024};
   uint32_t render_wnd_height{1024};
