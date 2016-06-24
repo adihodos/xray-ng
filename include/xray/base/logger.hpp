@@ -29,6 +29,7 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#define ELPP_PERFORMANCE_MICROSECONDS
 #include <easyloggingpp/easylogging++.h>
 #include <fmt/format.h>
 
