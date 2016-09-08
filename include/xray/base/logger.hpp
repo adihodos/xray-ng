@@ -29,6 +29,7 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#define ELPP_PERFORMANCE_MICROSECONDS
 #include <easyloggingpp/easylogging++.h>
 #include <fmt/format.h>
 
@@ -71,3 +72,8 @@
   do {                                                                         \
     LOG(FATAL) << fmt::format(msg, ##__VA_ARGS__);                             \
   } while (0)
+
+#define XRAY_TIMED_FUNC() TIMED_FUNC(XRAY_CONCATENATE(__FUNCTION__, __LINE__))
+
+#define XRAY_TIMED_SCOPE(scope_name)                                           \
+  TIMED_SCOPE(XRAY_CONCATENATE(__FUNCTION__, __LINE__), scope_name)

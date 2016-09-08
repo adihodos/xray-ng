@@ -603,14 +603,11 @@ bool xray::rendering::gpu_program::collect_uniform_blocks() {
 
     //
     // create uniform buffers for active blocks
-    constexpr auto kBufferCreateFlags = gl::MAP_WRITE_BIT
-        /*| gl::MAP_READ_BIT */;
+    constexpr auto kBufferCreateFlags = gl::MAP_WRITE_BIT;
     for_each(begin(ublocks), end(ublocks), [kBufferCreateFlags](auto& blk) {
       gl::CreateBuffers(1, raw_handle_ptr(blk.gl_buff));
       gl::NamedBufferStorage(raw_handle(blk.gl_buff), blk.size, nullptr,
                              kBufferCreateFlags);
-      //      blk.gl_buff =
-      // make_buffer(gl::UNIFORM_BUFFER, kBufferCreateFlags, blk.size);
     });
 
     //
@@ -619,7 +616,6 @@ bool xray::rendering::gpu_program::collect_uniform_blocks() {
                                   [](const auto& blk) { return !blk.gl_buff; });
 
     if (any_fails) {
-      OUTPUT_DBG_MSG("Failed to create buffers for uniform blocks");
       return false;
     }
 
@@ -627,14 +623,6 @@ bool xray::rendering::gpu_program::collect_uniform_blocks() {
     // Sort uniform blocks by their name
     sort(begin(ublocks), end(ublocks), [](const auto& blk0, const auto& blk1) {
       return blk0.name < blk1.name;
-    });
-
-    XR_LOG_INFO("Active uniform block for this shader : ");
-    for_each(begin(ublocks), end(ublocks), [](const auto& ublk) {
-      XR_LOG_INFO("{} : data store offset {}, size in bytes {}, index {}, "
-                  "binding point {}",
-                  raw_str(ublk.name), ublk.store_offset, ublk.size, ublk.index,
-                  ublk.bindpoint);
     });
 
     //
@@ -658,8 +646,6 @@ bool xray::rendering::gpu_program::collect_uniforms() {
   GLint num_uniforms{};
   gl::GetProgramInterfaceiv(phandle, gl::UNIFORM, gl::ACTIVE_RESOURCES,
                             &num_uniforms);
-
-  XR_LOG_INFO("Active uniforms count {}", num_uniforms);
 
   //
   // Nothing to do if no standalone uniforms.
@@ -712,7 +698,6 @@ bool xray::rendering::gpu_program::collect_uniforms() {
                              &props_retrieved, u_props.u_components);
 
     if (props_retrieved != XR_I32_COUNTOF__(props_to_get)) {
-      OUTPUT_DBG_MSG("Failed to get all properties of uniform %u", u_idx);
       return false;
     }
 
@@ -749,14 +734,6 @@ bool xray::rendering::gpu_program::collect_uniforms() {
   // sort uniforms by name.
   sort(begin(uniforms_), end(uniforms_),
        [](const auto& u0, const auto& u1) { return u0.name < u1.name; });
-
-  XR_LOG_INFO("List of active uniforms for this shader :");
-  for (const auto& u : uniforms_) {
-    XR_LOG_INFO("{}, size (bytes) {}, array dimension {}, location {}, parent "
-                "block id {}, storage offset {}",
-                u.name, u.byte_size, u.array_dim, u.location,
-                u.parent_block_idx, u.block_store_offset);
-  }
 
   return true;
 }
@@ -809,12 +786,6 @@ bool xray::rendering::gpu_program::collect_subroutines_and_uniforms() {
   if (subroutine_uniforms_.empty())
     return true;
 
-  XR_LOG_INFO("List of active subroutine uniforms for this shader :");
-  for (const auto& su : subroutine_uniforms_) {
-    XR_LOG_INFO("{} : stage {}, location {}", su.ssu_name,
-                pipeline_stage_to_string(su.ssu_stage), su.ssu_location);
-  }
-
   //
   // Sort subroutine uniforms by stage and by location.
   sort(begin(subroutine_uniforms_), end(subroutine_uniforms_),
@@ -853,11 +824,6 @@ bool xray::rendering::gpu_program::collect_subroutines_and_uniforms() {
     }
 
     for (const auto& s : stages) {
-      XR_LOG_INFO(
-          "Stage {}, data store offset {}, active locations {}",
-          pipeline_stage_to_string(static_cast<pipeline_stage>(s.first)),
-          s.second.datastore_offset, s.second.max_active_locations);
-
       stage_subroutine_ufs_[s.first] = s.second;
     }
   }
@@ -904,11 +870,6 @@ bool xray::rendering::gpu_program::collect_subroutines_and_uniforms() {
 
          return lhs.ss_stage < rhs.ss_stage;
        });
-
-  for (const auto& s : subroutines_) {
-    XR_LOG_INFO("subroutine {}, stage {}, index {}", s.ss_name,
-                pipeline_stage_to_string(s.ss_stage), s.ss_index);
-  }
 
   return true;
 }
