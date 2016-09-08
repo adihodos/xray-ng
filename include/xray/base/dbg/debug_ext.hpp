@@ -40,6 +40,8 @@ namespace xray {
 namespace base {
 namespace debug {
 
+constexpr auto msg_location_fmt_string = "\n[%s :: %d]";
+
 void output_debug_string(const char* format, ...);
 
 inline void debug_break() {

@@ -219,3 +219,6 @@ FakesAssemblies/
 **/*.Server/GeneratedArtifacts
 **/*.Server/ModelManifest.xml
 _Pvt_Extensions
+
+# VSCode
+.vscode/.BROWSE.VC.DB

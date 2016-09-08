@@ -54,6 +54,8 @@ struct scalar2x3 {
     struct {
       T a00, a01, a02;
       T a10, a11, a12;
+      //
+      // Third row implied as [0, 0, 1]
     };
 
     T components[6];
@@ -115,87 +117,6 @@ constexpr scalar2x3<T>::scalar2x3(const T e00, const T e01, const T e02,
                                   const T e12) noexcept
     : a00{e00}, a01{e01}, a02{e02}, a10{e10}, a11{e11}, a12{e12} {}
 
-template <typename T>
-scalar2x3<T>& scalar2x3<T>::operator+=(const scalar2x3<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i)
-    components[i] += rhs.components[i];
-
-  return *this;
-}
-
-template <typename T>
-scalar2x3<T>& scalar2x3<T>::operator-=(const scalar2x3<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i)
-    components[i] -= rhs.components[i];
-
-  return *this;
-}
-
-template <typename T>
-scalar2x3<T>& scalar2x3<T>::operator*=(const T k) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i)
-    components[i] *= k;
-
-  return *this;
-}
-
-template <typename T>
-scalar2x3<T>& scalar2x3<T>::operator/=(const T k) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i)
-    components[i] /= k;
-
-  return *this;
-}
-
-template <typename T>
-scalar2x3<T> operator-(const scalar2x3<T>& lhs) noexcept {
-  return {-lhs.a00, -lhs.a01, -lhs.a02, -lhs.a10, -lhs.a11, -lhs.a12};
-}
-
-template <typename T>
-scalar2x3<T> operator+(const scalar2x3<T>& lhs,
-                       const scalar2x3<T>& rhs) noexcept {
-  auto result = lhs;
-  result += rhs;
-  return result;
-}
-
-template <typename T>
-scalar2x3<T> operator-(const scalar2x3<T>& lhs,
-                       const scalar2x3<T>& rhs) noexcept {
-  auto result = lhs;
-  result -= rhs;
-  return result;
-}
-
-template <typename T>
-scalar2x3<T> operator*(const scalar2x3<T>& lhs, const T k) noexcept {
-  auto result = lhs;
-  result *= k;
-  return result;
-}
-
-template <typename T>
-scalar2x3<T> operator*(const T k, const scalar2x3<T>& rhs) noexcept {
-  return rhs * k;
-}
-
-template <typename T>
-scalar2x3<T> operator/(const scalar2x3<T>& lhs, const T k) noexcept {
-
-  auto result = lhs;
-  result /= k;
-  return result;
-}
-
-template <typename T>
-scalar2x3<T> operator*(const scalar2x3<T>& a, const scalar2x3<T>& b) noexcept {
-  return {a.a00 * b.a00 + a.a01 * b.a10,         a.a00 * b.b01 + a.a01 * b.a11,
-          a.a00 * b.a02 + a.a01 * b.a12 + a.a02,
-
-          a.a10 * b.a00 + a.a11 * b.a10,         a.a10 * b.a01 + a.a11 * b.a11,
-          a.a10 * b.a02 + a.a11 * b.a12 + a.a12};
-}
 
 ///  @}
 

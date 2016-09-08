@@ -72,6 +72,16 @@ struct scalar2 {
 
   constexpr scalar2(const T xval, const T yval) noexcept : x{xval}, y{yval} {}
 
+  /// \name Member operators
+  /// @{
+
+  inline class_type& operator+=(const class_type& rhs) noexcept;
+  inline class_type& operator-=(const class_type& rhs) noexcept;
+  inline class_type& operator*=(const T scalar) noexcept;
+  inline class_type& operator/=(const T scalar) noexcept;
+
+  /// @}
+
   /// \brief      Standard constants for R2 vectors.
   struct stdc;
 };
@@ -101,8 +111,7 @@ using double2    = scalar2<scalar_mediump>;
 using scalar2u32 = scalar2<uint32_t>;
 using scalar2i32 = scalar2<int32_t>;
 
-/// \addtogroup __GroupXrayMath
-/// @{
+/// @}
 
 } // namespace math
 } // namespace xray

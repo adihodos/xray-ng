@@ -295,6 +295,9 @@ int main(int argc, char** argv) {
   XR_LOGGER_CONFIG_FILE("config/logging.conf");
   XR_LOG_INFO("Starting up ...");
 
+  xray::math::float2 v0{xray::math::float2::stdc::unit_x};
+  XR_LOG_INFO("vec2 @ [{} {}]", v0.x, v0.y);
+
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;
 

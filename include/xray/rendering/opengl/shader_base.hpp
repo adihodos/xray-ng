@@ -37,12 +37,14 @@ namespace xray {
 namespace rendering {
 
 enum class shader_type : uint8_t {
-  vertex,
+  first,
+  vertex = first,
   tesselation_control,
   tesselation_eval,
   geometry,
   fragment,
-  compute
+  compute,
+  last
 };
 
 struct shader_handle {
@@ -60,8 +62,9 @@ struct shader_handle {
 
 using scoped_shader_handle = xray::base::unique_handle<shader_handle>;
 
-GLuint make_shader(const uint32_t shader_type, const char* const* src_code_strings,
-                   const uint32_t strings_count) noexcept;
+GLuint make_shader(const uint32_t     shader_type,
+                   const char* const* src_code_strings,
+                   const uint32_t     strings_count) noexcept;
 
 GLuint make_shader(const uint32_t shader_type,
                    const char*    source_file) noexcept;

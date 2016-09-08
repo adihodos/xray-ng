@@ -409,6 +409,12 @@ xray::rendering::gpu_program::gpu_program(const GLuint* shaders_to_attach,
   valid_ = reflect();
 }
 
+xray::rendering::gpu_program::gpu_program(
+    scoped_program_handle linked_prg) noexcept
+    : prog_handle_{std::move(linked_prg)} {
+  valid_ = reflect();
+}
+
 bool xray::rendering::gpu_program::reflect() {
   assert(prog_handle_ && "Oops");
   assert(uniform_blocks_.empty());
@@ -975,4 +981,97 @@ void xray::rendering::gpu_program::set_subroutine_uniform(
 
   assert(stage == itr_subroutine->ss_stage);
   itr_unifrm->ssu_assigned_subroutine_idx = itr_subroutine->ss_index;
+}
+
+xray::rendering::shader_source_descriptor::shader_source_descriptor(
+    const shader_type ptype, const shader_source_file& sfile) noexcept
+    : src_type{shader_source_type::file}, prg_type{ptype}, s_file{sfile} {}
+
+xray::rendering::shader_source_descriptor::shader_source_descriptor(
+    const shader_type ptype, const shader_source_string src_str) noexcept
+    : src_type{shader_source_type::code}, prg_type{ptype}, s_str{src_str} {}
+
+xray::rendering::gpu_program_builder::~gpu_program_builder() {
+  assert(!_gpu_prg);
+}
+
+xray::rendering::gpu_program_builder&
+xray::rendering::gpu_program_builder::attach_shader_string(
+    const graphics_pipeline_stage stype, const shader_source_string ssrc) {
+  auto sptr = stage(stype);
+  sptr->push_descriptor(shader_source_descriptor{stype, ssrc});
+  return *this;
+}
+
+xray::rendering::gpu_program_builder&
+xray::rendering::gpu_program_builder::attach_shader_file(
+    const graphics_pipeline_stage stype, const shader_source_file sfile) {
+  auto sptr = stage(stype);
+  sptr->push_descriptor(shader_source_descriptor{sfile});
+  return *this;
+}
+
+xray::rendering::gpu_program_builder::gpu_program_builder&
+xray::rendering::gpu_program_builder::hint_separable() noexcept {
+  _separable = true;
+  return *this;
+}
+
+xray::rendering::gpu_program_builder&
+xray::rendering::gpu_program_builder::hint_binary() noexcept {
+  _binary = true;
+  return *this;
+}
+
+xray::rendering::gpu_program_builder&
+xray::rendering::gpu_program_builder::attach_compiled_shader(
+    const graphics_pipeline_stage stype,
+    const scoped_shader_handle&   compiled_shader) {
+  auto sptr = stage(stype);
+  sptr->push_ref(compiled_shader.handle());
+  return *this;
+}
+
+xray::rendering::scoped_program_handle
+xray::rendering::gpu_program_builder::build() noexcept {
+  auto gpu_prg = scoped_program_handle{gl::CreateProgram()};
+  if (_separable) {
+    gl::ProgramParameteri(gpu_prg.handle(), gl::PROGRAM_SEPARABLE, gl::TRUE_);
+  }
+
+  if (_binary) {
+    gl::ProgramParameteri(gpu_prg.handle(), gl::PROGRAM_BINARY_RETRIEVABLE_HINT,
+                          gl::TRUE_);
+  }
+
+  for (uint32_t stage_idx = 0;
+       stage_idx < static_cast<uint32_t>(graphics_pipeline_stage::last);
+       ++stage_idx) {
+    auto sptr = stage(static_cast<graphics_pipeline_stage>(stage_idx));
+
+    //
+    // compile shaders for this stage
+    for (uint32_t i = 0; i < sptr->compile_cnt; ++i) {
+      const auto& sd = sptr->compile_list[i];
+    }
+  }
+
+  //
+  // attach shaders
+  for (uint32_t stage_idx = 0;
+       stage_idx < static_cast<uint32_t>(graphics_pipeline_stage::last);
+       ++stage_idx) {
+    auto sptr = stage(static_cast<graphics_pipeline_stage>(stage_idx));
+
+    for (uint32_t i = 0; i < sptr->compile_cnt; ++i) {
+      gl::AttachShader(gpu_prg.handle(), sptr->owned_shaders[i].handle());
+    }
+
+    for (uint32_t i = 0; i < sptr->ref_cnt; ++i) {
+      gl::AttachShader(gpu_prg.hande(), sptr->referenced_shaders[i]);
+    }
+  }
+
+  gl::LinkProgram(gpu_prg.handle());
+  const auto link_succeeded = [ph = gpu_program.handle()]
 }

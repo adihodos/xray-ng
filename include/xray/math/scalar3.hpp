@@ -71,33 +71,15 @@ struct scalar3 {
   constexpr scalar3(const T xval, const T yval, const T zval) noexcept
       : x{xval}, y{yval}, z{zval} {}
 
-  class_type& operator+=(const class_type& rhs) noexcept {
-    x += rhs.x;
-    y += rhs.y;
-    z += rhs.z;
-    return *this;
-  }
+  /// \name Self assign math operators
+  /// @{
 
-  class_type& operator-=(const class_type& rhs) noexcept {
-    x -= rhs.x;
-    y -= rhs.y;
-    z -= rhs.z;
-    return *this;
-  }
+  inline scalar3<T>& operator+=(const scalar3<T>& rhs) noexcept;
+  inline scalar3<T>& operator-=(const scalar3<T>& rhs) noexcept;
+  inline scalar3<T>& operator*=(const T scalar) noexcept;
+  inline scalar3<T>& operator/=(const T scalar) noexcept;
 
-  class_type& operator*=(const T scalar) noexcept {
-    x *= scalar;
-    y *= scalar;
-    z *= scalar;
-    return *this;
-  }
-
-  class_type& operator/=(const T scalar) noexcept {
-    x /= scalar;
-    y /= scalar;
-    z /= scalar;
-    return *this;
-  }
+  /// @}
 
   /// \name Standard constants for R3 vectors.
   /// @{

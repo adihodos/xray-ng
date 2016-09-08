@@ -35,6 +35,7 @@
 #include "xray/base/unique_handle.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
+#include "xray/rendering/opengl/shader_base.hpp"
 #include "xray/xray_types.hpp"
 #include <algorithm>
 #include <cassert>
@@ -48,7 +49,44 @@
 namespace xray {
 namespace rendering {
 
-enum pipeline_stage : uint8_t { vertex, geometry, fragment, last };
+struct shader_source_file {
+  const char* name;
+};
+
+struct shader_source_string {
+  const char* cstr;
+};
+
+enum class graphics_pipeline_stage : uint8_t {
+  first,
+  vertex = first,
+  tess_control,
+  tess_eval,
+  geometry,
+  fragment,
+  compute,
+  last
+};
+enum class shader_source_type { file, code, binary };
+
+struct shader_source_descriptor {
+  shader_source_type      src_type;
+  graphics_pipeline_stage stage_id;
+
+  union {
+    shader_source_file   s_file;
+    shader_source_string s_str;
+  };
+
+  explicit shader_source_descriptor(const graphics_pipeline_stage stage,
+                                    const shader_source_file& sfile) noexcept;
+
+  explicit shader_source_descriptor(
+      const graphics_pipeline_stage stage,
+      const shader_source_string    src_str) noexcept;
+};
+
+// enum pipeline_stage : uint8_t { vertex, geometry, fragment, last };
 
 struct gpu_program_handle {
   using handle_type = GLuint;
@@ -72,11 +110,68 @@ void set_uniform_impl(const GLuint program_id, const GLint uniform_location,
                       const uint32_t uniform_type, const void* uniform_data,
                       const size_t item_count) noexcept;
 
+class gpu_program_builder {
+public:
+  gpu_program_builder() noexcept = default;
+  ~gpu_program_builder();
+
+  gpu_program_builder& attach_shader_string(const graphics_pipeline_stage stype,
+                                            const shader_source_string    ssrc);
+
+  gpu_program_builder& attach_shader_file(const graphics_pipeline_stage stype,
+                                          const shader_source_file      sfile);
+
+  gpu_program_builder&
+  attach_compiled_shader(const graphics_pipeline_stage stype,
+                         const scoped_shader_handle&   compiled_shader);
+
+  gpu_program_builder& hint_separable() noexcept;
+  gpu_program_builder& hint_binary() noexcept;
+
+  scoped_program_handle build() noexcept;
+
+private:
+  static constexpr size_t PIPELINE_STAGE_COUNT =
+      static_cast<uint32_t>(graphics_pipeline_stage::last);
+
+  struct per_stage_data {
+    static constexpr uint32_t MAX_SLOTS = 8u;
+
+    scoped_shader_handle     owned_shaders[MAX_SLOTS];
+    GLuint                   referenced_shaders[MAX_SLOTS];
+    shader_source_descriptor compile_list[MAX_SLOTS];
+    uint8_t                  compile_cnt{0};
+    uint8_t                  ref_cnt{0};
+
+    void push_descriptor(const shader_source_descriptor& sds) noexcept {
+      assert(compile_cnt < MAX_SLOTS);
+      compile_list[compile_cnt++] = ds;
+    }
+
+    void push_reference(const GLuint shaderref) noexcept {
+      assert(ref_cnt < MAX_SLOTS);
+      referenced_shaders[ref_cnt++] = shaderref;
+    }
+  };
+
+  per_stage_data* stage(const graphics_pipeline_stage id) {
+    return &_stages[static_cast<uint32_t>(id)];
+  }
+
+  bool                        _separable{false};
+  bool                        _binary{false};
+  std::vector<per_stage_data> _stages{5u};
+
+private:
+  XRAY_NO_COPY(gpu_program_builder);
+};
+
 class gpu_program {
 public:
   using handle_type = gpu_program_handle::handle_type;
 
-  gpu_program() noexcept     = default;
+  gpu_program() noexcept = default;
+  explicit gpu_program(scoped_program_handle linked_prg) noexcept;
   gpu_program(gpu_program&&) = default;
   gpu_program& operator=(gpu_program&&) = default;
 

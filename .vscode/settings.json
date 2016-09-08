@@ -1,0 +1,19 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+    "clang.cxxflags": [
+        "-std=c++14",
+        "-I${workspaceRoot}/include",
+        "-I${workspaceRoot}/third_party",
+        "-IC:/MinGW/include",
+        "-IC:/MinGW/include/freetype2",
+        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../include/c++/6.1.0",
+        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../include/c++/6.1.0/x86_64-w6",
+        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../include/c++/6.1.0/backward",
+        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/include",
+        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/include-fixed",
+        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../x86_64-w64-mingw32/include"
+    ],
+
+    "clang-format.formatOnSave": true,
+    "clang-format.style": "file"
+}

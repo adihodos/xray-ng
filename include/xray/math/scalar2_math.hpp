@@ -41,6 +41,34 @@ namespace math {
 
 /// \addtogroup __GroupXrayMath
 /// @{
+    
+template<typename T>    
+inline scalar2<T>& scalar2<T>::operator+=(const scalar2<T>& rhs) noexcept {
+    x += rhs.x;
+    y += rhs.y;
+    return *this;
+}
+
+template<typename T>    
+inline scalar2<T>& scalar2<T>::operator-=(const class_type& rhs) noexcept {
+    x -= rhs.x;
+    y -= rhs.y;
+    return *this;
+}
+
+template<typename T>    
+inline scalar2<T>& scalar2<T>::operator*=(const T scalar) noexcept {
+    x *= scalar;
+    y *= scalar;
+    return *this;
+}
+
+template<typename T>    
+inline scalar2<T>& scalar2<T>::operator/=(const T scalar) noexcept {
+    x /= scalar;
+    y /= scalar;
+    return *this;
+}    
 
 template <typename T>
 inline bool is_zero_length(const scalar2<T>& v) noexcept {

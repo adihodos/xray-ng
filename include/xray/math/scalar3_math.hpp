@@ -41,26 +41,36 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-/// \brief Returns the square of the vector's length.
 template <typename T>
-inline T length_squared(const scalar3<T>& a) noexcept {
-  return a.x * a.x + a.y * a.y + a.z * a.z;
-}
-
-/// \brief Returns the square of the vector's length.
-template <typename T>
-inline T length_squared(const T x, const T y, const T z) noexcept {
-  return x * x + y * y + z * z;
+inline scalar3<T>& scalar3<T>::operator+=(const scalar3<T>& rhs) noexcept {
+  x += rhs.x;
+  y += rhs.y;
+  z += rhs.z;
+  return *this;
 }
 
 template <typename T>
-inline bool is_zero_length(const scalar3<T>& v) noexcept {
-  return is_zero(length_squared(v));
+inline scalar3<T>& scalar3<T>::operator-=(const scalar3<T>& rhs) noexcept {
+  x -= rhs.x;
+  y -= rhs.y;
+  z -= rhs.z;
+  return *this;
 }
 
 template <typename T>
-inline bool is_unit_length(const scalar3<T>& v) noexcept {
-  return is_equal(length_squared(v), T(1));
+inline scalar3<T>& scalar3<T>::operator*=(const T scalar) noexcept {
+  x *= scalar;
+  y *= scalar;
+  z *= scalar;
+  return *this;
+}
+
+template <typename T>
+inline scalar3<T>& scalar3<T>::operator/=(const T scalar) noexcept {
+  x /= scalar;
+  y /= scalar;
+  z /= scalar;
+  return *this;
 }
 
 template <typename T>
@@ -113,6 +123,28 @@ inline T dot(const scalar3<T>& a, const scalar3<T>& b) noexcept {
 template <typename T>
 inline scalar3<T> cross(const scalar3<T>& a, const scalar3<T>& b) noexcept {
   return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+}
+
+/// \brief Returns the square of the vector's length.
+template <typename T>
+inline T length_squared(const scalar3<T>& a) noexcept {
+  return a.x * a.x + a.y * a.y + a.z * a.z;
+}
+
+/// \brief Returns the square of the vector's length.
+template <typename T>
+inline T length_squared(const T x, const T y, const T z) noexcept {
+  return x * x + y * y + z * z;
+}
+
+template <typename T>
+inline bool is_zero_length(const scalar3<T>& v) noexcept {
+  return is_zero(length_squared(v));
+}
+
+template <typename T>
+inline bool is_unit_length(const scalar3<T>& v) noexcept {
+  return is_equal(length_squared(v), T(1));
 }
 
 /// \brief Returns the length of the vector.
