@@ -62,9 +62,9 @@ void app::reflection_demo::draw(const xray::rendering::draw_context_t& dc) {
                                        dc.active_camera->origin()};
 
     _draw_prog.set_uniform_block("transform_pack", skybox_tf_pack);
-    _draw_prog.set_subroutine_uniform(pipeline_stage::vertex, "reflection_func",
-                                      "skybox_func");
-    _draw_prog.set_subroutine_uniform(pipeline_stage::fragment,
+    _draw_prog.set_subroutine_uniform(graphics_pipeline_stage::vertex,
+                                      "reflection_func", "skybox_func");
+    _draw_prog.set_subroutine_uniform(graphics_pipeline_stage::fragment,
                                       "reflect_surface_fn", "reflect_skybox");
 
     _draw_prog.bind_to_pipeline();
@@ -78,9 +78,10 @@ void app::reflection_demo::draw(const xray::rendering::draw_context_t& dc) {
         dc.active_camera->origin()};
 
     _draw_prog.set_uniform_block("transform_pack", object_tf_pack);
-    _draw_prog.set_subroutine_uniform(pipeline_stage::vertex, "reflection_func",
+    _draw_prog.set_subroutine_uniform(graphics_pipeline_stage::vertex,
+                                      "reflection_func",
                                       "reflect_surface_func");
-    _draw_prog.set_subroutine_uniform(pipeline_stage::fragment,
+    _draw_prog.set_subroutine_uniform(graphics_pipeline_stage::fragment,
                                       "reflect_surface_fn", "reflect_object");
     _draw_prog.set_uniform_block("reflection_params", _surface_params);
 

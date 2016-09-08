@@ -93,9 +93,10 @@ void app::refraction_demo::draw(const xray::rendering::draw_context_t& dc) {
                                       dc.proj_view_matrix * skybox_world_tf};
 
     _drawprogram.set_uniform_block("transforms_pack", skybox_matrices);
-    _drawprogram.set_subroutine_uniform(
-        pipeline_stage::vertex, "surface_process_func", "process_skybox");
-    _drawprogram.set_subroutine_uniform(pipeline_stage::fragment,
+    _drawprogram.set_subroutine_uniform(graphics_pipeline_stage::vertex,
+                                        "surface_process_func",
+                                        "process_skybox");
+    _drawprogram.set_subroutine_uniform(graphics_pipeline_stage::fragment,
                                         "color_surface_func", "color_skybox");
     _drawprogram.set_uniform("environment_map", 0);
     _drawprogram.bind_to_pipeline();
@@ -117,12 +118,13 @@ void app::refraction_demo::draw(const xray::rendering::draw_context_t& dc) {
     _drawprogram.set_uniform_block("transforms_pack", spacecraft_matrices);
     _drawprogram.set_uniform("material_eta", _surfaceparams.refract_surface);
     _drawprogram.set_uniform("eye_pos", dc.active_camera->origin());
-    _drawprogram.set_subroutine_uniform(
-        pipeline_stage::vertex, "surface_process_func", "process_surface");
+    _drawprogram.set_subroutine_uniform(graphics_pipeline_stage::vertex,
+                                        "surface_process_func",
+                                        "process_surface");
     _drawprogram.set_uniform("surface_reflection",
                              _surfaceparams.reflect_surface);
     _drawprogram.set_uniform("environment_map", 0);
-    _drawprogram.set_subroutine_uniform(pipeline_stage::fragment,
+    _drawprogram.set_subroutine_uniform(graphics_pipeline_stage::fragment,
                                         "color_surface_func", "color_surface");
     _drawprogram.bind_to_pipeline();
 

@@ -172,7 +172,7 @@ void app::soubroutines_demo::draw(const draw_context_t& draw_ctx) {
         "light_model_diffuse", "light_model_ads"};
 
     draw_prog_.set_subroutine_uniform(
-        pipeline_stage::vertex, "shading_model",
+        graphics_pipeline_stage::vertex, "shading_model",
         SHADING_MODEL_SUBROUTINES[use_ads_lighting_]);
   }
 

@@ -25,7 +25,7 @@ using namespace xray::math;
 using namespace xray::rendering;
 using namespace std;
 
-static constexpr const char *const FOG_IMPLEMENTATIONS[] = {"fog_exponential",
+static constexpr const char* const FOG_IMPLEMENTATIONS[] = {"fog_exponential",
                                                             "fog_linear"};
 
 constexpr uint32_t app::fog_demo::NUM_MESHES;
@@ -34,7 +34,7 @@ app::fog_demo::fog_demo() { init(); }
 
 app::fog_demo::~fog_demo() {}
 
-void app::fog_demo::draw(const xray::rendering::draw_context_t &dc) {
+void app::fog_demo::draw(const xray::rendering::draw_context_t& dc) {
   assert(valid());
 
   gl::BindVertexArray(raw_handle(_vertex_array));
@@ -51,10 +51,11 @@ void app::fog_demo::draw(const xray::rendering::draw_context_t &dc) {
                                  color_palette::material::white};
 
   _draw_prog.set_uniform_block("scene_lights", scene_light);
-  _draw_prog.set_subroutine_uniform(pipeline_stage::fragment, "fog_type",
+  _draw_prog.set_subroutine_uniform(graphics_pipeline_stage::fragment,
+                                    "fog_type",
                                     FOG_IMPLEMENTATIONS[_linear_fog]);
 
-  for (const auto &mesh : _meshes) {
+  for (const auto& mesh : _meshes) {
 
     struct {
       float4x4 world_view;
@@ -111,7 +112,7 @@ void app::fog_demo::init() {
   vector<vertex_pn> vertices;
   vertices.reserve(mesh.vertex_count);
   transform(raw_ptr(mesh.geometry), raw_ptr(mesh.geometry) + mesh.vertex_count,
-            back_inserter(vertices), [](const auto &in_vertex) {
+            back_inserter(vertices), [](const auto& in_vertex) {
               return vertex_pn{in_vertex.position, in_vertex.normal};
             });
 
@@ -157,10 +158,10 @@ void app::fog_demo::init() {
   ();
 
   for (uint32_t i = 0; i < NUM_MESHES; ++i) {
-    auto &mesh = _meshes[i];
+    auto& mesh = _meshes[i];
 
     mesh.translation = {0.0f, 0.0f, 4.0f * static_cast<float>(i)};
-    mesh.mat = material::stdc::copper;
+    mesh.mat         = material::stdc::copper;
   }
 
   _light.position = {0.0f, 10.0f, 0.0f};
