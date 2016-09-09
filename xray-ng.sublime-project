@@ -8,6 +8,12 @@
     "settings":
     {
         "tab_size": 4,
-        "translate_tab_to_spaces" : true
+        "translate_tab_to_spaces" : true,
+        "clang_flags":
+        [
+            "-std=c++14",
+            "-Iinclude",
+            "-Ithird_party",
+        ]
     }
 }

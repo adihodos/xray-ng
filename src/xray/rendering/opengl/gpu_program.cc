@@ -228,7 +228,7 @@ struct uniform_traits<gl::FLOAT_MAT4> {
            static_cast<const GLint*>(u_data));                                 \
   } while (0)
 
-//void xray::rendering::set_uniform_impl(const GLuint   program_id,
+// void xray::rendering::set_uniform_impl(const GLuint   program_id,
 //                                       const GLint    u_location,
 //                                       const uint32_t uniform_type,
 //                                       const void*    u_data,
@@ -585,7 +585,7 @@ bool xray::rendering::gpu_program::collect_uniform_blocks() {
                              &props_retrieved, u_props.components);
 
     if ((props_retrieved != XR_U32_COUNTOF__(u_props.components)) || !u_props) {
-      OUTPUT_DBG_MSG("Failed to get all uniform block properties !");
+      XR_LOG_ERR("Failed to retrieve all uniform block properties!");
       return false;
     }
 
@@ -1100,7 +1100,8 @@ xray::rendering::detail::gpu_program_helpers::create_shader(
 }
 
 bool xray::rendering::detail::gpu_program_helpers::reflect(
-    const GLuint program, const graphics_pipeline_stage stage,
+    const GLuint program, const GLenum api_subroutine_uniform_interface_name,
+    const GLenum              api_subroutine_interface_name,
     gpu_program_reflect_data* refdata) {
 
   assert(refdata != nullptr);
@@ -1110,19 +1111,20 @@ bool xray::rendering::detail::gpu_program_helpers::reflect(
   assert(refdata->prg_subroutine_uniforms &&
          refdata->prg_subroutine_uniforms->empty());
 
-  if (!collect_uniform_blocks(program, stage, refdata->prg_ublocks,
+  if (!collect_uniform_blocks(program, refdata->prg_ublocks,
                               &refdata->prg_datastore_size)) {
     return false;
   }
 
-  if (!collect_uniforms(program, stage, *refdata->prg_ublocks,
+  if (!collect_uniforms(program, *refdata->prg_ublocks,
                         refdata->prg_uniforms)) {
     return false;
   }
 
-  if (!collect_subroutines_and_uniforms(program, stage,
-                                        refdata->prg_subroutine_uniforms,
-                                        refdata->prg_subroutines)) {
+  if (!collect_subroutines_and_uniforms(
+          program, api_subroutine_uniform_interface_name,
+          api_subroutine_interface_name, refdata->prg_subroutine_uniforms,
+          refdata->prg_subroutines)) {
     return false;
   }
 
@@ -1130,8 +1132,8 @@ bool xray::rendering::detail::gpu_program_helpers::reflect(
 }
 
 bool xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(
-    const GLuint program, const graphics_pipeline_stage /*stage*/,
-    std::vector<uniform_block_t>* blks, size_t* datastore_size) {
+    const GLuint program, std::vector<uniform_block_t>* blks,
+    size_t* datastore_size) {
   using namespace xray::base;
   using namespace std;
   using namespace xray::rendering;
@@ -1203,7 +1205,7 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(
                              &props_retrieved, u_props.components);
 
     if ((props_retrieved != XR_U32_COUNTOF__(u_props.components)) || !u_props) {
-      OUTPUT_DBG_MSG("Failed to get all uniform block properties !");
+      XR_LOG_ERR("Failed to retrieve all uniform block properties!");
       return false;
     }
 
@@ -1257,9 +1259,8 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(
 }
 
 bool xray::rendering::detail::gpu_program_helpers::collect_uniforms(
-    const GLuint program, const graphics_pipeline_stage /*stage*/,
-    const std::vector<uniform_block_t>& ublocks,
-    std::vector<uniform_t>*             uniforms) {
+    const GLuint program, const std::vector<uniform_block_t>& ublocks,
+    std::vector<uniform_t>* uniforms) {
   using namespace xray::base;
   using namespace std;
   using namespace stlsoft;
@@ -1364,7 +1365,9 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniforms(
 
 bool xray::rendering::detail::gpu_program_helpers::
     collect_subroutines_and_uniforms(
-        const GLuint program, const graphics_pipeline_stage stage,
+        const GLuint program,
+        const GLenum api_subroutine_uniform_interface_name,
+        const GLenum api_subroutine_interface_name,
         std::vector<shader_subroutine_uniform>* subs_uniforms,
         std::vector<shader_subroutine>*         subs) {
 
@@ -1373,32 +1376,10 @@ bool xray::rendering::detail::gpu_program_helpers::
 
   const auto phandle = program;
 
-  using namespace std;
-
-  const auto subroutine_uniform_interface_id = [stage]() {
-#define XR_GET_SUBROUTINE_UNIFORM_INTERFACE_ID(stage)                          \
-  case stage:                                                                  \
-    return xray_to_opengl<stage>::sub_uniform_interface;                       \
-    break;
-
-    switch (stage) {
-      XR_GET_SUBROUTINE_UNIFORM_INTERFACE_ID(graphics_pipeline_stage::vertex);
-      XR_GET_SUBROUTINE_UNIFORM_INTERFACE_ID(graphics_pipeline_stage::geometry);
-      XR_GET_SUBROUTINE_UNIFORM_INTERFACE_ID(graphics_pipeline_stage::fragment);
-
-    default:
-      assert(false && "Unmapped case!");
-      break;
-    };
-
-#undef XR_GET_SUBROUTINE_UNIFORM_INTERFACE_ID
-
-    return static_cast<GLenum>(gl::INVALID_VALUE);
-  }();
-
-  const int32_t active_uniforms = [phandle, subroutine_uniform_interface_id]() {
+  const int32_t active_uniforms = [phandle,
+                                   api_subroutine_uniform_interface_name]() {
     GLint cnt{};
-    gl::GetProgramInterfaceiv(phandle, subroutine_uniform_interface_id,
+    gl::GetProgramInterfaceiv(phandle, api_subroutine_uniform_interface_name,
                               gl::ACTIVE_RESOURCES, &cnt);
 
     return cnt;
@@ -1410,9 +1391,10 @@ bool xray::rendering::detail::gpu_program_helpers::
     return true;
 
   const int32_t max_namelen_subroutine_uniform =
-      [phandle, subroutine_uniform_interface_id]() {
+      [phandle, api_subroutine_uniform_interface_name]() {
         GLint maxlen{};
-        gl::GetProgramInterfaceiv(phandle, subroutine_uniform_interface_id,
+        gl::GetProgramInterfaceiv(phandle,
+                                  api_subroutine_uniform_interface_name,
                                   gl::MAX_NAME_LENGTH, &maxlen);
 
         return maxlen;
@@ -1424,15 +1406,15 @@ bool xray::rendering::detail::gpu_program_helpers::
     stlsoft::auto_buffer<char> name_buff{
         static_cast<size_t>(max_namelen_subroutine_uniform) + 1};
     GLsizei chars_written{0};
-    gl::GetProgramResourceName(phandle, subroutine_uniform_interface_id, idx,
-                               max_namelen_subroutine_uniform, &chars_written,
-                               name_buff.data());
+    gl::GetProgramResourceName(phandle, api_subroutine_uniform_interface_name,
+                               idx, max_namelen_subroutine_uniform,
+                               &chars_written, name_buff.data());
     name_buff.data()[chars_written] = 0;
 
     const auto uniform_location = gl::GetProgramResourceLocation(
-        phandle, subroutine_uniform_interface_id, name_buff.data());
+        phandle, api_subroutine_uniform_interface_name, name_buff.data());
 
-    subs_uniforms->push_back({name_buff.data(), stage,
+    subs_uniforms->push_back({name_buff.data(), graphics_pipeline_stage::last,
                               static_cast<uint8_t>(uniform_location), 0xFF});
   }
 
@@ -1440,39 +1422,14 @@ bool xray::rendering::detail::gpu_program_helpers::
   // Sort subroutine uniforms by stage and by location.
   sort(begin(*subs_uniforms), end(*subs_uniforms),
        [](const auto& lhs, const auto& rhs) {
-
-         if (lhs.ssu_stage == rhs.ssu_stage)
-           return lhs.ssu_location < rhs.ssu_location;
-
-         return lhs.ssu_stage < rhs.ssu_stage;
+         return lhs.ssu_location < rhs.ssu_location;
        });
 
   //
   // collect subroutines
-  const uint32_t subroutine_interface_id = [stage]() {
-#define XR_GET_SUBROUTINE_INTERFACE_ID(stage)                                  \
-  case stage:                                                                  \
-    return xray_to_opengl<stage>::sub_interface;                               \
-    break
-
-    switch (stage) {
-      XR_GET_SUBROUTINE_INTERFACE_ID(graphics_pipeline_stage::vertex);
-      XR_GET_SUBROUTINE_INTERFACE_ID(graphics_pipeline_stage::geometry);
-      XR_GET_SUBROUTINE_INTERFACE_ID(graphics_pipeline_stage::fragment);
-
-    default:
-      assert(false && "Unmaped stage!!");
-      break;
-    };
-
-#undef XR_GET_SUBROUTINE_INTERFACE_ID
-
-    return static_cast<GLenum>(gl::INVALID_VALUE);
-  }();
-
-  const int32_t subroutines_count = [phandle, subroutine_interface_id]() {
+  const int32_t subroutines_count = [phandle, api_subroutine_interface_name]() {
     GLint cnt{};
-    gl::GetProgramInterfaceiv(phandle, subroutine_interface_id,
+    gl::GetProgramInterfaceiv(phandle, api_subroutine_interface_name,
                               gl::ACTIVE_RESOURCES, &cnt);
 
     return cnt;
@@ -1481,9 +1438,10 @@ bool xray::rendering::detail::gpu_program_helpers::
   if (!subroutines_count)
     return true;
 
-  const int32_t max_namelen_subroutine = [phandle, subroutine_interface_id]() {
+  const int32_t max_namelen_subroutine = [phandle,
+                                          api_subroutine_interface_name]() {
     GLint len{};
-    gl::GetProgramInterfaceiv(phandle, subroutine_interface_id,
+    gl::GetProgramInterfaceiv(phandle, api_subroutine_interface_name,
                               gl::MAX_NAME_LENGTH, &len);
 
     return len;
@@ -1496,23 +1454,20 @@ bool xray::rendering::detail::gpu_program_helpers::
     stlsoft::auto_buffer<char> name_buff{
         static_cast<size_t>(max_namelen_subroutine) + 1};
 
-    gl::GetProgramResourceName(phandle, subroutine_interface_id, idx,
+    gl::GetProgramResourceName(phandle, api_subroutine_interface_name, idx,
                                max_namelen_subroutine, &name_len,
                                name_buff.data());
     name_buff.data()[name_len] = 0;
 
     const auto subroutine_index = gl::GetProgramResourceIndex(
-        phandle, subroutine_interface_id, name_buff.data());
+        phandle, api_subroutine_interface_name, name_buff.data());
 
-    subs->push_back(
-        {name_buff.data(), stage, static_cast<uint8_t>(subroutine_index)});
+    subs->push_back({name_buff.data(), graphics_pipeline_stage::last,
+                     static_cast<uint8_t>(subroutine_index)});
   }
 
   sort(begin(*subs), end(*subs), [](const auto& lhs, const auto& rhs) {
-    if (lhs.ss_stage == rhs.ss_stage)
-      return lhs.ss_name < rhs.ss_name;
-
-    return lhs.ss_stage < rhs.ss_stage;
+    return lhs.ss_name < rhs.ss_name;
   });
 
   return true;
@@ -1590,7 +1545,9 @@ void xray::rendering::detail::gpu_program_helpers::set_uniform(
 }
 
 xray::rendering::detail::gpu_program_base::gpu_program_base(
-    scoped_program_handle handle, const graphics_pipeline_stage stage)
+    scoped_program_handle handle,
+    const GLenum          api_subroutine_uniform_interface_name,
+    const GLenum          api_subroutine_interface_name)
     : _handle{std::move(handle)} {
 
   if (!_handle)
@@ -1599,8 +1556,9 @@ xray::rendering::detail::gpu_program_base::gpu_program_base(
   detail::gpu_program_reflect_data reflection_info{
       0u, &uniform_blocks_, &uniforms_, &subroutine_uniforms_, &subroutines_};
 
-  _valid = detail::gpu_program_helpers::reflect(base::raw_handle(_handle),
-                                                stage, &reflection_info);
+  _valid = detail::gpu_program_helpers::reflect(
+      base::raw_handle(_handle), api_subroutine_uniform_interface_name,
+      api_subroutine_interface_name, &reflection_info);
 
   if (!_valid)
     return;
@@ -1639,4 +1597,157 @@ void xray::rendering::detail::gpu_program_base::set_uniform_block(
          byte_count);
 
   blk_iter->dirty = true;
+}
+
+void xray::rendering::detail::gpu_program_base::set_subroutine_uniform(
+    const char* uniform_name, const char* subroutine_name) noexcept {
+
+  assert(uniform_name != nullptr);
+  assert(subroutine_name != nullptr);
+
+  using namespace std;
+  auto itr_unifrm = find_if(
+      begin(subroutine_uniforms_), end(subroutine_uniforms_),
+      [uniform_name](const auto& uf) { return uniform_name == uf.ssu_name; });
+
+  if (itr_unifrm == end(subroutine_uniforms_)) {
+    XR_LOG_ERR("Subroutine uniform {} does not exist !", uniform_name);
+    return;
+  }
+
+  auto itr_subroutine = find_if(begin(subroutines_), end(subroutines_),
+                                [subroutine_name](const auto& sub) {
+                                  return subroutine_name == sub.ss_name;
+                                });
+
+  if (itr_subroutine == end(subroutines_)) {
+    XR_LOG_ERR("Subroutine {} does not exist !", subroutine_name);
+    return;
+  }
+
+  itr_unifrm->ssu_assigned_subroutine_idx = itr_subroutine->ss_index;
+}
+
+void xray::rendering::detail::gpu_program_base::use(const GLenum shader_type) {
+  assert(_valid);
+
+  using namespace std;
+  using namespace xray::base;
+
+  //
+  // writa data for blocks marked as dirty
+  for_each(begin(uniform_blocks_), end(uniform_blocks_), [this](auto& u_blk) {
+    if (u_blk.dirty) {
+
+      auto src_ptr = raw_ptr(ublocks_datastore_) + u_blk.store_offset;
+
+      {
+        scoped_resource_mapping ubuff_mapping{raw_handle(u_blk.gl_buff),
+                                              gl::MAP_WRITE_BIT, u_blk.size};
+
+        if (!ubuff_mapping)
+          return;
+
+        memcpy(ubuff_mapping.memory(), src_ptr, u_blk.size);
+      }
+      u_blk.dirty = false;
+    }
+
+    gl::BindBuffer(gl::UNIFORM_BUFFER, raw_handle(u_blk.gl_buff));
+    gl::BindBufferBase(gl::UNIFORM_BUFFER, u_blk.bindpoint,
+                       raw_handle(u_blk.gl_buff));
+
+  });
+
+  //
+  // For subroutine uniforms, program must be set active
+  gl::UseProgram(raw_handle(_handle));
+
+  if (!subroutine_uniforms_.empty()) {
+    stlsoft::auto_buffer<GLuint> indices_buff{subroutine_uniforms_.size()};
+
+    for_each(
+        begin(subroutine_uniforms_), end(subroutine_uniforms_),
+        [indices = gsl::span<GLuint>(indices_buff.data(), indices_buff.size())](
+            const auto& sub_unifrm) {
+          indices[sub_unifrm.ssu_location] =
+              sub_unifrm.ssu_assigned_subroutine_idx;
+        });
+
+    gl::UniformSubroutinesuiv(shader_type, indices_buff.size(),
+                              indices_buff.data());
+  }
+}
+
+xray::rendering::gpu_program_pipeline_setup_builder::
+    gpu_program_pipeline_setup_builder(const GLuint pipeline_handle) noexcept
+    : _handle{pipeline_handle} {
+  memset(_programs_by_stage, 0, sizeof(_programs_by_stage));
+}
+
+xray::rendering::gpu_program_pipeline_setup_builder&
+xray::rendering::gpu_program_pipeline_setup_builder::add_vertex_program(
+    const vertex_program& vert_prg) {
+  using namespace xray::base;
+
+  _programs_by_stage[enum_helper::to_underlying_type(
+      graphics_pipeline_stage::vertex)] = vert_prg.handle();
+  return *this;
+}
+
+xray::rendering::gpu_program_pipeline_setup_builder&
+xray::rendering::gpu_program_pipeline_setup_builder::add_geometry_program(
+    const geometry_program& geom_prg) {
+  using namespace xray::base;
+
+  _programs_by_stage[enum_helper::to_underlying_type(
+      graphics_pipeline_stage::geometry)] = geom_prg.handle();
+  return *this;
+}
+
+xray::rendering::gpu_program_pipeline_setup_builder&
+xray::rendering::gpu_program_pipeline_setup_builder::add_fragment_program(
+    const fragment_program& frag_prg) {
+  using namespace xray::base;
+
+  _programs_by_stage[enum_helper::to_underlying_type(
+      graphics_pipeline_stage::fragment)] = frag_prg.handle();
+  return *this;
+}
+
+void xray::rendering::gpu_program_pipeline_setup_builder::install() {
+  assert(gl::IsProgramPipeline(_handle));
+
+  using namespace xray::base;
+
+  for (auto i = enum_helper::to_underlying_type(graphics_pipeline_stage::first);
+       i < enum_helper::to_underlying_type(graphics_pipeline_stage::last);
+       ++i) {
+
+    const auto stage_bit = [stage = enum_helper::from_underlying_type<
+                                graphics_pipeline_stage>(i)]() {
+#define XRAY_TO_OPENGL_GET_STAGE_BIT(stg)                                      \
+  case stg:                                                                    \
+    return xray_to_opengl<stg>::shader_bit;                                    \
+    break
+
+      switch (stage) {
+        XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::vertex);
+        XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::geometry);
+        XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::fragment);
+
+      default:
+        assert(false && "Unmapped stage bit !");
+        break;
+      };
+
+      return GLbitfield{gl::INVALID_VALUE};
+    }
+    ();
+
+    gl::UseProgramStages(_handle, stage_bit, _programs_by_stage[i]);
+  }
+
+  gl::UseProgram(0);
+  gl::BindProgramPipeline(_handle);
 }
