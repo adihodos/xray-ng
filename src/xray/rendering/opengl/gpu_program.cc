@@ -228,76 +228,76 @@ struct uniform_traits<gl::FLOAT_MAT4> {
            static_cast<const GLint*>(u_data));                                 \
   } while (0)
 
-void xray::rendering::set_uniform_impl(const GLuint   program_id,
-                                       const GLint    u_location,
-                                       const uint32_t uniform_type,
-                                       const void*    u_data,
-                                       const size_t   count) noexcept {
-  switch (uniform_type) {
-  case gl::FLOAT:
-    PROG_UNIFORM_FV(program_id, gl::ProgramUniform1fv, u_location, count,
-                    u_data);
-    break;
+//void xray::rendering::set_uniform_impl(const GLuint   program_id,
+//                                       const GLint    u_location,
+//                                       const uint32_t uniform_type,
+//                                       const void*    u_data,
+//                                       const size_t   count) noexcept {
+//  switch (uniform_type) {
+//  case gl::FLOAT:
+//    PROG_UNIFORM_FV(program_id, gl::ProgramUniform1fv, u_location, count,
+//                    u_data);
+//    break;
 
-  case gl::UNSIGNED_INT:
-    PROG_UNIFORM_UIV(program_id, gl::ProgramUniform1uiv, u_location, count,
-                     u_data);
-    break;
+//  case gl::UNSIGNED_INT:
+//    PROG_UNIFORM_UIV(program_id, gl::ProgramUniform1uiv, u_location, count,
+//                     u_data);
+//    break;
 
-  case gl::FLOAT_VEC2:
-    PROG_UNIFORM_FV(program_id, gl::ProgramUniform2fv, u_location, count,
-                    u_data);
-    break;
+//  case gl::FLOAT_VEC2:
+//    PROG_UNIFORM_FV(program_id, gl::ProgramUniform2fv, u_location, count,
+//                    u_data);
+//    break;
 
-  case gl::FLOAT_VEC3:
-    PROG_UNIFORM_FV(program_id, gl::ProgramUniform3fv, u_location, count,
-                    u_data);
-    break;
+//  case gl::FLOAT_VEC3:
+//    PROG_UNIFORM_FV(program_id, gl::ProgramUniform3fv, u_location, count,
+//                    u_data);
+//    break;
 
-  case gl::FLOAT_VEC4:
-    PROG_UNIFORM_FV(program_id, gl::ProgramUniform4fv, u_location, count,
-                    u_data);
-    break;
+//  case gl::FLOAT_VEC4:
+//    PROG_UNIFORM_FV(program_id, gl::ProgramUniform4fv, u_location, count,
+//                    u_data);
+//    break;
 
-  case gl::FLOAT_MAT2:
-    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix2fv, u_location,
-                        count, u_data);
-    break;
+//  case gl::FLOAT_MAT2:
+//    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix2fv, u_location,
+//                        count, u_data);
+//    break;
 
-  case gl::FLOAT_MAT2x3:
-    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix2x3fv, u_location,
-                        count, u_data);
-    break;
+//  case gl::FLOAT_MAT2x3:
+//    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix2x3fv, u_location,
+//                        count, u_data);
+//    break;
 
-  case gl::FLOAT_MAT3x2:
-    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix3x2fv, u_location,
-                        count, u_data);
-    break;
+//  case gl::FLOAT_MAT3x2:
+//    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix3x2fv, u_location,
+//                        count, u_data);
+//    break;
 
-  case gl::FLOAT_MAT3:
-    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix3fv, u_location,
-                        count, u_data);
-    break;
+//  case gl::FLOAT_MAT3:
+//    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix3fv, u_location,
+//                        count, u_data);
+//    break;
 
-  case gl::FLOAT_MAT4:
-    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix4fv, u_location,
-                        count, u_data);
-    break;
+//  case gl::FLOAT_MAT4:
+//    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix4fv, u_location,
+//                        count, u_data);
+//    break;
 
-  case gl::INT:
-  case gl::SAMPLER_2D:
-  case gl::SAMPLER_1D:
-  case gl::SAMPLER_CUBE:
-    PROG_UNIFORM_IV(program_id, gl::ProgramUniform1iv, u_location, count,
-                    u_data);
-    break;
+//  case gl::INT:
+//  case gl::SAMPLER_2D:
+//  case gl::SAMPLER_1D:
+//  case gl::SAMPLER_CUBE:
+//    PROG_UNIFORM_IV(program_id, gl::ProgramUniform1iv, u_location, count,
+//                    u_data);
+//    break;
 
-  default:
-    XR_LOG_CRITICAL("Unhandled uniform type {} in set()", uniform_type);
-    assert(false && "Unhandled uniform type in set()");
-    break;
-  }
-}
+//  default:
+//    XR_LOG_CRITICAL("Unhandled uniform type {} in set()", uniform_type);
+//    assert(false && "Unhandled uniform type in set()");
+//    break;
+//  }
+//}
 
 static uint32_t get_resource_size(const uint32_t res_type) noexcept {
   switch (res_type) {
@@ -961,8 +961,100 @@ xray::rendering::shader_source_descriptor::shader_source_descriptor(
 
 xray::rendering::scoped_program_handle
 xray::rendering::gpu_program_builder::build() noexcept {
+  using namespace xray::base;
 
-  const auto shader_type = [s = _stage]() {
+  auto gpu_prg = scoped_program_handle{gl::CreateProgram()};
+  auto phandle = base::raw_handle(gpu_prg);
+
+  gl::ProgramParameteri(phandle, gl::PROGRAM_SEPARABLE, gl::TRUE_);
+
+  if (_binary) {
+    gl::ProgramParameteri(phandle, gl::PROGRAM_BINARY_RETRIEVABLE_HINT,
+                          gl::TRUE_);
+  }
+
+  //
+  // Compile shaders
+  for (uint32_t i = 0; i < compile_cnt; ++i) {
+    const auto& sd   = compile_list[i];
+    owned_shaders[i] = detail::gpu_program_helpers::create_shader(sd);
+
+    if (!owned_shaders[i]) {
+      XR_LOG_CRITICAL("Aborting program creation, shader compile error.");
+      return {};
+    }
+  }
+
+  //
+  // attach shaders
+  for (uint32_t i = 0; i < compile_cnt; ++i) {
+    gl::AttachShader(phandle, raw_handle(owned_shaders[i]));
+  }
+
+  for (uint32_t i = 0; i < ref_cnt; ++i) {
+    gl::AttachShader(phandle, referenced_shaders[i]);
+  }
+
+  gl::LinkProgram(phandle);
+  const auto link_succeeded = [phandle]() {
+    GLint link_status{gl::FALSE_};
+    gl::GetProgramiv(phandle, gl::LINK_STATUS, &link_status);
+    return link_status = gl::TRUE_;
+  }();
+
+  if (link_succeeded) {
+    return gpu_prg;
+  }
+
+  char  log_buff[1024];
+  GLint log_len{0};
+  gl::GetProgramInfoLog(phandle, XR_I32_COUNTOF__(log_buff), &log_len,
+                        log_buff);
+  log_buff[log_len] = 0;
+
+  XR_LOG_CRITICAL("Failed to compile/link program, error : [[{}]]",
+                  &log_buff[0]);
+
+  return scoped_program_handle{};
+}
+
+xray::rendering::scoped_shader_handle
+xray::rendering::detail::gpu_program_helpers::create_shader_from_string(
+    const GLenum type, const xray::rendering::shader_source_string& sstr) {
+  using namespace xray::base;
+  using namespace xray::rendering;
+
+  scoped_shader_handle shader{gl::CreateShader(type)};
+  gl::ShaderSource(raw_handle(shader), 1, &sstr.cstr, nullptr);
+  gl::CompileShader(raw_handle(shader));
+  const auto compilation_succeeded = [handle = raw_handle(shader)]() {
+    GLint status{gl::FALSE_};
+    gl::GetShaderiv(handle, gl::COMPILE_STATUS, &status);
+    return status == gl::TRUE_;
+  }
+  ();
+
+  if (compilation_succeeded) {
+    return shader;
+  }
+
+  char  err_buff[1024];
+  GLint bsize{0};
+  gl::GetShaderInfoLog(raw_handle(shader), XR_I32_COUNTOF__(err_buff), &bsize,
+                       err_buff);
+  err_buff[bsize] = 0;
+
+  XR_LOG_CRITICAL("Shader compilation error:\n [[{}]]", &err_buff[0]);
+  return scoped_shader_handle{};
+}
+
+xray::rendering::scoped_shader_handle
+xray::rendering::detail::gpu_program_helpers::create_shader(
+    const xray::rendering::shader_source_descriptor& sd) {
+  using namespace xray::base;
+  using namespace xray::rendering;
+
+  const auto shader_type = [s = sd.stage_id]() {
 
 #define XR_GET_SHADER_TYPE_FROM_STAGE(stage)                                   \
   case stage:                                                                  \
@@ -984,196 +1076,28 @@ xray::rendering::gpu_program_builder::build() noexcept {
   }
   ();
 
-  return scoped_program_handle{};
+  if (sd.src_type == shader_source_type::code) {
+    return create_shader_from_string(shader_type, sd.s_str);
+  }
+
+  if (sd.src_type == shader_source_type::file) {
+    try {
+      platformstl::memory_mapped_file shader_file{sd.s_file.name};
+
+      const shader_source_string ssrc{
+          static_cast<const char*>(shader_file.memory()), shader_file.size()};
+
+      return create_shader_from_string(shader_type, ssrc);
+
+    } catch (const std::exception&) {
+      XR_LOG_CRITICAL("Error :shader file {} does not exist", sd.s_file.name);
+      return {};
+    }
+  }
+
+  assert(false && "No support for this shader source type !");
+  return {};
 }
-
-// xray::rendering::gpu_program_builder::~gpu_program_builder() {}
-
-// xray::rendering::gpu_program_builder&
-// xray::rendering::gpu_program_builder::attach_shader_string(
-//    const graphics_pipeline_stage stype, const shader_source_string ssrc) {
-//  auto sptr = stage(stype);
-//  sptr->push_descriptor(shader_source_descriptor{stype, ssrc});
-//  return *this;
-//}
-
-// xray::rendering::gpu_program_builder&
-// xray::rendering::gpu_program_builder::attach_shader_file(
-//    const graphics_pipeline_stage stype, const shader_source_file sfile) {
-//  auto sptr = stage(stype);
-//  sptr->push_descriptor(shader_source_descriptor{stype, sfile});
-//  return *this;
-//}
-
-// xray::rendering::gpu_program_builder&
-// xray::rendering::gpu_program_builder::hint_separable() noexcept {
-//  _separable = true;
-//  return *this;
-//}
-
-// xray::rendering::gpu_program_builder&
-// xray::rendering::gpu_program_builder::hint_binary() noexcept {
-//  _binary = true;
-//  return *this;
-//}
-
-// xray::rendering::gpu_program_builder&
-// xray::rendering::gpu_program_builder::attach_compiled_shader(
-//    const graphics_pipeline_stage stype,
-//    const scoped_shader_handle&   compiled_shader) {
-//  auto sptr = stage(stype);
-//  sptr->push_ref(base::raw_handle(compiled_shader));
-//  return *this;
-//}
-
-// GLenum xray_pipeline_stage_to_opengl_shader_type(
-//    const xray::rendering::graphics_pipeline_stage stage) {
-//  using namespace xray::rendering;
-
-//#define XR_SHADER_TYPE_FROM_PIPELINE_STAGE(stage)                              \
-//  xray_to_opengl<stage>::shader_type
-
-//  const GLenum mappings[] = {
-//      // xray_to_opengl<graphics_pipeline_stage::vertex>::shader_type,
-//      XR_SHADER_TYPE_FROM_PIPELINE_STAGE(graphics_pipeline_stage::vertex)};
-
-//  assert(static_cast<uint32_t>(stage) < XR_U32_COUNTOF__(mappings));
-//  return mappings[static_cast<uint32_t>(stage)];
-//}
-
-// xray::rendering::scoped_shader_handle
-// create_shader_from_string(const GLenum                                 type,
-//                          const xray::rendering::shader_source_string& sstr) {
-//  using namespace xray::base;
-//  using namespace xray::rendering;
-
-//  scoped_shader_handle shader{gl::CreateShader(type)};
-//  gl::ShaderSource(raw_handle(shader), 1, &sstr.cstr, nullptr);
-//  gl::CompileShader(raw_handle(shader));
-//  const auto compilation_succeeded = [handle = raw_handle(shader)]() {
-//    GLint status{gl::FALSE_};
-//    gl::GetShaderiv(handle, gl::COMPILE_STATUS, &status);
-//    return status == gl::TRUE_;
-//  }
-//  ();
-
-//  if (compilation_succeeded) {
-//    return shader;
-//  }
-
-//  char  err_buff[1024];
-//  GLint bsize{0};
-//  gl::GetShaderInfoLog(raw_handle(shader), XR_I32_COUNTOF__(err_buff), &bsize,
-//                       err_buff);
-//  err_buff[bsize] = 0;
-
-//  XR_LOG_CRITICAL("Shader compilation error:\n [[{}]]", &err_buff[0]);
-//  return scoped_shader_handle{};
-//}
-
-// xray::rendering::scoped_shader_handle
-// create_shader(const xray::rendering::shader_source_descriptor& sd) {
-//  using namespace xray::base;
-//  using namespace xray::rendering;
-
-//  const auto gl_shader_type =
-//      xray_pipeline_stage_to_opengl_shader_type(sd.stage_id);
-
-//  if (sd.src_type == shader_source_type::code) {
-//    return create_shader_from_string(gl_shader_type, sd.s_str);
-//  }
-
-//  if (sd.src_type == shader_source_type::file) {
-//    try {
-//      platformstl::memory_mapped_file shader_file{sd.s_file.name};
-
-//      const shader_source_string ssrc{
-//          static_cast<const char*>(shader_file.memory()), shader_file.size()};
-
-//      return create_shader_from_string(gl_shader_type, ssrc);
-
-//    } catch (const std::exception&) {
-//      XR_LOG_CRITICAL("Error :shader file {} does not exist", sd.s_file.name);
-//      return {};
-//    }
-//  }
-
-//  assert(false && "No support for this shader source type !");
-//  return {};
-//}
-
-// xray::rendering::scoped_program_handle
-// xray::rendering::gpu_program_builder::build() noexcept {
-//  using namespace xray::base;
-
-//  auto gpu_prg = scoped_program_handle{gl::CreateProgram()};
-//  auto phandle = base::raw_handle(gpu_prg);
-
-//  if (_separable) {
-//    gl::ProgramParameteri(phandle, gl::PROGRAM_SEPARABLE, gl::TRUE_);
-//  }
-
-//  if (_binary) {
-//    gl::ProgramParameteri(phandle, gl::PROGRAM_BINARY_RETRIEVABLE_HINT,
-//                          gl::TRUE_);
-//  }
-
-//  for (uint32_t stage_idx = 0;
-//       stage_idx < static_cast<uint32_t>(graphics_pipeline_stage::last);
-//       ++stage_idx) {
-//    auto sptr = stage(static_cast<graphics_pipeline_stage>(stage_idx));
-
-//    //
-//    // compile shaders for this stage
-//    for (uint32_t i = 0; i < sptr->compile_cnt; ++i) {
-//      const auto& sd         = sptr->compile_list[i];
-//      sptr->owned_shaders[i] = create_shader(sd);
-
-//      if (!sptr->owned_shaders[i]) {
-//        XR_LOG_CRITICAL("Aborting program creation, shader compile error.");
-//        return {};
-//      }
-//    }
-//  }
-
-//  //
-//  // attach shaders
-//  for (uint32_t stage_idx = 0;
-//       stage_idx < static_cast<uint32_t>(graphics_pipeline_stage::last);
-//       ++stage_idx) {
-//    auto sptr = stage(static_cast<graphics_pipeline_stage>(stage_idx));
-
-//    for (uint32_t i = 0; i < sptr->compile_cnt; ++i) {
-//      gl::AttachShader(phandle, raw_handle(sptr->owned_shaders[i]));
-//    }
-
-//    for (uint32_t i = 0; i < sptr->ref_cnt; ++i) {
-//      gl::AttachShader(phandle, sptr->referenced_shaders[i]);
-//    }
-//  }
-
-//  gl::LinkProgram(phandle);
-//  const auto link_succeeded = [phandle]() {
-//    GLint link_status{gl::FALSE_};
-//    gl::GetProgramiv(phandle, gl::LINK_STATUS, &link_status);
-//    return link_status = gl::TRUE_;
-//  }();
-
-//  if (link_succeeded) {
-//    return gpu_prg;
-//  }
-
-//  char  log_buff[1024];
-//  GLint log_len{0};
-//  gl::GetProgramInfoLog(phandle, XR_I32_COUNTOF__(log_buff), &log_len,
-//                        log_buff);
-//  log_buff[log_len] = 0;
-
-//  XR_LOG_CRITICAL("Failed to compile/link program, error : [[{}]]",
-//                  &log_buff[0]);
-
-//  return scoped_program_handle{};
-//}
 
 bool xray::rendering::detail::gpu_program_helpers::reflect(
     const GLuint program, const graphics_pipeline_stage stage,
@@ -1592,4 +1516,127 @@ bool xray::rendering::detail::gpu_program_helpers::
   });
 
   return true;
+}
+
+void xray::rendering::detail::gpu_program_helpers::set_uniform(
+    const GLuint program_id, const GLint u_location,
+    const uint32_t uniform_type, const void* u_data,
+    const size_t count) noexcept {
+
+  switch (uniform_type) {
+  case gl::FLOAT:
+    PROG_UNIFORM_FV(program_id, gl::ProgramUniform1fv, u_location, count,
+                    u_data);
+    break;
+
+  case gl::UNSIGNED_INT:
+    PROG_UNIFORM_UIV(program_id, gl::ProgramUniform1uiv, u_location, count,
+                     u_data);
+    break;
+
+  case gl::FLOAT_VEC2:
+    PROG_UNIFORM_FV(program_id, gl::ProgramUniform2fv, u_location, count,
+                    u_data);
+    break;
+
+  case gl::FLOAT_VEC3:
+    PROG_UNIFORM_FV(program_id, gl::ProgramUniform3fv, u_location, count,
+                    u_data);
+    break;
+
+  case gl::FLOAT_VEC4:
+    PROG_UNIFORM_FV(program_id, gl::ProgramUniform4fv, u_location, count,
+                    u_data);
+    break;
+
+  case gl::FLOAT_MAT2:
+    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix2fv, u_location,
+                        count, u_data);
+    break;
+
+  case gl::FLOAT_MAT2x3:
+    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix2x3fv, u_location,
+                        count, u_data);
+    break;
+
+  case gl::FLOAT_MAT3x2:
+    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix3x2fv, u_location,
+                        count, u_data);
+    break;
+
+  case gl::FLOAT_MAT3:
+    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix3fv, u_location,
+                        count, u_data);
+    break;
+
+  case gl::FLOAT_MAT4:
+    PROG_UNIFORM_MAT_FV(program_id, gl::ProgramUniformMatrix4fv, u_location,
+                        count, u_data);
+    break;
+
+  case gl::INT:
+  case gl::SAMPLER_2D:
+  case gl::SAMPLER_1D:
+  case gl::SAMPLER_CUBE:
+    PROG_UNIFORM_IV(program_id, gl::ProgramUniform1iv, u_location, count,
+                    u_data);
+    break;
+
+  default:
+    XR_LOG_CRITICAL("Unhandled uniform type {} in set()", uniform_type);
+    assert(false && "Unhandled uniform type in set()");
+    break;
+  }
+}
+
+xray::rendering::detail::gpu_program_base::gpu_program_base(
+    scoped_program_handle handle, const graphics_pipeline_stage stage)
+    : _handle{std::move(handle)} {
+
+  if (!_handle)
+    return;
+
+  detail::gpu_program_reflect_data reflection_info{
+      0u, &uniform_blocks_, &uniforms_, &subroutine_uniforms_, &subroutines_};
+
+  _valid = detail::gpu_program_helpers::reflect(base::raw_handle(_handle),
+                                                stage, &reflection_info);
+
+  if (!_valid)
+    return;
+
+  if (reflection_info.prg_datastore_size) {
+    base::unique_pointer_reset(ublocks_datastore_,
+                               new uint8_t[reflection_info.prg_datastore_size]);
+  }
+}
+
+xray::rendering::detail::gpu_program_base::~gpu_program_base() {}
+
+void xray::rendering::detail::gpu_program_base::set_uniform_block(
+    const char* block_name, const void* block_data, const size_t byte_count) {
+
+  assert(_valid);
+  assert(block_name != nullptr);
+  assert(block_data != nullptr);
+
+  using namespace std;
+  using namespace xray::base;
+
+  auto blk_iter =
+      find_if(begin(uniform_blocks_), end(uniform_blocks_),
+              [block_name](auto& blk) { return blk.name == block_name; });
+
+  if (blk_iter == end(uniform_blocks_)) {
+    XR_LOG_ERR("{} error, uniform {} does not exist", __PRETTY_FUNCTION__,
+               block_name);
+    return;
+  }
+
+  assert(byte_count <= blk_iter->size);
+
+  memcpy(raw_ptr(ublocks_datastore_) + blk_iter->store_offset, block_data,
+         byte_count);
+
+  blk_iter->dirty = true;
 }

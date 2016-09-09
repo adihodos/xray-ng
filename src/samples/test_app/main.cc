@@ -22,6 +22,7 @@
 #include "xray/math/transforms_r2.hpp"
 #include "xray/math/transforms_r3.hpp"
 #include "xray/math/transforms_r4.hpp"
+#include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/ui/basic_gl_window.hpp"
 #include "xray/ui/window_context.hpp"
 #include <cstddef>
@@ -126,6 +127,20 @@ int main(int, char**) {
     const auto v = mul_point(m, float3{3.0f, 9.0f, 1.0f});
     cout << v << "\n";
   }
+
+  using namespace xray::rendering;
+  auto vsp = vertex_program{
+      gpu_program_builder{graphics_pipeline_stage::vertex}
+          .add_string("void main() { gl_Position = vec4(1.0, 1.0, 1.0, 1.0); }")
+          .build()};
+
+  struct mutfatablk {
+      int i;
+      float f;
+  } const b1{};
+
+  vsp.set_uniform_block("b1", b1);
+  vsp.set_uniform("b2", 43.4f);
 
   return 0;
 }

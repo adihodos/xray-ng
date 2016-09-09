@@ -156,6 +156,10 @@ public:
   explicit gpu_program_builder(const graphics_pipeline_stage stage) noexcept
       : _stage{stage} {}
 
+  gpu_program_builder& add_string(const char* str) {
+    return add_string(shader_source_string{str});
+  }
+
   gpu_program_builder& add_string(const shader_source_string ssrc) {
     push_descriptor(shader_source_descriptor{_stage, ssrc});
     return *this;
@@ -168,8 +172,8 @@ public:
 
   gpu_program_builder&
   attach_compiled_shader(const scoped_shader_handle& compiled_shader) {
-      push_ref(base::raw_handle(compiled_shader));
-      return *this;
+    push_ref(base::raw_handle(compiled_shader));
+    return *this;
   }
 
   gpu_program_builder& hint_binary() noexcept {
@@ -324,28 +328,57 @@ struct gpu_program_helpers {
       const GLuint program, const graphics_pipeline_stage stage,
       std::vector<shader_subroutine_uniform>* subs_uniforms,
       std::vector<shader_subroutine>*         subs);
+
+  static xray::rendering::scoped_shader_handle
+  create_shader(const xray::rendering::shader_source_descriptor& sd);
+
+  static scoped_shader_handle
+  create_shader_from_string(const GLenum                type,
+                            const shader_source_string& sstr);
+
+  static void set_uniform(const GLuint program_id, const GLint uniform_location,
+                          const uint32_t uniform_type, const void* uniform_data,
+                          const size_t item_count) noexcept;
 };
 
-} // namespace detail
-
-template <graphics_pipeline_stage stage>
-class gpu_program_t {
+class gpu_program_base {
 public:
-  using handle_type = gpu_program_handle::handle_type;
-  static constexpr graphics_pipeline_stage program_stage = stage;
+  XRAY_DEFAULT_MOVE(gpu_program_base);
 
-  gpu_program_t()                = default;
-  gpu_program_t(gpu_program_t&&) = default;
-  gpu_program_t& operator=(gpu_program_t&&) = default;
-  explicit gpu_program_t(scoped_program_handle handle);
+protected:
+  explicit gpu_program_base(scoped_program_handle         handle,
+                            const graphics_pipeline_stage stage);
 
-  bool valid() const noexcept { return _valid; }
+  ~gpu_program_base();
 
-  explicit operator bool() const noexcept { return valid(); }
+protected:
+  template <typename block_data_type>
+  void set_uniform_block(const char* block_name, const block_data_type& data) {
+    set_uniform_block(block_name, &data, sizeof(data));
+  }
 
-  handle_type handle() const noexcept { return base::raw_handle(_handle); }
+  void set_uniform_block(const char* block_name, const void* block_data,
+                         const size_t byte_count);
 
-private:
+  template <typename uniform_data_type, size_t size>
+  void set_uniform(const char* uniform_name,
+                   const uniform_data_type (&arr_ref)[size]) {
+    set_uniform(uniform_name, &arr_ref[0], size);
+  }
+
+  template <typename uniform_data_type>
+  void set_uniform(const char* uniform_name, const uniform_data_type& data) {
+    set_uniform(uniform_name, &data, 1);
+  }
+
+  template <typename uniform_data_type>
+  void set_uniform(const char* uniform_name, const uniform_data_type* data,
+                   const size_t count);
+
+  void set_subroutine_uniform(const char* uniform_name,
+                              const char* subroutine_name) noexcept;
+
+protected:
   scoped_program_handle _handle{};
   /// \brief List of active uniform blocks in the shader.
   std::vector<detail::uniform_block_t> uniform_blocks_;
@@ -371,98 +404,98 @@ private:
   /// \brief True if compiled, linked and initialized successfully.
   bool _valid{false};
 
+private:
+  XRAY_NO_COPY(gpu_program_base);
+};
+
+template <typename uniform_data_type>
+void gpu_program_base::set_uniform(const char*              uniform_name,
+                                   const uniform_data_type* data,
+                                   const size_t             count) {
+  assert(_valid);
+
+  using namespace std;
+
+  auto u_iter =
+      find_if(begin(uniforms_), end(uniforms_),
+              [uniform_name](const auto& u) { return u.name == uniform_name; });
+
+  if (u_iter == end(uniforms_)) {
+    XR_LOG_ERR("Uniform {} does not exist", uniform_name);
+    return;
+  }
+
+  //
+  // Standalone uniform.
+  if (u_iter->parent_block_idx == -1) {
+    detail::gpu_program_helpers::set_uniform(
+        base::raw_handle(_handle), u_iter->location, u_iter->type, data, count);
+    return;
+  }
+
+  using namespace xray::base;
+
+  //
+  // Uniform is part of a block.
+  auto&      par_blk       = uniform_blocks_[u_iter->parent_block_idx];
+  const auto mem_offset    = par_blk.store_offset + u_iter->block_store_offset;
+  const auto bytes_to_copy = count * sizeof(*data);
+
+  assert(bytes_to_copy == u_iter->byte_size);
+  memcpy(raw_ptr(ublocks_datastore_) + mem_offset, data, bytes_to_copy);
+  par_blk.dirty = true;
+}
+
+} // namespace detail
+
+template <graphics_pipeline_stage stage>
+class gpu_program_t : protected detail::gpu_program_base {
+public:
+  using handle_type = gpu_program_handle::handle_type;
+  static constexpr graphics_pipeline_stage program_stage = stage;
+
+  gpu_program_t()                = default;
+  gpu_program_t(gpu_program_t&&) = default;
+  gpu_program_t& operator=(gpu_program_t&&) = default;
+  explicit gpu_program_t(scoped_program_handle handle);
+
+  bool valid() const noexcept { return _valid; }
+
+  explicit operator bool() const noexcept { return valid(); }
+
+  handle_type handle() const noexcept { return base::raw_handle(_handle); }
+
+  /// \name Uniform block functions
+  /// @{
+public:
+  using gpu_program_base::set_uniform_block;
+  /// @}
+
+  /// \name Uniform functions
+  /// @{
+public:
+  using gpu_program_base::set_uniform;
+  using gpu_program_base::set_subroutine_uniform;
+  /// @}
+
+private:
   XRAY_NO_COPY(gpu_program_t);
 };
 
 template <graphics_pipeline_stage stage>
 gpu_program_t<stage>::gpu_program_t(scoped_program_handle handle)
-    : _handle{std::move(handle)} {
+    : detail::gpu_program_base{std::move(handle), stage} {}
 
-  if (!_handle)
-    return;
-
-  detail::gpu_program_reflect_data reflection_info{
-      0u, &uniform_blocks_, &uniforms_, &subroutine_uniforms_, &subroutines_};
-
-  _valid =
-      detail::gpu_program_helpers::reflect(_handle(), stage, &reflection_info);
-
-  if (!_valid)
-    return;
-
-  if (reflection_info.prg_datastore_size) {
-    base::unique_pointer_reset(ublocks_datastore_,
-                               new uint8_t[reflection_info.prg_datastore_size]);
-  }
-}
+using vertex_program   = gpu_program_t<graphics_pipeline_stage::vertex>;
+using geometry_program = gpu_program_t<graphics_pipeline_stage::geometry>;
+using fragment_program = gpu_program_t<graphics_pipeline_stage::fragment>;
 
 GLuint make_gpu_program(const GLuint* shaders_to_attach,
                         const size_t  shaders_count) noexcept;
 
-void set_uniform_impl(const GLuint program_id, const GLint uniform_location,
-                      const uint32_t uniform_type, const void* uniform_data,
-                      const size_t item_count) noexcept;
-
-// class gpu_program_builder {
-// public:
-//  gpu_program_builder() noexcept = default;
-//  ~gpu_program_builder();
-
-//  gpu_program_builder& attach_shader_string(const graphics_pipeline_stage
-//  stype,
-//                                            const shader_source_string ssrc);
-
-//  gpu_program_builder& attach_shader_file(const graphics_pipeline_stage stype,
-//                                          const shader_source_file sfile);
-
-//  gpu_program_builder&
-//  attach_compiled_shader(const graphics_pipeline_stage stype,
-//                         const scoped_shader_handle&   compiled_shader);
-
-//  gpu_program_builder& hint_separable() noexcept;
-//  gpu_program_builder& hint_binary() noexcept;
-
-//  scoped_program_handle build() noexcept;
-
-// private:
-//  static constexpr size_t PIPELINE_STAGE_COUNT =
-//      static_cast<uint32_t>(graphics_pipeline_stage::last);
-
-//  struct per_stage_data {
-//    static constexpr uint32_t MAX_SLOTS = 8u;
-
-//    scoped_shader_handle     owned_shaders[MAX_SLOTS];
-//    GLuint                   referenced_shaders[MAX_SLOTS];
-//    shader_source_descriptor compile_list[MAX_SLOTS];
-//    uint8_t                  compile_cnt{0};
-//    uint8_t                  ref_cnt{0};
-
-//    per_stage_data() = default;
-
-//    void push_descriptor(const shader_source_descriptor& sds) noexcept {
-//      assert(compile_cnt < MAX_SLOTS);
-//      compile_list[compile_cnt++] = sds;
-//    }
-
-//    void push_ref(const GLuint shaderref) noexcept {
-//      assert(ref_cnt < MAX_SLOTS);
-//      referenced_shaders[ref_cnt++] = shaderref;
-//    }
-
-//    XRAY_NO_COPY(per_stage_data);
-//  };
-
-//  per_stage_data* stage(const graphics_pipeline_stage id) {
-//    return &_stages[static_cast<uint32_t>(id)];
-//  }
-
-//  bool                        _separable{false};
-//  bool                        _binary{false};
-//  std::vector<per_stage_data> _stages{5u};
-
-// private:
-//  XRAY_NO_COPY(gpu_program_builder);
-//};
+// void set_uniform_impl(const GLuint program_id, const GLint uniform_location,
+//                      const uint32_t uniform_type, const void* uniform_data,
+//                      const size_t item_count) noexcept;
 
 class gpu_program {
 public:
@@ -680,7 +713,8 @@ void gpu_program::set_uniform(const char*              uniform_name,
   //
   // Standalone uniform.
   if (u_iter->parent_block_idx == -1) {
-    set_uniform_impl(handle(), u_iter->location, u_iter->type, data, count);
+    detail::gpu_program_helpers::set_uniform(handle(), u_iter->location,
+                                             u_iter->type, data, count);
     return;
   }
 
