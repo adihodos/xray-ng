@@ -370,42 +370,51 @@ class gpu_program_base {
 public:
   XRAY_DEFAULT_MOVE(gpu_program_base);
 
+  using handle_type = scoped_program_handle::handle_type;
+
+  handle_type handle() const noexcept { return base::raw_handle(_handle); }
+  bool        valid() const noexcept { return _valid; }
+
+  template <typename block_data_type>
+  gpu_program_base& set_uniform_block(const char*            block_name,
+                                      const block_data_type& data) {
+    return set_uniform_block(block_name, &data, sizeof(data));
+  }
+
+  gpu_program_base& set_uniform_block(const char*  block_name,
+                                      const void*  block_data,
+                                      const size_t byte_count);
+
+  template <typename uniform_data_type, size_t size>
+  gpu_program_base& set_uniform(const char* uniform_name,
+                                const uniform_data_type (&arr_ref)[size]) {
+    return set_uniform(uniform_name, &arr_ref[0], size);
+  }
+
+  template <typename uniform_data_type>
+  gpu_program_base& set_uniform(const char*              uniform_name,
+                                const uniform_data_type& data) {
+    return set_uniform(uniform_name, &data, 1);
+  }
+
+  template <typename uniform_data_type>
+  gpu_program_base& set_uniform(const char*              uniform_name,
+                                const uniform_data_type* data,
+                                const size_t             count);
+
+  gpu_program_base&
+  set_subroutine_uniform(const char* uniform_name,
+                         const char* subroutine_name) noexcept;
+
+  void use();
+
 protected:
   gpu_program_base() = default;
-  explicit gpu_program_base(scoped_program_handle handle,
+  explicit gpu_program_base(scoped_program_handle handle, const GLenum stage,
                             const GLenum api_subroutine_uniform_interface_name,
                             const GLenum api_subroutine_interface_name);
 
   ~gpu_program_base();
-
-protected:
-  template <typename block_data_type>
-  void set_uniform_block(const char* block_name, const block_data_type& data) {
-    set_uniform_block(block_name, &data, sizeof(data));
-  }
-
-  void set_uniform_block(const char* block_name, const void* block_data,
-                         const size_t byte_count);
-
-  template <typename uniform_data_type, size_t size>
-  void set_uniform(const char* uniform_name,
-                   const uniform_data_type (&arr_ref)[size]) {
-    set_uniform(uniform_name, &arr_ref[0], size);
-  }
-
-  template <typename uniform_data_type>
-  void set_uniform(const char* uniform_name, const uniform_data_type& data) {
-    set_uniform(uniform_name, &data, 1);
-  }
-
-  template <typename uniform_data_type>
-  void set_uniform(const char* uniform_name, const uniform_data_type* data,
-                   const size_t count);
-
-  void set_subroutine_uniform(const char* uniform_name,
-                              const char* subroutine_name) noexcept;
-
-  void use(const GLenum shader_type);
 
 protected:
   /// \brief Handle to an OpenGL program object.
@@ -428,16 +437,17 @@ protected:
   std::vector<detail::shader_subroutine> subroutines_;
 
   /// \brief True if compiled, linked and initialized successfully.
-  bool _valid{false};
+  bool   _valid{false};
+  GLenum _stage{gl::INVALID_ENUM};
 
 private:
   XRAY_NO_COPY(gpu_program_base);
 };
 
 template <typename uniform_data_type>
-void gpu_program_base::set_uniform(const char*              uniform_name,
-                                   const uniform_data_type* data,
-                                   const size_t             count) {
+gpu_program_base& gpu_program_base::set_uniform(const char* uniform_name,
+                                                const uniform_data_type* data,
+                                                const size_t count) {
   assert(_valid);
 
   using namespace std;
@@ -448,7 +458,7 @@ void gpu_program_base::set_uniform(const char*              uniform_name,
 
   if (u_iter == end(uniforms_)) {
     XR_LOG_ERR("Uniform {} does not exist", uniform_name);
-    return;
+    return *this;
   }
 
   //
@@ -456,7 +466,7 @@ void gpu_program_base::set_uniform(const char*              uniform_name,
   if (u_iter->parent_block_idx == -1) {
     detail::gpu_program_helpers::set_uniform(
         base::raw_handle(_handle), u_iter->location, u_iter->type, data, count);
-    return;
+    return *this;
   }
 
   using namespace xray::base;
@@ -470,16 +480,19 @@ void gpu_program_base::set_uniform(const char*              uniform_name,
   assert(bytes_to_copy == u_iter->byte_size);
   memcpy(raw_ptr(ublocks_datastore_) + mem_offset, data, bytes_to_copy);
   par_blk.dirty = true;
+
+  return *this;
 }
 
 } // namespace detail
 
 template <graphics_pipeline_stage stage>
-class gpu_program_t : protected detail::gpu_program_base {
+class gpu_program_t : public detail::gpu_program_base {
   /// \name Types and constants
   /// @{
 public:
-  using handle_type = gpu_program_handle::handle_type;
+  using base_class = detail::gpu_program_base;
+  using gpu_program_base::handle_type;
 
   static constexpr graphics_pipeline_stage program_stage = stage;
 
@@ -507,26 +520,7 @@ public:
 
   /// @}
 
-  bool valid() const noexcept { return _valid; }
-
   explicit operator bool() const noexcept { return valid(); }
-
-  handle_type handle() const noexcept { return base::raw_handle(_handle); }
-
-  /// \name Uniform block functions
-  /// @{
-public:
-  using gpu_program_base::set_uniform_block;
-  /// @}
-
-  /// \name Uniform functions
-  /// @{
-public:
-  using gpu_program_base::set_uniform;
-  using gpu_program_base::set_subroutine_uniform;
-  /// @}
-
-  void use() { gpu_program_base::use(api_shader_type); }
 
 private:
   XRAY_NO_COPY(gpu_program_t);
@@ -535,12 +529,17 @@ private:
 template <graphics_pipeline_stage stage>
 gpu_program_t<stage>::gpu_program_t(scoped_program_handle handle)
     : detail::gpu_program_base{std::move(handle),
+                               xray_to_opengl<stage>::shader_type,
                                api_subroutine_uniform_interface_name,
                                api_subroutine_interface_name} {}
 
-using vertex_program   = gpu_program_t<graphics_pipeline_stage::vertex>;
+using vertex_program    = gpu_program_t<graphics_pipeline_stage::vertex>;
+using tess_eval_program = gpu_program_t<graphics_pipeline_stage::tess_eval>;
+using tess_control_program =
+    gpu_program_t<graphics_pipeline_stage::tess_control>;
 using geometry_program = gpu_program_t<graphics_pipeline_stage::geometry>;
 using fragment_program = gpu_program_t<graphics_pipeline_stage::fragment>;
+using compute_program  = gpu_program_t<graphics_pipeline_stage::compute>;
 
 GLuint make_gpu_program(const GLuint* shaders_to_attach,
                         const size_t  shaders_count) noexcept;
@@ -807,12 +806,19 @@ public:
   gpu_program_pipeline_setup_builder&
   add_fragment_program(const fragment_program& frag_prg);
 
+  gpu_program_pipeline_setup_builder&
+  add_tess_control_program(const tess_control_program& tess_ctrl_prg);
+
+  gpu_program_pipeline_setup_builder&
+  add_tess_eval_program(const tess_eval_program& tess_eval_prg);
+
   void install();
 
 private:
   GLuint _handle;
-  GLuint _programs_by_stage[xray::base::enum_helper::to_underlying_type(
-      graphics_pipeline_stage::last)];
+  const detail::gpu_program_base*
+      _programs_by_stage[xray::base::enum_helper::to_underlying_type(
+          graphics_pipeline_stage::last)];
 
   XRAY_NO_COPY(gpu_program_pipeline_setup_builder);
 };

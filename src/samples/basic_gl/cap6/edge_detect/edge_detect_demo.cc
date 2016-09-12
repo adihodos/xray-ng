@@ -6,6 +6,7 @@
 #include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/pod_zero.hpp"
 #include "xray/base/shims/string.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
@@ -767,10 +768,7 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
     } const obj_transforms{obj_to_view, obj_to_view,
                            dc.projection_matrix * obj_to_view};
 
-    //    _drawprog_first_pass.set_uniform_block("transform_pack",
-    //    obj_transforms);
-
-    _vertex_prg.set_uniform_block("transform_pack", obj_transforms);
+    _vertex_prg.set_uniform_block("transform_pack", obj_transforms).use();
 
     point_light lights[edge_detect_demo::max_lights];
     transform(begin(_lights), end(_lights), begin(lights),
@@ -779,25 +777,12 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
                         mul_point(dc.view_matrix, in_light.position)};
               });
 
-    //    _drawprog_first_pass.set_uniform_block("scene_lighting", lights);
-    _frag_prg.set_uniform_block("scene_lighting", lights);
-
-    //    _drawprog_first_pass.set_uniform("light_count", _lightcount);
-    _frag_prg.set_uniform("light_count", _lightcount);
-
-    //    _drawprog_first_pass.set_uniform("mat_diffuse", 0);
-    _frag_prg.set_uniform("mat_diffuse", 0);
-
-    //    _drawprog_first_pass.set_uniform("mat_specular", 1);
-    _frag_prg.set_uniform("mat_specular", 1);
-
-    //    _drawprog_first_pass.set_uniform("mat_shininess", _mat_spec_pwr);
-    _frag_prg.set_uniform("mat_shininess", _mat_spec_pwr);
-
-    //    _drawprog_first_pass.bind_to_pipeline();
-
-    _vertex_prg.use();
-    _frag_prg.use();
+    _frag_prg.set_uniform_block("scene_lighting", lights)
+        .set_uniform("light_count", _lightcount)
+        .set_uniform("mat_diffuse", 0)
+        .set_uniform("mat_specular", 1)
+        .set_uniform("mat_shininess", _mat_spec_pwr)
+        .use();
 
     {
       const GLuint samplers[] = {raw_handle(_fbo.fbo_sampler),

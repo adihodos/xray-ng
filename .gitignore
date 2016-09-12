@@ -221,4 +221,5 @@ FakesAssemblies/
 _Pvt_Extensions
 
 # VSCode
-.vscode/.BROWSE.VC.DB
+.vscode/*
+!.vscode/settings.json

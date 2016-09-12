@@ -1545,10 +1545,10 @@ void xray::rendering::detail::gpu_program_helpers::set_uniform(
 }
 
 xray::rendering::detail::gpu_program_base::gpu_program_base(
-    scoped_program_handle handle,
-    const GLenum          api_subroutine_uniform_interface_name,
-    const GLenum          api_subroutine_interface_name)
-    : _handle{std::move(handle)} {
+    scoped_program_handle handle, const GLenum stage,
+    const GLenum api_subroutine_uniform_interface_name,
+    const GLenum api_subroutine_interface_name)
+    : _handle{std::move(handle)}, _stage{stage} {
 
   if (!_handle)
     return;
@@ -1571,7 +1571,8 @@ xray::rendering::detail::gpu_program_base::gpu_program_base(
 
 xray::rendering::detail::gpu_program_base::~gpu_program_base() {}
 
-void xray::rendering::detail::gpu_program_base::set_uniform_block(
+xray::rendering::detail::gpu_program_base&
+xray::rendering::detail::gpu_program_base::set_uniform_block(
     const char* block_name, const void* block_data, const size_t byte_count) {
 
   assert(_valid);
@@ -1588,18 +1589,19 @@ void xray::rendering::detail::gpu_program_base::set_uniform_block(
   if (blk_iter == end(uniform_blocks_)) {
     XR_LOG_ERR("{} error, uniform {} does not exist", __PRETTY_FUNCTION__,
                block_name);
-    return;
+    return *this;
   }
 
   assert(byte_count <= blk_iter->size);
-
   memcpy(raw_ptr(ublocks_datastore_) + blk_iter->store_offset, block_data,
          byte_count);
-
   blk_iter->dirty = true;
+
+  return *this;
 }
 
-void xray::rendering::detail::gpu_program_base::set_subroutine_uniform(
+xray::rendering::detail::gpu_program_base&
+xray::rendering::detail::gpu_program_base::set_subroutine_uniform(
     const char* uniform_name, const char* subroutine_name) noexcept {
 
   assert(uniform_name != nullptr);
@@ -1612,7 +1614,7 @@ void xray::rendering::detail::gpu_program_base::set_subroutine_uniform(
 
   if (itr_unifrm == end(subroutine_uniforms_)) {
     XR_LOG_ERR("Subroutine uniform {} does not exist !", uniform_name);
-    return;
+    return *this;
   }
 
   auto itr_subroutine = find_if(begin(subroutines_), end(subroutines_),
@@ -1622,13 +1624,14 @@ void xray::rendering::detail::gpu_program_base::set_subroutine_uniform(
 
   if (itr_subroutine == end(subroutines_)) {
     XR_LOG_ERR("Subroutine {} does not exist !", subroutine_name);
-    return;
+    return *this;
   }
 
   itr_unifrm->ssu_assigned_subroutine_idx = itr_subroutine->ss_index;
+  return *this;
 }
 
-void xray::rendering::detail::gpu_program_base::use(const GLenum shader_type) {
+void xray::rendering::detail::gpu_program_base::use() {
   assert(_valid);
 
   using namespace std;
@@ -1674,8 +1677,7 @@ void xray::rendering::detail::gpu_program_base::use(const GLenum shader_type) {
               sub_unifrm.ssu_assigned_subroutine_idx;
         });
 
-    gl::UniformSubroutinesuiv(shader_type, indices_buff.size(),
-                              indices_buff.data());
+    gl::UniformSubroutinesuiv(_stage, indices_buff.size(), indices_buff.data());
   }
 }
 
@@ -1691,7 +1693,7 @@ xray::rendering::gpu_program_pipeline_setup_builder::add_vertex_program(
   using namespace xray::base;
 
   _programs_by_stage[enum_helper::to_underlying_type(
-      graphics_pipeline_stage::vertex)] = vert_prg.handle();
+      graphics_pipeline_stage::vertex)] = &vert_prg;
   return *this;
 }
 
@@ -1701,7 +1703,7 @@ xray::rendering::gpu_program_pipeline_setup_builder::add_geometry_program(
   using namespace xray::base;
 
   _programs_by_stage[enum_helper::to_underlying_type(
-      graphics_pipeline_stage::geometry)] = geom_prg.handle();
+      graphics_pipeline_stage::geometry)] = &geom_prg;
   return *this;
 }
 
@@ -1711,7 +1713,27 @@ xray::rendering::gpu_program_pipeline_setup_builder::add_fragment_program(
   using namespace xray::base;
 
   _programs_by_stage[enum_helper::to_underlying_type(
-      graphics_pipeline_stage::fragment)] = frag_prg.handle();
+      graphics_pipeline_stage::fragment)] = &frag_prg;
+  return *this;
+}
+
+xray::rendering::gpu_program_pipeline_setup_builder&
+xray::rendering::gpu_program_pipeline_setup_builder::add_tess_control_program(
+    const tess_control_program& tess_ctrl_prg) {
+  using namespace xray::base;
+
+  _programs_by_stage[enum_helper::to_underlying_type(
+      graphics_pipeline_stage::fragment)] = &tess_ctrl_prg;
+  return *this;
+}
+
+xray::rendering::gpu_program_pipeline_setup_builder&
+xray::rendering::gpu_program_pipeline_setup_builder::add_tess_eval_program(
+    const tess_eval_program& tess_eval_prg) {
+  using namespace xray::base;
+
+  _programs_by_stage[enum_helper::to_underlying_type(
+      graphics_pipeline_stage::fragment)] = &tess_eval_prg;
   return *this;
 }
 
@@ -1748,7 +1770,7 @@ void xray::rendering::gpu_program_pipeline_setup_builder::install() {
     }
     ();
 
-    gl::UseProgramStages(_handle, stage_bit, _programs_by_stage[i]);
+    gl::UseProgramStages(_handle, stage_bit, _programs_by_stage[i]->handle());
   }
 
   gl::UseProgram(0);
