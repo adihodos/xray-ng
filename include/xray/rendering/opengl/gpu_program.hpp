@@ -31,6 +31,7 @@
 #include "xray/xray.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
+#include "xray/base/enum_cast.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_handle.hpp"
 #include "xray/base/unique_pointer.hpp"
@@ -89,6 +90,24 @@ struct xray_to_opengl<graphics_pipeline_stage::vertex> {
 };
 
 template <>
+struct xray_to_opengl<graphics_pipeline_stage::tess_control> {
+  static constexpr GLenum     shader_type = gl::TESS_CONTROL_SHADER;
+  static constexpr GLbitfield shader_bit  = gl::TESS_CONTROL_SHADER_BIT;
+  static constexpr GLenum     sub_uniform_interface =
+      gl::TESS_CONTROL_SUBROUTINE_UNIFORM;
+  static constexpr GLenum sub_interface = gl::TESS_CONTROL_SUBROUTINE;
+};
+
+template <>
+struct xray_to_opengl<graphics_pipeline_stage::tess_eval> {
+  static constexpr GLenum     shader_type = gl::TESS_EVALUATION_SHADER;
+  static constexpr GLbitfield shader_bit  = gl::TESS_EVALUATION_SHADER_BIT;
+  static constexpr GLenum     sub_uniform_interface =
+      gl::TESS_EVALUATION_SUBROUTINE_UNIFORM;
+  static constexpr GLenum sub_interface = gl::TESS_EVALUATION_SUBROUTINE;
+};
+
+template <>
 struct xray_to_opengl<graphics_pipeline_stage::geometry> {
   static constexpr GLenum     shader_type = gl::GEOMETRY_SHADER;
   static constexpr GLbitfield shader_bit  = gl::GEOMETRY_SHADER_BIT;
@@ -104,6 +123,15 @@ struct xray_to_opengl<graphics_pipeline_stage::fragment> {
   static constexpr GLenum     sub_uniform_interface =
       gl::FRAGMENT_SUBROUTINE_UNIFORM;
   static constexpr GLenum sub_interface = gl::FRAGMENT_SUBROUTINE;
+};
+
+template <>
+struct xray_to_opengl<graphics_pipeline_stage::compute> {
+  static constexpr GLenum     shader_type = gl::COMPUTE_SHADER;
+  static constexpr GLbitfield shader_bit  = gl::COMPUTE_SHADER_BIT;
+  static constexpr GLenum     sub_uniform_interface =
+      gl::COMPUTE_SUBROUTINE_UNIFORM;
+  static constexpr GLenum sub_interface = gl::COMPUTE_SUBROUTINE;
 };
 
 struct shader_source_file {
@@ -134,15 +162,6 @@ struct shader_source_descriptor {
 
   shader_source_descriptor() : stage_id{graphics_pipeline_stage::last} {}
 
-  //  shader_source_descriptor(const shader_source_descriptor& rhs) {
-  //    memcpy(this, &rhs, sizeof(*this));
-  //  }
-
-  //  shader_source_descriptor& operator=(const shader_source_descriptor& rhs) {
-  //    memcpy(this, &rhs, sizeof(*this));
-  //    return *this;
-  //  }
-
   explicit shader_source_descriptor(const graphics_pipeline_stage stage,
                                     const shader_source_file& sfile) noexcept;
 
@@ -162,6 +181,11 @@ public:
 
   gpu_program_builder& add_string(const shader_source_string ssrc) {
     push_descriptor(shader_source_descriptor{_stage, ssrc});
+    return *this;
+  }
+
+  gpu_program_builder& add_file(const char* sfile) {
+    add_file(shader_source_file{sfile});
     return *this;
   }
 
@@ -311,21 +335,22 @@ struct gpu_program_reflect_data {
 
 struct gpu_program_helpers {
 
-  static bool reflect(const GLuint program, const graphics_pipeline_stage stage,
+  static bool reflect(const GLuint program,
+                      const GLenum api_subroutine_uniform_interface_name,
+                      const GLenum api_subroutine_interface_name,
                       gpu_program_reflect_data* refdata);
 
   static bool collect_uniform_blocks(const GLuint                  program,
-                                     const graphics_pipeline_stage stage,
                                      std::vector<uniform_block_t>* blks,
                                      size_t* datastore_bytes);
 
   static bool collect_uniforms(const GLuint                        program,
-                               const graphics_pipeline_stage       stage,
                                const std::vector<uniform_block_t>& ublocks,
                                std::vector<uniform_t>*             uniforms);
 
   static bool collect_subroutines_and_uniforms(
-      const GLuint program, const graphics_pipeline_stage stage,
+      const GLuint program, const GLenum api_subroutine_uniform_interface_name,
+      const GLenum                            api_subroutine_interface_name,
       std::vector<shader_subroutine_uniform>* subs_uniforms,
       std::vector<shader_subroutine>*         subs);
 
@@ -346,8 +371,10 @@ public:
   XRAY_DEFAULT_MOVE(gpu_program_base);
 
 protected:
-  explicit gpu_program_base(scoped_program_handle         handle,
-                            const graphics_pipeline_stage stage);
+  gpu_program_base() = default;
+  explicit gpu_program_base(scoped_program_handle handle,
+                            const GLenum api_subroutine_uniform_interface_name,
+                            const GLenum api_subroutine_interface_name);
 
   ~gpu_program_base();
 
@@ -378,8 +405,12 @@ protected:
   void set_subroutine_uniform(const char* uniform_name,
                               const char* subroutine_name) noexcept;
 
+  void use(const GLenum shader_type);
+
 protected:
+  /// \brief Handle to an OpenGL program object.
   scoped_program_handle _handle{};
+
   /// \brief List of active uniform blocks in the shader.
   std::vector<detail::uniform_block_t> uniform_blocks_;
 
@@ -390,16 +421,11 @@ protected:
   base::unique_pointer<uint8_t[]> ublocks_datastore_;
 
   ///   \brief  List of all active subroutine uniforms in the program. Grouped
-  ///   by
-  ///   stage and by index.
+  ///   by index.
   std::vector<detail::shader_subroutine_uniform> subroutine_uniforms_;
 
   ///   \brief  List with data for all subroutines active in the program.
   std::vector<detail::shader_subroutine> subroutines_;
-
-  ///   \brief  Subroutine info for each stage.
-  detail::pipeline_stage_subroutine_uniform_data
-      stage_subroutine_ufs_[(uint32_t) graphics_pipeline_stage::last];
 
   /// \brief True if compiled, linked and initialized successfully.
   bool _valid{false};
@@ -450,14 +476,36 @@ void gpu_program_base::set_uniform(const char*              uniform_name,
 
 template <graphics_pipeline_stage stage>
 class gpu_program_t : protected detail::gpu_program_base {
+  /// \name Types and constants
+  /// @{
 public:
   using handle_type = gpu_program_handle::handle_type;
+
   static constexpr graphics_pipeline_stage program_stage = stage;
 
+  static constexpr GLenum api_shader_type = xray_to_opengl<stage>::shader_type;
+
+  static constexpr GLbitfield api_shader_bit =
+      xray_to_opengl<stage>::shader_bit;
+
+  static constexpr GLbitfield api_subroutine_uniform_interface_name =
+      xray_to_opengl<stage>::sub_uniform_interface;
+
+  static constexpr GLbitfield api_subroutine_interface_name =
+      xray_to_opengl<stage>::sub_interface;
+
+  /// @}
+
+  /// \name Constructors (copy/move) + assign/move operators
+  /// @{
+
+public:
   gpu_program_t()                = default;
   gpu_program_t(gpu_program_t&&) = default;
   gpu_program_t& operator=(gpu_program_t&&) = default;
   explicit gpu_program_t(scoped_program_handle handle);
+
+  /// @}
 
   bool valid() const noexcept { return _valid; }
 
@@ -478,13 +526,17 @@ public:
   using gpu_program_base::set_subroutine_uniform;
   /// @}
 
+  void use() { gpu_program_base::use(api_shader_type); }
+
 private:
   XRAY_NO_COPY(gpu_program_t);
 };
 
 template <graphics_pipeline_stage stage>
 gpu_program_t<stage>::gpu_program_t(scoped_program_handle handle)
-    : detail::gpu_program_base{std::move(handle), stage} {}
+    : detail::gpu_program_base{std::move(handle),
+                               api_subroutine_uniform_interface_name,
+                               api_subroutine_interface_name} {}
 
 using vertex_program   = gpu_program_t<graphics_pipeline_stage::vertex>;
 using geometry_program = gpu_program_t<graphics_pipeline_stage::geometry>;
@@ -492,10 +544,6 @@ using fragment_program = gpu_program_t<graphics_pipeline_stage::fragment>;
 
 GLuint make_gpu_program(const GLuint* shaders_to_attach,
                         const size_t  shaders_count) noexcept;
-
-// void set_uniform_impl(const GLuint program_id, const GLint uniform_location,
-//                      const uint32_t uniform_type, const void* uniform_data,
-//                      const size_t item_count) noexcept;
 
 class gpu_program {
 public:
@@ -705,7 +753,6 @@ void gpu_program::set_uniform(const char*              uniform_name,
               [uniform_name](const auto& u) { return u.name == uniform_name; });
 
   if (u_iter == end(uniforms_)) {
-    // OUTPUT_DBG_MSG("Uniform %s does not exist!", uniform_name);
     XR_LOG_ERR("Uniform {} does not exist", uniform_name);
     return;
   }
@@ -730,6 +777,45 @@ void gpu_program::set_uniform(const char*              uniform_name,
   memcpy(raw_ptr(ublocks_datastore_) + mem_offset, data, bytes_to_copy);
   par_blk.dirty = true;
 }
+
+struct gpu_program_pipeline_handle {
+  using handle_type = GLuint;
+
+  static bool is_null(const handle_type handle) noexcept { return handle == 0; }
+
+  static void destroy(const handle_type handle) noexcept {
+    if (!is_null(handle))
+      gl::DeleteProgramPipelines(1, &handle);
+  }
+
+  static handle_type null() noexcept { return 0; }
+};
+
+using scoped_program_pipeline_handle =
+    xray::base::unique_handle<gpu_program_pipeline_handle>;
+
+class gpu_program_pipeline_setup_builder {
+public:
+  explicit gpu_program_pipeline_setup_builder(const GLuint handle) noexcept;
+
+  gpu_program_pipeline_setup_builder&
+  add_vertex_program(const vertex_program& vert_prg);
+
+  gpu_program_pipeline_setup_builder&
+  add_geometry_program(const geometry_program& geom_prg);
+
+  gpu_program_pipeline_setup_builder&
+  add_fragment_program(const fragment_program& frag_prg);
+
+  void install();
+
+private:
+  GLuint _handle;
+  GLuint _programs_by_stage[xray::base::enum_helper::to_underlying_type(
+      graphics_pipeline_stage::last)];
+
+  XRAY_NO_COPY(gpu_program_pipeline_setup_builder);
+};
 
 } // namespace rendering
 } // namespace xray

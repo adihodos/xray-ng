@@ -12,6 +12,10 @@ out VS_OUT_PS_IN {
     layout (location = 2) vec2 texcoord;
 } vs_out;
 
+out gl_PerVertex {
+    vec4 gl_Position;
+};
+
 layout (binding = 0) uniform transform_pack {
     mat4 model_view_matrix;
     mat4 normal_view_matrix;

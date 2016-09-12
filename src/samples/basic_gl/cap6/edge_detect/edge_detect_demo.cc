@@ -767,7 +767,10 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
     } const obj_transforms{obj_to_view, obj_to_view,
                            dc.projection_matrix * obj_to_view};
 
-    _drawprog_first_pass.set_uniform_block("transform_pack", obj_transforms);
+    //    _drawprog_first_pass.set_uniform_block("transform_pack",
+    //    obj_transforms);
+
+    _vertex_prg.set_uniform_block("transform_pack", obj_transforms);
 
     point_light lights[edge_detect_demo::max_lights];
     transform(begin(_lights), end(_lights), begin(lights),
@@ -776,12 +779,25 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
                         mul_point(dc.view_matrix, in_light.position)};
               });
 
-    _drawprog_first_pass.set_uniform_block("scene_lighting", lights);
-    _drawprog_first_pass.set_uniform("light_count", _lightcount);
-    _drawprog_first_pass.set_uniform("mat_diffuse", 0);
-    _drawprog_first_pass.set_uniform("mat_specular", 1);
-    _drawprog_first_pass.set_uniform("mat_shininess", _mat_spec_pwr);
-    _drawprog_first_pass.bind_to_pipeline();
+    //    _drawprog_first_pass.set_uniform_block("scene_lighting", lights);
+    _frag_prg.set_uniform_block("scene_lighting", lights);
+
+    //    _drawprog_first_pass.set_uniform("light_count", _lightcount);
+    _frag_prg.set_uniform("light_count", _lightcount);
+
+    //    _drawprog_first_pass.set_uniform("mat_diffuse", 0);
+    _frag_prg.set_uniform("mat_diffuse", 0);
+
+    //    _drawprog_first_pass.set_uniform("mat_specular", 1);
+    _frag_prg.set_uniform("mat_specular", 1);
+
+    //    _drawprog_first_pass.set_uniform("mat_shininess", _mat_spec_pwr);
+    _frag_prg.set_uniform("mat_shininess", _mat_spec_pwr);
+
+    //    _drawprog_first_pass.bind_to_pipeline();
+
+    _vertex_prg.use();
+    _frag_prg.use();
 
     {
       const GLuint samplers[] = {raw_handle(_fbo.fbo_sampler),
@@ -794,6 +810,11 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
                                   raw_handle(_obj_material)};
       gl::BindTextures(0, XR_I32_COUNTOF__(materials), materials);
     }
+
+    gpu_program_pipeline_setup_builder{raw_handle(_prog_pipeline)}
+        .add_vertex_program(_vertex_prg)
+        .add_fragment_program(_frag_prg)
+        .install();
 
     _object.draw();
   }
@@ -822,7 +843,7 @@ void test_shit() {
 
 void app::edge_detect_demo::init() {
 
-//  test_shit();
+  //  test_shit();
 
   uint32_t render_wnd_width{1024};
   uint32_t render_wnd_height{1024};
@@ -881,14 +902,31 @@ void app::edge_detect_demo::init() {
     XR_NOT_REACHED();
   }
 
-  _drawprog_first_pass = []() {
-    const GLuint compiled_shaders[] = {
-        make_shader(gl::VERTEX_SHADER, "shaders/cap6/edge_detect/shader.vert"),
-        make_shader(gl::FRAGMENT_SHADER,
-                    "shaders/cap6/edge_detect/shader.frag")};
+  //  _drawprog_first_pass = []() {
+  //    const GLuint compiled_shaders[] = {
+  //        make_shader(gl::VERTEX_SHADER,
+  //        "shaders/cap6/edge_detect/shader.vert"),
+  //        make_shader(gl::FRAGMENT_SHADER,
+  //                    "shaders/cap6/edge_detect/shader.frag")};
 
-    return gpu_program{compiled_shaders};
-  }();
+  //    return gpu_program{compiled_shaders};
+  //  }();
+
+  _vertex_prg =
+      vertex_program{gpu_program_builder{graphics_pipeline_stage::vertex}
+                         .add_file("shaders/cap6/edge_detect/shader.vert")
+                         .build()};
+
+  _frag_prg =
+      fragment_program{gpu_program_builder{graphics_pipeline_stage::fragment}
+                           .add_file("shaders/cap6/edge_detect/shader.frag")
+                           .build()};
+
+  _prog_pipeline = scoped_program_pipeline_handle{[]() {
+    GLuint id{};
+    gl::CreateProgramPipelines(1, &id);
+    return id;
+  }()};
 
   config_file app_cfg{"config/cap6/edge_detect/app.conf"};
   if (!app_cfg) {
