@@ -9,6 +9,7 @@
     {
         "tab_size": 4,
         "translate_tab_to_spaces" : true,
+        "build_dir" : "/home/ahodos/projects/build-xray-ng-GCC-Default",
         "clang_flags":
         [
             "-std=c++14",

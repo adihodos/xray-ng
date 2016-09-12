@@ -1733,8 +1733,11 @@ void xray::rendering::gpu_program_pipeline_setup_builder::install() {
 
       switch (stage) {
         XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::vertex);
+        XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::tess_eval);
+        XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::tess_control);
         XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::geometry);
         XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::fragment);
+        XRAY_TO_OPENGL_GET_STAGE_BIT(graphics_pipeline_stage::compute);
 
       default:
         assert(false && "Unmapped stage bit !");

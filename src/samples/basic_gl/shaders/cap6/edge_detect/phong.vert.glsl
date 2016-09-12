@@ -6,6 +6,10 @@ layout (location = 0) in vec3 vs_in_pos;
 layout (location = 1) in vec3 vs_in_normal;
 layout (location = 2) in vec2 vs_in_texc;
 
+out gl_PerVertex {
+    vec4 gl_Position;
+};
+
 out VS_OUT_PS_IN {
     layout (location = 0) vec3 posv;
     layout (location = 1) vec3 normv;

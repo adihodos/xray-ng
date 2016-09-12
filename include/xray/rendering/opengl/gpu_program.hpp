@@ -90,6 +90,24 @@ struct xray_to_opengl<graphics_pipeline_stage::vertex> {
 };
 
 template <>
+struct xray_to_opengl<graphics_pipeline_stage::tess_control> {
+  static constexpr GLenum     shader_type = gl::TESS_CONTROL_SHADER;
+  static constexpr GLbitfield shader_bit  = gl::TESS_CONTROL_SHADER_BIT;
+  static constexpr GLenum     sub_uniform_interface =
+      gl::TESS_CONTROL_SUBROUTINE_UNIFORM;
+  static constexpr GLenum sub_interface = gl::TESS_CONTROL_SUBROUTINE;
+};
+
+template <>
+struct xray_to_opengl<graphics_pipeline_stage::tess_eval> {
+  static constexpr GLenum     shader_type = gl::TESS_EVALUATION_SHADER;
+  static constexpr GLbitfield shader_bit  = gl::TESS_EVALUATION_SHADER_BIT;
+  static constexpr GLenum     sub_uniform_interface =
+      gl::TESS_EVALUATION_SUBROUTINE_UNIFORM;
+  static constexpr GLenum sub_interface = gl::TESS_EVALUATION_SUBROUTINE;
+};
+
+template <>
 struct xray_to_opengl<graphics_pipeline_stage::geometry> {
   static constexpr GLenum     shader_type = gl::GEOMETRY_SHADER;
   static constexpr GLbitfield shader_bit  = gl::GEOMETRY_SHADER_BIT;
@@ -105,6 +123,15 @@ struct xray_to_opengl<graphics_pipeline_stage::fragment> {
   static constexpr GLenum     sub_uniform_interface =
       gl::FRAGMENT_SUBROUTINE_UNIFORM;
   static constexpr GLenum sub_interface = gl::FRAGMENT_SUBROUTINE;
+};
+
+template <>
+struct xray_to_opengl<graphics_pipeline_stage::compute> {
+  static constexpr GLenum     shader_type = gl::COMPUTE_SHADER;
+  static constexpr GLbitfield shader_bit  = gl::COMPUTE_SHADER_BIT;
+  static constexpr GLenum     sub_uniform_interface =
+      gl::COMPUTE_SUBROUTINE_UNIFORM;
+  static constexpr GLenum sub_interface = gl::COMPUTE_SUBROUTINE;
 };
 
 struct shader_source_file {
@@ -154,6 +181,11 @@ public:
 
   gpu_program_builder& add_string(const shader_source_string ssrc) {
     push_descriptor(shader_source_descriptor{_stage, ssrc});
+    return *this;
+  }
+
+  gpu_program_builder& add_file(const char* sfile) {
+    add_file(shader_source_file{sfile});
     return *this;
   }
 
