@@ -830,8 +830,8 @@ void app::edge_detect_demo::init() {
 
   //  test_shit();
 
-  uint32_t render_wnd_width{1024};
-  uint32_t render_wnd_height{1024};
+  int32_t render_wnd_width{1024};
+  int32_t render_wnd_height{1024};
 
   _fbo.fbo_texture = [ w = render_wnd_width, h = render_wnd_height ]() {
     GLuint texh{};
@@ -886,16 +886,6 @@ void app::edge_detect_demo::init() {
     XR_LOG_CRITICAL("Failed to create/init framebuffer!!");
     XR_NOT_REACHED();
   }
-
-  //  _drawprog_first_pass = []() {
-  //    const GLuint compiled_shaders[] = {
-  //        make_shader(gl::VERTEX_SHADER,
-  //        "shaders/cap6/edge_detect/shader.vert"),
-  //        make_shader(gl::FRAGMENT_SHADER,
-  //                    "shaders/cap6/edge_detect/shader.frag")};
-
-  //    return gpu_program{compiled_shaders};
-  //  }();
 
   _vertex_prg =
       vertex_program{gpu_program_builder{graphics_pipeline_stage::vertex}

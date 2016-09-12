@@ -276,7 +276,6 @@ private:
     xray::rendering::scoped_sampler      fbo_sampler;
   } _fbo;
 
-  xray::rendering::gpu_program      _drawprog_first_pass;
   xray::rendering::simple_mesh      _object;
   xray::rendering::simple_mesh      _object2;
   xray::rendering::scoped_texture   _obj_material;

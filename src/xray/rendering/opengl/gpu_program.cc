@@ -1746,6 +1746,9 @@ void xray::rendering::gpu_program_pipeline_setup_builder::install() {
        i < enum_helper::to_underlying_type(graphics_pipeline_stage::last);
        ++i) {
 
+    if (_programs_by_stage[i] == nullptr)
+      continue;
+
     const auto stage_bit = [stage = enum_helper::from_underlying_type<
                                 graphics_pipeline_stage>(i)]() {
 #define XRAY_TO_OPENGL_GET_STAGE_BIT(stg)                                      \
