@@ -32,6 +32,7 @@
 ///         geometrical shapes.
 
 #include "xray/xray.hpp"
+#include "xray/base/unique_pointer.hpp"
 #include "xray/math/objects/aabb3.hpp"
 #include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
@@ -73,15 +74,33 @@ public:
 
   XRAY_DEFAULT_MOVE(simple_mesh);
 
+public:
   explicit operator bool() const noexcept { return valid(); }
-  bool valid() const noexcept { return _valid; }
 
-  xray::math::aabb3f aabb() const noexcept {
+  bool valid() const noexcept { return _vertices != nullptr; }
+
+  const xray::math::aabb3f& aabb() const noexcept {
     assert(valid());
     return _boundingbox;
   }
 
+  const vertex_format_info* vertex_fmt_description() const noexcept {
+    return &_vertex_format_info;
+  }
+
+  const vertex_format& vertex_fmt() const noexcept { return _vertexformat; }
+
+  uint32_t vertex_count() const noexcept { return _vertexcount; }
+
+  uint32_t index_count() const noexcept { return _indexcount; }
+
+  void* vertices() const noexcept { return base::raw_ptr(_vertices); }
+
+  void* indices() const noexcept { return base::raw_ptr(_indices); }
+
   void draw() const noexcept;
+
+  size_t id() const noexcept { return _id; }
 
 private:
   bool load_model_impl(const char* model_data, const size_t data_size,
@@ -99,18 +118,72 @@ private:
 
   void create_buffers(const create_buffers_args* args);
 
+  struct malloc_deleter {
+    void operator()(void* ptr) const noexcept { free(ptr); }
+  };
+
 private:
+  xray::base::unique_pointer<void, malloc_deleter> _vertices;
+  xray::base::unique_pointer<void, malloc_deleter> _indices;
+  uint32_t                             _vertexcount{};
+  uint32_t                             _indexcount{};
   xray::rendering::scoped_buffer       _vertexbuffer;
   xray::rendering::scoped_buffer       _indexbuffer;
   xray::rendering::scoped_vertex_array _vertexarray;
+  vertex_format_info                   _vertex_format_info;
+  xray::math::aabb3f                   _boundingbox;
+  size_t                               _id{};
   vertex_format                        _vertexformat{vertex_format::undefined};
   index_format                         _indexformat{index_format::u16};
-  uint32_t                             _indexcount{};
-  xray::math::aabb3f                   _boundingbox;
   bool                                 _valid{false};
 
 private:
   XRAY_NO_COPY(simple_mesh);
+};
+
+struct mesh_graphics_rep {
+public:
+  using vertex_buffer_handle = scoped_buffer::handle_type;
+  using index_buffer_handle  = scoped_buffer::handle_type;
+  using vertex_array_handle  = scoped_vertex_array::handle_type;
+
+public:
+  mesh_graphics_rep() noexcept = default;
+  XRAY_DEFAULT_MOVE(mesh_graphics_rep);
+
+  explicit mesh_graphics_rep(const simple_mesh* mesh_geometry);
+
+  bool valid() const noexcept {
+    return _vertexbuffer && _indexbuffer && _vertexarray;
+  }
+
+  explicit operator bool() const noexcept { return valid(); }
+
+  vertex_buffer_handle vertex_buffer() const noexcept {
+    assert(valid());
+    return base::raw_handle(_vertexbuffer);
+  }
+
+  index_buffer_handle index_buffer() const noexcept {
+    assert(valid());
+    return base::raw_handle(_indexbuffer);
+  }
+
+  vertex_array_handle vertex_array() const noexcept {
+    assert(valid());
+    return base::raw_handle(_vertexarray);
+  }
+
+  const simple_mesh* geometry() const noexcept { return _geometry; }
+
+private:
+  const simple_mesh*                   _geometry{nullptr};
+  xray::rendering::scoped_buffer       _vertexbuffer;
+  xray::rendering::scoped_buffer       _indexbuffer;
+  xray::rendering::scoped_vertex_array _vertexarray;
+
+private:
+  XRAY_NO_COPY(mesh_graphics_rep);
 };
 
 /// @}

@@ -5,7 +5,6 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/constants.hpp"
-#include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/objects/aabb3_math.hpp"
 #include "xray/math/objects/sphere_math.hpp"
@@ -33,10 +32,6 @@ using namespace std;
 using namespace xray::base;
 using namespace xray::math;
 using namespace xray::rendering;
-
-struct malloc_deleter {
-  void operator()(void* ptr) const noexcept { free(ptr); }
-};
 
 struct vertex_load_option {
   enum { load_normals = 1u, load_texcoord = 1u << 1, load_tangents = 1u << 2 };
@@ -230,9 +225,7 @@ bool xray::rendering::simple_mesh::load_model_impl(
     return false;
   }
 
-  size_t num_vertices = 0;
-  size_t num_indices  = 0;
-  size_t num_faces    = 0;
+  size_t num_faces = 0;
 
   //
   //  Count vertices and indices.
@@ -240,30 +233,29 @@ bool xray::rendering::simple_mesh::load_model_impl(
        ++mesh_index) {
 
     const aiMesh* curr_mesh = imported_scene->mMeshes[mesh_index];
-    num_vertices += curr_mesh->mNumVertices;
+    _vertexcount += curr_mesh->mNumVertices;
     num_faces += curr_mesh->mNumFaces;
 
     for (uint32_t face_index = 0; face_index < curr_mesh->mNumFaces;
          ++face_index) {
       const aiFace* curr_face = &curr_mesh->mFaces[face_index];
-      num_indices += curr_face->mNumIndices;
+      _indexcount += curr_face->mNumIndices;
     }
   }
 
-  _indexcount            = num_indices;
-  const auto fmt_desc    = get_vertex_format_description(_vertexformat);
-  const auto vbuff_bytes = fmt_desc.element_size * num_vertices;
+  _vertex_format_info    = get_vertex_format_description(_vertexformat);
+  const auto vbuff_bytes = _vertex_format_info.element_size * _vertexcount;
 
-  unique_pointer<void, malloc_deleter> imported_geometry{malloc(vbuff_bytes)};
-  if (num_indices > 65535)
+  _vertices = unique_pointer<void, malloc_deleter>{malloc(vbuff_bytes)};
+  if (_indexcount > 65535)
     _indexformat = index_format::u32;
 
   constexpr size_t INDEX_ELEMENT_SIZE[] = {sizeof(uint16_t), sizeof(uint32_t)};
   const auto       index_buffer_bytes_size =
-      num_indices * INDEX_ELEMENT_SIZE[_indexformat == index_format::u32];
+      _indexcount * INDEX_ELEMENT_SIZE[_indexformat == index_format::u32];
 
-  unique_pointer<void, malloc_deleter> indices_buff{
-      malloc(index_buffer_bytes_size)};
+  _indices =
+      unique_pointer<void, malloc_deleter>{malloc(index_buffer_bytes_size)};
 
   uint32_t base_vertex{};
   uint32_t input_base_index{};
@@ -282,15 +274,15 @@ bool xray::rendering::simple_mesh::load_model_impl(
 
     switch (_vertexformat) {
     case vertex_format::pn:
-      mesh_load_vertex_pn(raw_ptr(imported_geometry), curr_mesh, base_vertex);
+      mesh_load_vertex_pn(raw_ptr(_vertices), curr_mesh, base_vertex);
       break;
 
     case vertex_format::pnt:
-      mesh_load_vertex_pnt(raw_ptr(imported_geometry), curr_mesh, base_vertex);
+      mesh_load_vertex_pnt(raw_ptr(_vertices), curr_mesh, base_vertex);
       break;
 
     case vertex_format::pntt:
-      mesh_load_vertex_pntt(raw_ptr(imported_geometry), curr_mesh, base_vertex);
+      mesh_load_vertex_pntt(raw_ptr(_vertices), curr_mesh, base_vertex);
       break;
 
     default:
@@ -305,8 +297,8 @@ bool xray::rendering::simple_mesh::load_model_impl(
       const aiFace* curr_face = &curr_mesh->mFaces[face_index];
 
       for (uint32_t i = 0; i < curr_face->mNumIndices; ++i) {
-        load_index_func(raw_ptr(indices_buff), output_base_index,
-                        input_base_index, curr_face);
+        load_index_func(raw_ptr(_indices), output_base_index, input_base_index,
+                        curr_face);
       }
 
       output_base_index += curr_face->mNumIndices;
@@ -316,12 +308,12 @@ bool xray::rendering::simple_mesh::load_model_impl(
     base_vertex += curr_mesh->mNumVertices;
   }
 
-  const create_buffers_args create_args{raw_ptr(imported_geometry),
+  const create_buffers_args create_args{raw_ptr(_vertices),
                                         vbuff_bytes,
-                                        num_vertices,
-                                        raw_ptr(indices_buff),
+                                        _vertexcount,
+                                        raw_ptr(_indices),
                                         index_buffer_bytes_size,
-                                        &fmt_desc};
+                                        &_vertex_format_info};
 
   create_buffers(&create_args);
   return true;
@@ -536,57 +528,59 @@ void xray::rendering::simple_mesh::create_buffers(
 
   timer_highp tmr{};
   tmr.start();
-  _boundingbox = [args]() {
+  //          [args]() {
 
-    //    XRAY_TIMED_SCOPE("mesh aabb computation");
-    //    _boundingbox = bounding_box3_axis_aligned(
-    //        static_cast<const float3*>(args->vertexbuffer_data),
-    //        args->vertexcount,
-    //        args->fmt_into->element_size);
+  //    //    XRAY_TIMED_SCOPE("mesh aabb computation");
+  _boundingbox = bounding_box3_axis_aligned(
+      static_cast<const float3*>(args->vertexbuffer_data), args->vertexcount,
+      args->fmt_into->element_size);
 
-    struct aabb_reduce_body {
-      using reduce_range_type = tbb::blocked_range<size_t>;
+  //    struct aabb_reduce_body {
+  //      using reduce_range_type = tbb::blocked_range<size_t>;
 
-      aabb_reduce_body(const void* points, const size_t stride) noexcept
-          : _points{points}, _stride{stride} {}
+  //      aabb_reduce_body(const void* points, const size_t stride) noexcept
+  //          : _points{points}, _stride{stride} {}
 
-      aabb_reduce_body(const aabb_reduce_body& other, tbb::split) noexcept
-          : _points{other._points}
-          , _stride{other._stride}
-          , _boundingbox{other._boundingbox} {}
+  //      aabb_reduce_body(const aabb_reduce_body& other, tbb::split)
+  //      noexcept
+  //          : _points{other._points}
+  //          , _stride{other._stride}
+  //          , _boundingbox{other._boundingbox} {}
 
-      void operator()(const reduce_range_type& range) noexcept {
-        for (size_t idx = range.begin(), pts_cnt = range.end(); idx < pts_cnt;
-             ++idx) {
-          const auto pt = reinterpret_cast<const float3*>(
-              static_cast<const uint8_t*>(_points) + idx * _stride);
+  //      void operator()(const reduce_range_type& range) noexcept {
+  //        for (size_t idx = range.begin(), pts_cnt = range.end(); idx <
+  //        pts_cnt;
+  //             ++idx) {
+  //          const auto pt = reinterpret_cast<const float3*>(
+  //              static_cast<const uint8_t*>(_points) + idx * _stride);
 
-          _boundingbox.min.x = math::min(_boundingbox.min.x, pt->x);
-          _boundingbox.min.y = math::min(_boundingbox.min.y, pt->y);
-          _boundingbox.min.z = math::min(_boundingbox.min.z, pt->z);
+  //          _boundingbox.min.x = math::min(_boundingbox.min.x, pt->x);
+  //          _boundingbox.min.y = math::min(_boundingbox.min.y, pt->y);
+  //          _boundingbox.min.z = math::min(_boundingbox.min.z, pt->z);
 
-          _boundingbox.max.x = math::max(_boundingbox.max.x, pt->x);
-          _boundingbox.max.y = math::max(_boundingbox.max.y, pt->y);
-          _boundingbox.max.z = math::max(_boundingbox.max.z, pt->z);
-        }
-      }
+  //          _boundingbox.max.x = math::max(_boundingbox.max.x, pt->x);
+  //          _boundingbox.max.y = math::max(_boundingbox.max.y, pt->y);
+  //          _boundingbox.max.z = math::max(_boundingbox.max.z, pt->z);
+  //        }
+  //      }
 
-      void join(const aabb_reduce_body& rhs) noexcept {
-        _boundingbox = math::merge(_boundingbox, rhs._boundingbox);
-      }
+  //      void join(const aabb_reduce_body& rhs) noexcept {
+  //        _boundingbox = math::merge(_boundingbox, rhs._boundingbox);
+  //      }
 
-      const void* _points{nullptr};
-      size_t      _stride{};
-      aabb3f      _boundingbox{aabb3f::stdc::identity};
-    };
+  //      const void* _points{nullptr};
+  //      size_t      _stride{};
+  //      aabb3f      _boundingbox{aabb3f::stdc::identity};
+  //    };
 
-    aabb_reduce_body body{args->vertexbuffer_data,
-                          args->fmt_into->element_size};
-    tbb::parallel_reduce(
-        aabb_reduce_body::reduce_range_type{0, args->vertexcount}, body);
+  //    aabb_reduce_body body{args->vertexbuffer_data,
+  //                          args->fmt_into->element_size};
+  //    tbb::parallel_reduce(
+  //        aabb_reduce_body::reduce_range_type{0, args->vertexcount},
+  //        body);
 
-    return body._boundingbox;
-  }();
+  //    return body._boundingbox;
+  //  }();
 
   tmr.end();
   XR_LOG_TRACE("Mesh aabb parallel reduce took {} msec", tmr.elapsed_millis());
@@ -598,4 +592,10 @@ void xray::rendering::simple_mesh::create_buffers(
                _boundingbox.center().x, _boundingbox.center().y,
                _boundingbox.center().z, _boundingbox.width(),
                _boundingbox.height(), _boundingbox.depth());
+}
+
+xray::rendering::mesh_graphics_rep::mesh_graphics_rep(
+    const simple_mesh* mesh_geometry)
+    : _geometry{mesh_geometry} {
+  //    _vertexbuffer = []
 }
