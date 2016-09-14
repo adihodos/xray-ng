@@ -801,13 +801,14 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
         .add_fragment_program(_frag_prg)
         .install();
 
-    gl::BindVertexArray(_obj_graphics.vertex_array());
-    _obj_graphics.geometry()->indexed()
-        ? gl::DrawElements(gl::TRIANGLES,
-                           _obj_graphics.geometry()->index_count(),
-                           gl::UNSIGNED_INT, nullptr)
-        : gl::DrawArrays(gl::TRIANGLES, 0,
-                         _obj_graphics.geometry()->vertex_count());
+    _obj_graphics.draw();
+    // gl::BindVertexArray(_obj_graphics.vertex_array());
+    // _obj_graphics.geometry()->indexed()
+    //     ? gl::DrawElements(gl::TRIANGLES,
+    //                        _obj_graphics.geometry()->index_count(),
+    //                        gl::UNSIGNED_INT, nullptr)
+    //     : gl::DrawArrays(gl::TRIANGLES, 0,
+    //                      _obj_graphics.geometry()->vertex_count());
 
     //    _object.draw();
   }

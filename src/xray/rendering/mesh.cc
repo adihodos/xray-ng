@@ -332,7 +332,7 @@ bool xray::rendering::simple_mesh::load_model_impl(
 xray::rendering::simple_mesh::simple_mesh(const vertex_format fmt,
                                           const char*         mesh_file,
                                           const uint32_t      load_options)
-    : _vertexformat{fmt} {
+    : _vertexformat{fmt}, _topology{primitive_topology::triangle} {
 
   constexpr uint32_t default_processing_opts =
       aiProcess_CalcTangentSpace |         // calculate tangents and
@@ -422,11 +422,13 @@ void copy_geometry(void* dest, const geometry_data_t& geometry) {
     *out++ = format_cast<OutputFormatType>(vs_in);
 }
 
-xray::rendering::simple_mesh::simple_mesh(const vertex_format    fmt,
-                                          const geometry_data_t& geometry)
-    : _vertexformat{fmt}
+xray::rendering::simple_mesh::simple_mesh(const vertex_format      fmt,
+                                          const geometry_data_t&   geometry,
+                                          const primitive_topology topology)
+    : _indexcount{static_cast<uint32_t>(geometry.index_count)}
+    , _vertexformat{fmt}
     , _indexformat{index_format::u32}
-    , _indexcount{static_cast<uint32_t>(geometry.index_count)} {
+    , _topology{topology} {
 
   const auto fmt_desc = get_vertex_format_description(_vertexformat);
   unique_pointer<void, malloc_deleter> vbuff_data;
@@ -452,7 +454,6 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format    fmt,
       assert(false && "Unsupported vertex format !");
       break;
     }
-
   } else {
     buffer_bytes     = geometry.vertex_count * sizeof(vertex_pntt);
     buffer_init_data = raw_ptr(geometry.geometry);
@@ -659,4 +660,38 @@ xray::rendering::mesh_graphics_rep::mesh_graphics_rep(
     return vao;
   }
   ();
+}
+
+static constexpr GLenum PRIMITIVE_TOPOLOGY_TRANSLATION_TABLE[] = {
+    gl::INVALID_ENUM, gl::POINTS,    gl::LINES,
+    gl::LINE_STRIP,   gl::TRIANGLES, gl::TRIANGLE_STRIP};
+
+static inline constexpr auto
+map_topology(const xray::rendering::primitive_topology topo) {
+  using namespace xray::base;
+  return PRIMITIVE_TOPOLOGY_TRANSLATION_TABLE[enum_helper::to_underlying_type(
+      topo)];
+}
+
+static constexpr GLenum INDEX_TYPE_TRANSLATION_TABLE[] = {gl::UNSIGNED_SHORT,
+                                                          gl::UNSIGNED_INT};
+
+void xray::rendering::mesh_graphics_rep::draw() noexcept {
+  assert(valid());
+
+  using namespace xray::base;
+
+  gl::BindVertexArray(vertex_array());
+
+  const auto topology = map_topology(geometry()->topology());
+  const auto ge       = geometry();
+
+  if (ge->indexed()) {
+    const auto index_type =
+        INDEX_TYPE_TRANSLATION_TABLE[enum_helper::to_underlying_type(
+            ge->index_fmt())];
+    gl::DrawElements(topology, ge->index_count(), gl::UNSIGNED_INT, nullptr);
+  } else {
+    gl::DrawArrays(topology, 0, ge->vertex_count());
+  }
 }

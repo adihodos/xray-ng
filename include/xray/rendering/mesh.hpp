@@ -57,11 +57,21 @@ struct vertex_format_info {
   const vertex_format_entry_desc* description;
 };
 
+enum class primitive_topology {
+  undefined,
+  point,
+  line,
+  line_strip,
+  triangle,
+  triangle_strip
+};
+
 class simple_mesh {
 public:
   simple_mesh() noexcept = default;
 
-  simple_mesh(const vertex_format fmt, const geometry_data_t& geometry);
+  simple_mesh(const vertex_format fmt, const geometry_data_t& geometry,
+              const primitive_topology topology = primitive_topology::triangle);
 
   simple_mesh(
       const vertex_format fmt, const char* mesh_file,
@@ -88,18 +98,16 @@ public:
     return &_vertex_format_info;
   }
 
-  const vertex_format vertex_fmt() const noexcept { return _vertexformat; }
+  vertex_format vertex_fmt() const noexcept { return _vertexformat; }
+  uint32_t      vertex_count() const noexcept { return _vertexcount; }
 
-  uint32_t vertex_count() const noexcept { return _vertexcount; }
-
-  uint32_t index_count() const noexcept { return _indexcount; }
+  index_format index_fmt() const noexcept { return _indexformat; }
+  uint32_t     index_count() const noexcept { return _indexcount; }
 
   void* vertices() const noexcept { return base::raw_ptr(_vertices); }
-
   void* indices() const noexcept { return base::raw_ptr(_indices); }
 
   bool indexed() const noexcept { return _indexcount != 0; }
-
   void draw() const noexcept;
 
   size_t id() const noexcept { return _id; }
@@ -111,6 +119,8 @@ public:
   size_t byte_size_indices() const noexcept {
     return _indexcount * (_indexformat == index_format::u32 ? 4 : 2);
   }
+
+  primitive_topology topology() const noexcept { return _topology; }
 
 private:
   bool load_model_impl(const char* model_data, const size_t data_size,
@@ -144,7 +154,8 @@ private:
   xray::math::aabb3f                   _boundingbox;
   size_t                               _id{};
   vertex_format                        _vertexformat{vertex_format::undefined};
-  index_format                         _indexformat{index_format::u16};
+  index_format                         _indexformat{index_format::u32};
+  primitive_topology                   _topology{primitive_topology::undefined};
   bool                                 _valid{false};
 
 private:
@@ -185,6 +196,8 @@ public:
   }
 
   const simple_mesh* geometry() const noexcept { return _geometry; }
+
+  void draw() noexcept;
 
 private:
   const simple_mesh*                   _geometry{nullptr};
