@@ -276,16 +276,18 @@ private:
     xray::rendering::scoped_sampler      fbo_sampler;
   } _fbo;
 
-  xray::rendering::simple_mesh      _object;
-  xray::rendering::simple_mesh      _object2;
-  xray::rendering::scoped_texture   _obj_material;
-  xray::rendering::scoped_texture   _obj_diffuse_map;
-  xray::scene::point_light          _lights[edge_detect_demo::max_lights];
-  uint32_t                          _lightcount{2};
-  float                             _mat_spec_pwr{50.0f};
-  std::vector<graphics_object>      _drawables;
-  xray::rendering::vertex_program   _vertex_prg;
-  xray::rendering::fragment_program _frag_prg;
+  xray::rendering::simple_mesh       _object;
+  xray::rendering::mesh_graphics_rep _obj_graphics;
+  xray::rendering::simple_mesh       _object2;
+  xray::rendering::simple_mesh       _obj_graphics2;
+  xray::rendering::scoped_texture    _obj_material;
+  xray::rendering::scoped_texture    _obj_diffuse_map;
+  xray::scene::point_light           _lights[edge_detect_demo::max_lights];
+  uint32_t                           _lightcount{2};
+  float                              _mat_spec_pwr{50.0f};
+  std::vector<graphics_object>       _drawables;
+  xray::rendering::vertex_program    _vertex_prg;
+  xray::rendering::fragment_program  _frag_prg;
   xray::rendering::scoped_program_pipeline_handle _prog_pipeline;
 
 private:

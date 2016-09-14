@@ -801,7 +801,15 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
         .add_fragment_program(_frag_prg)
         .install();
 
-    _object.draw();
+    gl::BindVertexArray(_obj_graphics.vertex_array());
+    _obj_graphics.geometry()->indexed()
+        ? gl::DrawElements(gl::TRIANGLES,
+                           _obj_graphics.geometry()->index_count(),
+                           gl::UNSIGNED_INT, nullptr)
+        : gl::DrawArrays(gl::TRIANGLES, 0,
+                         _obj_graphics.geometry()->vertex_count());
+
+    //    _object.draw();
   }
 }
 
@@ -921,6 +929,11 @@ void app::edge_detect_demo::init() {
     if (!_object) {
       XR_LOG_CRITICAL("Failed to load model from file!");
       XR_NOT_REACHED();
+    }
+
+    _obj_graphics = mesh_graphics_rep{_object};
+    if (!_obj_graphics) {
+      XR_LOG_CRITICAL("Failed to create mesh graphical representation!");
     }
   }
 

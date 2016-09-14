@@ -88,7 +88,7 @@ public:
     return &_vertex_format_info;
   }
 
-  const vertex_format& vertex_fmt() const noexcept { return _vertexformat; }
+  const vertex_format vertex_fmt() const noexcept { return _vertexformat; }
 
   uint32_t vertex_count() const noexcept { return _vertexcount; }
 
@@ -98,9 +98,19 @@ public:
 
   void* indices() const noexcept { return base::raw_ptr(_indices); }
 
+  bool indexed() const noexcept { return _indexcount != 0; }
+
   void draw() const noexcept;
 
   size_t id() const noexcept { return _id; }
+
+  size_t byte_size_vertices() const noexcept {
+    return _vertexcount * _vertex_format_info.element_size;
+  }
+
+  size_t byte_size_indices() const noexcept {
+    return _indexcount * (_indexformat == index_format::u32 ? 4 : 2);
+  }
 
 private:
   bool load_model_impl(const char* model_data, const size_t data_size,
@@ -151,7 +161,7 @@ public:
   mesh_graphics_rep() noexcept = default;
   XRAY_DEFAULT_MOVE(mesh_graphics_rep);
 
-  explicit mesh_graphics_rep(const simple_mesh* mesh_geometry);
+  explicit mesh_graphics_rep(const simple_mesh& mesh_geometry);
 
   bool valid() const noexcept {
     return _vertexbuffer && _indexbuffer && _vertexarray;

@@ -2,6 +2,7 @@
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
+#include "xray/base/enum_cast.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/constants.hpp"
@@ -32,6 +33,15 @@ using namespace std;
 using namespace xray::base;
 using namespace xray::math;
 using namespace xray::rendering;
+
+static constexpr GLenum COMPONENT_TYPES_GL[] = {
+    gl::BYTE, gl::UNSIGNED_BYTE, gl::SHORT, gl::UNSIGNED_SHORT,
+    gl::INT,  gl::UNSIGNED_INT,  gl::FLOAT, gl::DOUBLE};
+
+static GLenum translate_component_type(const uint32_t ctype) {
+  assert(ctype < XR_U32_COUNTOF__(COMPONENT_TYPES_GL));
+  return COMPONENT_TYPES_GL[ctype];
+}
 
 struct vertex_load_option {
   enum { load_normals = 1u, load_texcoord = 1u << 1, load_tangents = 1u << 2 };
@@ -595,7 +605,58 @@ void xray::rendering::simple_mesh::create_buffers(
 }
 
 xray::rendering::mesh_graphics_rep::mesh_graphics_rep(
-    const simple_mesh* mesh_geometry)
-    : _geometry{mesh_geometry} {
-  //    _vertexbuffer = []
+    const simple_mesh& mesh_geometry)
+    : _geometry{&mesh_geometry} {
+
+  _vertexbuffer = [ge = _geometry]() {
+    GLuint vb{};
+    gl::CreateBuffers(1, &vb);
+    gl::NamedBufferStorage(vb,
+                           static_cast<GLsizeiptr>(ge->byte_size_vertices()),
+                           ge->vertices(), 0);
+    return vb;
+  }
+  ();
+
+  if (_geometry->indexed()) {
+    _indexbuffer = [ge = _geometry]() {
+      GLuint ib{};
+      gl::CreateBuffers(1, &ib);
+      gl::NamedBufferStorage(ib,
+                             static_cast<GLsizeiptr>(ge->byte_size_indices()),
+                             ge->indices(), 0);
+
+      return ib;
+    }
+    ();
+  }
+
+  _vertexarray = [
+    ge = _geometry, vb = raw_handle(_vertexbuffer),
+    ib = raw_handle(_indexbuffer)
+  ]() {
+    GLuint vao{};
+    gl::CreateVertexArrays(1, &vao);
+
+    const auto vertex_format_desc = ge->vertex_fmt_description();
+
+    gl::VertexArrayVertexBuffer(vao, 0, vb, 0,
+                                vertex_format_desc->element_size);
+    if (ib) {
+      gl::VertexArrayElementBuffer(vao, ib);
+    }
+
+    for (uint32_t idx = 0; idx < vertex_format_desc->components; ++idx) {
+      const auto elem_desc = vertex_format_desc->description + idx;
+      gl::VertexArrayAttribFormat(
+          vao, idx, elem_desc->component_count,
+          translate_component_type(elem_desc->component_type), gl::FALSE_,
+          elem_desc->component_offset);
+      gl::VertexArrayAttribBinding(vao, idx, 0);
+      gl::EnableVertexArrayAttrib(vao, idx);
+    }
+
+    return vao;
+  }
+  ();
 }
