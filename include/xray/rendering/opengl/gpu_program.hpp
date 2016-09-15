@@ -408,6 +408,8 @@ public:
 
   void use();
 
+  void swap(gpu_program_base& rhs) noexcept;
+
 protected:
   gpu_program_base() = default;
   explicit gpu_program_base(scoped_program_handle handle, const GLenum stage,

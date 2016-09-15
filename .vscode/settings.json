@@ -23,7 +23,7 @@
     // Editor
 
   // Controls the font family.
-  "editor.fontFamily": "'Fira Code Retina",
+  "editor.fontFamily": "'Roboto Mono Light",
 
   // Controls the font weight.
   "editor.fontWeight": "normal",

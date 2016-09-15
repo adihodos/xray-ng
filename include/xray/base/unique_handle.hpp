@@ -125,6 +125,7 @@ class unique_handle {
 
 public:
   using handle_type = typename HType::handle_type;
+  using class_type  = unique_handle<HType>;
 
   /// @}
 
@@ -205,9 +206,19 @@ public:
                                   typename H::handle_type) noexcept;
 
   template <typename H>
+  friend void swap(unique_handle<H>&, unique_handle<H>&) noexcept;
+
+  template <typename H>
   friend typename H::handle_type* unique_handle_ptr(unique_handle<H>&) noexcept;
 
   /// @}
+
+private:
+  void swap(class_type& rhs) noexcept {
+    auto tmph   = handle_;
+    handle_     = rhs.handle_;
+    rhs.handle_ = tmph;
+  }
 
   /// \name Private data members.
   /// @{
@@ -272,6 +283,11 @@ template <typename HType>
 inline typename HType::handle_type*
 raw_handle_ptr(unique_handle<HType>& holder) noexcept {
   return unique_handle_ptr(holder);
+}
+
+template <typename H>
+inline void swap(unique_handle<H>& lhs, unique_handle<H>& rhs) noexcept {
+  lhs.swap(rhs);
 }
 
 } // namespace base

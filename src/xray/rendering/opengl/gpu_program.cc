@@ -1681,6 +1681,32 @@ void xray::rendering::detail::gpu_program_base::use() {
   }
 }
 
+void xray::rendering::detail::gpu_program_base::swap(
+    gpu_program_base& rhs) noexcept {
+  xray::base::swap(_handle, rhs._handle);
+
+  //  /// \brief List of active uniform blocks in the shader.
+  //  std::vector<detail::uniform_block_t> uniform_blocks_;
+
+  //  /// \brief List of active uniforms in the shader.
+  //  std::vector<detail::uniform_t> uniforms_;
+
+  //  /// \brief Storage for uniform block data
+  //  base::unique_pointer<uint8_t[]> ublocks_datastore_;
+
+  //  ///   \brief  List of all active subroutine uniforms in the program.
+  //  Grouped
+  //  ///   by index.
+  //  std::vector<detail::shader_subroutine_uniform> subroutine_uniforms_;
+
+  //  ///   \brief  List with data for all subroutines active in the program.
+  //  std::vector<detail::shader_subroutine> subroutines_;
+
+  //  /// \brief True if compiled, linked and initialized successfully.
+  //  bool   _valid{false};
+  //  GLenum _stage{gl::INVALID_ENUM};
+}
+
 xray::rendering::gpu_program_pipeline_setup_builder::
     gpu_program_pipeline_setup_builder(const GLuint pipeline_handle) noexcept
     : _handle{pipeline_handle} {

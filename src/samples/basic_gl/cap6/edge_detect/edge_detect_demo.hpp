@@ -202,12 +202,58 @@ private:
   XRAY_NO_COPY(shader_cache);
 };
 
+enum class resource_cache_insert_result { ok, already_cached, error };
+
+class gpu_program_cache {
+public:
+  gpu_program_cache()  = default;
+  ~gpu_program_cache() = default;
+
+#define MK_ADD_FUN(type, name, tbl)                                            \
+  void add_##name(const uint32_t id, xray::rendering::type prg) {              \
+    add_entry(id, std::move(prg), tbl);                                        \
+  }
+
+  MK_ADD_FUN(vertex_program, vs, _vsps)
+  MK_ADD_FUN(geometry_program, gs, _gsps)
+  MK_ADD_FUN(fragment_program, fs, _fsps)
+
+#undef MK_ADD_FUN
+
+private:
+  template <typename T>
+  static T* get_entry(const uint32_t id, std::unordered_map<uint32_t, T>& tbl) {
+    auto itr = tbl.find(id);
+    if (itr == std::end(tbl))
+      return nullptr;
+
+    return &itr->second;
+  }
+
+  template <typename T>
+  static void add_entry(const uint32_t id, T&&           val,
+                        std::unordered_map<uint32_t, T>& tbl) {
+    assert(tbl.find(id) == std::end(tbl));
+    tbl[id] = std::forward<T>(val);
+  }
+
+private:
+  std::unordered_map<uint32_t, xray::rendering::gpu_program>      _programs;
+  std::unordered_map<uint32_t, xray::rendering::vertex_program>   _vsps;
+  std::unordered_map<uint32_t, xray::rendering::geometry_program> _gsps;
+  std::unordered_map<uint32_t, xray::rendering::fragment_program> _fsps;
+
+private:
+  XRAY_NO_COPY(gpu_program_cache);
+};
+
 class resource_store {
 private:
-  shader_cache   _shader_store;
-  texture_cache  _tex_store;
-  mesh_cache     _mesh_store;
-  material_cache _mtl_store;
+  gpu_program_cache _program_store;
+  shader_cache      _shader_store;
+  texture_cache     _tex_store;
+  mesh_cache        _mesh_store;
+  material_cache    _mtl_store;
 
   static void load_texture_materials(const xray::base::config_file& cfg,
                                      app::shader_cache*             sstore,
@@ -224,8 +270,11 @@ private:
                                     app::mesh_cache*               meshes,
                                     std::vector<app::graphics_object>* objects);
 
-  static void load_shaders(const xray::base::config_file& cfg,
-                           app::shader_cache*             scache);
+  void load_shaders(const xray::base::config_file& cfg,
+                    app::shader_cache*             scache);
+
+  static void load_programs(const xray::base::config_file& cfg,
+                            gpu_program_cache*             prg_cache);
 
 public:
   resource_store() = default;
@@ -237,10 +286,11 @@ public:
                              std::vector<app::graphics_object>* objects);
 
 public:
-  shader_cache*   shader_store{&_shader_store};
-  texture_cache*  texture_store{&_tex_store};
-  mesh_cache*     mesh_store{&_mesh_store};
-  material_cache* mat_store{&_mtl_store};
+  shader_cache*      shader_store{&_shader_store};
+  gpu_program_cache* program_store{&_program_store};
+  texture_cache*     texture_store{&_tex_store};
+  mesh_cache*        mesh_store{&_mesh_store};
+  material_cache*    mat_store{&_mtl_store};
 
 private:
   XRAY_NO_COPY(resource_store);
