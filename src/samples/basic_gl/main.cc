@@ -18,7 +18,6 @@
 #include "colored_circle.hpp"
 #include "fractal.hpp"
 #include "lit_torus.hpp"
-#include "lit_torus.hpp"
 #include "subroutine_test.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
@@ -112,8 +111,8 @@ private:
   //    normal_map_demo obj_;
   //    reflection_demo                                 obj_;
   //  refraction_demo                                 obj_;
-  //  render_texture_demo                             obj_;
-  edge_detect_demo                                obj_;
+  render_texture_demo obj_;
+  //  edge_detect_demo                                obj_;
   xray::rendering::draw_context_t                 draw_ctx_;
   xray::scene::camera                             cam_;
   xray::scene::camera_controller_spherical_coords cam_control_{
@@ -158,8 +157,8 @@ basic_scene::basic_scene(basic_window* app_wnd) : _appwnd{app_wnd} {
       ////          &reflection_demo::compose_ui;
       //      &refraction_demo::compose_ui;
       //      &textures_demo::compose_ui;
-      //      &render_texture_demo::compose_ui;
-      &edge_detect_demo::compose_ui;
+      &render_texture_demo::compose_ui;
+  //      &edge_detect_demo::compose_ui;
   events.compose_ui = make_delegate(obj_, ui_fn_del);
   initialized_      = true;
 }

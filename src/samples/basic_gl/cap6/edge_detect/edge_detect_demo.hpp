@@ -209,14 +209,21 @@ public:
   gpu_program_cache()  = default;
   ~gpu_program_cache() = default;
 
-#define MK_ADD_FUN(type, name, tbl)                                            \
+#define MK_ADD_FUN(type, name)                                                 \
   void add_##name(const uint32_t id, xray::rendering::type prg) {              \
-    add_entry(id, std::move(prg), tbl);                                        \
+    add_entry(id, std::move(prg), _##name##ps);                                \
+  }                                                                            \
+                                                                               \
+  xray::rendering::type* get_##name(const uint32_t id) {                       \
+    return gpu_program_cache::get_entry(id, _##name##ps);                      \
   }
 
-  MK_ADD_FUN(vertex_program, vs, _vsps)
-  MK_ADD_FUN(geometry_program, gs, _gsps)
-  MK_ADD_FUN(fragment_program, fs, _fsps)
+  MK_ADD_FUN(vertex_program, vs)
+  MK_ADD_FUN(tess_control_program, tc)
+  MK_ADD_FUN(tess_eval_program, te)
+  MK_ADD_FUN(geometry_program, gs)
+  MK_ADD_FUN(fragment_program, fs)
+  MK_ADD_FUN(compute_program, cs)
 
 #undef MK_ADD_FUN
 
@@ -238,10 +245,19 @@ private:
   }
 
 private:
-  std::unordered_map<uint32_t, xray::rendering::gpu_program>      _programs;
-  std::unordered_map<uint32_t, xray::rendering::vertex_program>   _vsps;
-  std::unordered_map<uint32_t, xray::rendering::geometry_program> _gsps;
-  std::unordered_map<uint32_t, xray::rendering::fragment_program> _fsps;
+#define PRG_CACHING_TABLE_DEF(type, name)                                      \
+  std::unordered_map<uint32_t, xray::rendering::type> _##name
+
+  std::unordered_map<uint32_t, xray::rendering::gpu_program> _programs;
+
+  PRG_CACHING_TABLE_DEF(vertex_program, vsps);
+  PRG_CACHING_TABLE_DEF(tess_control_program, tcps);
+  PRG_CACHING_TABLE_DEF(tess_eval_program, teps);
+  PRG_CACHING_TABLE_DEF(geometry_program, gsps);
+  PRG_CACHING_TABLE_DEF(fragment_program, fsps);
+  PRG_CACHING_TABLE_DEF(compute_program, csps);
+
+#undef PRG_CACHING_TABLE_DEF
 
 private:
   XRAY_NO_COPY(gpu_program_cache);

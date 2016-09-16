@@ -519,6 +519,21 @@ public:
         open_(stlsoft_ns_qual(c_str_ptr)(fileName), offset, requestSize);
     }
 
+    memory_mapped_file(class_type&& rhs)
+        : m_cb(0)
+        , m_memory(NULL)
+#ifndef STLSOFT_CF_EXCEPTION_SUPPORT
+        , m_lastStatusCode(ERROR_SUCCESS)
+#endif /* !STLSOFT_CF_EXCEPTION_SUPPORT */
+    {
+        this->swap(rhs);
+    }
+
+    class_type& operator=(class_type&& rhs) {
+        this->swap(rhs);
+        return *this;
+    }
+
     /// Closes the view on the mapped file
     ~memory_mapped_file() STLSOFT_NOEXCEPT
     {

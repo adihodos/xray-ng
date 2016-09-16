@@ -515,10 +515,11 @@ public:
   /// @{
 
 public:
-  gpu_program_t()                = default;
-  gpu_program_t(gpu_program_t&&) = default;
-  gpu_program_t& operator=(gpu_program_t&&) = default;
+  gpu_program_t() = default;
+  //  gpu_program_t(gpu_program_t&&) = default;
+  //  gpu_program_t& operator=(gpu_program_t&&) = default;
   explicit gpu_program_t(scoped_program_handle handle);
+  XRAY_DEFAULT_MOVE(gpu_program_t);
 
   /// @}
 

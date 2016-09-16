@@ -16,6 +16,7 @@
 #include <stlsoft/memory/auto_buffer.hpp>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #define CASE_TO_STRING(case_id)                                                \
   case case_id:                                                                \
@@ -1683,28 +1684,15 @@ void xray::rendering::detail::gpu_program_base::use() {
 
 void xray::rendering::detail::gpu_program_base::swap(
     gpu_program_base& rhs) noexcept {
+
   xray::base::swap(_handle, rhs._handle);
-
-  //  /// \brief List of active uniform blocks in the shader.
-  //  std::vector<detail::uniform_block_t> uniform_blocks_;
-
-  //  /// \brief List of active uniforms in the shader.
-  //  std::vector<detail::uniform_t> uniforms_;
-
-  //  /// \brief Storage for uniform block data
-  //  base::unique_pointer<uint8_t[]> ublocks_datastore_;
-
-  //  ///   \brief  List of all active subroutine uniforms in the program.
-  //  Grouped
-  //  ///   by index.
-  //  std::vector<detail::shader_subroutine_uniform> subroutine_uniforms_;
-
-  //  ///   \brief  List with data for all subroutines active in the program.
-  //  std::vector<detail::shader_subroutine> subroutines_;
-
-  //  /// \brief True if compiled, linked and initialized successfully.
-  //  bool   _valid{false};
-  //  GLenum _stage{gl::INVALID_ENUM};
+  std::swap(uniform_blocks_, rhs.uniform_blocks_);
+  std::swap(uniforms_, rhs.uniforms_);
+  xray::base::swap(ublocks_datastore_, rhs.ublocks_datastore_);
+  std::swap(subroutine_uniforms_, rhs.subroutine_uniforms_);
+  std::swap(subroutines_, rhs.subroutines_);
+  std::swap(_valid, rhs._valid);
+  std::swap(_stage, rhs._stage);
 }
 
 xray::rendering::gpu_program_pipeline_setup_builder::

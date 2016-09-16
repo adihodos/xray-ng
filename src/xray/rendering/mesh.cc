@@ -425,29 +425,26 @@ void copy_geometry(void* dest, const geometry_data_t& geometry) {
 xray::rendering::simple_mesh::simple_mesh(const vertex_format      fmt,
                                           const geometry_data_t&   geometry,
                                           const primitive_topology topology)
-    : _indexcount{static_cast<uint32_t>(geometry.index_count)}
+    : _vertexcount{static_cast<uint32_t>(geometry.vertex_count)}
+    , _indexcount{static_cast<uint32_t>(geometry.index_count)}
     , _vertexformat{fmt}
     , _indexformat{index_format::u32}
     , _topology{topology} {
 
   const auto fmt_desc = get_vertex_format_description(_vertexformat);
-  unique_pointer<void, malloc_deleter> vbuff_data;
-  void*  buffer_init_data{nullptr};
-  size_t buffer_bytes{};
+  size_t     vertex_bytes{};
 
   if (fmt != vertex_format::pntt) {
-    buffer_bytes = geometry.vertex_count * fmt_desc.element_size;
-    vbuff_data   = unique_pointer<void, malloc_deleter>(malloc(buffer_bytes));
-
-    buffer_init_data = raw_ptr(vbuff_data);
+    vertex_bytes = geometry.vertex_count * fmt_desc.element_size;
+    _vertices    = unique_pointer<void, malloc_deleter>{malloc(vertex_bytes)};
 
     switch (fmt) {
     case vertex_format::pn:
-      copy_geometry<vertex_pn>(buffer_init_data, geometry);
+      copy_geometry<vertex_pn>(raw_ptr(_vertices), geometry);
       break;
 
     case vertex_format::pnt:
-      copy_geometry<vertex_pnt>(buffer_init_data, geometry);
+      copy_geometry<vertex_pnt>(raw_ptr(_vertices), geometry);
       break;
 
     default:
@@ -455,17 +452,18 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format      fmt,
       break;
     }
   } else {
-    buffer_bytes     = geometry.vertex_count * sizeof(vertex_pntt);
-    buffer_init_data = raw_ptr(geometry.geometry);
+    vertex_bytes = geometry.vertex_count * sizeof(vertex_pntt);
+  }
+
+  size_t index_bytes{_indexcount * sizeof(geometry.indices[0])};
+  {
+    _indices = unique_pointer<void, malloc_deleter>{malloc(index_bytes)};
+    memcpy(raw_ptr(_indices), raw_ptr(geometry.indices), index_bytes);
   }
 
   const create_buffers_args create_args{
-      buffer_init_data,
-      buffer_bytes,
-      geometry.vertex_count,
-      raw_ptr(geometry.indices),
-      geometry.index_count * sizeof(geometry.indices[0]),
-      &fmt_desc};
+      raw_ptr(_vertices), vertex_bytes, geometry.vertex_count,
+      raw_ptr(_indices),  index_bytes,  &fmt_desc};
 
   create_buffers(&create_args);
   _valid = true;
@@ -690,7 +688,7 @@ void xray::rendering::mesh_graphics_rep::draw() noexcept {
     const auto index_type =
         INDEX_TYPE_TRANSLATION_TABLE[enum_helper::to_underlying_type(
             ge->index_fmt())];
-    gl::DrawElements(topology, ge->index_count(), gl::UNSIGNED_INT, nullptr);
+    gl::DrawElements(topology, ge->index_count(), index_type, nullptr);
   } else {
     gl::DrawArrays(topology, 0, ge->vertex_count());
   }

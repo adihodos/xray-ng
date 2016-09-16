@@ -1157,6 +1157,18 @@ void app::resource_store::load_programs(const xray::base::config_file& cfg,
       prg_cache->add_fs(prg_name, fragment_program{prg_bld.build()});
       break;
 
+    case graphics_pipeline_stage::tess_control:
+      prg_cache->add_tc(prg_name, tess_control_program{prg_bld.build()});
+      break;
+
+    case graphics_pipeline_stage::tess_eval:
+      prg_cache->add_te(prg_name, tess_eval_program{prg_bld.build()});
+      break;
+
+    case graphics_pipeline_stage::compute:
+      prg_cache->add_cs(prg_name, compute_program{prg_bld.build()});
+      break;
+
     default:
       assert(false && "Unhandled stage!");
       break;
