@@ -110,9 +110,9 @@ private:
   //  discard_alphamap_demo obj_;
   //    normal_map_demo obj_;
   //    reflection_demo                                 obj_;
-  //  refraction_demo                                 obj_;
-  render_texture_demo obj_;
-  //  edge_detect_demo                                obj_;
+  //  refraction_demo obj_;
+  //  render_texture_demo obj_;
+  edge_detect_demo                                obj_;
   xray::rendering::draw_context_t                 draw_ctx_;
   xray::scene::camera                             cam_;
   xray::scene::camera_controller_spherical_coords cam_control_{
@@ -154,11 +154,11 @@ basic_scene::basic_scene(basic_window* app_wnd) : _appwnd{app_wnd} {
   gl::Enable(gl::CULL_FACE);
 
   auto ui_fn_del =
-      ////          &reflection_demo::compose_ui;
+      //          &reflection_demo::compose_ui;
       //      &refraction_demo::compose_ui;
       //      &textures_demo::compose_ui;
-      &render_texture_demo::compose_ui;
-  //      &edge_detect_demo::compose_ui;
+      //      &render_texture_demo::compose_ui;
+      &edge_detect_demo::compose_ui;
   events.compose_ui = make_delegate(obj_, ui_fn_del);
   initialized_      = true;
 }

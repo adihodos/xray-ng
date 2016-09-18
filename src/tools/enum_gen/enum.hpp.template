@@ -1,0 +1,125 @@
+//
+// Copyright (c) 2011, 2012, 2013, 2014, 2015, 2016 Adrian Hodos
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//     * Redistributions of source code must retain the above copyright
+//       notice, this list of conditions and the following disclaimer.
+//     * Redistributions in binary form must reproduce the above copyright
+//       notice, this list of conditions and the following disclaimer in the
+//       documentation and/or other materials provided with the distribution.
+//     * Neither the name of the author nor the
+//       names of its contributors may be used to endorse or promote products
+//       derived from this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND
+// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR THE CONTRIBUTORS BE LIABLE FOR
+// ANY
+// DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#pragma once
+
+//
+//  All code in this file was automatically generated, DO NOT EDIT !!!
+
+#include <cstdint>
+#include <cassert>
+#include <iterator>
+{type_traits_hdr}
+
+{nsbegin}
+
+struct {enum_name} {
+  {enum_name}() = delete;
+  ~{enum_name}() = delete;
+
+  enum class e {enum_underlying_type_spec} {{enum_members_and_values}};
+
+  using underlying_type = {enum_underlying_type};
+
+  static const char *to_string(const {enum_name}::e member);
+
+  static underlying_type to_integer(const {enum_name}::e member) {
+    return static_cast<underlying_type>(member);
+  }
+
+  static {enum_name}::e from_integer(const underlying_type ival) {
+    return static_cast<{enum_name}::e>(ival);
+  }
+
+  struct const_iterator {
+  private:
+    friend class {enum_name};
+
+    explicit constexpr const_iterator(const int32_t pos_) noexcept
+        : pos{pos_} {}
+
+  public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = {enum_name}::e;
+    using pointer = const {enum_name}::e*;
+    using reference = const {enum_name}::e&;
+
+    reference operator*() const noexcept {
+      assert((pos >= 0) && (pos < {enum_length}) && "Dereferencing invalid enum iterator!");
+      return _member_entries[pos];
+    }
+
+    const_iterator &operator++() noexcept {
+      ++pos;
+      return *this;
+    }
+
+    const_iterator operator++(int)noexcept {
+      const_iterator tmp_itr{*this};
+      ++*this;
+      return tmp_itr;
+    }
+
+    const_iterator &operator--() noexcept {
+      --pos;
+      return *this;
+    }
+
+    const_iterator operator--(int)noexcept {
+      const_iterator tmp_itr{*this};
+      --*this;
+      return tmp_itr;
+    }
+
+    bool operator==(const const_iterator rhs) const noexcept {
+      return pos == rhs.pos;
+    }
+
+    bool operator!=(const const_iterator rhs) const noexcept {
+      return !(*this == rhs);
+    }
+
+  private:
+    int32_t pos;
+  };
+
+  static constexpr size_t size = {enum_length}u;
+  static const_iterator cbegin() noexcept { return const_iterator{0}; }
+  static const_iterator cend() noexcept { return const_iterator{{enum_length}}; }
+  static bool is_defined(const {enum_name}::e val);
+
+private:
+  static constexpr e _member_entries[] = {{enum_members}};
+};
+
+{bitwise_and}
+
+{bitwise_or}
+
+{nsend}
