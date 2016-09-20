@@ -8,6 +8,7 @@
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/pod_zero.hpp"
+#include "xray/base/scoped_guard.hpp"
 #include "xray/base/shims/string.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
@@ -50,6 +51,183 @@ using namespace xray::math;
 using namespace xray::rendering;
 using namespace xray::scene;
 using namespace std;
+
+template <typename T, size_t C = 4>
+class fixed_stack {
+public:
+  fixed_stack() = default;
+  ~fixed_stack() noexcept { clear(); }
+
+  bool empty() const noexcept { return size() == 0; }
+
+  T& top() noexcept {
+    assert(!empty());
+    return *(reinterpret_cast<T*>(&_store[0]) + (size() - 1));
+  }
+
+  const T& top() const noexcept {
+    assert(!empty());
+    return *(reinterpret_cast<const T*>(&_store[0]) + (size() - 1));
+  }
+
+  size_t size() const noexcept { return _itemcnt; }
+
+  void push(const T& value) {
+    assert(size() < C);
+    new (&_store[0] + sizeof(T) * size()) T{value};
+    ++_itemcnt;
+  }
+
+  void push(T&& value) {
+    assert(size() < C);
+    new (&_store[0] + sizeof(T) * size()) T{std::move(value)};
+    ++_itemcnt;
+  }
+
+  template <typename... Args>
+  void emplace(Args&&... args) {
+    assert(size() < C);
+    new (&_store[0] + sizeof(T) * size()) T{std::forward<Args>(args)...};
+    ++_itemcnt;
+  }
+
+  void pop() noexcept {
+    assert(size() >= 1);
+    reinterpret_cast<T*>(&_store[0] + sizeof(T) * (size() - 1))->~T();
+    --_itemcnt;
+  }
+
+  void clear() noexcept {
+    while (!empty())
+      pop();
+  }
+
+private:
+  alignas(T) uint8_t _store[sizeof(T) * C];
+  size_t _itemcnt{};
+};
+
+class scene_loader {
+public:
+  explicit scene_loader(const char* scene_def_file);
+
+  explicit operator bool() const noexcept { return valid(); }
+  bool valid() const noexcept { return _scene_file.valid(); }
+
+  template <xray::rendering::graphics_pipeline_stage stg>
+  xray::rendering::gpu_program_t<stg> load_program(const char* id);
+
+private:
+  void read_program_entry(const char*                           id,
+                          xray::rendering::gpu_program_builder* prg_bld);
+
+private:
+  xray::base::config_file _scene_file;
+
+  struct program_section_data {
+    xray::base::config_entry cfg_entry;
+    fixed_stack<platformstl::basic_path<char>, 2> root_path;
+  } _prg_sec;
+};
+
+template <xray::rendering::graphics_pipeline_stage stg>
+xray::rendering::gpu_program_t<stg> scene_loader::load_program(const char* id) {
+  assert(id != nullptr);
+
+  using namespace xray::rendering;
+
+  gpu_program_builder prg_builder{};
+  read_program_entry(id, &prg_builder);
+
+  return prg_builder.build<stg>();
+}
+
+void scene_loader::read_program_entry(
+    const char* id, xray::rendering::gpu_program_builder* prg_bld) {
+
+  assert(valid());
+  assert(id != nullptr);
+  assert(prg_bld != nullptr);
+
+  constexpr auto PRG_SEC_NAME = "app.scene.programs";
+
+  if (!_prg_sec.cfg_entry) {
+    _prg_sec.cfg_entry = _scene_file.lookup_entry(PRG_SEC_NAME);
+    if (!_prg_sec.cfg_entry) {
+      XR_LOG_CRITICAL("Programs section does not exist in config file!");
+      XR_NOT_REACHED();
+    }
+
+    if (const auto top_root = _prg_sec.cfg_entry.lookup_string("root_path")) {
+      _prg_sec.root_path.emplace(top_root.value());
+    }
+  }
+
+  const auto prg_entry = _prg_sec.cfg_entry.lookup(id);
+  if (!prg_entry) {
+    XR_LOG_CRITICAL("No program [[{}]] in program section", id);
+    XR_NOT_REACHED();
+  }
+
+  const bool pop_path = [this]() {
+    if (const auto custom_root =
+            _prg_sec.cfg_entry.lookup_string("root_path")) {
+      _prg_sec.root_path.emplace(custom_root.value());
+      return true;
+    }
+
+    return false;
+  }();
+
+  XRAY_SCOPE_EXIT {
+    if (pop_path)
+      _prg_sec.root_path.pop();
+  };
+
+  using namespace std;
+  using namespace platformstl;
+  using namespace xray::base;
+  using namespace xray::rendering;
+
+  if (const auto strs = prg_entry.lookup("strings")) {
+    assert(strs.is_array());
+
+    for (uint32_t si = 0, si_cnt = strs.length(); si < si_cnt; ++si) {
+      prg_bld->add_string(strs[si].as_string());
+    }
+  }
+
+  //
+  // files section
+  if (const auto files_sec = _prg_sec.cfg_entry.lookup("files")) {
+    assert(files_sec.is_array());
+
+    //
+    // this is fcking horrible, but builder only stores a pointer to the
+    // string :(
+    static vector<basic_path<char>> scratch_buffer;
+    scratch_buffer.clear();
+    //
+    // Make sure adding items does not cause a reallocation of the vector's
+    // data store, otherwise program_builder will get pointers to invalid data.
+    scratch_buffer.reserve(files_sec.length());
+
+    for (uint32_t idx = 0, files_cnt = files_sec.length(); idx < files_cnt;
+         ++idx) {
+
+      basic_path<char> full_path;
+      if (!_prg_sec.root_path.empty()) {
+        full_path.push(_prg_sec.root_path.top());
+      }
+
+      const auto fpath = basic_path<char>{files_sec[idx].as_string()};
+      full_path.push(fpath);
+      scratch_buffer.push_back(move(full_path));
+
+      prg_bld->add_file(scratch_buffer.back().c_str());
+    }
+  }
+}
 
 const app::basic_material*
 app::material_cache::get_material(const char* mtl_name) const {
@@ -745,7 +923,8 @@ void app::resource_store::load_graphics_objects(
   //  load_shaders(cfg_file, this->shader_store);
   //  load_color_materials(cfg_file, this->shader_store, this->texture_store,
   //                       this->mat_store);
-  //  load_texture_materials(cfg_file, this->shader_store, this->texture_store,
+  //  load_texture_materials(cfg_file, this->shader_store,
+  //  this->texture_store,
   //                         this->mat_store);
   //  load_graphics_objects(cfg_file, this->mat_store, this->mesh_store,
   //  objects);
@@ -808,15 +987,6 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
         .install();
 
     _obj_graphics.draw();
-    // gl::BindVertexArray(_obj_graphics.vertex_array());
-    // _obj_graphics.geometry()->indexed()
-    //     ? gl::DrawElements(gl::TRIANGLES,
-    //                        _obj_graphics.geometry()->index_count(),
-    //                        gl::UNSIGNED_INT, nullptr)
-    //     : gl::DrawArrays(gl::TRIANGLES, 0,
-    //                      _obj_graphics.geometry()->vertex_count());
-
-    //    _object.draw();
   }
 }
 
@@ -902,15 +1072,13 @@ void app::edge_detect_demo::init() {
     XR_NOT_REACHED();
   }
 
-  _vertex_prg =
-      vertex_program{gpu_program_builder{graphics_pipeline_stage::vertex}
-                         .add_file("shaders/cap6/edge_detect/shader.vert")
-                         .build()};
+  _vertex_prg = gpu_program_builder{}
+                    .add_file("shaders/cap6/edge_detect/shader.vert")
+                    .build<graphics_pipeline_stage::vertex>();
 
-  _frag_prg =
-      fragment_program{gpu_program_builder{graphics_pipeline_stage::fragment}
-                           .add_file("shaders/cap6/edge_detect/shader.frag")
-                           .build()};
+  _frag_prg = gpu_program_builder{}
+                  .add_file("shaders/cap6/edge_detect/shader.frag")
+                  .build<graphics_pipeline_stage::fragment>();
 
   _prog_pipeline = scoped_program_pipeline_handle{[]() {
     GLuint id{};
@@ -922,11 +1090,6 @@ void app::edge_detect_demo::init() {
   if (!app_cfg) {
     XR_LOG_CRITICAL("Config file error {}", app_cfg.error());
     XR_NOT_REACHED();
-  }
-
-  {
-    app::resource_store rs;
-    rs.load_graphics_objects(app_cfg, nullptr);
   }
 
   {
@@ -996,61 +1159,6 @@ void app::edge_detect_demo::init() {
   app_cfg.lookup_value("app.scene.shininess", _mat_spec_pwr);
   _valid = true;
 }
-
-template <typename T, size_t C = 4>
-class fixed_stack {
-public:
-  fixed_stack() = default;
-  ~fixed_stack() noexcept { clear(); }
-
-  bool empty() const noexcept { return size() == 0; }
-
-  T& top() noexcept {
-    assert(!empty());
-    return *(reinterpret_cast<T*>(&_store[0]) + (size() - 1));
-  }
-
-  const T& top() const noexcept {
-    assert(!empty());
-    return *(reinterpret_cast<const T*>(&_store[0]) + (size() - 1));
-  }
-
-  size_t size() const noexcept { return _itemcnt; }
-
-  void push(const T& value) {
-    assert(size() < C);
-    new (&_store[0] + sizeof(T) * size()) T{value};
-    ++_itemcnt;
-  }
-
-  void push(T&& value) {
-    assert(size() < C);
-    new (&_store[0] + sizeof(T) * size()) T{std::move(value)};
-    ++_itemcnt;
-  }
-
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    assert(size() < C);
-    new (&_store[0] + sizeof(T) * size()) T{std::forward<Args>(args)...};
-    ++_itemcnt;
-  }
-
-  void pop() noexcept {
-    assert(size() >= 1);
-    reinterpret_cast<T*>(&_store[0] + sizeof(T) * (size() - 1))->~T();
-    --_itemcnt;
-  }
-
-  void clear() noexcept {
-    while (!empty())
-      pop();
-  }
-
-private:
-  alignas(T) uint8_t _store[sizeof(T) * C];
-  size_t _itemcnt{};
-};
 
 void app::resource_store::load_programs(const xray::base::config_file& cfg,
                                         gpu_program_cache* prg_cache) {
@@ -1133,7 +1241,7 @@ void app::resource_store::load_programs(const xray::base::config_file& cfg,
     const auto stg = enum_helper::from_underlying_type<graphics_pipeline_stage>(
         (uint8_t) stage_id.value());
 
-    gpu_program_builder prg_bld{stg};
+    gpu_program_builder prg_bld{};
     for_each(begin(code_strs), end(code_strs),
              [&prg_bld](const auto str) { prg_bld.add_string(str); });
 
@@ -1146,27 +1254,40 @@ void app::resource_store::load_programs(const xray::base::config_file& cfg,
 
     switch (stg) {
     case graphics_pipeline_stage::vertex:
-      prg_cache->add_vs(prg_name, vertex_program{prg_bld.build()});
+      prg_cache->add_vs(
+          prg_name,
+          vertex_program{prg_bld.build<graphics_pipeline_stage::vertex>()});
       break;
 
     case graphics_pipeline_stage::geometry:
-      prg_cache->add_gs(prg_name, geometry_program{prg_bld.build()});
+      prg_cache->add_gs(
+          prg_name,
+          geometry_program{prg_bld.build<graphics_pipeline_stage::geometry>()});
       break;
 
     case graphics_pipeline_stage::fragment:
-      prg_cache->add_fs(prg_name, fragment_program{prg_bld.build()});
+      prg_cache->add_fs(
+          prg_name,
+          fragment_program{prg_bld.build<graphics_pipeline_stage::fragment>()});
       break;
 
     case graphics_pipeline_stage::tess_control:
-      prg_cache->add_tc(prg_name, tess_control_program{prg_bld.build()});
+      prg_cache->add_tc(
+          prg_name,
+          tess_control_program{
+              prg_bld.build<graphics_pipeline_stage::tess_control>()});
       break;
 
     case graphics_pipeline_stage::tess_eval:
-      prg_cache->add_te(prg_name, tess_eval_program{prg_bld.build()});
+      prg_cache->add_te(
+          prg_name, tess_eval_program{
+                        prg_bld.build<graphics_pipeline_stage::tess_eval>()});
       break;
 
     case graphics_pipeline_stage::compute:
-      prg_cache->add_cs(prg_name, compute_program{prg_bld.build()});
+      prg_cache->add_cs(
+          prg_name,
+          compute_program{prg_bld.build<graphics_pipeline_stage::compute>()});
       break;
 
     default:

@@ -201,6 +201,11 @@ private:
 /// \name Construction
 /// @{
 public:
+    memory_mapped_file()
+      : m_cb(0)
+      , m_memory(NULL)
+    {}
+
     ss_explicit_k memory_mapped_file(char_type const* fileName)
         : m_cb(0)
         , m_memory(NULL)

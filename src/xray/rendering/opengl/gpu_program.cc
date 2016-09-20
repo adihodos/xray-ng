@@ -7,6 +7,7 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <gsl.h>
@@ -951,66 +952,85 @@ void xray::rendering::gpu_program::set_subroutine_uniform(
 }
 
 xray::rendering::shader_source_descriptor::shader_source_descriptor(
-    const graphics_pipeline_stage ptype,
-    const shader_source_file&     sfile) noexcept
-    : src_type{shader_source_type::file}, stage_id{ptype}, s_file{sfile} {}
+    const shader_source_file& sfile) noexcept
+    : src_type{shader_source_type::file}, s_file{sfile} {}
 
 xray::rendering::shader_source_descriptor::shader_source_descriptor(
-    const graphics_pipeline_stage ptype,
-    const shader_source_string    src_str) noexcept
-    : src_type{shader_source_type::code}, stage_id{ptype}, s_str{src_str} {}
+    const shader_source_string src_str) noexcept
+    : src_type{shader_source_type::code}, s_str{src_str} {}
 
 xray::rendering::scoped_program_handle
-xray::rendering::gpu_program_builder::build() noexcept {
+xray::rendering::gpu_program_builder::build_program(const GLenum stg) noexcept {
   using namespace xray::base;
+  using namespace stlsoft;
+  using namespace platformstl;
+  using namespace std;
 
-  auto gpu_prg = scoped_program_handle{gl::CreateProgram()};
-  auto phandle = base::raw_handle(gpu_prg);
+  array<const char*, MAX_SLOTS> src_pointers;
+  src_pointers.fill(nullptr);
+  array<memory_mapped_file, MAX_SLOTS> mapped_src_files;
 
-  gl::ProgramParameteri(phandle, gl::PROGRAM_SEPARABLE, gl::TRUE_);
+  {
+    //
+    // retrieve pointer to the strings with the source code of the program.
+    // strings defined in the config file are placed in front of the
+    // string from the shader file.
+    auto src_pts_range =
+        gsl::span<const char*>{src_pointers.data(), src_pointers.size()};
 
-  if (_binary) {
-    gl::ProgramParameteri(phandle, gl::PROGRAM_BINARY_RETRIEVABLE_HINT,
-                          gl::TRUE_);
+    auto src_map_range = gsl::span<memory_mapped_file>{
+        mapped_src_files.data(),
+        static_cast<ptrdiff_t>(mapped_src_files.size())};
+    auto src_dsc_range =
+        gsl::span<shader_source_descriptor>{&_source_list[0], _sources_count};
+
+    uint32_t idx{};
+
+    for_each(begin(src_dsc_range), end(src_dsc_range),
+             [&idx, &src_pts_range](const shader_source_descriptor& ssd) {
+               if (ssd.src_type == shader_source_type::code) {
+                 src_pts_range[idx++] = ssd.s_str.cstr;
+               }
+             });
+
+    for_each(begin(src_dsc_range), end(src_dsc_range),
+             [&idx, &src_pts_range,
+              &src_map_range](const shader_source_descriptor& ssd) {
+               if (ssd.src_type == shader_source_type::file) {
+                 try {
+                   src_map_range[idx] = memory_mapped_file{ssd.s_file.name};
+                   src_pts_range[idx] =
+                       static_cast<const char*>(src_map_range[idx].memory());
+                   ++idx;
+                 } catch (const std::exception&) {
+                   XR_LOG_CRITICAL("Cannot open shader file {}",
+                                   ssd.s_file.name);
+                 }
+               }
+             });
   }
 
-  //
-  // Compile shaders
-  for (uint32_t i = 0; i < compile_cnt; ++i) {
-    const auto& sd   = compile_list[i];
-    owned_shaders[i] = detail::gpu_program_helpers::create_shader(sd);
-
-    if (!owned_shaders[i]) {
-      XR_LOG_CRITICAL("Aborting program creation, shader compile error.");
-      return {};
-    }
+  auto gpu_prg = scoped_program_handle{
+      gl::CreateShaderProgramv(stg, _sources_count, src_pointers.data())};
+  if (!gpu_prg) {
+    return scoped_program_handle{};
   }
 
-  //
-  // attach shaders
-  for (uint32_t i = 0; i < compile_cnt; ++i) {
-    gl::AttachShader(phandle, raw_handle(owned_shaders[i]));
+  const auto was_linked = [ph = raw_handle(gpu_prg)]() {
+    GLint linked_ok{false};
+    gl::GetProgramiv(ph, gl::LINK_STATUS, &linked_ok);
+    return linked_ok == gl::TRUE_;
   }
+  ();
 
-  for (uint32_t i = 0; i < ref_cnt; ++i) {
-    gl::AttachShader(phandle, referenced_shaders[i]);
-  }
-
-  gl::LinkProgram(phandle);
-  const auto link_succeeded = [phandle]() {
-    GLint link_status{gl::FALSE_};
-    gl::GetProgramiv(phandle, gl::LINK_STATUS, &link_status);
-    return link_status = gl::TRUE_;
-  }();
-
-  if (link_succeeded) {
+  if (was_linked) {
     return gpu_prg;
   }
 
   char  log_buff[1024];
   GLint log_len{0};
-  gl::GetProgramInfoLog(phandle, XR_I32_COUNTOF__(log_buff), &log_len,
-                        log_buff);
+  gl::GetProgramInfoLog(raw_handle(gpu_prg), XR_I32_COUNTOF__(log_buff),
+                        &log_len, log_buff);
   log_buff[log_len] = 0;
 
   XR_LOG_CRITICAL("Failed to compile/link program, error : [[{}]]",
@@ -1047,57 +1067,6 @@ xray::rendering::detail::gpu_program_helpers::create_shader_from_string(
 
   XR_LOG_CRITICAL("Shader compilation error:\n [[{}]]", &err_buff[0]);
   return scoped_shader_handle{};
-}
-
-xray::rendering::scoped_shader_handle
-xray::rendering::detail::gpu_program_helpers::create_shader(
-    const xray::rendering::shader_source_descriptor& sd) {
-  using namespace xray::base;
-  using namespace xray::rendering;
-
-  const auto shader_type = [s = sd.stage_id]() {
-
-#define XR_GET_SHADER_TYPE_FROM_STAGE(stage)                                   \
-  case stage:                                                                  \
-    return xray_to_opengl<stage>::shader_type;                                 \
-    break;
-
-    switch (s) {
-      XR_GET_SHADER_TYPE_FROM_STAGE(graphics_pipeline_stage::vertex);
-      XR_GET_SHADER_TYPE_FROM_STAGE(graphics_pipeline_stage::geometry);
-      XR_GET_SHADER_TYPE_FROM_STAGE(graphics_pipeline_stage::fragment);
-    default:
-      assert(false && "Unmapped stage");
-      break;
-    };
-
-#undef XR_GET_SHADER_TYPE_FROM_STAGE
-
-    return static_cast<GLenum>(gl::INVALID_VALUE);
-  }
-  ();
-
-  if (sd.src_type == shader_source_type::code) {
-    return create_shader_from_string(shader_type, sd.s_str);
-  }
-
-  if (sd.src_type == shader_source_type::file) {
-    try {
-      platformstl::memory_mapped_file shader_file{sd.s_file.name};
-
-      const shader_source_string ssrc{
-          static_cast<const char*>(shader_file.memory()), shader_file.size()};
-
-      return create_shader_from_string(shader_type, ssrc);
-
-    } catch (const std::exception&) {
-      XR_LOG_CRITICAL("Error :shader file {} does not exist", sd.s_file.name);
-      return {};
-    }
-  }
-
-  assert(false && "No support for this shader source type !");
-  return {};
 }
 
 bool xray::rendering::detail::gpu_program_helpers::reflect(

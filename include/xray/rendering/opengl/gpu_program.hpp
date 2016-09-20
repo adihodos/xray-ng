@@ -152,84 +152,19 @@ struct shader_source_string {
 };
 
 struct shader_source_descriptor {
-  shader_source_type      src_type;
-  graphics_pipeline_stage stage_id;
+  shader_source_type src_type;
 
   union {
     shader_source_file   s_file;
     shader_source_string s_str;
   };
 
-  shader_source_descriptor() : stage_id{graphics_pipeline_stage::last} {}
+  shader_source_descriptor() {}
 
-  explicit shader_source_descriptor(const graphics_pipeline_stage stage,
-                                    const shader_source_file& sfile) noexcept;
+  explicit shader_source_descriptor(const shader_source_file& sfile) noexcept;
 
   explicit shader_source_descriptor(
-      const graphics_pipeline_stage stage,
-      const shader_source_string    src_str) noexcept;
-};
-
-class gpu_program_builder {
-public:
-  explicit gpu_program_builder(const graphics_pipeline_stage stage) noexcept
-      : _stage{stage} {}
-
-  gpu_program_builder& add_string(const char* str) {
-    return add_string(shader_source_string{str});
-  }
-
-  gpu_program_builder& add_string(const shader_source_string ssrc) {
-    push_descriptor(shader_source_descriptor{_stage, ssrc});
-    return *this;
-  }
-
-  gpu_program_builder& add_file(const char* sfile) {
-    add_file(shader_source_file{sfile});
-    return *this;
-  }
-
-  gpu_program_builder& add_file(const shader_source_file sfile) {
-    push_descriptor(shader_source_descriptor{_stage, sfile});
-    return *this;
-  }
-
-  gpu_program_builder&
-  attach_compiled_shader(const scoped_shader_handle& compiled_shader) {
-    push_ref(base::raw_handle(compiled_shader));
-    return *this;
-  }
-
-  gpu_program_builder& hint_binary() noexcept {
-    _binary = true;
-    return *this;
-  }
-
-  scoped_program_handle build() noexcept;
-
-private:
-  static constexpr uint32_t MAX_SLOTS = 8u;
-
-  void push_descriptor(const shader_source_descriptor& sds) noexcept {
-    assert(compile_cnt < MAX_SLOTS);
-    compile_list[compile_cnt++] = sds;
-  }
-
-  void push_ref(const GLuint shaderref) noexcept {
-    assert(ref_cnt < MAX_SLOTS);
-    referenced_shaders[ref_cnt++] = shaderref;
-  }
-
-  scoped_shader_handle     owned_shaders[MAX_SLOTS];
-  GLuint                   referenced_shaders[MAX_SLOTS];
-  shader_source_descriptor compile_list[MAX_SLOTS];
-  graphics_pipeline_stage  _stage;
-  uint8_t                  compile_cnt{0};
-  uint8_t                  ref_cnt{0};
-  bool                     _binary{false};
-
-private:
-  XRAY_NO_COPY(gpu_program_builder);
+      const shader_source_string src_str) noexcept;
 };
 
 enum pipeline_stage : uint8_t { vertex, geometry, fragment, last };
@@ -354,8 +289,8 @@ struct gpu_program_helpers {
       std::vector<shader_subroutine_uniform>* subs_uniforms,
       std::vector<shader_subroutine>*         subs);
 
-  static xray::rendering::scoped_shader_handle
-  create_shader(const xray::rendering::shader_source_descriptor& sd);
+  //  static xray::rendering::scoped_shader_handle
+  //  create_shader(const xray::rendering::shader_source_descriptor& sd);
 
   static scoped_shader_handle
   create_shader_from_string(const GLenum                type,
@@ -779,6 +714,55 @@ void gpu_program::set_uniform(const char*              uniform_name,
   memcpy(raw_ptr(ublocks_datastore_) + mem_offset, data, bytes_to_copy);
   par_blk.dirty = true;
 }
+
+class gpu_program_builder {
+public:
+  gpu_program_builder() noexcept {}
+
+  gpu_program_builder& add_string(const char* str) {
+    return add_string(shader_source_string{str});
+  }
+
+  gpu_program_builder& add_string(const shader_source_string ssrc) {
+    push_descriptor(shader_source_descriptor{ssrc});
+    return *this;
+  }
+
+  gpu_program_builder& add_file(const char* sfile) {
+    add_file(shader_source_file{sfile});
+    return *this;
+  }
+
+  gpu_program_builder& add_file(const shader_source_file sfile) {
+    push_descriptor(shader_source_descriptor{sfile});
+    return *this;
+  }
+
+  gpu_program_builder& hint_binary() noexcept {
+    _binary = true;
+    return *this;
+  }
+
+  template <graphics_pipeline_stage stage>
+  gpu_program_t<stage>              build() {
+    return gpu_program_t<stage>{
+        build_program(xray_to_opengl<stage>::shader_type)};
+  }
+
+private:
+  static constexpr uint32_t MAX_SLOTS = 16u;
+
+  void push_descriptor(const shader_source_descriptor& sds) noexcept {
+    assert(_sources_count < MAX_SLOTS);
+    _source_list[_sources_count++] = sds;
+  }
+
+  scoped_program_handle build_program(const GLenum stg) noexcept;
+
+  shader_source_descriptor _source_list[MAX_SLOTS];
+  uint8_t                  _sources_count{0};
+  bool                     _binary{false};
+};
 
 struct gpu_program_pipeline_handle {
   using handle_type = GLuint;

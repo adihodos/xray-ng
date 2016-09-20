@@ -604,6 +604,7 @@ public:
   ~config_file() { config_destroy(&conf_); }
 
   explicit operator bool() const noexcept { return valid_; }
+  bool valid() const noexcept { return valid_; }
 
   config_entry root() const noexcept {
     return config_entry{config_root_setting(&conf_)};

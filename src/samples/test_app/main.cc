@@ -129,10 +129,10 @@ int main(int, char**) {
   }
 
   using namespace xray::rendering;
-  auto vsp = vertex_program{
-      gpu_program_builder{graphics_pipeline_stage::vertex}
+  auto vsp =
+      gpu_program_builder{}
           .add_string("void main() { gl_Position = vec4(1.0, 1.0, 1.0, 1.0); }")
-          .build()};
+          .build<graphics_pipeline_stage::vertex>();
 
   struct mutfatablk {
       int i;
