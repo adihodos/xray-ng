@@ -1,5 +1,7 @@
 #include "cap6/edge_detect/edge_detect_demo.hpp"
 #include "helpers.hpp"
+#include "init_context.hpp"
+#include "resize_context.hpp"
 #include "std_assets.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
@@ -404,6 +406,7 @@ app::mesh_cache::add_mesh(const app::model_id&         id,
 
 void app::graphics_object::draw(
     const xray::rendering::draw_context_t& dc) noexcept {
+
   struct matrix_pack_t {
     float4x4 world_view_mtx;
     float4x4 normal_view_mtx;
@@ -931,11 +934,23 @@ void app::resource_store::load_graphics_objects(
   load_programs(cfg_file, program_store);
 }
 
-app::edge_detect_demo::edge_detect_demo() { init(); }
+app::edge_detect_demo::edge_detect_demo(const init_context_t& init_ctx) {
+  init(init_ctx);
+}
 
 app::edge_detect_demo::~edge_detect_demo() {}
 
-void app::edge_detect_demo::compose_ui() {}
+void app::edge_detect_demo::compose_ui() {
+  //  ImGui::SetNextWindowSize({300.0f, 200.0f}, ImGuiSetCond_Always);
+  bool close{false};
+  if (ImGui::Begin("Settings", &close, ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::BeginGroup();
+    ImGui::SliderFloat("Edge treshold", &_edge_treshold, 0.01f, 0.25f, "%3.3f",
+                       1.0f);
+    ImGui::EndGroup();
+  }
+  ImGui::End();
+}
 
 void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
   assert(valid());
@@ -943,6 +958,37 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
   {
     //
     // first pass - normal phong lighting
+    gl::BindFramebuffer(gl::FRAMEBUFFER, raw_handle(_fbo.fbo_object));
+
+    {
+      const float viewport_dim[] = {0.0f, 0.0f,
+                                    static_cast<float>(dc.window_width),
+                                    static_cast<float>(dc.window_height)};
+
+      gl::ViewportIndexedfv(0, viewport_dim);
+      gl::ClearNamedFramebufferfv(raw_handle(_fbo.fbo_object), gl::COLOR, 0,
+                                  color_palette::web::black.components);
+      const float def_clear_depthval{1.0f};
+      gl::ClearNamedFramebufferfv(raw_handle(_fbo.fbo_object), gl::DEPTH, 0,
+                                  &def_clear_depthval);
+    }
+
+    {
+      const GLuint bound_textures[] = {raw_handle(_fbo.fbo_texture),
+                                       raw_handle(_obj_material),
+                                       raw_handle(_obj_material)};
+
+      gl::BindTextures(0, XR_U32_COUNTOF__(bound_textures), bound_textures);
+    }
+
+    {
+      const GLuint bound_samplers[] = {raw_handle(_fbo.fbo_sampler),
+                                       raw_handle(_sampler_obj),
+                                       raw_handle(_sampler_obj)};
+
+      gl::BindSamplers(0, XR_U32_COUNTOF__(bound_samplers), bound_samplers);
+    }
+
     const auto obj_to_world = float4x4::stdc::identity;
     const auto obj_to_view  = dc.view_matrix * obj_to_world;
 
@@ -969,40 +1015,10 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
         .set_uniform("mat_shininess", _mat_spec_pwr)
         .use();
 
-    //    {
-    //      const GLuint samplers[] = {raw_handle(_fbo.fbo_sampler),
-    //                                 raw_handle(_fbo.fbo_sampler)};
-    //      gl::BindSamplers(0, XR_U32_COUNTOF__(samplers), samplers);
-    //    }
-
-    //    {
-    //      const GLuint materials[] = {raw_handle(_obj_material),
-    //                                  raw_handle(_obj_material)};
-    //      gl::BindTextures(0, XR_I32_COUNTOF__(materials), materials);
-    //    }
-
     gpu_program_pipeline_setup_builder{raw_handle(_prog_pipeline)}
         .add_vertex_program(_vertex_prg)
         .add_fragment_program(_frag_prg)
         .install();
-
-    gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, raw_handle(_fbo.fbo_object));
-
-    {
-      const GLuint bound_textures[] = {raw_handle(_fbo.fbo_texture),
-                                       raw_handle(_obj_material),
-                                       raw_handle(_obj_material)};
-
-      gl::BindTextures(0, XR_U32_COUNTOF__(bound_textures), bound_textures);
-    }
-
-    {
-      const GLuint bound_samplers[] = {raw_handle(_fbo.fbo_sampler),
-                                       raw_handle(_sampler_obj),
-                                       raw_handle(_sampler_obj)};
-
-      gl::BindSamplers(0, XR_U32_COUNTOF__(bound_samplers), bound_samplers);
-    }
 
     _obj_graphics.draw();
   }
@@ -1012,13 +1028,13 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
   {
     //
     // set default framebuffer
-    gl::BindFramebuffer(gl::DRAW_BUFFER, 0);
+    gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
 
     gl::BindTextureUnit(0, raw_handle(_fbo.fbo_texture));
     gl::BindSampler(0, raw_handle(_sampler_obj));
 
     _fs_edge_detect.set_uniform("kSourceTexture", 0)
-        .set_uniform("kEdgeTresholdSquared", 4.00f);
+        .set_uniform("kEdgeTresholdSquared", _edge_treshold);
 
     gpu_program_pipeline_setup_builder{raw_handle(_prog_pipeline)}
         .add_vertex_program(_vs_edge_detect)
@@ -1050,77 +1066,89 @@ void test_shit() {
   XR_LOG_INFO("Done!");
 }
 
-void app::edge_detect_demo::init() {
+void app::edge_detect_demo::resize_event(const resize_context_t& resize_ctx) {
+  assert(valid());
 
-  //  test_shit();
+  const auto r_width  = static_cast<GLsizei>(resize_ctx.surface_width);
+  const auto r_height = static_cast<GLsizei>(resize_ctx.surface_height);
 
-  int32_t render_wnd_width{1024};
-  int32_t render_wnd_height{1024};
+  OUTPUT_DBG_MSG("Resize event [%u x %u]", resize_ctx.surface_width,
+                 resize_ctx.surface_height);
+  create_framebuffer(r_width, r_height);
+}
 
-  _sampler_obj = []() {
-    GLuint smp_obj{};
-    gl::CreateSamplers(1, &smp_obj);
-    gl::SamplerParameteri(smp_obj, gl::TEXTURE_MIN_FILTER,
-                          gl::LINEAR_MIPMAP_LINEAR);
-    gl::SamplerParameteri(smp_obj, gl::TEXTURE_MAG_FILTER,
-                          gl::LINEAR_MIPMAP_LINEAR);
+void app::edge_detect_demo::create_framebuffer(const GLsizei r_width,
+                                               const GLsizei r_height) {
+  _fbo.fbo_depth   = scoped_renderbuffer{};
+  _fbo.fbo_object  = scoped_framebuffer{};
+  _fbo.fbo_texture = scoped_texture{};
 
-    return smp_obj;
+  _fbo.fbo_texture = [r_width, r_height]() {
+    GLuint tex{};
+    gl::CreateTextures(gl::TEXTURE_2D, 1, &tex);
+    gl::TextureStorage2D(tex, 1, gl::RGBA8, r_width, r_height);
+
+    return tex;
   }();
 
-  _fbo.fbo_texture = [ w = render_wnd_width, h = render_wnd_height ]() {
-    GLuint texh{};
-    gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
-    gl::TextureStorage2D(texh, 1, gl::RGBA8, w, h);
-
-    return texh;
-  }
-  ();
-
-  _fbo.fbo_sampler = []() {
-    GLuint smpl{};
-    gl::CreateSamplers(1, &smpl);
-    gl::SamplerParameteri(smpl, gl::TEXTURE_MIN_FILTER, gl::NEAREST);
-    gl::SamplerParameteri(smpl, gl::TEXTURE_MAG_FILTER, gl::NEAREST);
-
-    return smpl;
+  _fbo.fbo_depth = [r_width, r_height]() {
+    GLuint depth_fb{};
+    gl::CreateRenderbuffers(1, &depth_fb);
+    gl::NamedRenderbufferStorage(depth_fb, gl::DEPTH_COMPONENT, r_width,
+                                 r_height);
+    return depth_fb;
   }();
 
-  _fbo.fbo_depth = [ w = render_wnd_width, h = render_wnd_height ]() {
-    GLuint depth_rbuff{};
-    gl::CreateRenderbuffers(1, &depth_rbuff);
-    gl::NamedRenderbufferStorage(depth_rbuff, gl::DEPTH_COMPONENT, w, h);
+  if (!_fbo.fbo_sampler) {
+    _fbo.fbo_sampler = []() {
+      GLuint smpl{};
+      gl::CreateSamplers(1, &smpl);
+      gl::SamplerParameteri(smpl, gl::TEXTURE_MIN_FILTER, gl::NEAREST);
+      gl::SamplerParameteri(smpl, gl::TEXTURE_MAG_FILTER, gl::NEAREST);
 
-    return depth_rbuff;
+      return smpl;
+    }();
   }
-  ();
 
   _fbo.fbo_object = [
-    tex = raw_handle(_fbo.fbo_texture), depth = raw_handle(_fbo.fbo_depth)
+    f_tex = raw_handle(_fbo.fbo_texture), f_depth = raw_handle(_fbo.fbo_depth)
   ]() {
     GLuint fbo{};
     gl::CreateFramebuffers(1, &fbo);
-    gl::NamedFramebufferTexture(fbo, gl::COLOR_ATTACHMENT0, tex, 0);
+    gl::NamedFramebufferTexture(fbo, gl::COLOR_ATTACHMENT0, f_tex, 0);
     gl::NamedFramebufferRenderbuffer(fbo, gl::DEPTH_ATTACHMENT,
-                                     gl::RENDERBUFFER, depth);
+                                     gl::RENDERBUFFER, f_depth);
     gl::NamedFramebufferDrawBuffer(fbo, gl::COLOR_ATTACHMENT0);
 
-    const auto fbo_status =
-        gl::CheckNamedFramebufferStatus(fbo, gl::DRAW_FRAMEBUFFER);
-
-    if (fbo_status != gl::FRAMEBUFFER_COMPLETE) {
-      XR_LOG_CRITICAL("Framebuffer is not complete!");
+    if (gl::CheckNamedFramebufferStatus(fbo, gl::DRAW_FRAMEBUFFER) !=
+        gl::FRAMEBUFFER_COMPLETE) {
+      XR_LOG_CRITICAL("Failed to create framebuffer!");
       XR_NOT_REACHED();
     }
 
     return fbo;
   }
   ();
+}
 
-  if (!_fbo.fbo_object) {
-    XR_LOG_CRITICAL("Failed to create/init framebuffer!!");
-    XR_NOT_REACHED();
-  }
+void app::edge_detect_demo::init(const init_context_t& ini_ctx) {
+
+  const auto render_wnd_width  = static_cast<GLsizei>(ini_ctx.surface_width);
+  const auto render_wnd_height = static_cast<GLsizei>(ini_ctx.surface_height);
+
+  OUTPUT_DBG_MSG("Init window size %f x %f", render_wnd_width,
+                 render_wnd_height);
+
+  _sampler_obj = []() {
+    GLuint smp_obj{};
+    gl::CreateSamplers(1, &smp_obj);
+    gl::SamplerParameteri(smp_obj, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
+    gl::SamplerParameteri(smp_obj, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
+
+    return smp_obj;
+  }();
+
+  create_framebuffer(render_wnd_width, render_wnd_height);
 
   {
     _vertex_prg = gpu_program_builder{}
@@ -1135,7 +1163,7 @@ void app::edge_detect_demo::init() {
   {
     _vs_edge_detect =
         gpu_program_builder{}
-            .add_file("shaders/cap6/edge_detect/edge_detect.vert.glsl")
+            .add_file("shaders/cap6/edge_detect/passthrough.vert.glsl")
             .build<graphics_pipeline_stage::vertex>();
 
     _fs_edge_detect =
@@ -1230,9 +1258,9 @@ void app::edge_detect_demo::init() {
     geometry_data_t quad_geom{};
     geometry_factory::fullscreen_quad(&quad_geom);
 
-    _fsquad          = simple_mesh{vertex_format::pnt, quad_geom};
+    _fsquad          = simple_mesh{vertex_format::p, quad_geom};
     _fsquad_graphics = mesh_graphics_rep{_fsquad};
-    assert(_fsquad_graphics && "Failed to create mesh GPU data!");
+    //    assert(_fsquad_graphics && "Failed to create mesh GPU data!");
   }
 
   _valid = true;

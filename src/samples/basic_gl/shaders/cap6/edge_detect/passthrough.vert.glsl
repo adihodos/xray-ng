@@ -26,7 +26,7 @@ out gl_PerVertex {
 };
 
 void main() {
-  gl_Position = vs_in_pos;
+  gl_Position = vec4(vs_in_pos, 1.0);
   vs_out.position = vs_in_pos;
 
 #ifdef VERTEX_FORMAT_HAS_NORMALS

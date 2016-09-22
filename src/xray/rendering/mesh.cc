@@ -14,6 +14,7 @@
 #include "xray/math/scalar3_math.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/opengl/scoped_state.hpp"
+#include "xray/rendering/vertex_format/vertex_p.hpp"
 #include "xray/rendering/vertex_format/vertex_pn.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include "xray/rendering/vertex_format/vertex_pntt.hpp"
@@ -96,6 +97,10 @@ auto get_vertex_format_description(const xray::rendering::vertex_format fmt) {
 
   case vertex_format::pntt:
     return describe_vertex_format<vertex_format::pntt>();
+    break;
+
+  case vertex_format::p:
+    return describe_vertex_format<vertex_format::p>();
     break;
 
   default:
@@ -406,6 +411,15 @@ struct format_cast_impl<xray::rendering::vertex_pnt,
   }
 };
 
+template <>
+struct format_cast_impl<xray::rendering::vertex_p,
+                        xray::rendering::vertex_pntt> {
+  static xray::rendering::vertex_p
+  cast(const xray::rendering::vertex_pntt& vs_in) {
+    return {vs_in.position};
+  }
+};
+
 template <typename OutputFormatType, typename InputFormatType>
 OutputFormatType format_cast(const InputFormatType& vs_in) {
   return format_cast_impl<OutputFormatType, InputFormatType>::cast(vs_in);
@@ -429,13 +443,13 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format      fmt,
     , _indexcount{static_cast<uint32_t>(geometry.index_count)}
     , _vertexformat{fmt}
     , _indexformat{index_format::u32}
-    , _topology{topology} {
+    , _topology{topology}
+    , _vertex_format_info{get_vertex_format_description(_vertexformat)} {
 
-  const auto fmt_desc = get_vertex_format_description(_vertexformat);
-  size_t     vertex_bytes{};
+  size_t vertex_bytes{};
 
   if (fmt != vertex_format::pntt) {
-    vertex_bytes = geometry.vertex_count * fmt_desc.element_size;
+    vertex_bytes = geometry.vertex_count * _vertex_format_info.element_size;
     _vertices    = unique_pointer<void, malloc_deleter>{malloc(vertex_bytes)};
 
     switch (fmt) {
@@ -445,6 +459,10 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format      fmt,
 
     case vertex_format::pnt:
       copy_geometry<vertex_pnt>(raw_ptr(_vertices), geometry);
+      break;
+
+    case vertex_format::p:
+      copy_geometry<vertex_p>(raw_ptr(_vertices), geometry);
       break;
 
     default:
@@ -463,7 +481,7 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format      fmt,
 
   const create_buffers_args create_args{
       raw_ptr(_vertices), vertex_bytes, geometry.vertex_count,
-      raw_ptr(_indices),  index_bytes,  &fmt_desc};
+      raw_ptr(_indices),  index_bytes,  &_vertex_format_info};
 
   create_buffers(&create_args);
   _valid = true;
@@ -610,9 +628,10 @@ xray::rendering::mesh_graphics_rep::mesh_graphics_rep(
   _vertexbuffer = [ge = _geometry]() {
     GLuint vb{};
     gl::CreateBuffers(1, &vb);
-    gl::NamedBufferStorage(vb,
-                           static_cast<GLsizeiptr>(ge->byte_size_vertices()),
-                           ge->vertices(), 0);
+
+    const auto buff_bytesize =
+        static_cast<GLsizeiptr>(ge->byte_size_vertices());
+    gl::NamedBufferStorage(vb, buff_bytesize, ge->vertices(), 0);
     return vb;
   }
   ();
@@ -621,10 +640,10 @@ xray::rendering::mesh_graphics_rep::mesh_graphics_rep(
     _indexbuffer = [ge = _geometry]() {
       GLuint ib{};
       gl::CreateBuffers(1, &ib);
-      gl::NamedBufferStorage(ib,
-                             static_cast<GLsizeiptr>(ge->byte_size_indices()),
-                             ge->indices(), 0);
 
+      const auto buff_bytesize =
+          static_cast<GLsizeiptr>(ge->byte_size_indices());
+      gl::NamedBufferStorage(ib, buff_bytesize, ge->indices(), 0);
       return ib;
     }
     ();

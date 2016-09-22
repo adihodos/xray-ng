@@ -30,6 +30,7 @@
 
 #include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/rendering/vertex_format/vertex_format.hpp"
 
 namespace xray {
 namespace rendering {
@@ -53,6 +54,19 @@ struct vertex_p {
 
   ///< Position in space.
   math::float3 position;
+};
+
+template <>
+struct vertex_format_traits<xray::rendering::vertex_format::p> {
+  using vertex_type = xray::rendering::vertex_p;
+  static constexpr size_t   bytes_size{sizeof(vertex_p)};
+  static constexpr uint32_t components{1};
+
+  static const vertex_format_entry_desc* description() {
+    static constexpr vertex_format_entry_desc vdesc[] = {
+        {3, component_type::float_, XR_U32_OFFSETOF(vertex_p, position)}};
+    return vdesc;
+  }
 };
 
 /// @}

@@ -237,6 +237,7 @@ xray::ui::basic_window::basic_window(const render_params_t& r_params,
   glfwSetMouseButtonCallback(window_handle, &basic_window::mouse_button_stub);
   glfwSetScrollCallback(window_handle, &basic_window::mouse_scroll_stub);
   glfwSetCursorPosCallback(window_handle, &basic_window::mouse_move_stub);
+  glfwSetFramebufferSizeCallback(window_handle, &basic_window::window_resized);
 
   //
   //  Load OpenGL functions.

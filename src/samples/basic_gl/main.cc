@@ -17,7 +17,9 @@
 #include "cap6/edge_detect/edge_detect_demo.hpp"
 #include "colored_circle.hpp"
 #include "fractal.hpp"
+#include "init_context.hpp"
 #include "lit_torus.hpp"
+#include "resize_context.hpp"
 #include "subroutine_test.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
@@ -95,7 +97,8 @@ private:
   void setup_ui();
 
 private:
-  bool initialized_{false};
+  bool          initialized_{false};
+  basic_window* _appwnd;
   //  lit_object                                      obj_;
   //  soubroutines_demo                               obj_;
   //  frag_discard_demo                               obj_;
@@ -121,7 +124,7 @@ private:
   xray::base::stats_thread                     _stats_collector;
   xray::base::stats_thread::process_stats_info _proc_stats;
   bool                                         _ui_active{false};
-  basic_window*                                _appwnd;
+
   rgb_color _clear_color{0.0f, 0.0f, 0.0f, 1.0f};
 
 private:
@@ -130,7 +133,10 @@ private:
 
 basic_scene::~basic_scene() noexcept { _stats_collector.signal_stop(); }
 
-basic_scene::basic_scene(basic_window* app_wnd) : _appwnd{app_wnd} {
+basic_scene::basic_scene(basic_window* app_wnd)
+    : _appwnd{app_wnd}
+    , obj_{init_context_t{app_wnd->width(), app_wnd->height()}} {
+
   if (!obj_)
     return;
 
@@ -163,8 +169,8 @@ basic_scene::basic_scene(basic_window* app_wnd) : _appwnd{app_wnd} {
   initialized_      = true;
 }
 
-void basic_scene::window_resized(const int32_t new_height,
-                                 const int32_t new_width) noexcept {
+void basic_scene::window_resized(const int32_t new_width,
+                                 const int32_t new_height) noexcept {
 
   draw_ctx_.window_width  = static_cast<uint32_t>(new_width);
   draw_ctx_.window_height = static_cast<uint32_t>(new_height);
@@ -173,6 +179,9 @@ void basic_scene::window_resized(const int32_t new_height,
   cam_.set_projection(projection::perspective_symmetric(
       static_cast<float>(new_width), static_cast<float>(new_height),
       radians(70.0f), 0.3f, 1000.0f));
+
+  obj_.resize_event(
+      resize_context_t{draw_ctx_.window_width, draw_ctx_.window_height});
 }
 
 void basic_scene::tick_event(const float delta) {
@@ -188,6 +197,7 @@ void basic_scene::tick_event(const float delta) {
     _ui.new_frame(draw_ctx_);
     _ui.tick(delta);
 
+    //    setup_ui();
     if (events.compose_ui)
       events.compose_ui();
   }

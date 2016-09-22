@@ -28,8 +28,9 @@
 
 #pragma once
 
-#include "xray/rendering/rendering_fwd.hpp"
 #include "xray/xray.hpp"
+#include "fwd_app.hpp"
+#include "xray/rendering/rendering_fwd.hpp"
 #include <cstdint>
 
 namespace app {
@@ -40,12 +41,14 @@ public:
 
   virtual ~demo_base();
 
-  virtual void draw(const xray::rendering::draw_context_t &) = 0;
+  virtual void draw(const xray::rendering::draw_context_t&) = 0;
 
   virtual void update(const float delta_ms) = 0;
 
   virtual void key_event(const int32_t key_code, const int32_t action,
                          const int32_t mods) = 0;
+
+  virtual void resize_event(const resize_context_t&) {}
 
   bool valid() const noexcept { return _valid; }
 

@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.6)
 project(basic-gl-app)
 
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/src/samples/basic_gl")
@@ -15,13 +16,16 @@ set(project_sources
     ${proj_src_dir}/demo_base.cc
     ${proj_src_dir}/fractal.cc
     ${proj_inc_dir}/fractal.hpp
+    ${proj_inc_dir}/fwd_app.hpp
     ${proj_inc_dir}/helpers.hpp
+    ${proj_inc_dir}/init_context.hpp
     ${proj_inc_dir}/light_source.hpp
     ${proj_inc_dir}/lit_torus.hpp
     ${proj_src_dir}/lit_torus.cc
     ${proj_src_dir}/main.cc
     ${proj_inc_dir}/material.hpp
     ${proj_src_dir}/material.cc
+    ${proj_inc_dir}/resize_context.hpp
     ${proj_inc_dir}/std_assets.hpp
     ${proj_inc_dir}/cap3/soubroutines/soubroutines_demo.hpp
     ${proj_src_dir}/cap3/soubroutines/soubroutines_demo.cc

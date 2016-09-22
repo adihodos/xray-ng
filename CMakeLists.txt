@@ -1,5 +1,5 @@
-project(xray-ng)
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.6)
+project(xray-ng VERSION 0.5.0.0 LANGUAGES CXX)
 
 set(CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"

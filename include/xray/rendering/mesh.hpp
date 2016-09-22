@@ -150,12 +150,12 @@ private:
   xray::rendering::scoped_buffer       _vertexbuffer;
   xray::rendering::scoped_buffer       _indexbuffer;
   xray::rendering::scoped_vertex_array _vertexarray;
-  vertex_format_info                   _vertex_format_info;
   xray::math::aabb3f                   _boundingbox;
   size_t                               _id{};
   vertex_format                        _vertexformat{vertex_format::undefined};
   index_format                         _indexformat{index_format::u32};
   primitive_topology                   _topology{primitive_topology::undefined};
+  vertex_format_info                   _vertex_format_info;
   bool                                 _valid{false};
 
 private:

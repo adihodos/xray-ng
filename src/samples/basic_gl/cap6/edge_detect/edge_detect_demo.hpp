@@ -30,6 +30,7 @@
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
+#include "fwd_app.hpp"
 #include "material.hpp"
 #include "xray/base/base_fwd.hpp"
 #include "xray/base/fnv_hash.hpp"
@@ -314,7 +315,7 @@ private:
 
 class edge_detect_demo : public demo_base {
 public:
-  edge_detect_demo();
+  edge_detect_demo(const init_context_t& init_ctx);
 
   ~edge_detect_demo();
 
@@ -327,10 +328,13 @@ public:
   virtual void key_event(const int32_t key_code, const int32_t action,
                          const int32_t mods) override;
 
+  virtual void resize_event(const resize_context_t& resize_ctx) override;
+
   explicit operator bool() const noexcept { return valid(); }
 
 private:
-  void init();
+  void init(const init_context_t& ini_ctx);
+  void create_framebuffer(const GLsizei r_width, const GLsizei r_height);
 
   enum { max_lights = 8u };
 
@@ -360,6 +364,7 @@ private:
   xray::rendering::vertex_program    _vs_edge_detect;
   xray::rendering::fragment_program  _fs_edge_detect;
   xray::rendering::scoped_program_pipeline_handle _prog_pipeline;
+  float                                           _edge_treshold{0.1f};
 
 private:
   XRAY_NO_COPY(edge_detect_demo);
