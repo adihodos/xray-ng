@@ -964,29 +964,68 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
 
     _frag_prg.set_uniform_block("scene_lighting", lights)
         .set_uniform("light_count", _lightcount)
-        .set_uniform("mat_diffuse", 0)
-        .set_uniform("mat_specular", 1)
+        .set_uniform("mat_diffuse", 1)
+        .set_uniform("mat_specular", 2)
         .set_uniform("mat_shininess", _mat_spec_pwr)
         .use();
 
-    {
-      const GLuint samplers[] = {raw_handle(_fbo.fbo_sampler),
-                                 raw_handle(_fbo.fbo_sampler)};
-      gl::BindSamplers(0, XR_U32_COUNTOF__(samplers), samplers);
-    }
+    //    {
+    //      const GLuint samplers[] = {raw_handle(_fbo.fbo_sampler),
+    //                                 raw_handle(_fbo.fbo_sampler)};
+    //      gl::BindSamplers(0, XR_U32_COUNTOF__(samplers), samplers);
+    //    }
 
-    {
-      const GLuint materials[] = {raw_handle(_obj_material),
-                                  raw_handle(_obj_material)};
-      gl::BindTextures(0, XR_I32_COUNTOF__(materials), materials);
-    }
+    //    {
+    //      const GLuint materials[] = {raw_handle(_obj_material),
+    //                                  raw_handle(_obj_material)};
+    //      gl::BindTextures(0, XR_I32_COUNTOF__(materials), materials);
+    //    }
 
     gpu_program_pipeline_setup_builder{raw_handle(_prog_pipeline)}
         .add_vertex_program(_vertex_prg)
         .add_fragment_program(_frag_prg)
         .install();
 
+    gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, raw_handle(_fbo.fbo_object));
+
+    {
+      const GLuint bound_textures[] = {raw_handle(_fbo.fbo_texture),
+                                       raw_handle(_obj_material),
+                                       raw_handle(_obj_material)};
+
+      gl::BindTextures(0, XR_U32_COUNTOF__(bound_textures), bound_textures);
+    }
+
+    {
+      const GLuint bound_samplers[] = {raw_handle(_fbo.fbo_sampler),
+                                       raw_handle(_sampler_obj),
+                                       raw_handle(_sampler_obj)};
+
+      gl::BindSamplers(0, XR_U32_COUNTOF__(bound_samplers), bound_samplers);
+    }
+
     _obj_graphics.draw();
+  }
+
+  //
+  // second pass, edge detection
+  {
+    //
+    // set default framebuffer
+    gl::BindFramebuffer(gl::DRAW_BUFFER, 0);
+
+    gl::BindTextureUnit(0, raw_handle(_fbo.fbo_texture));
+    gl::BindSampler(0, raw_handle(_sampler_obj));
+
+    _fs_edge_detect.set_uniform("kSourceTexture", 0)
+        .set_uniform("kEdgeTresholdSquared", 4.00f);
+
+    gpu_program_pipeline_setup_builder{raw_handle(_prog_pipeline)}
+        .add_vertex_program(_vs_edge_detect)
+        .add_fragment_program(_fs_edge_detect)
+        .install();
+
+    _fsquad_graphics.draw();
   }
 }
 
@@ -1018,6 +1057,17 @@ void app::edge_detect_demo::init() {
   int32_t render_wnd_width{1024};
   int32_t render_wnd_height{1024};
 
+  _sampler_obj = []() {
+    GLuint smp_obj{};
+    gl::CreateSamplers(1, &smp_obj);
+    gl::SamplerParameteri(smp_obj, gl::TEXTURE_MIN_FILTER,
+                          gl::LINEAR_MIPMAP_LINEAR);
+    gl::SamplerParameteri(smp_obj, gl::TEXTURE_MAG_FILTER,
+                          gl::LINEAR_MIPMAP_LINEAR);
+
+    return smp_obj;
+  }();
+
   _fbo.fbo_texture = [ w = render_wnd_width, h = render_wnd_height ]() {
     GLuint texh{};
     gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
@@ -1030,8 +1080,8 @@ void app::edge_detect_demo::init() {
   _fbo.fbo_sampler = []() {
     GLuint smpl{};
     gl::CreateSamplers(1, &smpl);
-    gl::SamplerParameteri(smpl, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
-    gl::SamplerParameteri(smpl, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
+    gl::SamplerParameteri(smpl, gl::TEXTURE_MIN_FILTER, gl::NEAREST);
+    gl::SamplerParameteri(smpl, gl::TEXTURE_MAG_FILTER, gl::NEAREST);
 
     return smpl;
   }();
@@ -1072,13 +1122,31 @@ void app::edge_detect_demo::init() {
     XR_NOT_REACHED();
   }
 
-  _vertex_prg = gpu_program_builder{}
-                    .add_file("shaders/cap6/edge_detect/shader.vert")
-                    .build<graphics_pipeline_stage::vertex>();
+  {
+    _vertex_prg = gpu_program_builder{}
+                      .add_file("shaders/cap6/edge_detect/shader.vert")
+                      .build<graphics_pipeline_stage::vertex>();
 
-  _frag_prg = gpu_program_builder{}
-                  .add_file("shaders/cap6/edge_detect/shader.frag")
-                  .build<graphics_pipeline_stage::fragment>();
+    _frag_prg = gpu_program_builder{}
+                    .add_file("shaders/cap6/edge_detect/shader.frag")
+                    .build<graphics_pipeline_stage::fragment>();
+  }
+
+  {
+    _vs_edge_detect =
+        gpu_program_builder{}
+            .add_file("shaders/cap6/edge_detect/edge_detect.vert.glsl")
+            .build<graphics_pipeline_stage::vertex>();
+
+    _fs_edge_detect =
+        gpu_program_builder{}
+            .add_file("shaders/cap6/edge_detect/edge_detect.frag.glsl")
+            .build<graphics_pipeline_stage::fragment>();
+  }
+
+  if (!_vertex_prg || !_frag_prg || !_vs_edge_detect || !_fs_edge_detect) {
+    XR_NOT_REACHED();
+  }
 
   _prog_pipeline = scoped_program_pipeline_handle{[]() {
     GLuint id{};
@@ -1157,6 +1225,16 @@ void app::edge_detect_demo::init() {
   }();
 
   app_cfg.lookup_value("app.scene.shininess", _mat_spec_pwr);
+
+  {
+    geometry_data_t quad_geom{};
+    geometry_factory::fullscreen_quad(&quad_geom);
+
+    _fsquad          = simple_mesh{vertex_format::pnt, quad_geom};
+    _fsquad_graphics = mesh_graphics_rep{_fsquad};
+    assert(_fsquad_graphics && "Failed to create mesh GPU data!");
+  }
+
   _valid = true;
 }
 

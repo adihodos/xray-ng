@@ -344,6 +344,9 @@ private:
 
   xray::rendering::simple_mesh       _object;
   xray::rendering::mesh_graphics_rep _obj_graphics;
+  xray::rendering::simple_mesh       _fsquad;
+  xray::rendering::mesh_graphics_rep _fsquad_graphics;
+  xray::rendering::scoped_sampler    _sampler_obj;
   xray::rendering::simple_mesh       _object2;
   xray::rendering::simple_mesh       _obj_graphics2;
   xray::rendering::scoped_texture    _obj_material;
@@ -354,6 +357,8 @@ private:
   std::vector<graphics_object>       _drawables;
   xray::rendering::vertex_program    _vertex_prg;
   xray::rendering::fragment_program  _frag_prg;
+  xray::rendering::vertex_program    _vs_edge_detect;
+  xray::rendering::fragment_program  _fs_edge_detect;
   xray::rendering::scoped_program_pipeline_handle _prog_pipeline;
 
 private:
