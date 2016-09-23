@@ -365,6 +365,7 @@ private:
   xray::rendering::fragment_program  _fs_edge_detect;
   xray::rendering::scoped_program_pipeline_handle _prog_pipeline;
   float                                           _edge_treshold{0.1f};
+  bool                                            _use_edgedetect{true};
 
 private:
   XRAY_NO_COPY(edge_detect_demo);

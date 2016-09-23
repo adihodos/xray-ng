@@ -23,13 +23,13 @@
     // Editor
 
   // Controls the font family.
-  "editor.fontFamily": "'Roboto Mono Light",
+  "editor.fontFamily": "'Consolas",
 
   // Controls the font weight.
-  "editor.fontWeight": "normal",
+  "editor.fontWeight": "100",
 
   // Controls the font size in pixels.
-  "editor.fontSize": 18,
+  "editor.fontSize": 20,
 
   // Controls the line height. Use 0 to compute the lineHeight from the fontSize.
   "editor.lineHeight": 0,

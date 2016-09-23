@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <fmt/printf.h>
+#include <fmt/format.h>
 #include <fstream>
 #include <iostream>
 #include <memory>

@@ -13,15 +13,28 @@ in VS_OUT {
 
 layout (location = 0) out vec4 frag_color;
 
+subroutine vec3 ColoringStyle(in const vec2 frag_coord);
+
+subroutine uniform ColoringStyle kDrawingStyle;
 uniform sampler2D kSourceTexture;
 uniform float kEdgeTresholdSquared;
+uniform vec2 kSurfaceSize;
 
 float luminance(in const vec3 pixel) {
   return dot(pixel, vec3(0.2126, 0.7152, 0.0722));
 }
 
-void main() {
-  const ivec2 pixcoord = ivec2(gl_FragCoord.xy);
+subroutine(ColoringStyle)
+vec3 color_default(in const vec2 frag_coord) {
+  const vec2 texcoords = vec2(
+    frag_coord.x / kSurfaceSize.x, frag_coord.y / kSurfaceSize.y);
+
+  return texture(kSourceTexture, texcoords).rgb;
+}
+
+subroutine(ColoringStyle)
+vec3 color_edges(in const vec2 frag_coord) {
+  const ivec2 pixcoord = ivec2(frag_coord);
   const float s00 = luminance(
     texelFetchOffset(kSourceTexture, pixcoord, 0, ivec2(-1, 1)).rgb);
   const float s02 = luminance(
@@ -45,5 +58,9 @@ void main() {
   const float threshold = sx * sx + sy * sy;
 
   const float val = 1.0 * float(threshold > kEdgeTresholdSquared);
-  frag_color = vec4(vec3(val), 1.0);
+  return vec3(val);
+}
+
+void main() {
+  frag_color = vec4(kDrawingStyle(gl_FragCoord.xy), 1.0);
 }

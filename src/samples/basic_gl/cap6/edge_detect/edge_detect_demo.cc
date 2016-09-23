@@ -18,6 +18,7 @@
 #include "xray/math/objects/aabb3_math.hpp"
 #include "xray/math/objects/sphere.hpp"
 #include "xray/math/projection.hpp"
+#include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar3x3_math.hpp"
 #include "xray/math/scalar4x4_math.hpp"
@@ -941,13 +942,15 @@ app::edge_detect_demo::edge_detect_demo(const init_context_t& init_ctx) {
 app::edge_detect_demo::~edge_detect_demo() {}
 
 void app::edge_detect_demo::compose_ui() {
-  //  ImGui::SetNextWindowSize({300.0f, 200.0f}, ImGuiSetCond_Always);
-  bool close{false};
-  if (ImGui::Begin("Settings", &close, ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::BeginGroup();
-    ImGui::SliderFloat("Edge treshold", &_edge_treshold, 0.01f, 0.25f, "%3.3f",
-                       1.0f);
-    ImGui::EndGroup();
+  if (ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize |
+                                            ImGuiWindowFlags_NoMove)) {
+    ImGui::Checkbox("Use edge_detection filter", &_use_edgedetect);
+
+    if (_use_edgedetect) {
+      ImGui::Separator();
+      ImGui::SliderFloat("Edge treshold", &_edge_treshold, 0.01f, 0.25f,
+                         "%3.3f", 0.1f);
+    }
   }
   ImGui::End();
 }
@@ -1033,13 +1036,20 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
     gl::BindTextureUnit(0, raw_handle(_fbo.fbo_texture));
     gl::BindSampler(0, raw_handle(_sampler_obj));
 
-    _fs_edge_detect.set_uniform("kSourceTexture", 0)
-        .set_uniform("kEdgeTresholdSquared", _edge_treshold);
-
     gpu_program_pipeline_setup_builder{raw_handle(_prog_pipeline)}
         .add_vertex_program(_vs_edge_detect)
         .add_fragment_program(_fs_edge_detect)
         .install();
+
+    const auto surface_size = float2{static_cast<float>(dc.window_width),
+                                     static_cast<float>(dc.window_height)};
+
+    _fs_edge_detect.set_uniform("kSourceTexture", 0)
+        .set_uniform("kEdgeTresholdSquared", _edge_treshold)
+        .set_uniform("kSurfaceSize", surface_size)
+        .set_subroutine_uniform(
+            "kDrawingStyle", _use_edgedetect ? "color_edges" : "color_default")
+        .use();
 
     _fsquad_graphics.draw();
   }

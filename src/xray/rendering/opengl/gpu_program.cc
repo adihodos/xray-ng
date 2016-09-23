@@ -1632,10 +1632,6 @@ void xray::rendering::detail::gpu_program_base::use() {
 
   });
 
-  //
-  // For subroutine uniforms, program must be set active
-  gl::UseProgram(raw_handle(_handle));
-
   if (!subroutine_uniforms_.empty()) {
     stlsoft::auto_buffer<GLuint> indices_buff{subroutine_uniforms_.size()};
 
@@ -1647,6 +1643,9 @@ void xray::rendering::detail::gpu_program_base::use() {
               sub_unifrm.ssu_assigned_subroutine_idx;
         });
 
+    //
+    // For subroutine uniforms, program must be set active
+    // gl::UseProgram(raw_handle(_handle));
     gl::UniformSubroutinesuiv(_stage, indices_buff.size(), indices_buff.data());
   }
 }
