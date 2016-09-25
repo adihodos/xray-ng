@@ -960,7 +960,8 @@ xray::rendering::shader_source_descriptor::shader_source_descriptor(
     : src_type{shader_source_type::code}, s_str{src_str} {}
 
 xray::rendering::scoped_program_handle
-xray::rendering::gpu_program_builder::build_program(const GLenum stg) noexcept {
+xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
+    noexcept {
   using namespace xray::base;
   using namespace stlsoft;
   using namespace platformstl;
@@ -981,8 +982,8 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) noexcept {
     auto src_map_range = gsl::span<memory_mapped_file>{
         mapped_src_files.data(),
         static_cast<ptrdiff_t>(mapped_src_files.size())};
-    auto src_dsc_range =
-        gsl::span<shader_source_descriptor>{&_source_list[0], _sources_count};
+    auto src_dsc_range = gsl::span<const shader_source_descriptor>{
+        &_source_list[0], _sources_count};
 
     uint32_t idx{};
 
@@ -1601,7 +1602,7 @@ xray::rendering::detail::gpu_program_base::set_subroutine_uniform(
   return *this;
 }
 
-void xray::rendering::detail::gpu_program_base::use() {
+void xray::rendering::detail::gpu_program_base::flush_uniforms() {
   assert(_valid);
 
   using namespace std;
@@ -1643,9 +1644,6 @@ void xray::rendering::detail::gpu_program_base::use() {
               sub_unifrm.ssu_assigned_subroutine_idx;
         });
 
-    //
-    // For subroutine uniforms, program must be set active
-    // gl::UseProgram(raw_handle(_handle));
     gl::UniformSubroutinesuiv(_stage, indices_buff.size(), indices_buff.data());
   }
 }
@@ -1671,7 +1669,7 @@ xray::rendering::gpu_program_pipeline_setup_builder::
 
 xray::rendering::gpu_program_pipeline_setup_builder&
 xray::rendering::gpu_program_pipeline_setup_builder::add_vertex_program(
-    const vertex_program& vert_prg) {
+    vertex_program& vert_prg) {
   using namespace xray::base;
 
   _programs_by_stage[enum_helper::to_underlying_type(
@@ -1681,7 +1679,7 @@ xray::rendering::gpu_program_pipeline_setup_builder::add_vertex_program(
 
 xray::rendering::gpu_program_pipeline_setup_builder&
 xray::rendering::gpu_program_pipeline_setup_builder::add_geometry_program(
-    const geometry_program& geom_prg) {
+    geometry_program& geom_prg) {
   using namespace xray::base;
 
   _programs_by_stage[enum_helper::to_underlying_type(
@@ -1691,7 +1689,7 @@ xray::rendering::gpu_program_pipeline_setup_builder::add_geometry_program(
 
 xray::rendering::gpu_program_pipeline_setup_builder&
 xray::rendering::gpu_program_pipeline_setup_builder::add_fragment_program(
-    const fragment_program& frag_prg) {
+    fragment_program& frag_prg) {
   using namespace xray::base;
 
   _programs_by_stage[enum_helper::to_underlying_type(
@@ -1701,7 +1699,7 @@ xray::rendering::gpu_program_pipeline_setup_builder::add_fragment_program(
 
 xray::rendering::gpu_program_pipeline_setup_builder&
 xray::rendering::gpu_program_pipeline_setup_builder::add_tess_control_program(
-    const tess_control_program& tess_ctrl_prg) {
+    tess_control_program& tess_ctrl_prg) {
   using namespace xray::base;
 
   _programs_by_stage[enum_helper::to_underlying_type(
@@ -1711,7 +1709,7 @@ xray::rendering::gpu_program_pipeline_setup_builder::add_tess_control_program(
 
 xray::rendering::gpu_program_pipeline_setup_builder&
 xray::rendering::gpu_program_pipeline_setup_builder::add_tess_eval_program(
-    const tess_eval_program& tess_eval_prg) {
+    tess_eval_program& tess_eval_prg) {
   using namespace xray::base;
 
   _programs_by_stage[enum_helper::to_underlying_type(
@@ -1727,9 +1725,6 @@ void xray::rendering::gpu_program_pipeline_setup_builder::install() {
   for (auto i = enum_helper::to_underlying_type(graphics_pipeline_stage::first);
        i < enum_helper::to_underlying_type(graphics_pipeline_stage::last);
        ++i) {
-
-    if (_programs_by_stage[i] == nullptr)
-      continue;
 
     const auto stage_bit = [stage = enum_helper::from_underlying_type<
                                 graphics_pipeline_stage>(i)]() {
@@ -1755,9 +1750,18 @@ void xray::rendering::gpu_program_pipeline_setup_builder::install() {
     }
     ();
 
-    gl::UseProgramStages(_handle, stage_bit, _programs_by_stage[i]->handle());
+    gl::UseProgramStages(
+        _handle, stage_bit,
+        _programs_by_stage[i] == nullptr ? 0 : _programs_by_stage[i]->handle());
   }
 
   gl::UseProgram(0);
   gl::BindProgramPipeline(_handle);
+  //
+  // call flush uniforms
+  std::for_each(std::begin(_programs_by_stage), std::end(_programs_by_stage),
+                [](auto& prg) {
+                  if (prg)
+                    prg->flush_uniforms();
+                });
 }

@@ -269,7 +269,6 @@ struct gpu_program_reflect_data {
 };
 
 struct gpu_program_helpers {
-
   static bool reflect(const GLuint program,
                       const GLenum api_subroutine_uniform_interface_name,
                       const GLenum api_subroutine_interface_name,
@@ -341,7 +340,8 @@ public:
   set_subroutine_uniform(const char* uniform_name,
                          const char* subroutine_name) noexcept;
 
-  void use();
+  /// \brief    Sends the values of the uniforms to the GPU.
+  void flush_uniforms();
 
   void swap(gpu_program_base& rhs) noexcept;
 
@@ -744,10 +744,12 @@ public:
   }
 
   template <graphics_pipeline_stage stage>
-  gpu_program_t<stage>              build() {
+  gpu_program_t<stage>              build() const {
     return gpu_program_t<stage>{
         build_program(xray_to_opengl<stage>::shader_type)};
   }
+
+  explicit operator bool() const noexcept { return _sources_count != 0; }
 
 private:
   static constexpr uint32_t MAX_SLOTS = 16u;
@@ -757,7 +759,7 @@ private:
     _source_list[_sources_count++] = sds;
   }
 
-  scoped_program_handle build_program(const GLenum stg) noexcept;
+  scoped_program_handle build_program(const GLenum stg) const noexcept;
 
   shader_source_descriptor _source_list[MAX_SLOTS];
   uint8_t                  _sources_count{0};
@@ -785,25 +787,25 @@ public:
   explicit gpu_program_pipeline_setup_builder(const GLuint handle) noexcept;
 
   gpu_program_pipeline_setup_builder&
-  add_vertex_program(const vertex_program& vert_prg);
+  add_vertex_program(vertex_program& vert_prg);
 
   gpu_program_pipeline_setup_builder&
-  add_geometry_program(const geometry_program& geom_prg);
+  add_geometry_program(geometry_program& geom_prg);
 
   gpu_program_pipeline_setup_builder&
-  add_fragment_program(const fragment_program& frag_prg);
+  add_fragment_program(fragment_program& frag_prg);
 
   gpu_program_pipeline_setup_builder&
-  add_tess_control_program(const tess_control_program& tess_ctrl_prg);
+  add_tess_control_program(tess_control_program& tess_ctrl_prg);
 
   gpu_program_pipeline_setup_builder&
-  add_tess_eval_program(const tess_eval_program& tess_eval_prg);
+  add_tess_eval_program(tess_eval_program& tess_eval_prg);
 
   void install();
 
 private:
   GLuint _handle;
-  const detail::gpu_program_base*
+  detail::gpu_program_base*
       _programs_by_stage[xray::base::enum_helper::to_underlying_type(
           graphics_pipeline_stage::last)];
 

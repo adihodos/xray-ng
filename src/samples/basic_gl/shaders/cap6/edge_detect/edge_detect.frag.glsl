@@ -33,7 +33,7 @@ vec3 color_default(in const vec2 frag_coord) {
 }
 
 subroutine(ColoringStyle)
-vec3 color_edges(in const vec2 frag_coord) {
+vec3 color_edges_sobel(in const vec2 frag_coord) {
   const ivec2 pixcoord = ivec2(frag_coord);
   const float s00 = luminance(
     texelFetchOffset(kSourceTexture, pixcoord, 0, ivec2(-1, 1)).rgb);
@@ -59,6 +59,99 @@ vec3 color_edges(in const vec2 frag_coord) {
 
   const float val = 1.0 * float(threshold > kEdgeTresholdSquared);
   return vec3(val);
+}
+
+const float kMaskFactor[] = {
+  0.35355339, 0.35355339, 0.35355339, 0.35355339, 0.5, 0.5, 0.1666,
+  0.1666, 0.33333
+};
+
+// sqrt(2) = 1.414213
+const mat3 kMasks[] = mat3[](
+  mat3(
+    1.0, 1.414213, 1, 
+    0, 0, 0,
+    -1, -1.414213, -1)
+  ,
+  mat3(
+    1, 0, -1,
+    1.414213, 0, -1.414213,
+    1, 0, -1
+  )
+  ,
+  mat3(
+    0, -1, 1.414213,
+    1, 0, -1,
+    1.414213, 1, 0
+  )
+  ,
+  mat3(
+    1.414213, -1, 0,
+    -1, 0, 1,
+    0, 1, -1.414213
+  )
+  ,
+  mat3(
+    0, 1, 0,
+    -1, 0, -1,
+    0, 1, 0
+  )
+  ,
+  mat3(
+    -1, 0, 1,
+    0, 0, 0,
+    1, 0, -1
+  )
+  ,
+  mat3(
+    1, -2, 1,
+    -2, 4, -2,
+    1, -2, 1
+  )
+  ,
+  mat3(
+    -2, 1, -2,
+    1, 4, 1,
+    -2, 1, -2
+  )
+  ,
+  mat3(
+    1, 1, 1,
+    1, 1, 1,
+    1, 1, 1
+    )
+);
+
+subroutine(ColoringStyle)
+vec3 color_edges_frei_chen(in const vec2 frag_coord) {
+  const ivec2 px = ivec2(frag_coord);
+
+  const mat3 texels = mat3(
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(-1, 1)).rgb),
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(0, 1)).rgb),
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(1, 1)).rgb),
+
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(-1, 0)).rgb),
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(0, 0)).rgb),
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(1, 0)).rgb),
+
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(-1, -1)).rgb),
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(0, -1)).rgb),
+    luminance(texelFetchOffset(kSourceTexture, px, 0, ivec2(1, -1)).rgb)
+  );
+
+  float conv[9];
+  for (int i = 0; i < 9; ++i) {
+    const mat3 mtx = kMasks[i] * kMaskFactor[i];
+    const float dp = dot(mtx[0], texels[0]) + dot(mtx[1], texels[1])
+      + dot(mtx[2], texels[2]);
+    conv[i] = dp * dp;
+  }
+
+  const float M = conv[0] + conv[1] + conv[2] + conv[3];
+  const float S = M + conv[4] + conv[5] + conv[6] + conv[7] + conv[8]; 
+
+  return vec3(sqrt(M / S));
 }
 
 void main() {
