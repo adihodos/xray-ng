@@ -23,7 +23,7 @@
     // Editor
 
   // Controls the font family.
-  "editor.fontFamily": "'Roboto Mono",
+  "editor.fontFamily": "'Roboto Mono Medium'",
 
   // Controls the font weight.
   "editor.fontWeight": "100",
