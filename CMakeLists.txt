@@ -138,6 +138,7 @@ include_directories(third_party/stlsoft-1.9.124/include)
 include_directories(third_party/stb/include)
 include_directories(third_party/imgui/include)
 include_directories(third_party/easyloggingpp/include)
+include_directories(third_party/catch/include)
 
 add_subdirectory(third_party/libconfig/src)
 add_subdirectory(third_party/stb/src)

@@ -11,6 +11,7 @@ set(project_sources
     ${proj_inc_dir}/base_fwd.hpp
     ${proj_inc_dir}/config_settings.hpp
     ${proj_src_dir}/config_settings.cc
+    ${proj_inc_dir}/containers/fixed_vector.hpp
     ${proj_inc_dir}/debug_output.hpp
     ${proj_inc_dir}/delegate_list.hpp
     ${proj_inc_dir}/fast_delegate.hpp

@@ -1,5 +1,6 @@
 #include "xray/xray.hpp"
 #include "xray/base/basic_timer.hpp"
+#include "xray/base/containers/fixed_vector.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/delegate_list.hpp"
 #include "xray/base/fast_delegate.hpp"
@@ -25,122 +26,161 @@
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/ui/basic_gl_window.hpp"
 #include "xray/ui/window_context.hpp"
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <opengl/opengl.hpp>
 
-void basic_draw_func(const xray::ui::window_context&) {
-  gl::Clear(gl::COLOR_BUFFER_BIT);
-  gl::ClearColor(1.0f, 0.25f, 0.5f, 1.0f);
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const xray::math::scalar3<T>& a) {
-  os << "[" << a.x << ", " << a.y << ", " << a.z << "]" << std::endl;
-  return os;
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const xray::math::scalar2<T>& a) {
-  os << "[" << a.x << ", " << a.y << "]" << std::endl;
-  return os;
-}
+#define CATCH_CONFIG_MAIN
+#include <catch/catch.hpp>
 
 using namespace xray::math;
 
-// template <typename T>
-// bool lookat_rh(
-//     const scalar3<T>& eye_pos, const scalar3<T>& target,
-//     const scalar3<T>& world_up) noexcept {
-
-//   const auto D = normalize(target - eye_pos);
-//   const auto U = world_up - project_unit(world_up, D);
-//   const auto R = cross(D, U);
-
-//   // [R U -D E]
-
-//   return true;
-// }
-
-int main(int, char**) {
-  // xray::ui::basic_window wnd{xray::ui::render_params_t{
-  //     xray::ui::api_debug_state::enabled, xray::ui::api_info::version}};
-
-  // wnd.draw_event_delegate = xray::base::make_delegate(basic_draw_func);
-
-  // wnd.pump_messages();
-
-  using namespace std;
+TEST_CASE("fixed vector is correctly initialized", "[fixed_vector]") {
+  using namespace xray::base;
   using namespace xray::math;
 
-  // {
-  //   cout << "\n #### scalar2 #### " << endl;
-  //   constexpr auto v0 = stdc<float2>::null;
-  //   constexpr auto v1 = float2{1.0f, 1.0f};
+  SECTION("default constructor") {
+    fixed_vector<scalar2i32, 8> vec{};
 
-  //   for (uint32_t i = 0; i <= 10; ++i) {
-  //     const auto c      = (1.0f / 10.0f) * static_cast<float>(i);
-  //     const auto interp = mix(v0, v1, c);
-  //     cout << interp;
-  //   }
-  // }
-
-  // {
-  //   cout << "\n #### scalar3 #### " << endl;
-  //   const auto v1 = stdc<float3>::unit_y;
-  //   const auto v2 = float3{1.0f, 1.0f, 1.0f};
-
-  //   for (uint32_t i = 0; i <= 10; ++i) {
-  //     const auto tval = (1.0f / 10.0f) * static_cast<float>(i);
-  //     const auto v    = mix(stdc<float3>::null, v2, tval);
-  //     cout << v;
-  //   }
-
-  //   lookat_rh(
-  //       stdc<float3>::null, float3{0.0f, 0.0f, 10.0f}, stdc<float3>::unit_y);
-
-  //   const auto res = triple_scalar_product(
-  //       stdc<float3>::unit_x, stdc<float3>::unit_y, stdc<float3>::unit_z);
-  //   cout << (res < 0.0f ? "Left handed" : "Right handed") << endl;
-  // }
-
-  // {
-  //   const auto m0 = R2::translate(10.0f, 1.0f);
-  //   const auto v1 = mul_point(m0, stdc<float2>::unit_x);
-  //   const auto v2 = mul_vec(m0, stdc<float2>::unit_x);
-
-  //   std::cout << "V1 = " << v1 << "\n";
-  //   std::cout << "V2 = " << v2 << "\n";
-  // }
-
-  // {
-  //   const auto m =
-  //       R3::rotate_axis_angle(normalize(float3{1.0f, 1.0f, 1.0f}), 0.1f);
-  //   const auto v = mul_vec(m, {1.0f, 3.0f, -4.0f});
-  //   cout << v << "\n";
-  // }
-
-  {
-    const auto m = R4::translate(1.0f, 2.0f, 3.0f);
-    const auto v = mul_point(m, float3{3.0f, 9.0f, 1.0f});
-    cout << v << "\n";
+    REQUIRE(vec.size() == 0);
+    REQUIRE(vec.max_size() == 8);
+    REQUIRE(vec.empty() == true);
+    REQUIRE(vec.begin() == vec.end());
   }
 
-  using namespace xray::rendering;
-  auto vsp =
-      gpu_program_builder{}
-          .add_string("void main() { gl_Position = vec4(1.0, 1.0, 1.0, 1.0); }")
-          .build<graphics_pipeline_stage::vertex>();
+  SECTION("construct with default value") {
+    fixed_vector<float2, 8> vec{5u};
+    REQUIRE(vec.size() == 5u);
+    REQUIRE(vec.empty() == false);
+    REQUIRE(vec.begin() != vec.end());
+  }
 
-  struct mutfatablk {
-      int i;
-      float f;
-  } const b1{};
+  SECTION("construct from single value") {
+    fixed_vector<float2, 8> vec{4, float2::stdc::unit_x};
+    REQUIRE(vec.size() == 4);
+    REQUIRE(vec[0] == float2::stdc::unit_x);
+    REQUIRE(vec[3] == float2::stdc::unit_x);
+  }
+}
 
-  vsp.set_uniform_block("b1", b1);
-  vsp.set_uniform("b2", 43.4f);
+TEST_CASE("fixed vector insertion", "[fixed_vector]") {
+  using namespace xray::base;
+  using namespace xray::math;
+  using namespace std;
 
-  return 0;
+  fixed_vector<float2, 16> v{};
+
+  SECTION("push-back") {
+    v.push_back(float2::stdc::unit_x);
+    v.push_back(float2::stdc::unit_y);
+
+    REQUIRE(v.size() == 2);
+    REQUIRE(v.front() == float2::stdc::unit_x);
+    REQUIRE(v.back() == float2::stdc::unit_y);
+    REQUIRE(v.front() == v[0]);
+    REQUIRE(v.back() == v[1]);
+  }
+
+  SECTION("insert at front") {
+    v.insert(v.begin(), float2::stdc::unit_x);
+
+    REQUIRE(v.size() == 1);
+    REQUIRE(v.front() == float2::stdc::unit_x);
+    REQUIRE(v.front() == v[0]);
+    REQUIRE(v.front() == v.back());
+  }
+
+  SECTION("insert at end") {
+    v.insert(v.end(), float2::stdc::unit_y);
+    REQUIRE(v.size() == 1);
+    REQUIRE(v.back() == float2::stdc::unit_y);
+    REQUIRE(v.back() == v[0]);
+    REQUIRE(v.back() == v.front());
+  }
+
+  fixed_vector<char, 16u> v0;
+  v0.push_back('a');
+  v0.push_back('b');
+  v0.push_back('c');
+  v0.push_back('d');
+  v0.push_back('e');
+  v0.push_back('f');
+
+  SECTION("insert random pos") {
+    auto itr_pos = v0.insert(find(begin(v0), end(v0), 'd'), 'x');
+    REQUIRE(v0.size() == 7);
+    REQUIRE(*itr_pos == 'x');
+    REQUIRE(v0[3] == 'x');
+    REQUIRE(v0[4] == 'd');
+    REQUIRE(v0[5] == 'e');
+    REQUIRE(v0[6] == 'f');
+  }
+
+  SECTION("insert random pos, inserted = existing") {
+    v0.insert(find(begin(v0), end(v0), 'd'), 'x', 3);
+    REQUIRE(v0.size() == 9);
+    REQUIRE(v0[3] == 'x');
+    REQUIRE(v0[4] == 'x');
+    REQUIRE(v0[5] == 'x');
+    REQUIRE(v0[6] == 'd');
+    REQUIRE(v0[7] == 'e');
+    REQUIRE(v0[8] == 'f');
+  }
+
+  SECTION("insert random pos, inserted > existing") {
+    v0.insert(find(begin(v0), end(v0), 'e'), 'x', 4);
+    REQUIRE(v0.size() == 10);
+    REQUIRE(v0[4] == 'x');
+    REQUIRE(v0[5] == 'x');
+    REQUIRE(v0[6] == 'x');
+    REQUIRE(v0[7] == 'x');
+    REQUIRE(v0[8] == 'e');
+    REQUIRE(v0[9] == 'f');
+  }
+
+  SECTION("emplace") {
+    v0.emplace(find(begin(v0), end(v0), 'd'), 'x');
+    REQUIRE(v0.size() == 7);
+    REQUIRE(v0[3] == 'x');
+    REQUIRE(v0[4] == 'd');
+    REQUIRE(v0[5] == 'e');
+    REQUIRE(v0[6] == 'f');
+  }
+}
+
+TEST_CASE("fixed vector removal", "[fixed_vector]") {
+  using namespace xray::base;
+  using namespace xray::math;
+  using namespace std;
+
+  fixed_vector<char> v{};
+
+  SECTION("erase, empty vector is no-op") {
+    auto itr = v.erase(begin(v), end(v));
+    REQUIRE(itr == end(v));
+  }
+
+  v.push_back('a');
+  v.push_back('b');
+  v.push_back('c');
+  v.push_back('d');
+  v.push_back('e');
+  v.push_back('f');
+
+  SECTION("erase, @ begin") {
+    auto itr = v.erase(begin(v));
+    REQUIRE(*itr == 'b');
+    REQUIRE(v.size() == 5);
+    REQUIRE(v[0] == 'b');
+  }
+
+  SECTION("erase everything") {
+    auto itr = v.erase(begin(v), end(v));
+    REQUIRE(v.size() == 0);
+    REQUIRE(v.empty());
+    REQUIRE((void*) itr == (void*) end(v));
+  }
 }
