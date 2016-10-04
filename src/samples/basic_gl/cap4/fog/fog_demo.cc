@@ -158,10 +158,10 @@ void app::fog_demo::init() {
   ();
 
   for (uint32_t i = 0; i < NUM_MESHES; ++i) {
-    auto& mesh = _meshes[i];
+    auto& msh = _meshes[i];
 
-    mesh.translation = {0.0f, 0.0f, 4.0f * static_cast<float>(i)};
-    mesh.mat         = material::stdc::copper;
+    msh.translation = {0.0f, 0.0f, 4.0f * static_cast<float>(i)};
+    msh.mat         = material::stdc::copper;
   }
 
   _light.position = {0.0f, 10.0f, 0.0f};

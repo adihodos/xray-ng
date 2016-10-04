@@ -173,6 +173,18 @@ namespace detail {
 
 /// \brief  Description of a uniform block in a shader program.
 struct uniform_block_t {
+  uniform_block_t() = default;
+
+  uniform_block_t(const char* name_, const uint32_t offset,
+                  const uint32_t size_, const uint32_t index_,
+                  const uint32_t bindpoint_, const bool dirty_ = false)
+      : name{name_}
+      , store_offset{offset}
+      , size{size_}
+      , index{index_}
+      , bindpoint{bindpoint_}
+      , dirty{dirty_} {}
+
   ///< Name of the uniform block as defined in the shader code.
   std::string name{};
 
@@ -197,6 +209,21 @@ struct uniform_block_t {
 
 /// \brief      Stores data for a uniform in a linked shader program.
 struct uniform_t {
+  uniform_t() = default;
+
+  uniform_t(const char* name_, const uint32_t bytes,
+            const uint32_t store_offset, const int32_t parent_idx,
+            const uint32_t type_, const uint32_t dimension,
+            const uint32_t location_, const uint32_t stride_)
+      : name{name_}
+      , byte_size{bytes}
+      , block_store_offset{store_offset}
+      , parent_block_idx{parent_idx}
+      , type{type_}
+      , array_dim{dimension}
+      , location{location_}
+      , stride{stride_} {}
+
   ///< Name of the uniform, as defined in the shader code.
   std::string name{};
 
@@ -226,15 +253,32 @@ struct uniform_t {
 
 ///   \brief Info about a subroutine defined in a shader.
 struct shader_subroutine {
-  std::string             ss_name;
+  shader_subroutine() = default;
+
+  shader_subroutine(const char* name, const graphics_pipeline_stage stage,
+                    const uint8_t index)
+      : ss_name{name}, ss_stage{stage}, ss_index{index} {}
+
+  std::string             ss_name{};
   graphics_pipeline_stage ss_stage{graphics_pipeline_stage::last};
   uint8_t                 ss_index{0xFF};
 };
 
 ///   \brief Info about an active subroutine uniform of a shader.
 struct shader_subroutine_uniform {
+  shader_subroutine_uniform() = default;
+
+  shader_subroutine_uniform(const char*                   name,
+                            const graphics_pipeline_stage stage,
+                            const uint8_t                 location,
+                            const uint8_t                 assigned_index)
+      : ssu_name{name}
+      , ssu_stage{stage}
+      , ssu_location{location}
+      , ssu_assigned_subroutine_idx{assigned_index} {}
+
   ///< Uniform name.
-  std::string ssu_name;
+  std::string ssu_name{};
 
   ///< Stage (vertex, geometry, fragment, etc).
   graphics_pipeline_stage ssu_stage{graphics_pipeline_stage::last};
@@ -248,6 +292,15 @@ struct shader_subroutine_uniform {
 
 ///   \brief  Info about subroutine uniforms for a particular stage.
 struct pipeline_stage_subroutine_uniform_data {
+  pipeline_stage_subroutine_uniform_data() = default;
+
+  pipeline_stage_subroutine_uniform_data(const uint8_t store_offset,
+                                         const uint8_t count,
+                                         const uint8_t max_locations)
+      : datastore_offset{store_offset}
+      , uniforms_count{count}
+      , max_active_locations{max_locations} {}
+
   static constexpr auto invalid_offset = uint8_t{0xFF};
 
   ///< Offset in array with data for all stages. Will be 0xFFFFFFFF
@@ -261,7 +314,7 @@ struct pipeline_stage_subroutine_uniform_data {
 };
 
 struct gpu_program_reflect_data {
-  size_t                                  prg_datastore_size{0};
+  size_t                                  prg_datastore_size;
   std::vector<uniform_block_t>*           prg_ublocks;
   std::vector<uniform_t>*                 prg_uniforms;
   std::vector<shader_subroutine_uniform>* prg_subroutine_uniforms;
@@ -546,6 +599,18 @@ private:
 
   /// \brief  Description of a uniform block in a shader program.
   struct uniform_block_t {
+    uniform_block_t() = default;
+
+    uniform_block_t(const char* bname, const uint32_t offset,
+                    const uint32_t bsize, const uint32_t idx,
+                    const uint32_t bindpt, const bool dirty_ = false)
+        : name{bname}
+        , store_offset{offset}
+        , size{bsize}
+        , index{idx}
+        , bindpoint{bindpt}
+        , dirty{dirty_} {}
+
     ///< Name of the uniform block as defined in the shader code.
     std::string name{};
 
@@ -570,6 +635,21 @@ private:
 
   /// \brief      Stores data for a uniform in a linked shader program.
   struct uniform_t {
+    uniform_t() = default;
+
+    uniform_t(const char* name_, const uint32_t size, const uint32_t offset,
+              const int32_t parent_idx, const uint32_t type_,
+              const uint32_t dimension, const uint32_t loc,
+              const uint32_t stride_)
+        : name{name_}
+        , byte_size{size}
+        , block_store_offset{offset}
+        , parent_block_idx{parent_idx}
+        , type{type_}
+        , array_dim{dimension}
+        , location{loc}
+        , stride{stride_} {}
+
     ///< Name of the uniform, as defined in the shader code.
     std::string name{};
 
@@ -607,15 +687,30 @@ private:
 private:
   ///   \brief Info about a subroutine defined in a shader.
   struct shader_subroutine {
-    std::string             ss_name;
+    shader_subroutine() = default;
+    shader_subroutine(const char* name_, const graphics_pipeline_stage stage,
+                      const uint8_t ss_idx)
+        : ss_name{name_}, ss_stage{stage}, ss_index{ss_idx} {}
+
+    std::string             ss_name{};
     graphics_pipeline_stage ss_stage{graphics_pipeline_stage::last};
     uint8_t                 ss_index{0xFF};
   };
 
   ///   \brief Info about an active subroutine uniform of a shader.
   struct shader_subroutine_uniform {
+    shader_subroutine_uniform() = default;
+
+    shader_subroutine_uniform(const char* name, const pipeline_stage stage,
+                              const uint8_t location,
+                              const uint8_t subroutine_idx)
+        : ssu_name{name}
+        , ssu_stage{stage}
+        , ssu_location{location}
+        , ssu_assigned_subroutine_idx{subroutine_idx} {}
+
     ///< Uniform name.
-    std::string ssu_name;
+    std::string ssu_name{};
 
     ///< Stage (vertex, geometry, fragment, etc).
     pipeline_stage ssu_stage{pipeline_stage::last};
@@ -629,6 +724,14 @@ private:
 
   ///   \brief  Info about subroutine uniforms for a particular stage.
   struct pipeline_stage_subroutine_uniform_data {
+    pipeline_stage_subroutine_uniform_data() = default;
+    pipeline_stage_subroutine_uniform_data(const uint8_t store_offset,
+                                           const uint8_t count,
+                                           const uint8_t max_locs)
+        : datastore_offset{store_offset}
+        , uniforms_count{count}
+        , max_active_locations{max_locs} {}
+
     static constexpr auto invalid_offset = uint8_t{0xFF};
 
     ///< Offset in array with data for all stages. Will be 0xFFFFFFFF

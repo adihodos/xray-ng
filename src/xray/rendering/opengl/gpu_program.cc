@@ -10,6 +10,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <gsl.h>
 #include <numeric>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
@@ -508,7 +509,7 @@ void xray::rendering::gpu_program::bind_to_pipeline() {
 
       gl::UniformSubroutinesuiv(
           pipeline_stage_to_shader_type(static_cast<pipeline_stage>(stage)),
-          indices_buff.size(), indices_buff.data());
+          static_cast<GLsizei>(indices_buff.size()), indices_buff.data());
     }
   }
 }
@@ -551,7 +552,8 @@ bool xray::rendering::gpu_program::collect_uniform_blocks() {
        blk_idx < static_cast<uint32_t>(num_uniform_blocks); ++blk_idx) {
 
     gl::GetProgramResourceName(phandle, gl::UNIFORM_BLOCK, blk_idx,
-                               txt_buff.size(), nullptr, txt_buff.data());
+                               static_cast<GLsizei>(txt_buff.size()), nullptr,
+                               txt_buff.data());
 
     //
     // List of properties we need for the uniform blocks.
@@ -591,9 +593,9 @@ bool xray::rendering::gpu_program::collect_uniform_blocks() {
       return false;
     }
 
-    ublocks.push_back({txt_buff.data(), 0,
-                       static_cast<uint32_t>(u_props.ub_size), blk_idx,
-                       static_cast<uint32_t>(u_props.ub_bindpoint)});
+    ublocks.push_back(uniform_block_t{
+        txt_buff.data(), 0, static_cast<uint32_t>(u_props.ub_size), blk_idx,
+        static_cast<uint32_t>(u_props.ub_bindpoint)});
   }
 
   //
@@ -646,6 +648,9 @@ bool xray::rendering::gpu_program::collect_uniforms() {
   using namespace std;
   using namespace stlsoft;
 
+  using std::uint32_t;
+  using std::int32_t;
+
   const auto phandle = raw_handle(prog_handle_);
 
   //
@@ -665,11 +670,12 @@ bool xray::rendering::gpu_program::collect_uniforms() {
 
   auto_buffer<char, 128> tmp_buff{static_cast<size_t>(u_max_len)};
 
-  for (uint32_t u_idx = 0; u_idx < static_cast<uint32_t>(num_uniforms);
+  for (std::uint32_t u_idx = 0; u_idx < static_cast<uint32_t>(num_uniforms);
        ++u_idx) {
 
-    gl::GetProgramResourceName(phandle, gl::UNIFORM, u_idx, tmp_buff.size(),
-                               nullptr, tmp_buff.data());
+    gl::GetProgramResourceName(phandle, gl::UNIFORM, u_idx,
+                               static_cast<GLsizei>(tmp_buff.size()), nullptr,
+                               tmp_buff.data());
 
     union uniform_props_t {
       struct {
@@ -730,8 +736,8 @@ bool xray::rendering::gpu_program::collect_uniforms() {
 
       assert(parent_blk_itr != end(uniform_blocks_));
 
-      new_uniform.parent_block_idx =
-          std::distance(begin(uniform_blocks_), parent_blk_itr);
+      new_uniform.parent_block_idx = static_cast<int32_t>(
+          std::distance(begin(uniform_blocks_), parent_blk_itr));
     }
 
     uniforms_.push_back(new_uniform);
@@ -896,8 +902,7 @@ void xray::rendering::gpu_program::set_uniform_block(const char*  block_name,
               [block_name](auto& blk) { return blk.name == block_name; });
 
   if (blk_iter == end(uniform_blocks_)) {
-    XR_LOG_ERR("{} error, uniform {} does not exist", __PRETTY_FUNCTION__,
-               block_name);
+    XR_LOG_ERR("Uniform {} does not exist", block_name);
     return;
   }
 
@@ -967,6 +972,9 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
   using namespace platformstl;
   using namespace std;
 
+  using std::uint32_t;
+  using std::int32_t;
+
   array<const char*, MAX_SLOTS> src_pointers;
   src_pointers.fill(nullptr);
   array<memory_mapped_file, MAX_SLOTS> mapped_src_files;
@@ -976,8 +984,8 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
     // retrieve pointer to the strings with the source code of the program.
     // strings defined in the config file are placed in front of the
     // string from the shader file.
-    auto src_pts_range =
-        gsl::span<const char*>{src_pointers.data(), src_pointers.size()};
+    auto src_pts_range = gsl::span<const char*>{
+        src_pointers.data(), static_cast<ptrdiff_t>(src_pointers.size())};
 
     auto src_map_range = gsl::span<memory_mapped_file>{
         mapped_src_files.data(),
@@ -1140,7 +1148,8 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(
        blk_idx < static_cast<uint32_t>(num_uniform_blocks); ++blk_idx) {
 
     gl::GetProgramResourceName(phandle, gl::UNIFORM_BLOCK, blk_idx,
-                               txt_buff.size(), nullptr, txt_buff.data());
+                               static_cast<GLsizei>(txt_buff.size()), nullptr,
+                               txt_buff.data());
 
     //
     // List of properties we need for the uniform blocks.
@@ -1236,6 +1245,9 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniforms(
   using namespace std;
   using namespace stlsoft;
 
+  using std::uint32_t;
+  using std::int32_t;
+
   const auto phandle = program;
 
   //
@@ -1258,8 +1270,9 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniforms(
   for (uint32_t u_idx = 0; u_idx < static_cast<uint32_t>(num_uniforms);
        ++u_idx) {
 
-    gl::GetProgramResourceName(phandle, gl::UNIFORM, u_idx, tmp_buff.size(),
-                               nullptr, tmp_buff.data());
+    gl::GetProgramResourceName(phandle, gl::UNIFORM, u_idx,
+                               static_cast<GLsizei>(tmp_buff.size()), nullptr,
+                               tmp_buff.data());
 
     union uniform_props_t {
       struct {
@@ -1320,7 +1333,7 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniforms(
       assert(parent_blk_itr != end(ublocks));
 
       new_uniform.parent_block_idx =
-          std::distance(begin(ublocks), parent_blk_itr);
+          static_cast<int32_t>(std::distance(begin(ublocks), parent_blk_itr));
     }
 
     uniforms->push_back(new_uniform);
@@ -1558,8 +1571,7 @@ xray::rendering::detail::gpu_program_base::set_uniform_block(
               [block_name](auto& blk) { return blk.name == block_name; });
 
   if (blk_iter == end(uniform_blocks_)) {
-    XR_LOG_ERR("{} error, uniform {} does not exist", __PRETTY_FUNCTION__,
-               block_name);
+    XR_LOG_ERR("Error, uniform {} does not exist", block_name);
     return *this;
   }
 
@@ -1636,15 +1648,17 @@ void xray::rendering::detail::gpu_program_base::flush_uniforms() {
   if (!subroutine_uniforms_.empty()) {
     stlsoft::auto_buffer<GLuint> indices_buff{subroutine_uniforms_.size()};
 
-    for_each(
-        begin(subroutine_uniforms_), end(subroutine_uniforms_),
-        [indices = gsl::span<GLuint>(indices_buff.data(), indices_buff.size())](
-            const auto& sub_unifrm) {
-          indices[sub_unifrm.ssu_location] =
-              sub_unifrm.ssu_assigned_subroutine_idx;
-        });
+    for_each(begin(subroutine_uniforms_), end(subroutine_uniforms_),
+             [indices = gsl::span<GLuint>{indices_buff.data(),
+                                          static_cast<ptrdiff_t>(
+                                              indices_buff.size())}](
+                 const auto& sub_unifrm) {
+               indices[sub_unifrm.ssu_location] =
+                   sub_unifrm.ssu_assigned_subroutine_idx;
+             });
 
-    gl::UniformSubroutinesuiv(_stage, indices_buff.size(), indices_buff.data());
+    gl::UniformSubroutinesuiv(_stage, static_cast<GLsizei>(indices_buff.size()),
+                              indices_buff.data());
   }
 }
 

@@ -87,7 +87,7 @@ public:
   }
 
   void push(const T& value) { _m_container.push_back(value); }
-  void push(T&& value) { _m_container.push_back(std::forward<Args>(args)...); }
+  void push(T&& value) { _m_container.push_back(std::move(value)); }
 
   void pop() {
     assert(!empty());

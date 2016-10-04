@@ -4,6 +4,7 @@
 #include "resize_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
+#include "xray/base/containers/fixed_stack.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/enum_cast.hpp"
 #include "xray/base/fnv_hash.hpp"
@@ -52,60 +53,60 @@ using namespace xray::rendering;
 using namespace xray::scene;
 using namespace std;
 
-template <typename T, size_t C = 4>
-class fixed_stack {
-public:
-  fixed_stack() = default;
-  ~fixed_stack() noexcept { clear(); }
+// template <typename T, size_t C = 4>
+// class fixed_stack {
+// public:
+//   fixed_stack() = default;
+//   ~fixed_stack() noexcept { clear(); }
 
-  bool empty() const noexcept { return size() == 0; }
+//   bool empty() const noexcept { return size() == 0; }
 
-  T& top() noexcept {
-    assert(!empty());
-    return *(reinterpret_cast<T*>(&_store[0]) + (size() - 1));
-  }
+//   T& top() noexcept {
+//     assert(!empty());
+//     return *(reinterpret_cast<T*>(&_store[0]) + (size() - 1));
+//   }
 
-  const T& top() const noexcept {
-    assert(!empty());
-    return *(reinterpret_cast<const T*>(&_store[0]) + (size() - 1));
-  }
+//   const T& top() const noexcept {
+//     assert(!empty());
+//     return *(reinterpret_cast<const T*>(&_store[0]) + (size() - 1));
+//   }
 
-  size_t size() const noexcept { return _itemcnt; }
+//   size_t size() const noexcept { return _itemcnt; }
 
-  void push(const T& value) {
-    assert(size() < C);
-    new (&_store[0] + sizeof(T) * size()) T{value};
-    ++_itemcnt;
-  }
+//   void push(const T& value) {
+//     assert(size() < C);
+//     new (&_store[0] + sizeof(T) * size()) T{value};
+//     ++_itemcnt;
+//   }
 
-  void push(T&& value) {
-    assert(size() < C);
-    new (&_store[0] + sizeof(T) * size()) T{std::move(value)};
-    ++_itemcnt;
-  }
+//   void push(T&& value) {
+//     assert(size() < C);
+//     new (&_store[0] + sizeof(T) * size()) T{std::move(value)};
+//     ++_itemcnt;
+//   }
 
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    assert(size() < C);
-    new (&_store[0] + sizeof(T) * size()) T{std::forward<Args>(args)...};
-    ++_itemcnt;
-  }
+//   template <typename... Args>
+//   void emplace(Args&&... args) {
+//     assert(size() < C);
+//     new (&_store[0] + sizeof(T) * size()) T{std::forward<Args>(args)...};
+//     ++_itemcnt;
+//   }
 
-  void pop() noexcept {
-    assert(size() >= 1);
-    reinterpret_cast<T*>(&_store[0] + sizeof(T) * (size() - 1))->~T();
-    --_itemcnt;
-  }
+//   void pop() noexcept {
+//     assert(size() >= 1);
+//     reinterpret_cast<T*>(&_store[0] + sizeof(T) * (size() - 1))->~T();
+//     --_itemcnt;
+//   }
 
-  void clear() noexcept {
-    while (!empty())
-      pop();
-  }
+//   void clear() noexcept {
+//     while (!empty())
+//       pop();
+//   }
 
-private:
-  alignas(T) uint8_t _store[sizeof(T) * C];
-  size_t _itemcnt{};
-};
+// private:
+//   alignas(T) uint8_t _store[sizeof(T) * C];
+//   size_t _itemcnt{};
+// };
 
 struct mtl_file_desc {
   const char* path;
@@ -213,11 +214,15 @@ private:
                           xray::rendering::gpu_program_builder* prg_bld);
 
 private:
-  static constexpr auto    PRG_SEC_NAME = "app.scene.programs";
-  static constexpr auto    MTL_SEC_NAME = "app.scene.materials";
+  using path_stack_type =
+      xray::base::fixed_stack<platformstl::basic_path<char>, 4>;
+
+  static constexpr auto PRG_SEC_NAME = "app.scene.programs";
+  static constexpr auto MTL_SEC_NAME = "app.scene.materials";
+
   xray::base::config_file  _scene_file;
   xray::base::config_entry _prg_sec;
-  fixed_stack<platformstl::basic_path<char>, 2> _prg_root_path;
+  path_stack_type          _prg_root_path;
   xray::base::config_entry _mtl_sec;
 };
 

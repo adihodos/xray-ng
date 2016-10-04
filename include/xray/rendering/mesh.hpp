@@ -45,6 +45,10 @@
 namespace xray {
 namespace rendering {
 
+struct malloc_deleter {
+  void operator()(void* ptr) const noexcept { free(ptr); }
+};
+
 struct geometry_data_t;
 
 struct mesh_load_option {
@@ -137,10 +141,6 @@ private:
   };
 
   void create_buffers(const create_buffers_args* args);
-
-  struct malloc_deleter {
-    void operator()(void* ptr) const noexcept { free(ptr); }
-  };
 
 private:
   xray::base::unique_pointer<void, malloc_deleter> _vertices;

@@ -56,14 +56,13 @@ struct axis_aligned_bounding_box3 {
 
   axis_aligned_bounding_box3() noexcept = default;
 
-  axis_aligned_bounding_box3(const real_type xmin, const real_type ymin,
-                             const real_type zmin, const real_type xmax,
-                             const real_type ymax,
-                             const real_type zmax) noexcept
+  constexpr axis_aligned_bounding_box3(
+      const real_type xmin, const real_type ymin, const real_type zmin,
+      const real_type xmax, const real_type ymax, const real_type zmax) noexcept
       : min{xmin, ymin, zmin}, max{xmax, ymax, zmax} {}
 
-  axis_aligned_bounding_box3(const point_type& min,
-                             const point_type& max) noexcept
+  constexpr axis_aligned_bounding_box3(const point_type& min,
+                                       const point_type& max) noexcept
       : axis_aligned_bounding_box3{min.x, min.y, min.z, max.x, max.y, max.z} {}
 
   point_type center() const noexcept { return (max + min) / real_type{2}; }
@@ -74,21 +73,33 @@ struct axis_aligned_bounding_box3 {
 
   real_type depth() const noexcept { return std::abs(max.z - min.z); }
 
-  struct stdc {
-    ///< The identity bounding box.
-    static const axis_aligned_bounding_box3<real_type> identity;
-  };
+  struct stdc;
+  //   ///< The identity bounding box.
+  //   static const axis_aligned_bounding_box3<real_type> identity;
+  // };
 };
 
-template <typename real_type>
-const axis_aligned_bounding_box3<real_type>
-    axis_aligned_bounding_box3<real_type>::stdc::identity{
-        std::numeric_limits<real_type>::max(),
-        std::numeric_limits<real_type>::max(),
-        std::numeric_limits<real_type>::max(),
-        std::numeric_limits<real_type>::min(),
-        std::numeric_limits<real_type>::min(),
-        std::numeric_limits<real_type>::min()};
+template <typename T>
+struct axis_aligned_bounding_box3<T>::stdc {
+  static constexpr axis_aligned_bounding_box3<T> identity{
+      std::numeric_limits<T>::max(), std::numeric_limits<T>::max(),
+      std::numeric_limits<T>::max(), std::numeric_limits<T>::min(),
+      std::numeric_limits<T>::min(), std::numeric_limits<T>::min()};
+};
+
+// template <typename T>
+// constexpr axis_aligned_bounding_box3<T>
+//     axis_aligned_bounding_box3<T>::stdc::identity;
+
+// template <typename real_type>
+// const axis_aligned_bounding_box3<real_type>
+//     axis_aligned_bounding_box3<real_type>::stdc::identity{
+//         std::numeric_limits<real_type>::max(),
+//         std::numeric_limits<real_type>::max(),
+//         std::numeric_limits<real_type>::max(),
+//         std::numeric_limits<real_type>::min(),
+//         std::numeric_limits<real_type>::min(),
+//         std::numeric_limits<real_type>::min()};
 
 using aabb3f = axis_aligned_bounding_box3<float>;
 using aabb3d = axis_aligned_bounding_box3<double>;

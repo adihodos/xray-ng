@@ -19,8 +19,15 @@ endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 
 if (MSVC)
-  option(XRAY_USE_DIRECTX11 "DirectX 11" ON)
+  option(XRAY_USE_DIRECTX11 "DirectX 11" OFF)
 endif()
+
+if (NOT XRAY_USE_DIRECTX11)
+  add_definitions(-DXRAY_RENDERER_OPENGL)
+else()
+  add_definitions(-DXRAY_RENDERER_DIRECTX)
+  add_definitions(-DXRAY_USE_LEFT_HANDED)  
+endif()  
 
 include(CheckCXXSymbolExists)
 if (WIN32 AND NOT MSVC)
@@ -33,13 +40,6 @@ if (WIN32 AND NOT MSVC)
 endif()
 
 if (WIN32)
-
-  if (XRAY_USE_DIRECTX11 OR XRAY_USE_DIRECTX10)
-    message("DirectX 10/11 -:)")
-    add_definitions(-DXRAY_RENDERER_DIRECTX)
-    add_definitions(-DXRAY_USE_LEFT_HANDED)
-  endif()
-
   # define NOMINMAX so that code that uses STL and windows.h compiles
   add_definitions(-DNOMINMAX)
 
@@ -62,8 +62,6 @@ if (NOT MSVC)
     set(cxx_warn_level "-Wall -Wextra")
     set(cxx_standard "-std=c++14")
     set(cxx_debug_flags "-O0 -ggdb3")
-    add_definitions(-DXRAY_RENDERER_OPENGL)
-
 else()
     message("MSVC")
     set(cxx_warn_level "/W4")
@@ -84,21 +82,27 @@ else()
     foreach(flags_var
             CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
             CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINF)
-        # string(REPLACE "/MD" "/MT" "${flags_var}" "${${flags_var}}")
-        # string(REPLACE "/MDd" "/MTd" "${flags_var}" "${${flags_var}}")
+        #string(REPLACE "/MD" "/MT" "${flags_var}" "${${flags_var}}")
+        #string(REPLACE "/MDd" "/MTd" "${flags_var}" "${${flags_var}}")
         string(REPLACE "/W3" "/W4" "${flags_var}" "${${flags_var}}")
     endforeach()
 
 endif()
 
 if (UNIX)
-  #set(SYS_DEP_LIBS rt m dl pthread X11 Xi Xrandr Xcursor Xinerama Xxf86vm GL)
   set(SYS_DEP_LIBS rt m dl pthread X11 Xrandr Xi Xcursor Xxf86vm GL Xinerama)
 endif()
 
-if (WIN32 AND NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
-  set(SYS_DEP_LIBS opengl32)
-  add_definitions(-mwindows)
+if (WIN32 AND NOT MSVC)
+
+  if (NOT XRAY_USE_DIRECTX11)
+    set(SYS_DEP_LIBS opengl32)
+  endif()
+
+  if (NOT MSVC)
+    add_definitions(-mwindows)
+  endif()
+
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${cxx_standard} ${cxx_warn_level} ${cxx_disabled_warnings} ${cxx_debug_flags} ${cxx_aditional_flags}")

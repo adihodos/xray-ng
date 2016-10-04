@@ -32,14 +32,14 @@ app::spotlight_demo::spotlight_demo() { init(); }
 app::spotlight_demo::~spotlight_demo() {}
 
 struct ripple_params {
-  float amplitude{};
-  float period{};
-  float grid_width{};
-  float grid_depth{};
+  float amplitude;
+  float period;
+  float grid_width;
+  float grid_depth;
 };
 
-void ripple_grid(xray::rendering::geometry_data_t *mesh,
-                 const ripple_params &rp) noexcept {
+void ripple_grid(xray::rendering::geometry_data_t* mesh,
+                 const ripple_params&              rp) noexcept {
 
   assert(mesh != nullptr);
 
@@ -52,8 +52,8 @@ void ripple_grid(xray::rendering::geometry_data_t *mesh,
   const auto scale_x = rp.grid_width * 0.5f;
   const auto scale_z = rp.grid_depth * 0.5f;
 
-  for (auto &vertex : vertices) {
-    vertex.normal = float3::stdc::zero;
+  for (auto& vertex : vertices) {
+    vertex.normal    = float3::stdc::zero;
     const auto x_pos = vertex.position.x / scale_x;
     const auto z_pos = vertex.position.z / scale_z;
 
@@ -67,9 +67,9 @@ void ripple_grid(xray::rendering::geometry_data_t *mesh,
   assert((indices.length() % 3) == 0);
 
   for (uint32_t i = 0, idx_count = indices.length(); i < idx_count; i += 3) {
-    auto &v0 = vertices[indices[i + 0]];
-    auto &v1 = vertices[indices[i + 1]];
-    auto &v2 = vertices[indices[i + 2]];
+    auto& v0 = vertices[indices[i + 0]];
+    auto& v1 = vertices[indices[i + 1]];
+    auto& v2 = vertices[indices[i + 2]];
 
     const auto normal =
         cross(v2.position - v0.position, v1.position - v0.position);
@@ -79,7 +79,7 @@ void ripple_grid(xray::rendering::geometry_data_t *mesh,
     v2.normal += normal;
   }
 
-  for (auto &vertex : vertices) {
+  for (auto& vertex : vertices) {
     vertex.normal = normalize(vertex.normal);
   }
 }
@@ -110,12 +110,12 @@ void app::spotlight_demo::init() {
       geometry_factory::torus(0.7f, 0.3f, 30, 30, &mesh);
     }
 
-    _meshes[0].base_vertex = 0;
-    _meshes[0].index_count = mesh.index_count;
+    _meshes[0].base_vertex  = 0;
+    _meshes[0].index_count  = mesh.index_count;
     _meshes[0].index_offset = 0;
-    _meshes[0].mat = material::stdc::copper;
-    _meshes[0].front_ccw = true;
-    _meshes[0].translation = {0.0f, 2.0f, 0.0f};
+    _meshes[0].mat          = material::stdc::copper;
+    _meshes[0].front_ccw    = true;
+    _meshes[0].translation  = {0.0f, 2.0f, 0.0f};
 
     geometry_data_t mesh_grid;
     geometry_factory::grid(16.0, 16.0f, 128, 128, &mesh_grid);
@@ -123,24 +123,24 @@ void app::spotlight_demo::init() {
     const ripple_params rp{0.6f, 3.0f * two_pi<float>, 16.0f, 16.0f};
     ripple_grid(&mesh_grid, rp);
 
-    _meshes[1].base_vertex = mesh.vertex_count;
-    _meshes[1].index_count = mesh_grid.index_count;
+    _meshes[1].base_vertex  = mesh.vertex_count;
+    _meshes[1].index_count  = mesh_grid.index_count;
     _meshes[1].index_offset = _meshes[0].index_count;
-    _meshes[1].front_ccw = false;
-    _meshes[1].mat = material::stdc::red_plastic;
+    _meshes[1].front_ccw    = false;
+    _meshes[1].mat          = material::stdc::red_plastic;
 
     vector<vertex_pn> vertices;
     vertices.reserve(mesh.vertex_count + mesh_grid.vertex_count);
 
     transform(raw_ptr(mesh.geometry),
               raw_ptr(mesh.geometry) + mesh.vertex_count,
-              back_inserter(vertices), [](const auto &in_vertex) {
+              back_inserter(vertices), [](const auto& in_vertex) {
                 return vertex_pn{in_vertex.position, in_vertex.normal};
               });
 
     transform(raw_ptr(mesh_grid.geometry),
               raw_ptr(mesh_grid.geometry) + mesh_grid.vertex_count,
-              back_inserter(vertices), [](const auto &in_vertex) {
+              back_inserter(vertices), [](const auto& in_vertex) {
                 return vertex_pn{in_vertex.position, in_vertex.normal};
               });
 
@@ -217,18 +217,18 @@ void app::spotlight_demo::init() {
       //          static_cast<float>(NUM_LIGHTS)) *
       //                          static_cast<float>(idx));
 
-      _lights[idx].position = light_pos[idx];
+      _lights[idx].position  = light_pos[idx];
       _lights[idx].direction = normalize(light_lookat[idx] - light_pos[idx]);
       _lights[idx].ka = _lights[idx].kd = _lights[idx].ks = light_colors[idx];
       _lights[idx].cutoff_angle = std::cos(radians(60.0f));
-      _lights[idx].light_power = 100.0f;
+      _lights[idx].light_power  = 100.0f;
     }
   }
 
   _valid = true;
 }
 
-void app::spotlight_demo::draw(const xray::rendering::draw_context_t &dc) {
+void app::spotlight_demo::draw(const xray::rendering::draw_context_t& dc) {
   assert(valid());
 
   gl::BindVertexArray(raw_handle(_vertex_array_obj));
@@ -238,7 +238,7 @@ void app::spotlight_demo::draw(const xray::rendering::draw_context_t &dc) {
     // Set shaders, bla bla
     spotlight scene_lights[NUM_LIGHTS];
     transform(begin(_lights), end(_lights), begin(scene_lights),
-              [&dc](const auto &in_light) {
+              [&dc](const auto& in_light) {
                 auto out_light = in_light;
                 out_light.position =
                     mul_point(dc.view_matrix, in_light.position);
@@ -253,7 +253,7 @@ void app::spotlight_demo::draw(const xray::rendering::draw_context_t &dc) {
 
   //  gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
 
-  for (const auto &mesh : _meshes) {
+  for (const auto& mesh : _meshes) {
     if (!mesh.front_ccw) {
       gl::FrontFace(gl::CW);
     }
@@ -291,7 +291,7 @@ void app::spotlight_demo::update(const float /*delta_ms*/) {
   constexpr auto r_speed_x = 0.025f;
   constexpr auto r_speed_y = 0.025f;
 
-  auto &mesh = _meshes[0];
+  auto& mesh = _meshes[0];
   mesh.rotation_xy.x += r_speed_x;
   mesh.rotation_xy.y += r_speed_y;
 
@@ -308,6 +308,6 @@ void app::spotlight_demo::key_event(const int32_t key_code,
 
   if ((key_code == GLFW_KEY_BACKSPACE) && (action == GLFW_PRESS)) {
     _meshes[0].rotation_xy = float2::stdc::zero;
-    _rotate_mesh = !_rotate_mesh;
+    _rotate_mesh           = !_rotate_mesh;
   }
 }

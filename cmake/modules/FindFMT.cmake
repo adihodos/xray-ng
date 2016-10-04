@@ -5,9 +5,15 @@ find_path(FMT_INCLUDE_DIR fmt/format.h
 
 message("FMT include directory -> ${FMT_INCLUDE_DIR}")
 
+if (MSVC AND CMAKE_BUILD_TYPE MATCHES Debug)
+  set(fmt_library_name "fmtd")
+else()
+  set(fmt_library_name "fmt")
+endif()
+
 find_library(
   FMT_LIBRARY
-  NAMES fmt
+  NAMES ${fmt_library_name}
   HINTS ${FMT_ROOT} $ENV{FMT_ROOT} /usr/lib /usr/local/lib
   PATH_SUFFIXES lib)
 

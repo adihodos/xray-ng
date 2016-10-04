@@ -14,5 +14,4 @@ set(project_sources
 
 add_executable(test-app ${project_sources})
 target_link_libraries(test-app 
-    xray-base xray-ui xray-opengl-renderer ${SYS_DEP_LIBS}
-    )
+    xray-base xray-ui xray-opengl-renderer ${SYS_DEP_LIBS})

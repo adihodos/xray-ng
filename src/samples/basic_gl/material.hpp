@@ -34,6 +34,14 @@
 namespace app {
 
 struct material {
+  material() = default;
+
+  constexpr material(const xray::rendering::rgb_color& ke_,
+                     const xray::rendering::rgb_color& ka_,
+                     const xray::rendering::rgb_color& kd_,
+                     const xray::rendering::rgb_color& ks_)
+      : ke{ke_}, ka{ka_}, kd{kd_}, ks{ks_} {}
+
   ///<  Emissive component.
   xray::rendering::rgb_color ke;
 
@@ -69,7 +77,7 @@ struct material::stdc {
       {0.0f, 0.0f, 0.0f, 0.0f},
       {0.25f, 0.25f, 0.25f, 1.0f},
       {0.4f, 0.4f, 0.4f, 1.0f},
-      {0.774597f, 0.774597f, 0.774597f, 128.0f * 0.6}};
+      {0.774597f, 0.774597f, 0.774597f, 128.0f * 0.6f}};
 
   static constexpr material silver{
       {0.0f, 0.0f, 0.0f, 0.0f},
@@ -90,6 +98,12 @@ struct material::stdc {
 };
 
 struct material_ad {
+  material_ad() = default;
+
+  constexpr material_ad(const xray::rendering::rgb_color& ka_,
+                        const xray::rendering::rgb_color& kd_)
+      : ka{ka_}, kd{kd_} {}
+
   xray::rendering::rgb_color ka;
   xray::rendering::rgb_color kd;
 

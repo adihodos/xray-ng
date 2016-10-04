@@ -4,13 +4,14 @@
 #include "xray/math/scalar4.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
-#include "xray/rendering/vertex_format/vertex_pntt.hpp"
 #include "xray/rendering/opengl/shader_base.hpp"
 #include "xray/rendering/vertex_format/vertex_pc.hpp"
+#include "xray/rendering/vertex_format/vertex_pntt.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <iterator>
 #include <opengl/opengl.hpp>
 #include <vector>
 
@@ -28,7 +29,7 @@ static constexpr float2 kNiceShapes[] = {
     float2{-0.1f, +0.651f},       float2{-1.36f, +0.11f},
     float2{+0.32f, +0.043f},      float2{-0.391f, -0.587f},
     float2{-0.7f, -0.3f},         float2{-0.75f, -0.2f},
-    float2{-0.75f, 0.15f},        float2{-0.7, 0.35f}};
+    float2{-0.75f, 0.15f},        float2{-0.7f, 0.35f}};
 
 static constexpr uint32_t kIterations[] = {16,  32,   64,   128, 256,
                                            512, 1024, 2048, 4096};
@@ -60,7 +61,7 @@ void app::fractal_painter::init() {
 
     for (size_t idx = 0, vertex_count = quad_vertices.size();
          idx < vertex_count; ++idx) {
-//      quad_vertices[idx].color = quad_colors[idx];
+      //      quad_vertices[idx].color = quad_colors[idx];
     }
 
     quad_vb_ = make_buffer(gl::ARRAY_BUFFER, 0,
