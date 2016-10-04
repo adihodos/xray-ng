@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2016 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,11 +28,12 @@
 
 #pragma once
 
-/// \file   fixed_pod_stack.hpp
+/// \file   fixed_vector.hpp
 
 #include "xray/xray.hpp"
 #include <cassert>
 #include <cstddef>
+#include <initializer_list>
 #include <iterator>
 #include <type_traits>
 
@@ -64,7 +65,14 @@ public:
 
   fixed_vector(const size_type cnt, const T& value);
 
+  template <typename InputIterator>
+  fixed_vector(InputIterator first, InputIterator last);
+
+  explicit fixed_vector(std::initializer_list<T> init_list);
+
   explicit fixed_vector(const size_type count);
+
+  ~fixed_vector();
 
   /// @}
 
@@ -109,21 +117,45 @@ public:
   /// \name Iterators
   /// @{
 public:
-  iterator       begin() noexcept { return mem_at(0); }
+  iterator begin() noexcept { return mem_at(0); }
+
   const_iterator begin() const noexcept { return mem_at(0); }
+
   const_iterator cbegin() const noexcept { return mem_at(0); }
 
-  iterator       end() noexcept { return mem_at(size()); }
+  iterator end() noexcept { return mem_at(size()); }
+
   const_iterator end() const noexcept { return mem_at(size()); }
+
   const_iterator cend() const noexcept { return mem_at(size()); }
+
+  reverse_iterator rbegin() noexcept { return reverse_iterator{end()}; }
+
+  const_reverse_iterator rbegin() const noexcept {
+    return const_reverse_iterator{end()};
+  }
+  const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator{cend()};
+  }
+
+  reverse_iterator rend() noexcept { return reverse_iterator{begin()}; }
+
+  const_reverse_iterator rend() const noexcept {
+    return const_reverse_iterator{begin()};
+  }
+  const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator{cbegin()};
+  }
 
   /// @}
 
   /// \name Capacity
   /// @{
 public:
-  bool                empty() const noexcept { return size() == 0; }
-  size_type           size() const noexcept { return _m_count; }
+  bool empty() const noexcept { return size() == 0; }
+
+  size_type size() const noexcept { return _m_count; }
+
   constexpr size_type max_size() const noexcept { return MaxSize; }
 
   /// @}
@@ -132,16 +164,33 @@ public:
   /// @{
 public:
   iterator insert(const_iterator pos, const T& value);
+
   iterator insert(const_iterator pos, const T& value, size_t cnt);
+
   iterator insert(const_iterator pos, T&& value);
+
+  iterator insert(const_iterator pos, std::initializer_list<T> ilist);
+
+  template <typename InputIterator>
+  iterator insert(const_iterator pos, InputIterator first, InputIterator last);
+
   template <typename... Args>
   iterator emplace(const_iterator pos, Args&&... args);
 
+  template <typename... Args>
+  iterator emplace_back(Args&&... args);
+
   iterator erase(const_iterator pos);
+
   iterator erase(const_iterator first, const_iterator last);
 
   void push_back(const T& value);
+
   void push_back(T&& value);
+
+  void pop_back();
+
+  void clear();
 
   /// @}
 
@@ -166,9 +215,14 @@ private:
     src->~T();
   }
 
+  void shift_elements(iterator dst, iterator first, const_iterator last);
+
 private:
   alignas(T) uint8_t _m_storage[sizeof(T) * MaxSize];
   size_type _m_count{0};
+
+private:
+  XRAY_NO_COPY(fixed_vector);
 };
 
 template <typename T, size_t MaxSize>
@@ -179,6 +233,23 @@ fixed_vector<T, MaxSize>::fixed_vector(const size_type cnt, const T& value) {
 template <typename T, size_t MaxSize>
 fixed_vector<T, MaxSize>::fixed_vector(const size_type count) {
   insert(begin(), T{}, count);
+}
+
+template <typename T, size_t MaxSize>
+template <typename InputIterator>
+fixed_vector<T, MaxSize>::fixed_vector(InputIterator first,
+                                       InputIterator last) {
+  insert(begin(), first, last);
+}
+
+template <typename T, size_t MaxSize>
+fixed_vector<T, MaxSize>::fixed_vector(std::initializer_list<T> init_list) {
+  insert(begin(), std::move(init_list));
+}
+
+template <typename T, size_t MaxSize>
+fixed_vector<T, MaxSize>::~fixed_vector() {
+  clear();
 }
 
 template <typename T, size_t MaxSize>
@@ -194,13 +265,14 @@ fixed_vector<T, MaxSize>::insert(const_iterator pos, const T& value,
   assert(((cnt + size()) < max_size()) && "Capacity exceeded!");
   assert(cnt != 0);
 
-  auto last    = end() + cnt - 1;
-  auto old_end = end();
+  shift_elements(end() + cnt - 1, end() - 1, pos);
+  // auto last    = end() + cnt - 1;
+  // auto old_end = end();
 
-  while (old_end > pos) {
-    copy_move_cons(last--, --old_end,
-                   typename std::is_move_constructible<T>::type{});
-  }
+  // while (old_end > pos) {
+  //   copy_move_cons(last--, --old_end,
+  //                  typename std::is_move_constructible<T>::type{});
+  // }
 
   while (cnt) {
     new ((void*) pos) T{value};
@@ -215,18 +287,58 @@ fixed_vector<T, MaxSize>::insert(const_iterator pos, const T& value,
 template <typename T, size_t MaxSize>
 typename fixed_vector<T, MaxSize>::iterator
 fixed_vector<T, MaxSize>::insert(const_iterator pos, T&& value) {
-  assert(((1 + size()) < max_size()) && "Capacity exceeded!");
+  assert(((1 + size()) <= max_size()) && "Capacity exceeded!");
 
-  auto last    = end();
-  auto old_end = end();
+  shift_elements(end(), end() - 1, pos);
+  // auto last    = end();
+  // auto old_end = end();
 
-  while (old_end > pos) {
-    copy_move_cons(last--, --old_end,
-                   typename std::is_move_constructible<T>::type{});
-  }
+  // while (old_end > pos) {
+  //   copy_move_cons(last--, --old_end,
+  //                  typename std::is_move_constructible<T>::type{});
+  // }
 
   new ((void*) pos) T{std::move(value)};
   ++_m_count;
+
+  return begin() + (pos - begin());
+}
+
+template <typename T, size_t MaxSize>
+typename fixed_vector<T, MaxSize>::iterator
+fixed_vector<T, MaxSize>::insert(const_iterator pos,
+                                 std::initializer_list<T> ilist) {
+  return insert(pos, std::begin(ilist), std::end(ilist));
+}
+
+template <typename T, size_t MaxSize>
+template <typename InputIterator>
+typename fixed_vector<T, MaxSize>::iterator
+fixed_vector<T, MaxSize>::insert(const_iterator pos, InputIterator first,
+                                 InputIterator last) {
+  assert(((size() + (last - first)) <= max_size()) && "Capacity exceeded");
+  assert((first <= last) && "Invalid input range!");
+
+  if (first == last)
+    return begin() + (pos - begin());
+
+  // auto new_end = end() + (last - first) - 1;
+  // auto old_end = end();
+
+  // while (old_end > pos) {
+  //   copy_move_cons(new_end--, --old_end,
+  //                  typename std::is_move_constructible<T>::type{});
+  // }
+  shift_elements(end() + (last - first) - 1, end() - 1, pos);
+
+  auto cons_itr = begin() + (pos - begin());
+
+  while (first != last) {
+    new (cons_itr) T{*first};
+    ++cons_itr;
+    ++first;
+    ++_m_count;
+  }
 
   return begin() + (pos - begin());
 }
@@ -245,16 +357,17 @@ template <typename T, size_t MaxSize>
 template <typename... Args>
 typename fixed_vector<T, MaxSize>::iterator
 fixed_vector<T, MaxSize>::emplace(const_iterator pos, Args&&... args) {
-  assert(((1 + size()) < max_size()) && "Capacity exceeded!");
+  assert(((1 + size()) <= max_size()) && "Capacity exceeded!");
 
-  auto last    = end();
-  auto old_end = end();
+  // auto last    = end();
+  // auto old_end = end();
 
-  while (old_end > pos) {
-    copy_move_cons(last--, --old_end,
-                   typename std::is_move_constructible<T>::type{});
-  }
+  // while (old_end > pos) {
+  //   copy_move_cons(last--, --old_end,
+  //                  typename std::is_move_constructible<T>::type{});
+  // }
 
+  shift_elements(end(), end() - 1, pos);
   new ((void*) pos) T{std::forward<Args>(args)...};
   ++_m_count;
 
@@ -291,7 +404,6 @@ fixed_vector<T, MaxSize>::erase(const_iterator first, const_iterator last) {
   auto end_iter = end();
   auto dst_iter = begin() + (first - begin());
   auto src_iter = begin() + (last - begin());
-  auto ret_iter = src_iter;
 
   while (src_iter < end_iter) {
     copy_move_cons(dst_iter++, src_iter++,
@@ -299,8 +411,34 @@ fixed_vector<T, MaxSize>::erase(const_iterator first, const_iterator last) {
   }
 
   _m_count -= last - first;
+  return (first == end_iter) ? end() : (begin() + (first - begin()));
+}
 
-  return ret_iter;
+template <typename T, size_t MaxSize>
+void fixed_vector<T, MaxSize>::clear() {
+  erase(begin(), end());
+}
+
+template <typename T, size_t MaxSize>
+template <typename... Args>
+typename fixed_vector<T, MaxSize>::iterator
+fixed_vector<T, MaxSize>::emplace_back(Args&&... args) {
+  return emplace(end(), std::forward<Args>(args)...);
+}
+
+template <typename T, size_t MaxSize>
+void fixed_vector<T, MaxSize>::pop_back() {
+  assert(!empty() && "Popback requires non empty container !!!");
+  erase(begin() + size() - 1, end());
+}
+
+template <typename T, size_t MaxSize>
+void fixed_vector<T, MaxSize>::shift_elements(iterator dst, iterator first,
+                                              const_iterator last) {
+  while (first >= last) {
+    copy_move_cons(dst--, first--,
+                   typename std::is_move_constructible<T>::type{});
+  }
 }
 
 } // namespace base

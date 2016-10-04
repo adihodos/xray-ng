@@ -4,7 +4,8 @@ set(proj_inc_dir "${CMAKE_SOURCE_DIR}/src/samples/test_app")
 set(proj_src_dir "${CMAKE_SOURCE_DIR}/src/samples/test_app")
 
 set(project_sources
-    ${proj_src_dir}/main.cc
+    ${proj_src_dir}/tests.cc
+    ${proj_src_dir}/catch_main.cc
     )
 
 # if (WIN32)
