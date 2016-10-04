@@ -57,6 +57,7 @@ enum class config_entry_type {
   array,
   string,
   floating_point,
+  boolean,
   list
 };
 
@@ -105,6 +106,10 @@ libconfig_type_to_entry_type(config_setting_t* s) noexcept {
 
   case CONFIG_TYPE_FLOAT:
     return config_entry_type::floating_point;
+    break;
+
+  case CONFIG_TYPE_BOOL:
+    return config_entry_type::boolean;
     break;
 
   case CONFIG_TYPE_LIST:
@@ -440,6 +445,12 @@ public:
     return static_cast<int64_t>(config_setting_get_int64(setting_));
   }
 
+  bool as_bool() const noexcept {
+    assert(valid());
+    assert(type_ == config_entry_type::boolean);
+    return config_setting_get_bool(setting_) != 0;
+  }
+
   const char* as_string() const noexcept {
     assert(valid());
     assert(type_ == config_entry_type::string);
@@ -483,6 +494,13 @@ public:
     assert(type_ == config_entry_type::array);
 
     return config_setting_get_string_elem(setting_, static_cast<int32_t>(idx));
+  }
+
+  bool bool_at(const uint32_t idx) const noexcept {
+    assert(valid());
+    assert(type_ == config_entry_type::array);
+
+    return config_setting_get_bool_elem(setting_, static_cast<int32_t>(idx));
   }
 
   config_entry lookup(const char* path) const noexcept {

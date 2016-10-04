@@ -31,47 +31,48 @@
 //
 //  All code in this file was automatically generated, DO NOT EDIT !!!
 
-#include <cstdint>
 #include <cassert>
+#include <cstdint>
 #include <iterator>
-{type_traits_hdr}
 
-{nsbegin}
+namespace app {
 
-struct {enum_name} {
-  {enum_name}() = delete;
-  ~{enum_name}() = delete;
+struct mtl_component_type {
+  mtl_component_type()  = delete;
+  ~mtl_component_type() = delete;
 
-  enum class e {enum_underlying_type_spec} {{enum_members_and_values}};
+  enum class e : uint8_t { emissive, ambient, diffuse, specular };
 
-  using underlying_type = {enum_underlying_type};
+  using underlying_type = uint8_t;
 
-  static const char *to_string(const {enum_name}::e member);
+  static const char* to_string(const mtl_component_type::e member);
+  static const char* name(const mtl_component_type::e member);
 
-  static underlying_type to_integer(const {enum_name}::e member) {
+  static underlying_type to_integer(const mtl_component_type::e member) {
     return static_cast<underlying_type>(member);
   }
 
-  static {enum_name}::e from_integer(const underlying_type ival) {
-    return static_cast<{enum_name}::e>(ival);
+  static mtl_component_type::e from_integer(const underlying_type ival) {
+    return static_cast<mtl_component_type::e>(ival);
   }
 
-  using const_iterator = const e*;
+  using const_iterator         = const e*;
   using reverse_const_iterator = std::reverse_iterator<const_iterator>;
 
-  static constexpr size_t size = {enum_length}u;
-  static const_iterator cbegin() noexcept { return &_member_entries[0]; }
-  static const_iterator cend() noexcept { return &_member_entries[{enum_length}]; }
-  static reverse_const_iterator crbegin() noexcept { return reverse_const_iterator(cend());}
-  static reverse_const_iterator crend() noexcept { return reverse_const_iterator(cbegin());}
-  static bool is_defined(const {enum_name}::e val);
+  static constexpr size_t size = 4u;
+  static const_iterator   cbegin() noexcept { return &_member_entries[0]; }
+  static const_iterator   cend() noexcept { return &_member_entries[4]; }
+  static reverse_const_iterator crbegin() noexcept {
+    return reverse_const_iterator(cend());
+  }
+  static reverse_const_iterator crend() noexcept {
+    return reverse_const_iterator(cbegin());
+  }
+  static bool is_defined(const mtl_component_type::e val);
 
 private:
-  static constexpr e _member_entries[] = {{enum_members}};
+  static constexpr e _member_entries[] = {e::emissive, e::ambient, e::diffuse,
+                                          e::specular};
 };
 
-{bitwise_and}
-
-{bitwise_or}
-
-{nsend}
+} // end ns

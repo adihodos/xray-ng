@@ -1,0 +1,8 @@
+
+enum_def : {
+  namespace = "namespace app {";
+  name = "mtl_component_type";
+  #is_bitfield = TRUE;
+  underlying_type = "uint8_t";
+  members = ["emissive", "ambient", "diffuse", "specular"];
+};

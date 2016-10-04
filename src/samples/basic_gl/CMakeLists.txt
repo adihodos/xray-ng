@@ -25,6 +25,8 @@ set(project_sources
     ${proj_src_dir}/main.cc
     ${proj_inc_dir}/material.hpp
     ${proj_src_dir}/material.cc
+    ${proj_inc_dir}/mtl_component_type.hpp
+    ${proj_src_dir}/mtl_component_type.cc
     ${proj_inc_dir}/resize_context.hpp
     ${proj_inc_dir}/std_assets.hpp
     ${proj_inc_dir}/cap3/soubroutines/soubroutines_demo.hpp

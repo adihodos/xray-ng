@@ -1,12 +1,15 @@
 #include "cap6/edge_detect/edge_detect_demo.hpp"
 #include "helpers.hpp"
 #include "init_context.hpp"
+#include "mtl_component_type.hpp"
 #include "resize_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
 #include "xray/base/containers/fixed_stack.hpp"
+#include "xray/base/containers/fixed_vector.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/enum_cast.hpp"
+#include "xray/base/fast_delegate.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/pod_zero.hpp"
@@ -52,61 +55,7 @@ using namespace xray::math;
 using namespace xray::rendering;
 using namespace xray::scene;
 using namespace std;
-
-// template <typename T, size_t C = 4>
-// class fixed_stack {
-// public:
-//   fixed_stack() = default;
-//   ~fixed_stack() noexcept { clear(); }
-
-//   bool empty() const noexcept { return size() == 0; }
-
-//   T& top() noexcept {
-//     assert(!empty());
-//     return *(reinterpret_cast<T*>(&_store[0]) + (size() - 1));
-//   }
-
-//   const T& top() const noexcept {
-//     assert(!empty());
-//     return *(reinterpret_cast<const T*>(&_store[0]) + (size() - 1));
-//   }
-
-//   size_t size() const noexcept { return _itemcnt; }
-
-//   void push(const T& value) {
-//     assert(size() < C);
-//     new (&_store[0] + sizeof(T) * size()) T{value};
-//     ++_itemcnt;
-//   }
-
-//   void push(T&& value) {
-//     assert(size() < C);
-//     new (&_store[0] + sizeof(T) * size()) T{std::move(value)};
-//     ++_itemcnt;
-//   }
-
-//   template <typename... Args>
-//   void emplace(Args&&... args) {
-//     assert(size() < C);
-//     new (&_store[0] + sizeof(T) * size()) T{std::forward<Args>(args)...};
-//     ++_itemcnt;
-//   }
-
-//   void pop() noexcept {
-//     assert(size() >= 1);
-//     reinterpret_cast<T*>(&_store[0] + sizeof(T) * (size() - 1))->~T();
-//     --_itemcnt;
-//   }
-
-//   void clear() noexcept {
-//     while (!empty())
-//       pop();
-//   }
-
-// private:
-//   alignas(T) uint8_t _store[sizeof(T) * C];
-//   size_t _itemcnt{};
-// };
+using namespace app;
 
 struct mtl_file_desc {
   const char* path;
@@ -131,11 +80,11 @@ private:
 };
 
 enum class mtl_entry_type { tex, color };
-enum class mtl_component_type { emissive, ambient, diffuse, specular };
+// enum class mtl_component_type { emissive, ambient, diffuse, specular };
 
 struct mtl_desc_entry {
-  mtl_component_type component_type;
-  mtl_entry_type     source_type;
+  mtl_component_type::e component_type;
+  mtl_entry_type        source_type;
 
   union {
     mtl_file_desc  file;
@@ -144,58 +93,15 @@ struct mtl_desc_entry {
 
   mtl_desc_entry() = default;
 
-  mtl_desc_entry(const mtl_component_type comp_type, const mtl_file_desc& fd)
+  mtl_desc_entry(const mtl_component_type::e comp_type, const mtl_file_desc& fd)
       : component_type{comp_type}, source_type{mtl_entry_type::tex}, file{fd} {}
 
-  mtl_desc_entry(const mtl_component_type comp_type, const mtl_color_desc& clr_)
+  mtl_desc_entry(const mtl_component_type::e comp_type,
+                 const mtl_color_desc&       clr_)
       : component_type{comp_type}
       , source_type{mtl_entry_type::color}
       , clr{clr_} {}
 };
-
-// struct mtl_load_info {
-// public:
-//  enum { emissive, ambient, diffuse, specular };
-
-//  mtl_load_info() = default;
-//  explicit mtl_load_info(const char* name) : _mtl_id{name} {}
-
-//  mtl_load_info& set_component(const mtl_component_type comp,
-//                               const mtl_file_desc&     file_desc);
-
-//  mtl_load_info& set_component(const mtl_component_type comp,
-//                               const mtl_color_desc&    color_desc);
-
-//  mtl_load_info& set_component(const mtl_desc_entry& entry_desc);
-
-//  //  mtl_load_info& clear_component(const mtl_component_type comp);
-
-//  //  bool has_component(const mtl_component_type type) const noexcept {
-//  //    return _used_entries & (1 << enum_helper::to_underlying_type(type));
-//  //  }
-
-// private:
-//  std::string                 _mtl_id;
-//  std::vector<mtl_desc_entry> _entries;
-//  //  uint8_t _used_entries{0};
-//};
-
-// mtl_load_info& mtl_load_info::set_component(const mtl_component_type comp,
-//                                            const mtl_file_desc& file_desc) {
-//  return set_component({comp, file_desc});
-//}
-
-// mtl_load_info& mtl_load_info::set_component(const mtl_component_type comp,
-//                                            const mtl_color_desc& color_desc)
-//                                            {
-//  return set_component({comp, color_desc});
-//}
-
-// mtl_load_info& mtl_load_info::set_component(const mtl_desc_entry& entry_desc)
-// {
-//  _entries.push_back(entry_desc);
-//  return *this;
-//}
 
 class scene_loader {
 public:
@@ -206,8 +112,9 @@ public:
 
   xray::rendering::gpu_program_builder load_program_description(const char* id);
 
-  bool load_material_description(const char*                  id,
-                                 std::vector<mtl_desc_entry>& desc);
+  void load_material_description(
+      const char* id, xray::base::fast_delegate<void(const mtl_desc_entry&)>
+                          mtl_entry_parsed_event);
 
 private:
   void read_program_entry(const char*                           id,
@@ -321,8 +228,59 @@ void scene_loader::read_program_entry(
   }
 }
 
-bool scene_loader::load_material_description(
-    const char* id, std::vector<mtl_desc_entry>& desc) {}
+void scene_loader::load_material_description(
+    const char* id, xray::base::fast_delegate<void(const mtl_desc_entry&)>
+                        mtl_entry_parsed_event) {
+  assert(_mtl_sec && "No material section defined in config file!");
+  assert(mtl_entry_parsed_event && "Invalid parse event delegate!");
+  assert(id != nullptr);
+
+  const auto msec = _mtl_sec.lookup(id);
+  if (!msec) {
+    XR_LOG_CRITICAL("Material {} not defined!", id);
+    XR_NOT_REACHED();
+  }
+
+  using namespace std;
+
+  for_each(mtl_component_type::cbegin(), mtl_component_type::cend(),
+           [&msec, id,
+            mtl_entry_parsed_event](const mtl_component_type::e mtl_type) {
+
+             const auto def_sec =
+                 msec.lookup(mtl_component_type::name(mtl_type));
+
+             if (!def_sec) {
+               if (mtl_type == mtl_component_type::e::diffuse) {
+                 XR_LOG_CRITICAL("Missing diffuse entry is mandatory for "
+                                 "material {} definition!",
+                                 id);
+                 XR_NOT_REACHED();
+               }
+
+               return;
+             }
+
+             if (def_sec.is_array()) {
+               const auto color = [&def_sec]() {
+                 assert(def_sec.length() == 3);
+                 return rgb_color{def_sec.float_at(0) / 255.0f,
+                                  def_sec.float_at(1) / 255.0f,
+                                  def_sec.float_at(2) / 255.0f};
+               }();
+
+               mtl_entry_parsed_event(
+                   mtl_desc_entry{mtl_type, mtl_color_desc{color}});
+               return;
+             }
+
+             const auto fn = def_sec.lookup("file");
+             const auto fy = def_sec.lookup("flip_y");
+
+             mtl_entry_parsed_event(mtl_desc_entry{
+                 mtl_type, mtl_file_desc{fn.as_string(), fy.as_bool()}});
+           });
+}
 
 app::edge_detect_demo::edge_detect_demo(const init_context_t& init_ctx) {
   init(init_ctx);
@@ -533,20 +491,45 @@ void app::edge_detect_demo::create_framebuffer(const GLsizei r_width,
 void test_shit() {
   constexpr auto cfg_file = "config/cap6/edge_detect/app.new.conf";
   scene_loader   sldr{cfg_file};
-  const auto     prg_desc = sldr.load_program_description("vs_phong");
-  if (!prg_desc) {
-    XR_LOG_ERR("Failed to load program description!");
-    XR_NOT_REACHED();
+
+  {
+    const auto prg_desc = sldr.load_program_description("vs_phong");
+    if (!prg_desc) {
+      XR_LOG_ERR("Failed to load program description!");
+      XR_NOT_REACHED();
+    }
+
+    auto vs = prg_desc.build<graphics_pipeline_stage::vertex>();
+    if (vs) {
+      XR_LOG_INFO("Uraaa, Stalin, Stalin !!!");
+    }
   }
 
-  auto vs = prg_desc.build<graphics_pipeline_stage::vertex>();
-  if (vs) {
-    XR_LOG_INFO("Uraaa, Stalin, Stalin !!!");
+  {
+    struct tmp_cls {
+      void on_mtl_load(const mtl_desc_entry& e) {
+        material_definitions.push_back(e);
+      }
+
+      fixed_vector<mtl_desc_entry, 8u> material_definitions;
+    } tmp_obj;
+
+    sldr.load_material_description(
+        "p38", make_delegate(tmp_obj, &tmp_cls::on_mtl_load));
+    sldr.load_material_description(
+        "copper", make_delegate(tmp_obj, &tmp_cls::on_mtl_load));
+
+    for_each(begin(tmp_obj.material_definitions),
+             end(tmp_obj.material_definitions), [](const auto& mdef) {
+               XR_LOG_INFO("Material {}",
+                           mtl_component_type::to_string(mdef.component_type));
+             });
   }
 }
 
 void app::edge_detect_demo::init(const init_context_t& ini_ctx) {
   test_shit();
+
   const auto render_wnd_width  = static_cast<GLsizei>(ini_ctx.surface_width);
   const auto render_wnd_height = static_cast<GLsizei>(ini_ctx.surface_height);
 

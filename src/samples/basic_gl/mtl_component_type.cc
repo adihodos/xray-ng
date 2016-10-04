@@ -26,52 +26,67 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
 //
 //  All code in this file was automatically generated, DO NOT EDIT !!!
 
-#include <cstdint>
-#include <cassert>
-#include <iterator>
-{type_traits_hdr}
+#include "mtl_component_type.hpp"
+#include "xray/xray.hpp"
+#include <algorithm>
 
-{nsbegin}
+namespace app {
 
-struct {enum_name} {
-  {enum_name}() = delete;
-  ~{enum_name}() = delete;
+constexpr mtl_component_type::e mtl_component_type::_member_entries[];
 
-  enum class e {enum_underlying_type_spec} {{enum_members_and_values}};
+const char* mtl_component_type::to_string(const mtl_component_type::e member) {
+  switch (member) {
+  case mtl_component_type::e::emissive:
+    return "mtl_component_type::e::emissive";
+    break;
+  case mtl_component_type::e::ambient:
+    return "mtl_component_type::e::ambient";
+    break;
+  case mtl_component_type::e::diffuse:
+    return "mtl_component_type::e::diffuse";
+    break;
+  case mtl_component_type::e::specular:
+    return "mtl_component_type::e::specular";
+    break;
 
-  using underlying_type = {enum_underlying_type};
-
-  static const char *to_string(const {enum_name}::e member);
-
-  static underlying_type to_integer(const {enum_name}::e member) {
-    return static_cast<underlying_type>(member);
+  default:
+    assert(false && "Unknown enum member!");
+    break;
   }
 
-  static {enum_name}::e from_integer(const underlying_type ival) {
-    return static_cast<{enum_name}::e>(ival);
+  return "error/unknown";
+}
+
+const char* mtl_component_type::name(const mtl_component_type::e member) {
+  switch (member) {
+  case mtl_component_type::e::emissive:
+    return "emissive";
+    break;
+  case mtl_component_type::e::ambient:
+    return "ambient";
+    break;
+  case mtl_component_type::e::diffuse:
+    return "diffuse";
+    break;
+  case mtl_component_type::e::specular:
+    return "specular";
+    break;
+
+  default:
+    assert(false && "Unknown enum member!");
+    break;
   }
 
-  using const_iterator = const e*;
-  using reverse_const_iterator = std::reverse_iterator<const_iterator>;
+  return "error/unknown";
+}
 
-  static constexpr size_t size = {enum_length}u;
-  static const_iterator cbegin() noexcept { return &_member_entries[0]; }
-  static const_iterator cend() noexcept { return &_member_entries[{enum_length}]; }
-  static reverse_const_iterator crbegin() noexcept { return reverse_const_iterator(cend());}
-  static reverse_const_iterator crend() noexcept { return reverse_const_iterator(cbegin());}
-  static bool is_defined(const {enum_name}::e val);
+bool mtl_component_type::is_defined(const mtl_component_type::e val) {
+  using namespace std;
+  return find(mtl_component_type::cbegin(), mtl_component_type::cend(), val) !=
+         mtl_component_type::cend();
+}
 
-private:
-  static constexpr e _member_entries[] = {{enum_members}};
-};
-
-{bitwise_and}
-
-{bitwise_or}
-
-{nsend}
+} // end ns
