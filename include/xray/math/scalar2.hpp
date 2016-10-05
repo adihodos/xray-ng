@@ -88,23 +88,23 @@ struct scalar2 {
 
 template <typename T>
 struct scalar2<T>::stdc {
-  static constexpr scalar2<T> unit_x{T(1.0), T(0.0)};
-  static constexpr scalar2<T> unit_y{T(0.0), T(1.0)};
-  static constexpr scalar2<T> zero{T(0.0), T(0.0)};
-  static constexpr scalar2<T> one{T(1), T(1)};
+  static constexpr const scalar2<T> unit_x{T(1.0), T(0.0)};
+  static constexpr const scalar2<T> unit_y{T(0.0), T(1.0)};
+  static constexpr const scalar2<T> zero{T(0.0), T(0.0)};
+  static constexpr const scalar2<T> one{T(1), T(1)};
 };
 
 template <typename T>
-constexpr scalar2<T> scalar2<T>::stdc::unit_x;
+constexpr const scalar2<T> scalar2<T>::stdc::unit_x;
 
 template <typename T>
-constexpr scalar2<T> scalar2<T>::stdc::unit_y;
+constexpr const scalar2<T> scalar2<T>::stdc::unit_y;
 
 template <typename T>
-constexpr scalar2<T> scalar2<T>::stdc::zero;
+constexpr const scalar2<T> scalar2<T>::stdc::zero;
 
 template <typename T>
-constexpr scalar2<T> scalar2<T>::stdc::one;
+constexpr const scalar2<T> scalar2<T>::stdc::one;
 
 using float2     = scalar2<scalar_lowp>;
 using double2    = scalar2<scalar_mediump>;

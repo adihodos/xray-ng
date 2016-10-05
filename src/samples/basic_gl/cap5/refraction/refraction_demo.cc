@@ -2,6 +2,7 @@
 #include "helpers.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/shims/attribute/basic_path.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar3x3_math.hpp"
@@ -35,9 +36,6 @@ app::refraction_demo::~refraction_demo() {}
 void app::refraction_demo::compose_ui() {
   ImGui::Begin("Surface parameters", nullptr,
                ImGuiWindowFlags_AlwaysAutoResize);
-  //  ImGui::SetNextWindowPos(ImVec2{0.0f, 400.0f}, ImGuiSetCond_FirstUseEver);
-  //  ImGui::SetNextWindowSize(ImVec2{500.0f, 250.0f},
-  //  ImGuiSetCond_FirstUseEver);
 
   {
     const bool val_changed =
@@ -221,7 +219,8 @@ void app::refraction_demo::init() {
 
     _spacecraft = simple_mesh{vertex_format::pn,
                               //            mesh
-                              xr_app_config->model_path(MODEL_FILE)};
+                              c_str_ptr(xr_app_config->model_path(MODEL_FILE))};
+
     if (!_spacecraft) {
       XR_LOG_ERR("Failed to import model!");
       return;
@@ -247,8 +246,10 @@ void app::refraction_demo::init() {
     gl::TextureStorage2D(texh, 1, gl::RGB8, 1024, 1024);
 
     for (const auto& face : cube_faces) {
-      texture_loader tex_ldr{xr_app_config->texture_path(face.file_name),
-                             texture_load_options::none};
+      texture_loader tex_ldr{
+          c_str_ptr(xr_app_config->texture_path(face.file_name)),
+          texture_load_options::none};
+
       if (!tex_ldr) {
         XR_LOG_ERR("Failed to load texture {}", face.file_name);
         return GLuint{};

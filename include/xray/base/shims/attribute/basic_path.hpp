@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013, 2014, 2015, 2016 Adrian Hodos
+// Copyright (c) 2011, 2012, 2013 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,44 +26,27 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-//
-//  All code in this file was automatically generated, DO NOT EDIT !!!
+#pragma once
+
+/// \file   config_settings.hpp  Classes for reading and writing structured
+///                     configuration files.
 
 #include "xray/xray.hpp"
-#include <algorithm>
-#include "{enum_file_hpp}"
+#include <platformstl/filesystem/path.hpp>
 
-{nsbegin}
+namespace xray {
+namespace base {
 
-constexpr const {enum_name}::e {enum_name}::_member_entries[];
+/// \addtogroup __GroupXrayBase
+/// @{
 
-const char *{enum_name}::qualified_name(const {enum_name}::e member) noexcept {
-  switch (member) {
-    {qualified_name_code}
-
-    default :
-      assert(false && "Unknown enum member!");
-    break;
-  }
-
-  return "unknown enum member";
+template <typename C>
+inline typename const platformstl::basic_path<C>::char_type*
+c_str_ptr(const platformstl::basic_path<C>& path) noexcept {
+  return path.c_str();
 }
 
-const char* {enum_name}::name(const {enum_name}::e member) noexcept {
-    switch (member) {
-        {unqualified_name_code}
+/// @}
 
-    default :
-        assert(false && "Unknown enum member");
-        break;
-    }
-
-    return "unknown enum member";
-}
-
-bool {enum_name}::is_defined(const {enum_name}::e val) noexcept {
-  using namespace std;
-  return find({enum_name}::cbegin(), {enum_name}::cend(), val) != {enum_name}::cend();
-}
-
-{nsend}
+} // namespace base
+} // namespace xray

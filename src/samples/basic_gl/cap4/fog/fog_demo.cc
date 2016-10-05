@@ -55,13 +55,14 @@ void app::fog_demo::draw(const xray::rendering::draw_context_t& dc) {
                                     "fog_type",
                                     FOG_IMPLEMENTATIONS[_linear_fog]);
 
-  for (const auto& mesh : _meshes) {
+  struct matrix_pack_t {
+    float4x4 world_view;
+    float4x4 normal_view;
+    float4x4 world_view_proj;
+  };
 
-    struct {
-      float4x4 world_view;
-      float4x4 normal_view;
-      float4x4 world_view_proj;
-    } const obj_matrix_pack{
+  for (const auto& mesh : _meshes) {
+    matrix_pack_t obj_matrix_pack{
         dc.view_matrix * R4::translate(mesh.translation),
         dc.view_matrix * R4::translate(mesh.translation),
         dc.proj_view_matrix * R4::translate(mesh.translation),

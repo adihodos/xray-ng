@@ -39,20 +39,28 @@
 {nsbegin}
 
 struct {enum_name} {
+private :
   {enum_name}() = delete;
   ~{enum_name}() = delete;
+
+public :  
 
   enum class e {enum_underlying_type_spec} {{enum_members_and_values}};
 
   using underlying_type = {enum_underlying_type};
 
-  static const char *to_string(const {enum_name}::e member);
+  static const char *qualified_name(const {enum_name}::e member) noexcept;
+  static const char* name(const {enum_name}::e member) noexcept;
 
-  static underlying_type to_integer(const {enum_name}::e member) {
+  static const char* class_name() noexcept {
+    return "{enum_name}::e";
+  }
+
+  static underlying_type to_integer(const {enum_name}::e member) noexcept {
     return static_cast<underlying_type>(member);
   }
 
-  static {enum_name}::e from_integer(const underlying_type ival) {
+  static {enum_name}::e from_integer(const underlying_type ival) noexcept {
     return static_cast<{enum_name}::e>(ival);
   }
 
@@ -64,10 +72,10 @@ struct {enum_name} {
   static const_iterator cend() noexcept { return &_member_entries[{enum_length}]; }
   static reverse_const_iterator crbegin() noexcept { return reverse_const_iterator(cend());}
   static reverse_const_iterator crend() noexcept { return reverse_const_iterator(cbegin());}
-  static bool is_defined(const {enum_name}::e val);
+  static bool is_defined(const {enum_name}::e val) noexcept;
 
 private:
-  static constexpr e _member_entries[] = {{enum_members}};
+  static constexpr const e _member_entries[] = {{enum_members}};
 };
 
 {bitwise_and}

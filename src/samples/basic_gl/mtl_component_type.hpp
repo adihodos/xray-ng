@@ -38,21 +38,28 @@
 namespace app {
 
 struct mtl_component_type {
+private:
   mtl_component_type()  = delete;
   ~mtl_component_type() = delete;
 
+public:
   enum class e : uint8_t { emissive, ambient, diffuse, specular };
 
   using underlying_type = uint8_t;
 
-  static const char* to_string(const mtl_component_type::e member);
-  static const char* name(const mtl_component_type::e member);
+  static const char*
+  qualified_name(const mtl_component_type::e member) noexcept;
+  static const char* name(const mtl_component_type::e member) noexcept;
 
-  static underlying_type to_integer(const mtl_component_type::e member) {
+  static const char* class_name() noexcept { return "mtl_component_type::e"; }
+
+  static underlying_type
+  to_integer(const mtl_component_type::e member) noexcept {
     return static_cast<underlying_type>(member);
   }
 
-  static mtl_component_type::e from_integer(const underlying_type ival) {
+  static mtl_component_type::e
+  from_integer(const underlying_type ival) noexcept {
     return static_cast<mtl_component_type::e>(ival);
   }
 
@@ -68,11 +75,11 @@ struct mtl_component_type {
   static reverse_const_iterator crend() noexcept {
     return reverse_const_iterator(cbegin());
   }
-  static bool is_defined(const mtl_component_type::e val);
+  static bool is_defined(const mtl_component_type::e val) noexcept;
 
 private:
-  static constexpr e _member_entries[] = {e::emissive, e::ambient, e::diffuse,
-                                          e::specular};
+  static constexpr const e _member_entries[] = {e::emissive, e::ambient,
+                                                e::diffuse, e::specular};
 };
 
 } // end ns

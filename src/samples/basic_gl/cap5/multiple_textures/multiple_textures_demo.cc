@@ -3,6 +3,7 @@
 #include "std_assets.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/shims/attribute/basic_path.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar3x3_math.hpp"
@@ -149,7 +150,9 @@ void app::multiple_textures_demo::init() {
   ();
 
   _base_tex = []() {
-    texture_loader tex_ldr{xr_app_config->texture_path("brick1.jpg")};
+    texture_loader tex_ldr{
+        c_str_ptr(xr_app_config->texture_path("brick1.jpg"))};
+
     if (!tex_ldr)
       return GLuint{};
 
@@ -162,7 +165,8 @@ void app::multiple_textures_demo::init() {
   }();
 
   _overlay_tex = []() {
-    texture_loader tex_ldr{xr_app_config->texture_path("moss.png")};
+    texture_loader tex_ldr{c_str_ptr(xr_app_config->texture_path("moss.png"))};
+
     if (!tex_ldr)
       return GLuint{};
 

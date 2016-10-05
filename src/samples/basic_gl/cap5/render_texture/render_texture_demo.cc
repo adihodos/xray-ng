@@ -4,6 +4,7 @@
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/shims/attribute/basic_path.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar3_math.hpp"
@@ -309,8 +310,8 @@ void app::render_texture_demo::init() {
   {
     const char* mdl_file{nullptr};
     demo_cfg.lookup_value("app.params.model", mdl_file);
-    _spacecraft_mesh =
-        simple_mesh{vertex_format::pnt, xr_app_config->model_path(mdl_file)};
+    _spacecraft_mesh = simple_mesh{
+        vertex_format::pnt, c_str_ptr(xr_app_config->model_path(mdl_file))};
 
     if (!_spacecraft_mesh) {
       XR_LOG_ERR("Failed to import model {}", mdl_file);
@@ -374,8 +375,9 @@ void app::render_texture_demo::init() {
       return GLuint{};
     }
 
-    texture_loader tex_ldr{xr_app_config->texture_path(material),
+    texture_loader tex_ldr{c_str_ptr(xr_app_config->texture_path(material)),
                            texture_load_options::flip_y};
+
     if (!tex_ldr) {
       XR_LOG_ERR("Failed to load material !");
       return GLuint{};

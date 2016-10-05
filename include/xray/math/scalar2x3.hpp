@@ -96,17 +96,18 @@ public:
 template <typename T>
 struct scalar2x3<T>::stdc {
   ///< Null 2x3 matrix.
-  static constexpr scalar2x3<T> null{T(0), T(0), T(0), T(0), T(0), T(0)};
+  static constexpr const scalar2x3<T> null{T(0), T(0), T(0), T(0), T(0), T(0)};
 
   ///< Identity 2x3 matrix.
-  static constexpr scalar2x3<T> identity{T(1), T(0), T(0), T(0), T(1), T(0)};
+  static constexpr const scalar2x3<T> identity{T(1), T(0), T(0),
+                                               T(0), T(1), T(0)};
 };
 
 template <typename T>
-constexpr scalar2x3<T> scalar2x3<T>::stdc::null;
+constexpr const scalar2x3<T> scalar2x3<T>::stdc::null;
 
 template <typename T>
-constexpr scalar2x3<T> scalar2x3<T>::stdc::identity;
+constexpr const scalar2x3<T> scalar2x3<T>::stdc::identity;
 
 using float2x3  = scalar2x3<scalar_lowp>;
 using double2x3 = scalar2x3<scalar_mediump>;
@@ -116,7 +117,6 @@ constexpr scalar2x3<T>::scalar2x3(const T e00, const T e01, const T e02,
                                   const T e10, const T e11,
                                   const T e12) noexcept
     : a00{e00}, a01{e01}, a02{e02}, a10{e10}, a11{e11}, a12{e12} {}
-
 
 ///  @}
 

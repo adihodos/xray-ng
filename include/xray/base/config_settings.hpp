@@ -500,7 +500,8 @@ public:
     assert(valid());
     assert(type_ == config_entry_type::array);
 
-    return config_setting_get_bool_elem(setting_, static_cast<int32_t>(idx));
+    return config_setting_get_bool_elem(setting_, static_cast<int32_t>(idx)) !=
+           0;
   }
 
   config_entry lookup(const char* path) const noexcept {

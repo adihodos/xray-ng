@@ -29,8 +29,8 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#include <cassert>
 #include <platformstl/filesystem/path.hpp>
-#include <string>
 
 namespace xray {
 namespace base {
@@ -42,56 +42,38 @@ namespace base {
 ///  \brief  Simple path management.
 class app_config {
 public:
+  using path_type = platformstl::path_a;
+
   explicit app_config(const char* cfg_path);
 
-  const char* root_directory() const noexcept {
-    return paths_.root_path.c_str();
+  const path_type& root_directory() const noexcept { return paths_.root_path; }
+
+  path_type model_path(const char* name) const {
+    return make_path(paths_.model_path, name);
   }
 
-  std::string model_path(const char* name) const {
-    platformstl::path_a path{paths_.model_path};
-    path.push(name);
-
-    return path.c_str();
+  path_type shader_path(const char* name) const {
+    return make_path(paths_.shader_path, name);
   }
 
-  std::string shader_path(const char* name) const {
-    platformstl::path_a path{paths_.shader_path};
-    path.push(name);
-
-    return path.c_str();
+  path_type texture_path(const char* name) const {
+    return make_path(paths_.texture_path, name);
   }
 
-  std::string texture_path(const char* name) const {
-    platformstl::path_a path{paths_.texture_path};
-    path.push(name);
-
-    return path.c_str();
+  path_type shader_config_path(const char* name) const {
+    return make_path(paths_.shader_cfg_path, name);
   }
 
-  std::string shader_config_path(const char* name) const {
-    platformstl::path_a path{paths_.shader_cfg_path};
-    path.push(name);
-
-    return path.c_str();
+  path_type camera_config_path(const char* name) const {
+    return make_path(paths_.camera_cfg_path, name);
   }
 
-  std::string camera_config_path(const char* name) const {
-    platformstl::path_a path{paths_.camera_cfg_path};
-    path.push(name);
-
-    return path.c_str();
+  path_type objects_config_path(const char* name) const {
+    return make_path(paths_.objects_cfg_path, name);
   }
 
-  std::string objects_config_path(const char* name) const {
-    platformstl::path_a path{paths_.objects_cfg_path};
-    path.push(name);
-
-    return path.c_str();
-  }
-
-  const char* engine_config_path() const {
-    return paths_.engine_ini_file.c_str();
+  const path_type& engine_config_path() const noexcept {
+    return paths_.engine_ini_file;
   }
 
   static app_config* instance() noexcept { return _unique_instance; }
@@ -109,6 +91,20 @@ private:
     platformstl::path_a objects_cfg_path;
     platformstl::path_a engine_ini_file;
   } paths_;
+
+  static path_type make_path(const path_type& prefix, const char* path) {
+    assert(path != nullptr);
+
+    path_type suffix{path};
+    path_type result{prefix};
+
+    if (!result.has_sep() && !suffix.has_sep()) {
+      result.push_sep();
+    }
+
+    result.push(suffix);
+    return result;
+  }
 
 private:
   app_config() = default;

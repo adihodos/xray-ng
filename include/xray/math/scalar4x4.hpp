@@ -94,13 +94,38 @@ public:
   };
 
   /// Default constructor. Leaves elements uninitialized.
-  scalar4x4() = default;
+  scalar4x4() noexcept = default;
 
-  constexpr scalar4x4(const T a11, const T a12, const T a13, const T a14,
-                      const T a21, const T a22, const T a23, const T a24,
-                      const T a31, const T a32, const T a33, const T a34,
-                      const T a41, const T a42, const T a43,
-                      const T a44) noexcept;
+  constexpr scalar4x4(const T a00_, const T a01_, const T a02_, const T a03_,
+
+                      const T a10_, const T a11_, const T a12_, const T a13_,
+
+                      const T a20_, const T a21_, const T a22_, const T a23_,
+
+                      const T a30_, const T a31_, const T a32_, const T a33_)
+
+      noexcept
+      : a00{a00_}
+      , a01{a01_}
+      , a02{a02_}
+      , a03{a03_}
+
+      , a10{a10_}
+      , a11{a11_}
+      , a12{a12_}
+      , a13{a13_}
+
+      , a20{a20_}
+      , a21{a21_}
+      , a22{a22_}
+      , a23{a23_}
+
+      , a30{a30_}
+      , a31{a31_}
+      , a32{a32_}
+      , a33{a33_}
+
+  {}
 
   /// Constructs from an array of values.
   scalar4x4(const T* input, const size_t count) noexcept;
@@ -162,48 +187,32 @@ public:
 template <typename T>
 struct scalar4x4<T>::stdc {
   /// \brief      Null 4x4 matrix.
-  static constexpr scalar4x4<T> null{T(0), T(0), T(0), T(0), T(0), T(0),
-                                     T(0), T(0), T(0), T(0), T(0), T(0),
-                                     T(0), T(0), T(0), T(0)};
+  static constexpr const scalar4x4<T> null{T(0), T(0), T(0), T(0),
+
+                                           T(0), T(0), T(0), T(0),
+
+                                           T(0), T(0), T(0), T(0),
+
+                                           T(0), T(0), T(0), T(0)};
 
   /// \brief      Identity 4x4 matrix.
-  static constexpr scalar4x4<T> identity{T(1), T(0), T(0), T(0), T(0), T(1),
-                                         T(0), T(0), T(0), T(0), T(1), T(0),
-                                         T(0), T(0), T(0), T(1)};
+  static constexpr const scalar4x4<T> identity{T(1), T(0), T(0), T(0),
+
+                                               T(0), T(1), T(0), T(0),
+
+                                               T(0), T(0), T(1), T(0),
+
+                                               T(0), T(0), T(0), T(1)};
 };
 
 template <typename T>
-constexpr scalar4x4<T> scalar4x4<T>::stdc::null;
+constexpr const scalar4x4<T> scalar4x4<T>::stdc::null;
 
 template <typename T>
-constexpr scalar4x4<T> scalar4x4<T>::stdc::identity;
+constexpr const scalar4x4<T> scalar4x4<T>::stdc::identity;
 
 using float4x4  = scalar4x4<float>;
 using double4x4 = scalar4x4<double>;
-
-template <typename T>
-constexpr scalar4x4<T>::scalar4x4(const T a00_, const T a01_, const T a02_,
-                                  const T a03_, const T a10_, const T a11_,
-                                  const T a12_, const T a13_, const T a20_,
-                                  const T a21_, const T a22_, const T a23_,
-                                  const T a30_, const T a31_, const T a32_,
-                                  const T a33_) noexcept
-    : a00{a00_}
-    , a01{a01_}
-    , a02{a02_}
-    , a03{a03_}
-    , a10{a10_}
-    , a11{a11_}
-    , a12{a12_}
-    , a13{a13_}
-    , a20{a20_}
-    , a21{a21_}
-    , a22{a22_}
-    , a23{a23_}
-    , a30{a30_}
-    , a31{a31_}
-    , a32{a32_}
-    , a33{a33_} {}
 
 template <typename T>
 scalar4x4<T>::scalar4x4(const T* input, const size_t count) noexcept {

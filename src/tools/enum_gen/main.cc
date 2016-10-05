@@ -301,7 +301,7 @@ int main(int, char**) {
                                      fmt::format("{}.hpp", name), outtext);
       outtext = str_ext::replace_all("{enum_name}", name, outtext);
 
-      const auto to_str_code = accumulate(
+      const auto qualified_names_code = accumulate(
           begin(members_with_values), end(members_with_values), std::string{},
           [name](const std::string& a, const std::string& b) {
             return a +
@@ -310,7 +310,19 @@ int main(int, char**) {
                        b, name);
           });
 
-      outtext = str_ext::replace_all("{to_string_code}", to_str_code, outtext);
+      outtext = str_ext::replace_all("{qualified_name_code}",
+                                     qualified_names_code, outtext);
+
+      const auto names_code = accumulate(
+          begin(members_with_values), end(members_with_values), std::string{},
+          [name](const std::string& a, const std::string& b) {
+            return a +
+                   fmt::format("case {1}::e::{0} :\n return \"{0}\"; break;\n",
+                               b, name);
+          });
+
+      outtext =
+          str_ext::replace_all("{unqualified_name_code}", names_code, outtext);
 
       {
         std::ofstream outfile{fmt::format("{}.cc", name)};

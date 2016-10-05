@@ -155,19 +155,19 @@ public:
 template <typename T>
 struct scalar3x3<T>::stdc {
   ///< Null 3x3 matrix.
-  static constexpr scalar3x3<T> null{T(0), T(0), T(0), T(0), T(0),
-                                     T(0), T(0), T(0), T(0)};
+  static constexpr const scalar3x3<T> null{T(0), T(0), T(0), T(0), T(0),
+                                           T(0), T(0), T(0), T(0)};
 
   ///< Identity 3x3 matrix.
-  static constexpr scalar3x3<T> identity{T(1), T(0), T(0), T(0), T(1),
-                                         T(0), T(0), T(0), T(1)};
+  static constexpr const scalar3x3<T> identity{T(1), T(0), T(0), T(0), T(1),
+                                               T(0), T(0), T(0), T(1)};
 };
 
 template <typename T>
-constexpr scalar3x3<T> scalar3x3<T>::stdc::null;
+constexpr const scalar3x3<T> scalar3x3<T>::stdc::null;
 
 template <typename T>
-constexpr scalar3x3<T> scalar3x3<T>::stdc::identity;
+constexpr const scalar3x3<T> scalar3x3<T>::stdc::identity;
 
 using float3x3  = scalar3x3<float>;
 using double3x3 = scalar3x3<double>;

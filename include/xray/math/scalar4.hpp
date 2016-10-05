@@ -174,31 +174,31 @@ public:
 
 template <typename T>
 struct scalar4<T>::stdc {
-  static constexpr scalar4<T> unit_x{T(1.0), T(0.0), T(0.0), T(0.0)};
-  static constexpr scalar4<T> unit_y{T(0.0), T(1.0), T(0.0), T(0.0)};
-  static constexpr scalar4<T> unit_z{T(0.0), T(0.0), T(1.0), T(0.0)};
-  static constexpr scalar4<T> unit_w{T(0.0), T(0.0), T(0.0), T(1.0)};
-  static constexpr scalar4<T> zero{T(0.0), T(0.0), T(0.0), T(0.0)};
-  static constexpr scalar4<T> one{T(1.0), T(1.0), T(1.0), T(1.0)};
+  static constexpr const scalar4<T> unit_x{T(1.0), T(0.0), T(0.0), T(0.0)};
+  static constexpr const scalar4<T> unit_y{T(0.0), T(1.0), T(0.0), T(0.0)};
+  static constexpr const scalar4<T> unit_z{T(0.0), T(0.0), T(1.0), T(0.0)};
+  static constexpr const scalar4<T> unit_w{T(0.0), T(0.0), T(0.0), T(1.0)};
+  static constexpr const scalar4<T> zero{T(0.0), T(0.0), T(0.0), T(0.0)};
+  static constexpr const scalar4<T> one{T(1.0), T(1.0), T(1.0), T(1.0)};
 };
 
 template <typename T>
-constexpr scalar4<T> scalar4<T>::stdc::unit_x;
+constexpr const scalar4<T> scalar4<T>::stdc::unit_x;
 
 template <typename T>
-constexpr scalar4<T> scalar4<T>::stdc::unit_y;
+constexpr const scalar4<T> scalar4<T>::stdc::unit_y;
 
 template <typename T>
-constexpr scalar4<T> scalar4<T>::stdc::unit_z;
+constexpr const scalar4<T> scalar4<T>::stdc::unit_z;
 
 template <typename T>
-constexpr scalar4<T> scalar4<T>::stdc::unit_w;
+constexpr const scalar4<T> scalar4<T>::stdc::unit_w;
 
 template <typename T>
-constexpr scalar4<T> scalar4<T>::stdc::zero;
+constexpr const scalar4<T> scalar4<T>::stdc::zero;
 
 template <typename T>
-constexpr scalar4<T> scalar4<T>::stdc::one;
+constexpr const scalar4<T> scalar4<T>::stdc::one;
 
 using float4    = scalar4<float>;
 using double4   = scalar4<double>;

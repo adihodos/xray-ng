@@ -25,6 +25,7 @@ set(project_sources
     ${proj_inc_dir}/unique_handle.hpp
     ${proj_inc_dir}/logger.hpp
     ${proj_src_dir}/logger.cc
+    ${proj_inc_dir}/shims/attribute/basic_path.hpp
     ${proj_inc_dir}/unique_pointer.hpp
     ${proj_inc_dir}/dbg/debug_ext.hpp
     ${proj_src_dir}/dbg/debug_ext.cc

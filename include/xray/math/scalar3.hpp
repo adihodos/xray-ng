@@ -92,27 +92,27 @@ public:
 
 template <typename T>
 struct scalar3<T>::stdc {
-  static constexpr scalar3<T> unit_x{T(1.0), T(0.0), T(0.0)};
-  static constexpr scalar3<T> unit_y{T(0.0), T(1.0), T(0.0)};
-  static constexpr scalar3<T> unit_z{T(0.0), T(0.0), T(1.0)};
-  static constexpr scalar3<T> zero{T(0.0), T(0.0), T(0.0)};
-  static constexpr scalar3<T> one{T(1.0), T(1.0), T(1.0)};
+  static constexpr const scalar3<T> unit_x{T(1.0), T(0.0), T(0.0)};
+  static constexpr const scalar3<T> unit_y{T(0.0), T(1.0), T(0.0)};
+  static constexpr const scalar3<T> unit_z{T(0.0), T(0.0), T(1.0)};
+  static constexpr const scalar3<T> zero{T(0.0), T(0.0), T(0.0)};
+  static constexpr const scalar3<T> one{T(1.0), T(1.0), T(1.0)};
 };
 
 template <typename T>
-constexpr scalar3<T> scalar3<T>::stdc::unit_x;
+constexpr const scalar3<T> scalar3<T>::stdc::unit_x;
 
 template <typename T>
-constexpr scalar3<T> scalar3<T>::stdc::unit_y;
+constexpr const scalar3<T> scalar3<T>::stdc::unit_y;
 
 template <typename T>
-constexpr scalar3<T> scalar3<T>::stdc::unit_z;
+constexpr const scalar3<T> scalar3<T>::stdc::unit_z;
 
 template <typename T>
-constexpr scalar3<T> scalar3<T>::stdc::zero;
+constexpr const scalar3<T> scalar3<T>::stdc::zero;
 
 template <typename T>
-constexpr scalar3<T> scalar3<T>::stdc::one;
+constexpr const scalar3<T> scalar3<T>::stdc::one;
 
 using float3     = scalar3<scalar_lowp>;
 using double3    = scalar3<scalar_mediump>;

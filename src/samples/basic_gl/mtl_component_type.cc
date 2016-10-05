@@ -35,9 +35,10 @@
 
 namespace app {
 
-constexpr mtl_component_type::e mtl_component_type::_member_entries[];
+constexpr const mtl_component_type::e mtl_component_type::_member_entries[];
 
-const char* mtl_component_type::to_string(const mtl_component_type::e member) {
+const char* mtl_component_type::qualified_name(
+    const mtl_component_type::e member) noexcept {
   switch (member) {
   case mtl_component_type::e::emissive:
     return "mtl_component_type::e::emissive";
@@ -57,10 +58,11 @@ const char* mtl_component_type::to_string(const mtl_component_type::e member) {
     break;
   }
 
-  return "error/unknown";
+  return "unknown enum member";
 }
 
-const char* mtl_component_type::name(const mtl_component_type::e member) {
+const char*
+mtl_component_type::name(const mtl_component_type::e member) noexcept {
   switch (member) {
   case mtl_component_type::e::emissive:
     return "emissive";
@@ -76,14 +78,14 @@ const char* mtl_component_type::name(const mtl_component_type::e member) {
     break;
 
   default:
-    assert(false && "Unknown enum member!");
+    assert(false && "Unknown enum member");
     break;
   }
 
-  return "error/unknown";
+  return "unknown enum member";
 }
 
-bool mtl_component_type::is_defined(const mtl_component_type::e val) {
+bool mtl_component_type::is_defined(const mtl_component_type::e val) noexcept {
   using namespace std;
   return find(mtl_component_type::cbegin(), mtl_component_type::cend(), val) !=
          mtl_component_type::cend();

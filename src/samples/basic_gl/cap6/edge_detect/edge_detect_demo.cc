@@ -14,6 +14,7 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/pod_zero.hpp"
 #include "xray/base/scoped_guard.hpp"
+#include "xray/base/shims/attribute/basic_path.hpp"
 #include "xray/base/shims/string.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
@@ -66,21 +67,7 @@ struct mtl_color_desc {
   xray::rendering::rgb_color clr;
 };
 
-struct material {
-  xray::rendering::scoped_texture diffuse;
-  xray::rendering::scoped_texture specular;
-  xray::rendering::scoped_texture emissive;
-  xray::rendering::scoped_texture ambient;
-
-  material() = default;
-  XRAY_DEFAULT_MOVE(material);
-
-private:
-  XRAY_NO_COPY(material);
-};
-
 enum class mtl_entry_type { tex, color };
-// enum class mtl_component_type { emissive, ambient, diffuse, specular };
 
 struct mtl_desc_entry {
   mtl_component_type::e component_type;
@@ -103,6 +90,20 @@ struct mtl_desc_entry {
       , clr{clr_} {}
 };
 
+struct material {
+  xray::rendering::scoped_texture diffuse;
+  xray::rendering::scoped_texture specular;
+  xray::rendering::scoped_texture emissive;
+  xray::rendering::scoped_texture ambient;
+  float                           spec_pwr{100.0f};
+
+  material() = default;
+  XRAY_DEFAULT_MOVE(material);
+
+private:
+  XRAY_NO_COPY(material);
+};
+
 class scene_loader {
 public:
   explicit scene_loader(const char* scene_def_file);
@@ -115,6 +116,9 @@ public:
   void load_material_description(
       const char* id, xray::base::fast_delegate<void(const mtl_desc_entry&)>
                           mtl_entry_parsed_event);
+
+  static material create_material(const mtl_desc_entry* descriptions,
+                                  const size_t          count);
 
 private:
   void read_program_entry(const char*                           id,
@@ -187,6 +191,9 @@ void scene_loader::read_program_entry(
   using namespace platformstl;
   using namespace xray::base;
   using namespace xray::rendering;
+
+  using std::int32_t;
+  using std::uint32_t;
 
   if (const auto strs = prg_entry.lookup("strings")) {
     assert(strs.is_array());
@@ -281,6 +288,84 @@ void scene_loader::load_material_description(
                  mtl_type, mtl_file_desc{fn.as_string(), fy.as_bool()}});
            });
 }
+
+material scene_loader::create_material(const mtl_desc_entry* descriptions,
+                                       const size_t          count) {
+  material mtl;
+  auto tex_assign_fn = [&mtl](scoped_texture              tex_handle,
+                              const mtl_component_type::e comp_type) {
+    switch (comp_type) {
+    case mtl_component_type::e::ambient:
+      mtl.ambient = std::move(tex_handle);
+      break;
+
+    case mtl_component_type::e::diffuse:
+      mtl.diffuse = std::move(tex_handle);
+      break;
+
+    case mtl_component_type::e::emissive:
+      mtl.diffuse = std::move(tex_handle);
+      break;
+
+    case mtl_component_type::e::specular:
+      mtl.specular = std::move(tex_handle);
+      break;
+
+    default:
+      XR_LOG_CRITICAL("Unsupported component for material creation!");
+      XR_NOT_REACHED();
+      break;
+    }
+  };
+
+  for_each(descriptions, descriptions + count, [tex_assign_fn](
+                                                   const mtl_desc_entry&
+                                                       mtl_desc) {
+
+    scoped_texture texh{};
+    gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(texh));
+
+    if (mtl_desc.source_type == mtl_entry_type::color) {
+      gl::TextureStorage2D(raw_handle(texh), 1, gl::RGBA8, 1, 1);
+      gl::TextureSubImage2D(raw_handle(texh), 0, 0, 0, 1, 1, gl::RGBA,
+                            gl::FLOAT, mtl_desc.clr.clr.components);
+      tex_assign_fn(std::move(texh), mtl_desc.component_type);
+      return;
+    }
+
+    texture_loader tex_ldr{
+        c_str_ptr(xr_app_config->texture_path(mtl_desc.file.path)),
+        mtl_desc.file.flip_y ? texture_load_options::flip_y
+                             : texture_load_options::none};
+
+    if (!tex_ldr) {
+      XR_NOT_REACHED();
+    }
+
+    static constexpr GLenum TEXTURE_INTERNAL_FORMAT[] = {gl::RGB8, gl::RGBA8};
+
+    gl::TextureStorage2D(raw_handle(texh), 1,
+                         TEXTURE_INTERNAL_FORMAT[tex_ldr.depth() == 4],
+                         static_cast<GLsizei>(tex_ldr.width()),
+                         static_cast<GLsizei>(tex_ldr.height()));
+
+    static constexpr GLenum IMAGE_PIXEL_FORMAT[] = {gl::RGB, gl::RGBA};
+
+    gl::TextureSubImage2D(raw_handle(texh), 0, 0, 0,
+                          static_cast<GLsizei>(tex_ldr.width()),
+                          static_cast<GLsizei>(tex_ldr.height()),
+                          IMAGE_PIXEL_FORMAT[tex_ldr.depth() == 4],
+                          gl::UNSIGNED_BYTE, tex_ldr.data());
+
+    tex_assign_fn(std::move(texh), mtl_desc.component_type);
+  });
+
+  return mtl;
+}
+
+///
+///
+/// scene loader ends
 
 app::edge_detect_demo::edge_detect_demo(const init_context_t& init_ctx) {
   init(init_ctx);
@@ -516,13 +601,17 @@ void test_shit() {
 
     sldr.load_material_description(
         "p38", make_delegate(tmp_obj, &tmp_cls::on_mtl_load));
+
+    auto mtl = sldr.create_material(&tmp_obj.material_definitions[0],
+                                    tmp_obj.material_definitions.size());
+
     sldr.load_material_description(
         "copper", make_delegate(tmp_obj, &tmp_cls::on_mtl_load));
 
     for_each(begin(tmp_obj.material_definitions),
              end(tmp_obj.material_definitions), [](const auto& mdef) {
                XR_LOG_INFO("Material {}",
-                           mtl_component_type::to_string(mdef.component_type));
+                           mtl_component_type::name(mdef.component_type));
              });
   }
 }
@@ -592,8 +681,9 @@ void app::edge_detect_demo::init(const init_context_t& ini_ctx) {
       XR_NOT_REACHED();
     }
 
-    _object =
-        simple_mesh{vertex_format::pnt, xr_app_config->model_path(model_file)};
+    _object = simple_mesh{vertex_format::pnt,
+                          c_str_ptr(xr_app_config->model_path(model_file))};
+
     if (!_object) {
       XR_LOG_CRITICAL("Failed to load model from file!");
       XR_NOT_REACHED();
@@ -630,9 +720,10 @@ void app::edge_detect_demo::init(const init_context_t& ini_ctx) {
     bool flip_yaxis{false};
     app_cfg.lookup_value("app.scene.material.flip_y", flip_yaxis);
 
-    texture_loader tex_ldr{xr_app_config->texture_path(material_file),
-                           flip_yaxis ? texture_load_options::flip_y
-                                      : texture_load_options::none};
+    texture_loader tex_ldr{
+        c_str_ptr(xr_app_config->texture_path(material_file)),
+        flip_yaxis ? texture_load_options::flip_y : texture_load_options::none};
+
     if (!tex_ldr)
       return GLuint{};
 
