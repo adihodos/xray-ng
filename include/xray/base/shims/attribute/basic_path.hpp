@@ -41,7 +41,7 @@ namespace base {
 /// @{
 
 template <typename C>
-inline typename const platformstl::basic_path<C>::char_type*
+inline const typename platformstl::basic_path<C>::char_type*
 c_str_ptr(const platformstl::basic_path<C>& path) noexcept {
   return path.c_str();
 }

@@ -397,6 +397,8 @@ void app::edge_detect_demo::compose_ui() {
       ImGui::SliderFloat("Edge treshold", &_edge_treshold, 0.01f, 0.25f,
                          "%3.3f", 0.1f);
     }
+
+    ImGui::Checkbox("Rotate model", &_rotate_object);
   }
   ImGui::End();
 }
@@ -438,8 +440,9 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
       gl::BindSamplers(0, XR_U32_COUNTOF__(bound_samplers), bound_samplers);
     }
 
-    const auto obj_to_world = float4x4::stdc::identity;
-    const auto obj_to_view  = dc.view_matrix * obj_to_world;
+    const auto obj_to_world = float4x4{R3::rotate_xyz(_rx, _ry, _rz)};
+    // float4x4::stdc::identity;
+    const auto obj_to_view = dc.view_matrix * obj_to_world;
 
     struct matrix_pack_t {
       float4x4 world_view;
@@ -502,7 +505,26 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
   }
 }
 
-void app::edge_detect_demo::update(const float /*delta_ms*/) {}
+void app::edge_detect_demo::update(const float /*delta_ms*/) {
+  if (!_rotate_object)
+    return;
+
+  static constexpr auto ROTATION_SPEED_RADS = 0.01f;
+  _rx += ROTATION_SPEED_RADS;
+  if (_rx > two_pi<float>) {
+    _rx -= two_pi<float>;
+  }
+
+  _ry += ROTATION_SPEED_RADS;
+  if (_ry > two_pi<float>) {
+    _ry -= two_pi<float>;
+  }
+
+  _rz += ROTATION_SPEED_RADS;
+  if (_rz > two_pi<float>) {
+    _rz -= two_pi<float>;
+  }
+}
 
 void app::edge_detect_demo::key_event(const int32_t /*key_code*/,
                                       const int32_t /*action*/,

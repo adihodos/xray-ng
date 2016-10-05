@@ -92,6 +92,10 @@ private:
   xray::rendering::scoped_program_pipeline_handle _prog_pipeline;
   float                                           _edge_treshold{0.1f};
   uint32_t _detect_method{edge_detect_none};
+  bool     _rotate_object{false};
+  float    _rx{0.0f};
+  float    _ry{0.0f};
+  float    _rz{0.0f};
 
 private:
   XRAY_NO_COPY(edge_detect_demo);
