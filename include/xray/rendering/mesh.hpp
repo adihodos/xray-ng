@@ -162,6 +162,8 @@ private:
   XRAY_NO_COPY(simple_mesh);
 };
 
+using geometry_object = simple_mesh;
+
 struct mesh_graphics_rep {
 public:
   using vertex_buffer_handle = scoped_buffer::handle_type;

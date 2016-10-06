@@ -29,6 +29,8 @@ set(project_sources
     ${proj_src_dir}/mtl_component_type.cc
     ${proj_inc_dir}/resize_context.hpp
     ${proj_inc_dir}/std_assets.hpp
+    ${proj_inc_dir}/scene_loader.hpp
+    ${proj_src_dir}/scene_loader.cc
     ${proj_inc_dir}/cap3/soubroutines/soubroutines_demo.hpp
     ${proj_src_dir}/cap3/soubroutines/soubroutines_demo.cc
     ${proj_inc_dir}/cap3/frag_discard/frag_discard_demo.hpp
@@ -61,11 +63,8 @@ set(project_sources
     ${proj_src_dir}/cap5/render_texture/render_texture_demo.cc
     ${proj_inc_dir}/cap6/edge_detect/edge_detect_demo.hpp
     ${proj_src_dir}/cap6/edge_detect/edge_detect_demo.cc
-    # ${proj_inc_dir}/config_reader_base.hpp
-    # ${proj_inc_dir}/config_reader_float3.hpp
-    # ${proj_inc_dir}/config_reader_rgb_color.hpp
-    # ${proj_inc_dir}/config_reader_scene.hpp
-    # ${proj_src_dir}/config_reader_scene.cc
+    ${proj_inc_dir}/cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp
+    ${proj_src_dir}/cap6/hdr_tonemapping/hdr_tonemapping_demo.cc
     )
 
 set(shader_files
