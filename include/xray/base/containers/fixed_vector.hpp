@@ -196,12 +196,12 @@ public:
 
 private:
   T* mem_at(const size_type idx) noexcept {
-    assert(idx < MaxSize);
+    // assert(idx < MaxSize);
     return reinterpret_cast<T*>(&_m_storage[0] + idx * sizeof(T));
   }
 
   const T* mem_at(const size_type idx) const noexcept {
-    assert(idx < MaxSize);
+    // assert(idx < MaxSize);
     return reinterpret_cast<const T*>(&_m_storage[0] + idx * sizeof(T));
   }
 

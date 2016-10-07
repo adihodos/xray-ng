@@ -1,8 +1,8 @@
 
 enum_def : {
   namespace = "namespace app {";
-  name = "mtl_component_type";
+  name = "phong_material_component";
   #is_bitfield = TRUE;
   underlying_type = "uint8_t";
-  members = ["emissive", "ambient", "diffuse", "specular"];
+  members = ["emissive", "ambient", "diffuse", "specular", "specular_intensity"];
 };

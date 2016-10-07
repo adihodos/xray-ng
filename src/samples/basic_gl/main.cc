@@ -15,6 +15,7 @@
 #include "cap5/render_texture/render_texture_demo.hpp"
 #include "cap5/textures/textures_demo.hpp"
 #include "cap6/edge_detect/edge_detect_demo.hpp"
+#include "cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp"
 #include "colored_circle.hpp"
 #include "fractal.hpp"
 #include "init_context.hpp"
@@ -115,7 +116,8 @@ private:
   //    reflection_demo                                 obj_;
   //  refraction_demo obj_;
   //  render_texture_demo obj_;
-  edge_detect_demo                                obj_;
+  // edge_detect_demo                                obj_;
+  hdr_tonemap                                     obj_;
   xray::rendering::draw_context_t                 draw_ctx_;
   xray::scene::camera                             cam_;
   xray::scene::camera_controller_spherical_coords cam_control_{
@@ -164,7 +166,8 @@ basic_scene::basic_scene(basic_window* app_wnd)
       //      &refraction_demo::compose_ui;
       //      &textures_demo::compose_ui;
       //      &render_texture_demo::compose_ui;
-      &edge_detect_demo::compose_ui;
+      // &edge_detect_demo::compose_ui;
+      &hdr_tonemap::compose_ui;
   events.compose_ui = make_delegate(obj_, ui_fn_del);
   initialized_      = true;
 }
@@ -303,9 +306,6 @@ int main(int argc, char** argv) {
   XR_LOGGER_START(argc, argv);
   XR_LOGGER_CONFIG_FILE("config/logging.conf");
   XR_LOG_INFO("Starting up ...");
-
-  xray::math::float2 v0{xray::math::float2::stdc::unit_x};
-  XR_LOG_INFO("vec2 @ [{} {}]", v0.x, v0.y);
 
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;

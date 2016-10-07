@@ -31,14 +31,17 @@
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "fwd_app.hpp"
+#include "scene_loader.hpp"
 #include "xray/base/base_fwd.hpp"
-#include "xray/base/containers/fixed_vectoor.hpp"
+#include "xray/base/containers/fixed_vector.hpp"
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/scene/point_light.hpp"
 
 namespace app {
+
+struct mesh_create_info;
 
 class hdr_tonemap : public demo_base {
 public:
@@ -65,6 +68,8 @@ private:
   void init(const init_context_t& ini_ctx);
   void create_framebuffer(const GLsizei r_width, const GLsizei r_height);
 
+  // xray::rendering::geometry_object load_model(const mesh_create_info& mci);
+
   enum { MAX_LIGHTS = 8u };
   enum { MAX_OBJECTS = 2u };
 
@@ -76,10 +81,18 @@ private:
     xray::rendering::scoped_sampler      fbo_sampler;
   } _fbo;
 
-  xray::rendering::geometry_object   _obj_geometries[MAX_OBJECTS];
-  xray::rendering::mesh_graphics_rep _obj_graphics[MAX_OBJECTS];
+  xray::base::fixed_vector<xray::rendering::geometry_object, MAX_OBJECTS>
+      _obj_geometries;
+  xray::base::fixed_vector<xray::rendering::mesh_graphics_rep, MAX_OBJECTS>
+      _obj_graphics;
+  xray::base::fixed_vector<phong_material, MAX_OBJECTS> _obj_materials;
+
   xray::base::fixed_vector<xray::scene::point_light, MAX_LIGHTS>
       _lights[MAX_LIGHTS];
+
+  xray::rendering::vertex_program              _vs_phong;
+  xray::rendering::fragment_program            _fs_phong;
+  xray::rendering::gpu_program_pipeline_handle _pipeline;
 
 private:
   XRAY_NO_COPY(hdr_tonemap);

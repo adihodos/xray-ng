@@ -26,69 +26,68 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#pragma once
+
 //
 //  All code in this file was automatically generated, DO NOT EDIT !!!
 
-#include "mtl_component_type.hpp"
-#include "xray/xray.hpp"
-#include <algorithm>
+#include <cassert>
+#include <cstdint>
+#include <iterator>
 
 namespace app {
 
-constexpr const mtl_component_type::e mtl_component_type::_member_entries[];
+struct phong_material_component {
+private:
+  phong_material_component()  = delete;
+  ~phong_material_component() = delete;
 
-const char* mtl_component_type::qualified_name(
-    const mtl_component_type::e member) noexcept {
-  switch (member) {
-  case mtl_component_type::e::emissive:
-    return "mtl_component_type::e::emissive";
-    break;
-  case mtl_component_type::e::ambient:
-    return "mtl_component_type::e::ambient";
-    break;
-  case mtl_component_type::e::diffuse:
-    return "mtl_component_type::e::diffuse";
-    break;
-  case mtl_component_type::e::specular:
-    return "mtl_component_type::e::specular";
-    break;
+public:
+  enum class e : uint8_t {
+    emissive,
+    ambient,
+    diffuse,
+    specular,
+    specular_intensity
+  };
 
-  default:
-    assert(false && "Unknown enum member!");
-    break;
+  using underlying_type = uint8_t;
+
+  static const char*
+  qualified_name(const phong_material_component::e member) noexcept;
+  static const char* name(const phong_material_component::e member) noexcept;
+
+  static const char* class_name() noexcept {
+    return "phong_material_component::e";
   }
 
-  return "unknown enum member";
-}
-
-const char*
-mtl_component_type::name(const mtl_component_type::e member) noexcept {
-  switch (member) {
-  case mtl_component_type::e::emissive:
-    return "emissive";
-    break;
-  case mtl_component_type::e::ambient:
-    return "ambient";
-    break;
-  case mtl_component_type::e::diffuse:
-    return "diffuse";
-    break;
-  case mtl_component_type::e::specular:
-    return "specular";
-    break;
-
-  default:
-    assert(false && "Unknown enum member");
-    break;
+  static underlying_type
+  to_integer(const phong_material_component::e member) noexcept {
+    return static_cast<underlying_type>(member);
   }
 
-  return "unknown enum member";
-}
+  static phong_material_component::e
+  from_integer(const underlying_type ival) noexcept {
+    return static_cast<phong_material_component::e>(ival);
+  }
 
-bool mtl_component_type::is_defined(const mtl_component_type::e val) noexcept {
-  using namespace std;
-  return find(mtl_component_type::cbegin(), mtl_component_type::cend(), val) !=
-         mtl_component_type::cend();
-}
+  using const_iterator         = const e*;
+  using reverse_const_iterator = std::reverse_iterator<const_iterator>;
+
+  static constexpr size_t size = 5u;
+  static const_iterator   cbegin() noexcept { return &_member_entries[0]; }
+  static const_iterator   cend() noexcept { return &_member_entries[5]; }
+  static reverse_const_iterator crbegin() noexcept {
+    return reverse_const_iterator(cend());
+  }
+  static reverse_const_iterator crend() noexcept {
+    return reverse_const_iterator(cbegin());
+  }
+  static bool is_defined(const phong_material_component::e val) noexcept;
+
+private:
+  static constexpr const e _member_entries[] = {
+      e::emissive, e::ambient, e::diffuse, e::specular, e::specular_intensity};
+};
 
 } // end ns
