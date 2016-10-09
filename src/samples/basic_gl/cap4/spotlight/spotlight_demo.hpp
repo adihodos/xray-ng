@@ -61,22 +61,22 @@ private:
 
 private:
   struct mesh_draw_data {
-    uint32_t             index_offset{};
-    uint32_t             index_count{};
-    uint32_t             base_vertex{};
-    bool                 front_ccw{};
-    material             mat{};
-    xray::math::float3   translation{xray::math::float3::stdc::zero};
-    xray::math::float2   rotation_xy{xray::math::float2::stdc::zero};
+    uint32_t          index_offset{};
+    uint32_t          index_count{};
+    uint32_t          base_vertex{};
+    bool              front_ccw{};
+    material          mat{};
+    xray::math::vec3f translation{xray::math::vec3f::stdc::zero};
+    xray::math::vec2f rotation_xy{xray::math::vec2f::stdc::zero};
   };
 
-  xray::rendering::scoped_buffer _vertex_buffer;
-  xray::rendering::scoped_buffer _index_buffer;
-  xray::rendering::scoped_vertex_array    _vertex_array_obj;
-  xray::rendering::gpu_program          _draw_prog;
-  spotlight                             _lights[NUM_LIGHTS];
-  mesh_draw_data                        _meshes[2];
-  bool                                  _rotate_mesh{true};
+  xray::rendering::scoped_buffer       _vertex_buffer;
+  xray::rendering::scoped_buffer       _index_buffer;
+  xray::rendering::scoped_vertex_array _vertex_array_obj;
+  xray::rendering::gpu_program         _draw_prog;
+  spotlight                            _lights[NUM_LIGHTS];
+  mesh_draw_data                       _meshes[2];
+  bool                                 _rotate_mesh{true};
 
 private:
   XRAY_NO_COPY(spotlight_demo);

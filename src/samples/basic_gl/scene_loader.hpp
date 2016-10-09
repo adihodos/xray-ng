@@ -137,7 +137,7 @@ public:
 
 private:
   const phong_material_component_definition&
-  component_definition(const phong_material_component::e cmp) noexcept {
+  component_def(const phong_material_component::e cmp) noexcept {
     assert(has_component(cmp));
     return _cdefs[phong_material_component::to_integer(cmp)];
   }
@@ -185,18 +185,23 @@ public:
   bool parse_program(const char*                           id,
                      xray::rendering::gpu_program_builder* prg_bld);
 
-  void parse_point_lights(
-      std::function<void(const xray::scene::point_light&)> on_light_parsed);
+  uint32_t parse_point_lights(xray::scene::point_light* lighs,
+                              const size_t              lights_count);
+
+  static uint32_t
+  parse_point_lights_section(const xray::base::config_entry& lights_sec,
+                             xray::scene::point_light*       lighs,
+                             const size_t                    lights_count);
 
 public:
-  static xray::math::float4 read_float4(const xray::base::config_entry& e) {
-    xray::math::float4 f4;
+  static xray::math::vec4f read_vec4f(const xray::base::config_entry& e) {
+    xray::math::vec4f f4;
     read_array(e, 4, f4.components);
     return f4;
   }
 
-  static xray::math::float3 read_float3(const xray::base::config_entry& e) {
-    xray::math::float3 f3;
+  static xray::math::vec3f read_vec3f(const xray::base::config_entry& e) {
+    xray::math::vec3f f3;
     read_array(e, 3, f3.components);
     return f3;
   }

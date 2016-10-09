@@ -49,6 +49,7 @@
 #include <cstdint>
 
 struct ImGuiIO;
+struct ImFont;
 
 namespace xray {
 namespace ui {
@@ -77,7 +78,10 @@ public:
   bool wants_input() const noexcept;
   void new_frame(const xray::rendering::draw_context_t&);
 
-private :
+  ImFont* small_font() const noexcept { return _small_font; }
+  ImFont* medium_font() const noexcept { return _medium_font; }
+
+private:
   void setup_key_mappings();
 
 private:
@@ -109,9 +113,10 @@ private:
     bool                                 _valid{false};
   } _rendercontext;
 
-  
 #endif
   ImGuiIO* _gui;
+  ImFont*  _small_font;
+  ImFont*  _medium_font;
 
 private:
   XRAY_NO_COPY(imgui_backend);

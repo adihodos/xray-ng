@@ -72,6 +72,10 @@ public:
     return make_path(paths_.objects_cfg_path, name);
   }
 
+  const path_type font_path(const char* font_name) const noexcept {
+    return make_path(paths_.fonts_path, font_name);
+  }
+
   const path_type& engine_config_path() const noexcept {
     return paths_.engine_ini_file;
   }
@@ -89,6 +93,7 @@ private:
     platformstl::path_a shader_cfg_path;
     platformstl::path_a camera_cfg_path;
     platformstl::path_a objects_cfg_path;
+    platformstl::path_a fonts_path;
     platformstl::path_a engine_ini_file;
   } paths_;
 

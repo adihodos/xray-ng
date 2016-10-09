@@ -48,16 +48,16 @@ struct vertex_pn {
             const float ny, const float nz) noexcept
       : position{px, py, pz}, normal{nx, ny, nz} {}
 
-  vertex_pn(const math::float3& pos, const math::float3& norm) noexcept
+  vertex_pn(const math::vec3f& pos, const math::vec3f& norm) noexcept
       : position{pos}, normal{norm} {}
 
   static const char* name() noexcept { return "vertex_pn"; }
 
   ///< Position in space.
-  math::float3 position;
+  math::vec3f position;
 
   ///< Normal at vertex.
-  math::float3 normal;
+  math::vec3f normal;
 };
 
 template <>

@@ -45,20 +45,19 @@ struct vertex_pt {
   vertex_pt() noexcept {}
 
   vertex_pt(const float px, const float py, const float pz, const float tu,
-            const float tv) noexcept : position{px, py, pz},
-                                       texcoord{tu, tv} {}
+            const float tv) noexcept
+      : position{px, py, pz}, texcoord{tu, tv} {}
 
-  vertex_pt(const math::float3& pos, const math::float2& texc) noexcept
-      : position{pos},
-        texcoord{texc} {}
+  vertex_pt(const math::vec3f& pos, const math::vec2f& texc) noexcept
+      : position{pos}, texcoord{texc} {}
 
   static const char* name() noexcept { return "vertex_pt"; }
 
   ///< Position in space.
-  math::float3 position;
+  math::vec3f position;
 
   ///< Texture coordinates.
-  math::float2 texcoord;
+  math::vec2f texcoord;
 };
 
 /// @}

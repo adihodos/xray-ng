@@ -1,22 +1,23 @@
 #include "animated_plane.hpp"
-#include "cap3/frag_discard/frag_discard_demo.hpp"
-#include "cap3/soubroutines/soubroutines_demo.hpp"
-#include "cap4/directional_lights/directional_lights_demo.hpp"
-#include "cap4/fog/fog_demo.hpp"
-#include "cap4/multiple_lights/multiple_lights_demo.hpp"
-#include "cap4/per_fragment_lighting/per_fragment_lighting_demo.hpp"
-#include "cap4/spotlight/spotlight_demo.hpp"
-#include "cap4/toon_shading/toon_shading_demo.hpp"
-#include "cap5/discard_alphamap/discard_alphamap_demo.hpp"
-#include "cap5/multiple_textures/multiple_textures_demo.hpp"
-#include "cap5/normal_map/normal_map_demo.hpp"
-#include "cap5/reflection/reflection_demo.hpp"
-#include "cap5/refraction/refraction_demo.hpp"
-#include "cap5/render_texture/render_texture_demo.hpp"
-#include "cap5/textures/textures_demo.hpp"
+// #include "cap3/frag_discard/frag_discard_demo.hpp"
+// #include "cap3/soubroutines/soubroutines_demo.hpp"
+// #include "cap4/directional_lights/directional_lights_demo.hpp"
+// #include "cap4/fog/fog_demo.hpp"
+// #include "cap4/multiple_lights/multiple_lights_demo.hpp"
+// #include "cap4/per_fragment_lighting/per_fragment_lighting_demo.hpp"
+// #include "cap4/spotlight/spotlight_demo.hpp"
+// #include "cap4/toon_shading/toon_shading_demo.hpp"
+// #include "cap5/discard_alphamap/discard_alphamap_demo.hpp"
+// #include "cap5/multiple_textures/multiple_textures_demo.hpp"
+// #include "cap5/normal_map/normal_map_demo.hpp"
+// #include "cap5/reflection/reflection_demo.hpp"
+// #include "cap5/refraction/refraction_demo.hpp"
+// #include "cap5/render_texture/render_texture_demo.hpp"
+// #include "cap5/textures/textures_demo.hpp"
 #include "cap6/edge_detect/edge_detect_demo.hpp"
-#include "cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp"
+// #include "cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp"
 #include "colored_circle.hpp"
+#include "debug_record.hpp"
 #include "fractal.hpp"
 #include "init_context.hpp"
 #include "lit_torus.hpp"
@@ -29,6 +30,7 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/perf_stats_collector.hpp"
 #include "xray/base/shims/string.hpp"
+#include "xray/base/unique_pointer.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar2.hpp"
@@ -43,7 +45,6 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
-#include "xray/scene/config_reader_scene.hpp"
 #include "xray/scene/point_light.hpp"
 #include "xray/ui/basic_gl_window.hpp"
 #include "xray/ui/input_event.hpp"
@@ -53,10 +54,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <imgui/imgui.h>
-#include <stb/stb_image.h>
-#include <stlsoft/memory/auto_buffer.hpp>
-#include <unordered_map>
-#include <vector>
 
 using namespace xray;
 using namespace xray::base;
@@ -64,6 +61,8 @@ using namespace xray::math;
 using namespace xray::scene;
 using namespace xray::ui;
 using namespace xray::rendering;
+
+xray::base::app_config* xr_app_config{nullptr};
 
 namespace app {
 
@@ -81,7 +80,7 @@ public:
 
   void draw(const xray::ui::window_context& wnd_ctx);
 
-  bool valid() const noexcept { return initialized_; }
+  bool valid() const noexcept { return _initialized; }
 
   explicit operator bool() const noexcept { return valid(); }
 
@@ -98,8 +97,6 @@ private:
   void setup_ui();
 
 private:
-  bool          initialized_{false};
-  basic_window* _appwnd;
   //  lit_object                                      obj_;
   //  soubroutines_demo                               obj_;
   //  frag_discard_demo                               obj_;
@@ -116,18 +113,18 @@ private:
   //    reflection_demo                                 obj_;
   //  refraction_demo obj_;
   //  render_texture_demo obj_;
-  // edge_detect_demo                                obj_;
-  hdr_tonemap                                     obj_;
-  xray::rendering::draw_context_t                 draw_ctx_;
-  xray::scene::camera                             cam_;
-  xray::scene::camera_controller_spherical_coords cam_control_{
-      &cam_, controller_cfg_file_path};
+
+  // hdr_tonemap                                     obj_;
+  basic_window*                                   _appwnd;
+  xray::scene::camera                             _cam;
+  xray::scene::camera_controller_spherical_coords _cam_control{
+      &_cam, controller_cfg_file_path};
   xray::ui::imgui_backend                      _ui;
   xray::base::stats_thread                     _stats_collector;
   xray::base::stats_thread::process_stats_info _proc_stats;
+  xray::base::unique_pointer<demo_base>        _demo;
   bool                                         _ui_active{false};
-
-  rgb_color _clear_color{0.0f, 0.0f, 0.0f, 1.0f};
+  bool                                         _initialized{false};
 
 private:
   XRAY_NO_COPY(basic_scene);
@@ -135,88 +132,83 @@ private:
 
 basic_scene::~basic_scene() noexcept { _stats_collector.signal_stop(); }
 
-basic_scene::basic_scene(basic_window* app_wnd)
-    : _appwnd{app_wnd}
-    , obj_{init_context_t{app_wnd->width(), app_wnd->height()}} {
+basic_scene::basic_scene(basic_window* app_wnd) : _appwnd{app_wnd} {
+  _cam_control.update();
+  _cam.set_projection(projection::perspective_symmetric(
+      static_cast<float>(_appwnd->width()),
+      static_cast<float>(_appwnd->height()), radians(70.0f), 0.3f, 1000.0f));
 
-  if (!obj_)
-    return;
-
-  cam_control_.update();
-
-  draw_ctx_.window_width  = _appwnd->width();
-  draw_ctx_.window_height = _appwnd->height();
-
-  cam_.set_projection(projection::perspective_symmetric(
-      static_cast<float>(draw_ctx_.window_width),
-      static_cast<float>(draw_ctx_.window_height), radians(70.0f), 0.3f,
-      1000.0f));
-
-  draw_ctx_.active_camera = &cam_;
-
-  gl::Viewport(0, 0, static_cast<int32_t>(draw_ctx_.window_width),
-               static_cast<int32_t>(draw_ctx_.window_height));
+  gl::Viewport(0, 0, static_cast<int32_t>(_appwnd->width()),
+               static_cast<int32_t>(_appwnd->height()));
 
   gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
   gl::Enable(gl::DEPTH_TEST);
   gl::Enable(gl::CULL_FACE);
 
-  auto ui_fn_del =
-      //          &reflection_demo::compose_ui;
-      //      &refraction_demo::compose_ui;
-      //      &textures_demo::compose_ui;
-      //      &render_texture_demo::compose_ui;
-      // &edge_detect_demo::compose_ui;
-      &hdr_tonemap::compose_ui;
-  events.compose_ui = make_delegate(obj_, ui_fn_del);
-  initialized_      = true;
+  _demo = make_unique<edge_detect_demo>(
+      init_context_t{_appwnd->width(), _appwnd->height(), xr_app_config});
+
+  if (!*_demo) {
+    XR_LOG_CRITICAL("Failed to created demo!");
+    XR_NOT_REACHED();
+  }
+
+  events.compose_ui = make_delegate(*_demo, &demo_base::compose_ui);
+  _initialized      = true;
 }
 
 void basic_scene::window_resized(const int32_t new_width,
                                  const int32_t new_height) noexcept {
 
-  draw_ctx_.window_width  = static_cast<uint32_t>(new_width);
-  draw_ctx_.window_height = static_cast<uint32_t>(new_height);
-
   gl::Viewport(0, 0, new_width, new_height);
-  cam_.set_projection(projection::perspective_symmetric(
+  _cam.set_projection(projection::perspective_symmetric(
       static_cast<float>(new_width), static_cast<float>(new_height),
       radians(70.0f), 0.3f, 1000.0f));
 
-  obj_.resize_event(
-      resize_context_t{draw_ctx_.window_width, draw_ctx_.window_height});
+  _demo->resize_event(resize_context_t{static_cast<uint32_t>(new_width),
+                                       static_cast<uint32_t>(new_height)});
 }
 
 void basic_scene::tick_event(const float delta) {
-  cam_control_.update();
+  _cam_control.update();
 
-  draw_ctx_.view_matrix       = cam_.view();
-  draw_ctx_.projection_matrix = cam_.projection();
-  draw_ctx_.proj_view_matrix  = cam_.projection_view();
+  draw_context_t draw_ctx{_appwnd->width(),
+                          _appwnd->height(),
+                          _cam.view(),
+                          _cam.projection(),
+                          _cam.projection_view(),
+                          &_cam,
+                          nullptr};
 
   _proc_stats = _stats_collector.process_stats();
 
   if (_ui_active) {
-    _ui.new_frame(draw_ctx_);
+    _ui.new_frame(draw_ctx);
     _ui.tick(delta);
 
-    //    setup_ui();
     if (events.compose_ui)
       events.compose_ui();
   }
 
-  obj_.update(delta);
+  _demo->update(delta);
 }
 
 void basic_scene::draw(const xray::ui::window_context& /* wnd_ctx */) {
-  gl::ClearColor(_clear_color.r, _clear_color.g, _clear_color.b,
-                 _clear_color.a);
+  gl::ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   gl::ClearDepth(1.0f);
   gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-  obj_.draw(draw_ctx_);
+  draw_context_t draw_ctx{_appwnd->width(),
+                          _appwnd->height(),
+                          _cam.view(),
+                          _cam.projection(),
+                          _cam.projection_view(),
+                          &_cam,
+                          nullptr};
+
+  _demo->draw(draw_ctx);
   if (_ui_active) {
-    _ui.draw_event(draw_ctx_);
+    _ui.draw_event(draw_ctx);
   }
 }
 
@@ -251,19 +243,20 @@ void basic_scene::input_event(
       return;
   }
 
-  cam_control_.input_event(in_event);
+  _cam_control.input_event(in_event);
 }
 
 void basic_scene::setup_ui() {
-  ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiSetCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(100.0f, 100.0f), ImGuiSetCond_FirstUseEver);
-  ImGui::Begin("Render target clear color :");
-  ImGui::SliderFloat("Red", &_clear_color.r, 0.0f, 1.0f, "%3.3f");
-  ImGui::Separator();
-  ImGui::SliderFloat("Green", &_clear_color.g, 0.0f, 1.0f, "%3.3f");
-  ImGui::Separator();
-  ImGui::SliderFloat("Blue", &_clear_color.b, 0.0f, 1.0f, "%3.3f");
-  ImGui::End();
+  // ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiSetCond_FirstUseEver);
+  // ImGui::SetNextWindowSize(ImVec2(100.0f, 100.0f),
+  // ImGuiSetCond_FirstUseEver);
+  // ImGui::Begin("Render target clear color :");
+  // ImGui::SliderFloat("Red", &_clear_color.r, 0.0f, 1.0f, "%3.3f");
+  // ImGui::Separator();
+  // ImGui::SliderFloat("Green", &_clear_color.g, 0.0f, 1.0f, "%3.3f");
+  // ImGui::Separator();
+  // ImGui::SliderFloat("Blue", &_clear_color.b, 0.0f, 1.0f, "%3.3f");
+  // ImGui::End();
 }
 }
 
@@ -296,8 +289,6 @@ make_scoped_enter_exit(enter_fn func_enter, exit_fn func_exit) noexcept {
   return enter_exit_action<enter_fn, exit_fn>{
       std::forward<enter_fn>(func_enter), std::forward<exit_fn>(func_exit)};
 }
-
-xray::base::app_config* xr_app_config{nullptr};
 
 int main(int argc, char** argv) {
   using namespace xray::ui;

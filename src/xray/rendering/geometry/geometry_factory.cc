@@ -4,11 +4,9 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/constants.hpp"
-#include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
-#include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include <assimp/Importer.hpp>
@@ -36,18 +34,18 @@ compute_normals(xray::rendering::geometry_data_t* geometry) noexcept {
   assert((geometry->index_count % 3) == 0);
 
   for (size_t idx = 0; idx < geometry->vertex_count; ++idx) {
-    geometry->geometry[idx].normal = float3::stdc::zero;
+    geometry->geometry[idx].normal = vec3f::stdc::zero;
   }
 
   for (size_t tri_idx = 0; tri_idx < geometry->index_count / 3; ++tri_idx) {
-    const float3& p0 =
+    const vec3f& p0 =
         geometry->geometry[geometry->indices[tri_idx * 3 + 0]].position;
-    const float3& p1 =
+    const vec3f& p1 =
         geometry->geometry[geometry->indices[tri_idx * 3 + 1]].position;
-    const float3& p2 =
+    const vec3f& p2 =
         geometry->geometry[geometry->indices[tri_idx * 3 + 2]].position;
 
-    const float3 normal{cross(p1 - p0, p2 - p0)};
+    const vec3f normal{cross(p1 - p0, p2 - p0)};
 
     geometry->geometry[geometry->indices[tri_idx * 3 + 0]].normal += normal;
     geometry->geometry[geometry->indices[tri_idx * 3 + 1]].normal += normal;
@@ -96,17 +94,17 @@ static void subdivide_geometry(std::vector<vertex_pntt>* input_vertices,
     // For subdivision, we just care about the position component.  We derive
     // the other vertex_pntt components in CreateGeosphere.
 
-    m0.position = float3{0.5f * (v0.position.x + v1.position.x),
-                         0.5f * (v0.position.y + v1.position.y),
-                         0.5f * (v0.position.z + v1.position.z)};
+    m0.position = vec3f{0.5f * (v0.position.x + v1.position.x),
+                        0.5f * (v0.position.y + v1.position.y),
+                        0.5f * (v0.position.z + v1.position.z)};
 
-    m1.position = float3{0.5f * (v1.position.x + v2.position.x),
-                         0.5f * (v1.position.y + v2.position.y),
-                         0.5f * (v1.position.z + v2.position.z)};
+    m1.position = vec3f{0.5f * (v1.position.x + v2.position.x),
+                        0.5f * (v1.position.y + v2.position.y),
+                        0.5f * (v1.position.z + v2.position.z)};
 
-    m2.position = float3{0.5f * (v0.position.x + v2.position.x),
-                         0.5f * (v0.position.y + v2.position.y),
-                         0.5f * (v0.position.z + v2.position.z)};
+    m2.position = vec3f{0.5f * (v0.position.x + v2.position.x),
+                        0.5f * (v0.position.y + v2.position.y),
+                        0.5f * (v0.position.z + v2.position.z)};
 
     //
     // Add new geometry.
@@ -145,27 +143,27 @@ static void subdivide_geometry(std::vector<vertex_pntt>* input_vertices,
 
 //   const float theta_step = two_pi<float>() / circle_slices;
 
-//   mesh->geometry[0].position  = math::float3::null;
-//   mesh->geometry[0].normal    = math::float3::unit_y;
-//   mesh->geometry[0].tangent   = math::float3::unit_x;
-//   mesh->geometry[0].texcoords = math::float2{0.5f, 0.5f};
+//   mesh->geometry[0].position  = math::vec3f::null;
+//   mesh->geometry[0].normal    = math::vec3f::unit_y;
+//   mesh->geometry[0].tangent   = math::vec3f::unit_x;
+//   mesh->geometry[0].texcoords = math::vec2f{0.5f, 0.5f};
 
 //   //
 //   //  need to duplicate last vertex, otherwise texture coordinates and
 //   //  tangents won't be correct.
 //   for (size_t idx = 1; idx < circle_slices + 2; ++idx) {
 //     mesh->geometry[idx].position =
-//         math::float3{radius * cos((idx - 1) * theta_step), 0.0f,
+//         math::vec3f{radius * cos((idx - 1) * theta_step), 0.0f,
 //                      radius * sin((idx - 1) * theta_step)};
 
-//     mesh->geometry[idx].normal = math::float3::unit_y;
+//     mesh->geometry[idx].normal = math::vec3f::unit_y;
 
 //     mesh->geometry[idx].tangent =
-//         math::float3{-radius * sin((idx - 1) * theta_step), 0.0f,
+//         math::vec3f{-radius * sin((idx - 1) * theta_step), 0.0f,
 //                      radius * cos((idx - 1) * theta_step)};
 
 //     mesh->geometry[idx].texcoords =
-//         math::float2{cos((idx - 1) * theta_step) * 0.5f + 0.5f,
+//         math::vec2f{cos((idx - 1) * theta_step) * 0.5f + 0.5f,
 //                      sin((idx - 1) * theta_step) * 0.5f + 0.5f};
 //   }
 
@@ -210,13 +208,13 @@ void xray::rendering::geometry_factory::cylinder(
       const float vtx_x = radius * cos_theta;
       const float vtx_z = radius * sin_theta;
 
-      vertex_ptr->position = float3{vtx_x, vtx_y, vtx_z};
+      vertex_ptr->position = vec3f{vtx_x, vtx_y, vtx_z};
 
-      vertex_ptr->tangent = float3{-sin_theta, 0.0f, cos_theta};
-      //      const auto bitangent = float3{0.0f, height, 0.0f};
+      vertex_ptr->tangent = vec3f{-sin_theta, 0.0f, cos_theta};
+      //      const auto bitangent = vec3f{0.0f, height, 0.0f};
 
       vertex_ptr->normal = normalize(vertex_ptr->position);
-      // float3{cos_theta, 0.0f, sin_theta};
+      // vec3f{cos_theta, 0.0f, sin_theta};
       // normalize(cross_product(bitangent, tangent));
 
       vertex_ptr->texcoords.x = theta / two_pi<float>;
@@ -390,10 +388,10 @@ void xray::rendering::geometry_factory::box(const float      width,
 
 //   mesh->setup(vertex_count, index_count);
 
-//   mesh->geometry[0].position  = math::float3{0.0f, height, 0.0f};
-//   mesh->geometry[0].normal    = math::float3::unit_y;
-//   mesh->geometry[0].tangent   = math::float3::unit_x;
-//   mesh->geometry[0].texcoords = math::float2{0.5f, 0.5f};
+//   mesh->geometry[0].position  = math::vec3f{0.0f, height, 0.0f};
+//   mesh->geometry[0].normal    = math::vec3f::unit_y;
+//   mesh->geometry[0].tangent   = math::vec3f::unit_x;
+//   mesh->geometry[0].texcoords = math::vec2f{0.5f, 0.5f};
 
 //   const float theta_step  = math::numericsF::two_pi() / slices;
 //   const float height_step = height / (stacks + 1);
@@ -404,18 +402,18 @@ void xray::rendering::geometry_factory::box(const float      width,
 //   //  tangents won't be correct.
 //   vertex_pntt_t* vertex_ptr = base::raw_ptr(mesh->geometry) + 1;
 //   for (uint32_t idx = 1; idx <= slices + 1; ++idx, ++vertex_ptr) {
-//     vertex_ptr->position = math::float3{
+//     vertex_ptr->position = math::vec3f{
 //         radius_step * cos((idx - 1) * theta_step), height - height_step,
 //         radius_step * sin((idx - 1) * theta_step)};
 
-//     vertex_ptr->normal = math::float3::unit_y;
+//     vertex_ptr->normal = math::vec3f::unit_y;
 
 //     vertex_ptr->tangent =
-//         math::float3{-radius_step * sin((idx - 1) * theta_step), 0.0f,
+//         math::vec3f{-radius_step * sin((idx - 1) * theta_step), 0.0f,
 //                      radius_step * cos((idx - 1) * theta_step)};
 
 //     vertex_ptr->texcoords =
-//         math::float2{cos((idx - 1) * theta_step) * 0.5f + 0.5f,
+//         math::vec2f{cos((idx - 1) * theta_step) * 0.5f + 0.5f,
 //                      sin((idx - 1) * theta_step) * 0.5f + 0.5f};
 //   }
 
@@ -425,15 +423,15 @@ void xray::rendering::geometry_factory::box(const float      width,
 
 //     for (uint32_t j = 1; j <= slices + 1; ++j, ++vertex_ptr) {
 //       vertex_ptr->position =
-//           math::float3{stk_radius * cos((j - 1) * theta_step), stk_height,
+//           math::vec3f{stk_radius * cos((j - 1) * theta_step), stk_height,
 //                        stk_radius * sin((j - 1) * theta_step)};
 
 //       vertex_ptr->tangent =
-//           math::float3{-stk_radius * sin((j - 1) * theta_step), 0.0f,
+//           math::vec3f{-stk_radius * sin((j - 1) * theta_step), 0.0f,
 //                        stk_radius * cos((j - 1) * theta_step)};
 
 //       vertex_ptr->texcoords =
-//           math::float2{cos((j - 1) * theta_step) * 0.5f + 0.5f,
+//           math::vec2f{cos((j - 1) * theta_step) * 0.5f + 0.5f,
 //                        sin((j - 1) * theta_step) * 0.5f + 0.5f};
 //     }
 //   }
@@ -513,11 +511,11 @@ void xray::rendering::geometry_factory::grid(const float      grid_width,
 
             const float x_coord = -half_width + col_idx * delta_x;
 
-            output_vtx.position = math::float3{x_coord, 0.0f, z_coord};
-            output_vtx.normal   = math::float3::stdc::unit_y;
-            output_vtx.tangent  = math::float3::stdc::unit_x;
+            output_vtx.position = math::vec3f{x_coord, 0.0f, z_coord};
+            output_vtx.normal   = math::vec3f::stdc::unit_y;
+            output_vtx.tangent  = math::vec3f::stdc::unit_x;
             output_vtx.texcoords =
-                math::float2{col_idx * delta_tu, row_idx * delta_tv};
+                math::vec2f{col_idx * delta_tu, row_idx * delta_tv};
           }
         }
       });
@@ -565,18 +563,18 @@ void xray::rendering::geometry_factory::fullscreen_quad(
   constexpr float coords[] = {-1.0f, -1.0f, -1.0f, +1.0f,
                               +1.0f, +1.0f, +1.0f, -1.0f};
 
-  constexpr math::float3 normal_vec{0.0f, 0.0f, -1.0f};
-  constexpr float        texcoords[] = {0.0f, 1.0f, 0.0f, 0.0f,
+  constexpr math::vec3f normal_vec{0.0f, 0.0f, -1.0f};
+  constexpr float       texcoords[] = {0.0f, 1.0f, 0.0f, 0.0f,
                                  1.0f, 0.0f, 1.0f, 1.0f};
 
   for (size_t idx = 0; idx < 4; ++idx) {
     grid_geometry->geometry[idx].position =
-        math::float3{coords[idx * 2 + 0], coords[idx * 2 + 1], 0.0f};
+        math::vec3f{coords[idx * 2 + 0], coords[idx * 2 + 1], 0.0f};
 
     grid_geometry->geometry[idx].normal  = normal_vec;
-    grid_geometry->geometry[idx].tangent = float3::stdc::unit_x;
+    grid_geometry->geometry[idx].tangent = vec3f::stdc::unit_x;
     grid_geometry->geometry[idx].texcoords =
-        math::float2{texcoords[idx * 2 + 0], texcoords[idx * 2 + 1]};
+        math::vec2f{texcoords[idx * 2 + 0], texcoords[idx * 2 + 1]};
   }
 
   static constexpr uint32_t fsquad_indices[] = {0, 2, 1, 0, 3, 2};
@@ -784,13 +782,13 @@ void xray::rendering::geometry_factory::geosphere(
   constexpr auto xpos = 0.525731f;
   constexpr auto zpos = 0.850651f;
 
-  constexpr float3 pos[12] = {
-      math::float3{-xpos, 0.0f, +zpos}, math::float3{+xpos, 0.0f, +zpos},
-      math::float3{-xpos, 0.0f, -zpos}, math::float3{+xpos, 0.0f, -zpos},
-      math::float3{0.0f, +zpos, +xpos}, math::float3{0.0f, +zpos, -xpos},
-      math::float3{0.0f, -zpos, +xpos}, math::float3{0.0f, -zpos, -xpos},
-      math::float3{+zpos, +xpos, 0.0f}, math::float3{-zpos, +xpos, 0.0f},
-      math::float3{+zpos, -xpos, 0.0f}, math::float3{-zpos, -xpos, 0.0f}};
+  constexpr vec3f pos[12] = {
+      math::vec3f{-xpos, 0.0f, +zpos}, math::vec3f{+xpos, 0.0f, +zpos},
+      math::vec3f{-xpos, 0.0f, -zpos}, math::vec3f{+xpos, 0.0f, -zpos},
+      math::vec3f{0.0f, +zpos, +xpos}, math::vec3f{0.0f, +zpos, -xpos},
+      math::vec3f{0.0f, -zpos, +xpos}, math::vec3f{0.0f, -zpos, -xpos},
+      math::vec3f{+zpos, +xpos, 0.0f}, math::vec3f{-zpos, +xpos, 0.0f},
+      math::vec3f{+zpos, -xpos, 0.0f}, math::vec3f{-zpos, -xpos, 0.0f}};
 
   constexpr uint32_t k[60] = {
       1,  0, 4, 4, 0, 9,  4, 9, 5,  8, 4, 5, 1,  4,  8, 1, 8, 10, 10, 8,
@@ -843,10 +841,10 @@ void xray::rendering::geometry_factory::tetrahedron(geometry_data_t* mesh) {
   mesh->setup(4u, 12u);
 
   //  TODO : fix tangents and texture coordinates
-  mesh->geometry[0].position = float3{0.0f, 0.0f, -1.0f};
-  mesh->geometry[1].position = float3{0.9428f, 0.0f, 0.333f};
-  mesh->geometry[2].position = float3{-0.4714045f, 0.81649658f, 0.333f};
-  mesh->geometry[3].position = float3{-0.4714045f, -0.81649658f, 0.333f};
+  mesh->geometry[0].position = vec3f{0.0f, 0.0f, -1.0f};
+  mesh->geometry[1].position = vec3f{0.9428f, 0.0f, 0.333f};
+  mesh->geometry[2].position = vec3f{-0.4714045f, 0.81649658f, 0.333f};
+  mesh->geometry[3].position = vec3f{-0.4714045f, -0.81649658f, 0.333f};
 
   constexpr uint32_t indices[] = {0, 1, 2, 0, 2, 3, 0, 3, 1, 1, 3, 2};
 
@@ -858,14 +856,14 @@ void xray::rendering::geometry_factory::tetrahedron(geometry_data_t* mesh) {
 void xray::rendering::geometry_factory::hexahedron(geometry_data_t* mesh) {
   mesh->setup(8u, 36u);
 
-  const float3 vertices[] = {float3{-1.0f, -1.0f, -1.0f} * 0.57735f,
-                             float3{+1.0f, -1.0f, -1.0f} * 0.57735f,
-                             float3{+1.0f, +1.0f, -1.0f} * 0.57735f,
-                             float3{-1.0f, +1.0f, -1.0f} * 0.57735f,
-                             float3{-1.0f, -1.0f, +1.0f} * 0.57735f,
-                             float3{+1.0f, -1.0f, +1.0f} * 0.57735f,
-                             float3{+1.0f, +1.0f, +1.0f} * 0.57735f,
-                             float3{-1.0f, +1.0f, +1.0f} * 0.57735f};
+  const vec3f vertices[] = {vec3f{-1.0f, -1.0f, -1.0f} * 0.57735f,
+                            vec3f{+1.0f, -1.0f, -1.0f} * 0.57735f,
+                            vec3f{+1.0f, +1.0f, -1.0f} * 0.57735f,
+                            vec3f{-1.0f, +1.0f, -1.0f} * 0.57735f,
+                            vec3f{-1.0f, -1.0f, +1.0f} * 0.57735f,
+                            vec3f{+1.0f, -1.0f, +1.0f} * 0.57735f,
+                            vec3f{+1.0f, +1.0f, +1.0f} * 0.57735f,
+                            vec3f{-1.0f, +1.0f, +1.0f} * 0.57735f};
 
   for (size_t idx = 0; idx < XR_COUNTOF__(vertices); ++idx) {
     mesh->geometry[idx].position = vertices[idx];
@@ -895,10 +893,10 @@ void xray::rendering::geometry_factory::hexahedron(geometry_data_t* mesh) {
 void xray::rendering::geometry_factory::octahedron(geometry_data_t* mesh) {
   mesh->setup(6u, 24u);
 
-  constexpr float3 vertices[] = {
-      float3{1.0f, 0.0f, 0.0f}, float3{-1.0f, 0.0f, 0.0f},
-      float3{0.0f, 1.0f, 0.0f}, float3{0.0f, -1.0f, 0.0f},
-      float3{0.0f, 0.0f, 1.0f}, float3{0.0f, 0.0f, -1.0f}};
+  constexpr vec3f vertices[] = {
+      vec3f{1.0f, 0.0f, 0.0f}, vec3f{-1.0f, 0.0f, 0.0f},
+      vec3f{0.0f, 1.0f, 0.0f}, vec3f{0.0f, -1.0f, 0.0f},
+      vec3f{0.0f, 0.0f, 1.0f}, vec3f{0.0f, 0.0f, -1.0f}};
 
   constexpr uint32_t indices[] = {
       // clang-format off
@@ -928,33 +926,33 @@ void xray::rendering::geometry_factory::dodecahedron(geometry_data_t* mesh) {
   constexpr auto b = 0.3568220897730899f;
   constexpr auto c = 0.9341723589627158f;
 
-  constexpr float3 vertices[] = {
+  constexpr vec3f vertices[] = {
       // clang-format off
-      float3{a, a, a},
-      float3{a, a, -a},
-      float3{a, -a, a},
+      vec3f{a, a, a},
+      vec3f{a, a, -a},
+      vec3f{a, -a, a},
 
-      float3{a, -a, -a},
-      float3{-a, a, a},
-      float3{-a, a, -a},
+      vec3f{a, -a, -a},
+      vec3f{-a, a, a},
+      vec3f{-a, a, -a},
 
-      float3{-a, -a, a},
-      float3{-a, -a, -a},
-      float3{b, c, 0.0f},
+      vec3f{-a, -a, a},
+      vec3f{-a, -a, -a},
+      vec3f{b, c, 0.0f},
 
-      float3{-b, c, 0.0f},
-      float3{b, -c, 0.0f},
-      float3{-b, -c, 0.0f},
+      vec3f{-b, c, 0.0f},
+      vec3f{b, -c, 0.0f},
+      vec3f{-b, -c, 0.0f},
 
-      float3{c, 0.0f, b},
-      float3{c, 0.0f, -b},
-      float3{-c, 0.0f, b},
+      vec3f{c, 0.0f, b},
+      vec3f{c, 0.0f, -b},
+      vec3f{-c, 0.0f, b},
 
-      float3{-c, 0.0f, -b},
-      float3{0.0f, b, c},
-      float3{0.0f, -b, c},
-      float3{0.0f, b, -c},
-      float3{0.0f, -b, -c}
+      vec3f{-c, 0.0f, -b},
+      vec3f{0.0f, b, c},
+      vec3f{0.0f, -b, c},
+      vec3f{0.0f, b, -c},
+      vec3f{0.0f, -b, -c}
       // clang format on
   };
 
@@ -1011,29 +1009,29 @@ void xray::rendering::geometry_factory::icosahedron(geometry_data_t* mesh) {
   constexpr auto t  = 1.618033988749895f;
   constexpr auto it = 0.5257311121191336f;
 
-  const float3 vertices[] = {float3{t, 1.0f, 0.0f} * it,
+  const vec3f vertices[] = {vec3f{t, 1.0f, 0.0f} * it,
 
-                             float3{-t, 1.0f, 0.0f} * it,
+                            vec3f{-t, 1.0f, 0.0f} * it,
 
-                             float3{t, -1.0f, 0.0f} * it,
+                            vec3f{t, -1.0f, 0.0f} * it,
 
-                             float3{-t, -1.0f, 0.0f} * it,
+                            vec3f{-t, -1.0f, 0.0f} * it,
 
-                             float3{1.0f, 0.0f, t} * it,
+                            vec3f{1.0f, 0.0f, t} * it,
 
-                             float3{1.0f, 0.0f, -t} * it,
+                            vec3f{1.0f, 0.0f, -t} * it,
 
-                             float3{-1.0f, 0.0f, t} * it,
+                            vec3f{-1.0f, 0.0f, t} * it,
 
-                             float3{-1.0f, 0.0f, -t} * it,
+                            vec3f{-1.0f, 0.0f, -t} * it,
 
-                             float3{0.0f, t, 1.0f} * it,
+                            vec3f{0.0f, t, 1.0f} * it,
 
-                             float3{0.0f, -t, 1.0f} * it,
+                            vec3f{0.0f, -t, 1.0f} * it,
 
-                             float3{0.0f, t, -1.0f} * it,
+                            vec3f{0.0f, t, -1.0f} * it,
 
-                             float3{0.0f, -t, -1.0f} * it};
+                            vec3f{0.0f, -t, -1.0f} * it};
 
   constexpr uint32_t indices[] = {
       // clang-format off
@@ -1101,7 +1099,7 @@ void xray::rendering::geometry_factory::torus(const float      outer_radius,
         const auto r  = (outer_radius + inner_radius * cv);
 
         vptr->position  = {r * cu, r * su, inner_radius * sv};
-        vptr->normal    = normalize(float3{cv * cu * r, cv * su * r, sv * r});
+        vptr->normal    = normalize(vec3f{cv * cu * r, cv * su * r, sv * r});
         vptr->texcoords = {u / two_pi<float>, v / two_pi<float>};
         ++vptr;
       }
@@ -1137,7 +1135,7 @@ void xray::rendering::geometry_factory::torus(const float      outer_radius,
 //
 // convert aiVector object to out vector rep
 static auto ai_vec_to_xray_vec(const aiVector3D& ai_vec) noexcept {
-  return xray::math::float3{ai_vec.x, ai_vec.y, ai_vec.z};
+  return xray::math::vec3f{ai_vec.x, ai_vec.y, ai_vec.z};
 }
 
 static bool
@@ -1234,7 +1232,7 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
 
         static auto get_null_normal(const aiVector3D* /*input*/,
                                     const uint32_t /*pos*/) noexcept {
-          return float3::stdc::zero;
+          return vec3f::stdc::zero;
         }
       };
 
@@ -1255,13 +1253,13 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
       struct msvc_fuckery {
         static auto get_texcoord_from_mesh(const aiVector3D* const* texcoords,
                                            const uint32_t pos) noexcept {
-          return float2{texcoords[0][pos].x, texcoords[0][pos].y};
+          return vec2f{texcoords[0][pos].x, texcoords[0][pos].y};
         }
 
         static auto
         get_default_texcoords(const aiVector3D* const* /*texcoords*/,
                               const uint32_t /*pos*/) noexcept {
-          return float2{0.5f, 0.5f};
+          return vec2f{0.5f, 0.5f};
         }
       };
 

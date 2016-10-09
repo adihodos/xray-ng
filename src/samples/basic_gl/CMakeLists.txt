@@ -7,64 +7,66 @@ set(proj_src_dir "${CMAKE_SOURCE_DIR}/src/samples/basic_gl")
 include_directories(${proj_inc_dir})
 
 set(project_sources
-    ${proj_inc_dir}/animated_plane.hpp
-    ${proj_src_dir}/animated_plane.cc
-    ${proj_inc_dir}/animated_plane_model.hpp
-    ${proj_inc_dir}/colored_circle.hpp
-    ${proj_src_dir}/colored_circle.cc
+    # ${proj_inc_dir}/animated_plane.hpp
+    # ${proj_src_dir}/animated_plane.cc
+    # ${proj_inc_dir}/animated_plane_model.hpp
+    # ${proj_inc_dir}/colored_circle.hpp
+    # ${proj_src_dir}/colored_circle.cc
     ${proj_inc_dir}/demo_base.hpp
     ${proj_src_dir}/demo_base.cc
-    ${proj_src_dir}/fractal.cc
-    ${proj_inc_dir}/fractal.hpp
+    ${proj_inc_dir}/debug_record.hpp
+    ${proj_src_dir}/debug_record.cc
+    # ${proj_src_dir}/fractal.cc
+    # ${proj_inc_dir}/fractal.hpp
     ${proj_inc_dir}/fwd_app.hpp
     ${proj_inc_dir}/helpers.hpp
-    ${proj_inc_dir}/init_context.hpp
+    # ${proj_inc_dir}/init_context.hpp
     ${proj_inc_dir}/light_source.hpp
-    ${proj_inc_dir}/lit_torus.hpp
-    ${proj_src_dir}/lit_torus.cc
+    # ${proj_inc_dir}/lit_torus.hpp
+    # ${proj_src_dir}/lit_torus.cc
     ${proj_src_dir}/main.cc
     ${proj_inc_dir}/material.hpp
     ${proj_src_dir}/material.cc
     ${proj_inc_dir}/phong_material_component.hpp
     ${proj_src_dir}/phong_material_component.cc
-    ${proj_inc_dir}/resize_context.hpp
+    # ${proj_inc_dir}/resize_context.hpp
     ${proj_inc_dir}/std_assets.hpp
     ${proj_inc_dir}/scene_loader.hpp
     ${proj_src_dir}/scene_loader.cc
-    ${proj_inc_dir}/cap3/soubroutines/soubroutines_demo.hpp
-    ${proj_src_dir}/cap3/soubroutines/soubroutines_demo.cc
-    ${proj_inc_dir}/cap3/frag_discard/frag_discard_demo.hpp
-    ${proj_inc_dir}/cap3/frag_discard/frag_discard_demo.cc
-    ${proj_inc_dir}/cap4/multiple_lights/multiple_lights_demo.hpp
-    ${proj_inc_dir}/cap4/multiple_lights/multiple_lights_demo.cc
-    ${proj_inc_dir}/cap4/directional_lights/directional_lights_demo.hpp
-    ${proj_inc_dir}/cap4/directional_lights/directional_lights_demo.cc
-    ${proj_inc_dir}/cap4/per_fragment_lighting/per_fragment_lighting_demo.hpp
-    ${proj_inc_dir}/cap4/per_fragment_lighting/per_fragment_lighting_demo.cc
-    ${proj_inc_dir}/cap4/toon_shading/toon_shading_demo.hpp
-    ${proj_inc_dir}/cap4/toon_shading/toon_shading_demo.cc
-    ${proj_inc_dir}/cap4/spotlight/spotlight_demo.hpp
-    ${proj_inc_dir}/cap4/spotlight/spotlight_demo.cc
-    ${proj_inc_dir}/cap4/fog/fog_demo.hpp
-    ${proj_inc_dir}/cap4/fog/fog_demo.cc
-    ${proj_inc_dir}/cap5/textures/textures_demo.hpp
-    ${proj_inc_dir}/cap5/textures/textures_demo.cc
-    ${proj_inc_dir}/cap5/multiple_textures/multiple_textures_demo.hpp
-    ${proj_inc_dir}/cap5/multiple_textures/multiple_textures_demo.cc
-    ${proj_inc_dir}/cap5/discard_alphamap/discard_alphamap_demo.hpp
-    ${proj_inc_dir}/cap5/discard_alphamap/discard_alphamap_demo.cc
-    ${proj_inc_dir}/cap5/normal_map/normal_map_demo.hpp
-    ${proj_inc_dir}/cap5/normal_map/normal_map_demo.cc
-    ${proj_inc_dir}/cap5/reflection/reflection_demo.hpp
-    ${proj_src_dir}/cap5/reflection/reflection_demo.cc
-    ${proj_inc_dir}/cap5/refraction/refraction_demo.hpp
-    ${proj_src_dir}/cap5/refraction/refraction_demo.cc
-    ${proj_inc_dir}/cap5/render_texture/render_texture_demo.hpp
-    ${proj_src_dir}/cap5/render_texture/render_texture_demo.cc
+    # ${proj_inc_dir}/cap3/soubroutines/soubroutines_demo.hpp
+    # ${proj_src_dir}/cap3/soubroutines/soubroutines_demo.cc
+    # ${proj_inc_dir}/cap3/frag_discard/frag_discard_demo.hpp
+    # ${proj_inc_dir}/cap3/frag_discard/frag_discard_demo.cc
+    # ${proj_inc_dir}/cap4/multiple_lights/multiple_lights_demo.hpp
+    # ${proj_inc_dir}/cap4/multiple_lights/multiple_lights_demo.cc
+    # ${proj_inc_dir}/cap4/directional_lights/directional_lights_demo.hpp
+    # ${proj_inc_dir}/cap4/directional_lights/directional_lights_demo.cc
+    # ${proj_inc_dir}/cap4/per_fragment_lighting/per_fragment_lighting_demo.hpp
+    # ${proj_inc_dir}/cap4/per_fragment_lighting/per_fragment_lighting_demo.cc
+    # ${proj_inc_dir}/cap4/toon_shading/toon_shading_demo.hpp
+    # ${proj_inc_dir}/cap4/toon_shading/toon_shading_demo.cc
+    # ${proj_inc_dir}/cap4/spotlight/spotlight_demo.hpp
+    # ${proj_inc_dir}/cap4/spotlight/spotlight_demo.cc
+    # ${proj_inc_dir}/cap4/fog/fog_demo.hpp
+    # ${proj_inc_dir}/cap4/fog/fog_demo.cc
+    # ${proj_inc_dir}/cap5/textures/textures_demo.hpp
+    # ${proj_inc_dir}/cap5/textures/textures_demo.cc
+    # ${proj_inc_dir}/cap5/multiple_textures/multiple_textures_demo.hpp
+    # ${proj_inc_dir}/cap5/multiple_textures/multiple_textures_demo.cc
+    # ${proj_inc_dir}/cap5/discard_alphamap/discard_alphamap_demo.hpp
+    # ${proj_inc_dir}/cap5/discard_alphamap/discard_alphamap_demo.cc
+    # ${proj_inc_dir}/cap5/normal_map/normal_map_demo.hpp
+    # ${proj_inc_dir}/cap5/normal_map/normal_map_demo.cc
+    # ${proj_inc_dir}/cap5/reflection/reflection_demo.hpp
+    # ${proj_src_dir}/cap5/reflection/reflection_demo.cc
+    # ${proj_inc_dir}/cap5/refraction/refraction_demo.hpp
+    # ${proj_src_dir}/cap5/refraction/refraction_demo.cc
+    # ${proj_inc_dir}/cap5/render_texture/render_texture_demo.hpp
+    # ${proj_src_dir}/cap5/render_texture/render_texture_demo.cc
     ${proj_inc_dir}/cap6/edge_detect/edge_detect_demo.hpp
     ${proj_src_dir}/cap6/edge_detect/edge_detect_demo.cc
-    ${proj_inc_dir}/cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp
-    ${proj_src_dir}/cap6/hdr_tonemapping/hdr_tonemapping_demo.cc
+    # ${proj_inc_dir}/cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp
+    # ${proj_src_dir}/cap6/hdr_tonemapping/hdr_tonemapping_demo.cc
     )
 
 set(shader_files

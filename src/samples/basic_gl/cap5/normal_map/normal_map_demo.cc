@@ -43,15 +43,15 @@ void app::normal_map_demo::draw(const xray::rendering::draw_context_t& dc) {
   gl::BindSamplers(0, 2, bound_samplers);
 
   struct matrix_pack {
-    float4x4 world_view;
-    float4x4 normal_view;
-    float4x4 wvp;
+    mat4f world_view;
+    mat4f normal_view;
+    mat4f wvp;
   } const obj_transforms{dc.view_matrix, dc.view_matrix, dc.proj_view_matrix};
 
   gl::UseProgram(_draw_program.handle());
   _draw_program.set_uniform_block("obj_transforms", obj_transforms);
 
-  const light_source sl{mul_point(dc.view_matrix, float3{0.0f, 15.0f, 15.0f}),
+  const light_source sl{mul_point(dc.view_matrix, vec3f{0.0f, 15.0f, 15.0f}),
                         0.0f, color_palette::material::white,
                         color_palette::material::white,
                         color_palette::material::white};

@@ -1,8 +1,8 @@
 #include "xray/ui/user_interface.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/pod_zero.hpp"
-#include "xray/math/projection.hpp"
 #include "xray/math/objects/rectangle.hpp"
+#include "xray/math/projection.hpp"
 #include "xray/math/scalar4x4.hpp"
 #if defined(XRAY_RENDERER_DIRECTX)
 #include "xray/rendering/directx/scoped_mapping.hpp"
@@ -12,6 +12,8 @@
 #include "xray/rendering/opengl/shader_base.hpp"
 #include <opengl/opengl.hpp>
 #endif
+#include "xray/base/app_config.hpp"
+#include "xray/base/shims/attribute/basic_path.hpp"
 #include "xray/rendering/draw_context.hpp"
 #include "xray/ui/input_event.hpp"
 #include "xray/ui/key_symbols.hpp"
@@ -349,6 +351,21 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
   if (!_rendercontext._draw_prog) {
     XR_LOG_ERR("Failed to compile/link program!");
     return;
+  }
+
+  {
+    _small_font = _gui->Fonts->AddFontDefault();
+
+    ImFontConfig config;
+    config.OversampleH         = 3;
+    config.OversampleV         = 1;
+    config.GlyphExtraSpacing.x = 1.0f;
+
+    const auto font_path =
+        app_config::instance()->font_path("PxPlus_VGA_SquarePx.ttf");
+    _medium_font =
+        _gui->Fonts->AddFontFromFileTTF(c_str_ptr(font_path), 18, &config);
+    assert(_medium_font != nullptr);
   }
 
   _rendercontext._font_texture = [g = _gui]() {

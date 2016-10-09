@@ -74,7 +74,7 @@ private:
 private:
   camera*             cam_;
   controller_params_t params_{};
-  math::float2        last_mouse_pos_{math::float2::stdc::zero};
+  math::vec2f         last_mouse_pos_{math::vec2f::stdc::zero};
 };
 
 /// @}

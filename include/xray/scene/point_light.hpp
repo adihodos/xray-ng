@@ -47,7 +47,7 @@ struct alignas(16) point_light {
   xray::rendering::rgb_color ks;
 
   ///< Light position.
-  xray::math::float3 position;
+  xray::math::vec3f position;
 };
 
 } // namespace scene

@@ -43,9 +43,9 @@ void app::textures_demo::draw(const xray::rendering::draw_context_t& dc) {
   gl::BindVertexArray(raw_handle(_vertex_array));
 
   struct matrix_pack {
-    float4x4 world_view;
-    float4x4 normals_view;
-    float4x4 world_view_proj;
+    mat4f world_view;
+    mat4f normals_view;
+    mat4f world_view_proj;
   } const obj_transforms{dc.view_matrix, dc.view_matrix, dc.proj_view_matrix};
 
   _draw_prog.set_uniform_block("matrix_pack", obj_transforms);

@@ -169,8 +169,8 @@ constexpr const scalar3x3<T> scalar3x3<T>::stdc::null;
 template <typename T>
 constexpr const scalar3x3<T> scalar3x3<T>::stdc::identity;
 
-using float3x3  = scalar3x3<float>;
-using double3x3 = scalar3x3<double>;
+using mat3f = scalar3x3<float>;
+using mat3d = scalar3x3<double>;
 
 template <typename T>
 constexpr scalar3x3<T>::scalar3x3(const T a00_, const T a01_, const T a02_,

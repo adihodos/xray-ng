@@ -68,9 +68,9 @@ void app::refraction_demo::draw(const xray::rendering::draw_context_t& dc) {
   }
 
   struct matrix_pack {
-    float4x4 model_world;
-    float4x4 normal_world;
-    float4x4 world_view_proj;
+    mat4f model_world;
+    mat4f normal_world;
+    mat4f world_view_proj;
   };
 
   //
@@ -108,7 +108,7 @@ void app::refraction_demo::draw(const xray::rendering::draw_context_t& dc) {
   }
 
   {
-    const auto        spacecraft_world_tf = float4x4::stdc::identity;
+    const auto        spacecraft_world_tf = mat4f::stdc::identity;
     const matrix_pack spacecraft_matrices{
         spacecraft_world_tf, spacecraft_world_tf,
         dc.proj_view_matrix * spacecraft_world_tf};

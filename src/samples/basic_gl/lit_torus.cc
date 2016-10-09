@@ -18,9 +18,9 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
-#include "xray/rendering/vertex_format/vertex_pntt.hpp"
 #include "xray/rendering/opengl/shader_base.hpp"
 #include "xray/rendering/vertex_format/vertex_pn.hpp"
+#include "xray/rendering/vertex_format/vertex_pntt.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cassert>
@@ -42,7 +42,7 @@ void app::lit_object::init() {
 
   {
     geometry_data_t torus_mesh;
-    timer_stdp load_tmr{};
+    timer_stdp      load_tmr{};
 
     {
       scoped_timing_object<timer_stdp> sto{&load_tmr};
@@ -67,7 +67,7 @@ void app::lit_object::init() {
     vector<vertex_pn> torus_vertices{torus_mesh.vertex_count};
     transform(raw_ptr(torus_mesh.geometry),
               raw_ptr(torus_mesh.geometry) + torus_mesh.vertex_count,
-              &torus_vertices[0], [](const auto &vx_in) {
+              &torus_vertices[0], [](const auto& vx_in) {
                 return vertex_pn{vx_in.position, vx_in.normal};
               });
 
@@ -134,7 +134,7 @@ void app::lit_object::init() {
   valid_ = true;
 }
 
-void app::lit_object::draw(const xray::rendering::draw_context_t &draw_ctx) {
+void app::lit_object::draw(const xray::rendering::draw_context_t& draw_ctx) {
 
   {
     // layout(binding = 1) uniform light_settings {
@@ -146,37 +146,31 @@ void app::lit_object::draw(const xray::rendering::draw_context_t &draw_ctx) {
     // };
 
     struct light_uniform_t {
-      float4 la;
-      float4 ld;
-      float4 ls;
-      float3 lpos;
+      vec4f la;
+      vec4f ld;
+      vec4f ls;
+      vec3f lpos;
     } lu;
 
-    lu.lpos = mul_point(draw_ctx.view_matrix, float3{5.0f, 5.0f, 2.0f});
-    lu.la = {0.0f, 0.1f, 0.1f, 1.0f};
-    lu.ld = {1.0f, 1.0f, 1.0f, 1.0f};
-    lu.ls = {1.0f, 1.0f, 1.0f, 1.0f};
+    lu.lpos = mul_point(draw_ctx.view_matrix, vec3f{5.0f, 5.0f, 2.0f});
+    lu.la   = {0.0f, 0.1f, 0.1f, 1.0f};
+    lu.ld   = {1.0f, 1.0f, 1.0f, 1.0f};
+    lu.ls   = {1.0f, 1.0f, 1.0f, 1.0f};
 
     draw_prog_.set_uniform_block("light_settings", lu);
   }
 
   {
-    // layout(binding = 2) uniform material_settings {
-    //     vec4 mat_ka;
-    //     vec4 mat_kd;
-    //     vec4 mat_ks;
-    //     float shine_factor;
-    // };
     struct material_data_t {
       rgb_color ka;
       rgb_color kd;
       rgb_color ks;
-      float shininess;
+      float     shininess;
     } mtl;
 
-    mtl.kd = color_palette::material::amber;
-    mtl.ka = {0.9f, 0.5f, 0.3f, 1.0f};
-    mtl.ks = {0.8f, 0.8f, 0.8f, 1.0f};
+    mtl.kd        = color_palette::material::amber;
+    mtl.ka        = {0.9f, 0.5f, 0.3f, 1.0f};
+    mtl.ks        = {0.8f, 0.8f, 0.8f, 1.0f};
     mtl.shininess = 100.0f;
 
     draw_prog_.set_uniform_block("material_settings", mtl);
@@ -184,19 +178,19 @@ void app::lit_object::draw(const xray::rendering::draw_context_t &draw_ctx) {
 
   {
     struct transforms_uniform_t {
-      float4x4 model_to_view;
-      float4x4 normal_to_view;
-      float4x4 model_view_proj;
+      mat4f model_to_view;
+      mat4f normal_to_view;
+      mat4f model_view_proj;
     } transforms;
 
     const auto model2view =
-        draw_ctx.view_matrix * float4x4{R3::rotate_y(ry_) * R3::rotate_x(rx_)};
+        draw_ctx.view_matrix * mat4f{R3::rotate_y(ry_) * R3::rotate_x(rx_)};
 
     //
     // model to view is just some rotations so use it as it is for
     // normal transform matrix
-    transforms.normal_to_view = model2view;
-    transforms.model_to_view = model2view;
+    transforms.normal_to_view  = model2view;
+    transforms.model_to_view   = model2view;
     transforms.model_view_proj = draw_ctx.projection_matrix * model2view;
 
     draw_prog_.set_uniform_block("transforms", transforms);

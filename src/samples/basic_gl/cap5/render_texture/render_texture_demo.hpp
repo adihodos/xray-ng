@@ -83,12 +83,12 @@ private:
     xray::rendering::rgb_color normal_color_beg{1.0f, 0.0f, 0.0f, 1.0f};
     xray::rendering::rgb_color normal_color_end{0.0f, 1.0f, 0.0f, 1.0f};
     float                      normal_line_len{0.5f};
-    xray::math::float3         light_pos{0.0f, 10.0f, 0.0f};
+    xray::math::vec3f          light_pos{0.0f, 10.0f, 0.0f};
   } _dbg_opts;
 
   struct render_tex_opts {
-    xray::math::float3         cam_pos{0.0f, 4.0f, -4.0f};
-    xray::math::scalar2u32     rendertarget_size{512u, 512u};
+    xray::math::vec3f          cam_pos{0.0f, 4.0f, -4.0f};
+    xray::math::vec2ui32       rendertarget_size{512u, 512u};
     float                      fov{65.0f};
     light_source4              lights[2];
     xray::rendering::rgb_color tex_clear_color;

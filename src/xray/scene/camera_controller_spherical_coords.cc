@@ -136,5 +136,5 @@ void xray::scene::camera_controller_spherical_coords::update() noexcept {
   const auto cam_pos = point_from_spherical_coords(
       params_.radius_, params_.theta_, params_.phi_);
 
-  cam_->look_at(cam_pos, float3::stdc::zero, float3::stdc::unit_y);
+  cam_->look_at(cam_pos, vec3f::stdc::zero, vec3f::stdc::unit_y);
 }

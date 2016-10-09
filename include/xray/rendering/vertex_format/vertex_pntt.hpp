@@ -45,15 +45,15 @@ namespace rendering {
 /// \brief      Vertex format consisting of position, normal, tangent and
 /// texture info.
 struct vertex_pntt {
-  math::float3 position;
-  math::float3 normal;
-  math::float3 tangent;
-  math::float2 texcoords;
+  math::vec3f position;
+  math::vec3f normal;
+  math::vec3f tangent;
+  math::vec2f texcoords;
 
   vertex_pntt() noexcept {}
 
-  vertex_pntt(const math::float3& pos, const math::float3& vec_normal,
-              const math::float3& tan_vec, const math::float2& texc) noexcept
+  vertex_pntt(const math::vec3f& pos, const math::vec3f& vec_normal,
+              const math::vec3f& tan_vec, const math::vec2f& texc) noexcept
       : position{pos}, normal{vec_normal}, tangent{tan_vec}, texcoords{texc} {}
 
   vertex_pntt(const float px, const float py, const float pz, const float nx,

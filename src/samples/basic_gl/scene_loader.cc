@@ -27,17 +27,17 @@ app::scene_loader::scene_loader(const char* scene_desc_file)
   }
 }
 
-xray::rendering::gpu_program_builder
-app::scene_loader::load_program_description(const char* id) {
-  assert(id != nullptr);
+// xray::rendering::gpu_program_builder
+// app::scene_loader::load_program_description(const char* id) {
+//   assert(id != nullptr);
 
-  using namespace xray::rendering;
+//   using namespace xray::rendering;
 
-  gpu_program_builder prg_builder{};
-  read_program_entry(id, &prg_builder);
+//   gpu_program_builder prg_builder{};
+//   read_program_entry(id, &prg_builder);
 
-  return prg_builder;
-}
+//   return prg_builder;
+// }
 
 bool app::scene_loader::parse_program(
     const char* id, xray::rendering::gpu_program_builder* prg_bld) {
@@ -48,7 +48,7 @@ bool app::scene_loader::parse_program(
 
   const auto prg_entry = _prg_sec.lookup(id);
   if (!prg_entry) {
-    XR_LOG_ERROR("No program [[{}]] in program section", id);
+    XR_LOG_ERR("No program [[{}]] in program section", id);
     return false;
   }
 
@@ -251,32 +251,43 @@ bool app::scene_loader::parse_phong_material(
 //   return mtl;
 // }
 
-void app::scene_loader::parse_point_lights(
-    const light_section_parse_data& pdata) {
+uint32_t app::scene_loader::parse_point_lights(xray::scene::point_light* lights,
+                                               const size_t lights_count) {
+  assert(_sec_pt_lights && "No point lights section in config file!!");
+  return parse_point_lights_section(_sec_pt_lights, lights, lights_count);
+}
 
-  if (!_sec_pt_lights)
-    return;
+uint32_t app::scene_loader::parse_point_lights_section(
+    const xray::base::config_entry& lights_sec,
+    xray::scene::point_light* lights, const size_t lights_count) {
 
-  for (uint32_t i = 0, num_lights = _sec_pt_lights.length(); i < num_lights;
-       ++i) {
-    const auto&              plight_entry = _sec_pt_lights[i];
+  assert(static_cast<bool>(lights_sec));
+  assert(lights != nullptr);
+
+  const auto light_cnt =
+      xray::math::min<uint32_t>(lights_count, lights_sec.length());
+
+  uint32_t lights_read{};
+  for (uint32_t i = 0; i < light_cnt; ++i) {
+    const auto& plight_entry = lights_sec[i];
+
     xray::scene::point_light new_light;
 
     {
       const auto pos_entry = plight_entry.lookup("pos");
       if (!pos_entry) {
-        XR_LOG_CRITICAL("Missing position attribute for light {}", i);
-        XR_NOT_REACHED();
+        XR_LOG_INFO("Missing position attribute for light {}", i);
+        continue;
       }
 
-      new_light.position = read_float3(pos_entry);
+      new_light.position = read_vec3f(pos_entry);
     }
 
     {
       const auto kd_entry = plight_entry.lookup("kd");
       if (!kd_entry) {
-        XR_LOG_CRITICAL("Missing diffuse color attribute for light {}", i);
-        XR_NOT_REACHED();
+        XR_LOG_INFO("Missing diffuse color attribute for light {}", i);
+        continue;
       }
 
       new_light.kd = read_color_f32(kd_entry);
@@ -294,8 +305,10 @@ void app::scene_loader::parse_point_lights(
                               : rgb_color{0.0f, 0.0f, 0.0f, 1.0f};
     }
 
-    pdata.on_point_light_read(new_light);
+    lights[lights_read++] = new_light;
   }
+
+  return lights_read;
 }
 
 bool app::scene_loader::parse_mesh(const char*       mesh_name,
@@ -389,15 +402,16 @@ app::phong_material app::phong_material_builder::build() noexcept {
       {phong_material_component::e::diffuse, &phong_mtl.diffuse},
       {phong_material_component::e::specular, &phong_mtl.specular}};
 
-  for_each(
-      begin(per_component_outputs), end(per_component_outputs),
-      [make_texture_for_component_func, this, &phong_mtl](const auto& cmpdata) {
-        if (!has_component(cmpdata.component))
-          return;
+  // for_each(
+  //     begin(per_component_outputs), end(per_component_outputs),
+  //     [make_texture_for_component_func, this, &phong_mtl](const auto&
+  //     cmpdata) {
+  //       if (!has_component(cmpdata.component))
+  //         return;
 
-        const auto& comp_def    = component_definition(cmpdata.component);
-        *cmpdata.output_texture = make_texture_for_component_func(comp_def);
-      });
+  //       const auto& comp_def    = component_def(cmpdata.component);
+  //       *cmpdata.output_texture = make_texture_for_component_func(comp_def);
+  //     });
 
   return phong_mtl;
 }

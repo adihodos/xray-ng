@@ -28,10 +28,9 @@
 
 #pragma once
 
-#include <chrono>
-
 #include "xray/xray.hpp"
 #include "xray/xray_types.hpp"
+#include <chrono>
 
 namespace xray {
 namespace base {

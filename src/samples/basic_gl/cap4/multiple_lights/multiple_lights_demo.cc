@@ -51,7 +51,6 @@ void app::multiple_lights_demo::key_event(const int32_t /*key_code*/,
                                           const int32_t /*action*/,
                                           const int32_t /*mods*/) noexcept {}
 
-
 template <typename T>
 using auto_buff = stlsoft::auto_buffer<T, 256>;
 
@@ -253,13 +252,13 @@ void app::multiple_lights_demo::draw(
   }
 
   struct obj_transforms {
-    float4x4 mv;
-    float4x4 nv;
-    float4x4 mvp;
+    mat4f mv;
+    mat4f nv;
+    mat4f mvp;
   };
 
   {
-    const auto to_world = float4x4::stdc::identity;
+    const auto to_world = mat4f::stdc::identity;
     const auto tf_uniform =
         obj_transforms{dc.view_matrix * to_world, dc.view_matrix,
                        dc.proj_view_matrix * to_world};
@@ -277,7 +276,7 @@ void app::multiple_lights_demo::draw(
 
   {
     const auto to_world =
-        float4x4{R3::rotate_x(_rot_angle_x) * R3::rotate_y(_rot_angle_y)};
+        mat4f{R3::rotate_x(_rot_angle_x) * R3::rotate_y(_rot_angle_y)};
 
     const auto tf_uniform =
         obj_transforms{dc.view_matrix * to_world, dc.view_matrix * to_world,

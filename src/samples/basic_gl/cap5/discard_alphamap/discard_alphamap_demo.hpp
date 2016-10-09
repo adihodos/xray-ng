@@ -69,8 +69,8 @@ private:
   xray::rendering::scoped_sampler      _sampler;
   xray::rendering::gpu_program         _draw_program;
   uint32_t                             _mesh_index_count{};
-  xray::math::float2 _rotation_xy{xray::math::float2::stdc::zero};
-  spotlight          _lights[NUM_LIGHTS];
+  xray::math::vec2f _rotation_xy{xray::math::vec2f::stdc::zero};
+  spotlight         _lights[NUM_LIGHTS];
 
 private:
   XRAY_NO_COPY(discard_alphamap_demo);

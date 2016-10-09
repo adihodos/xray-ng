@@ -5,21 +5,19 @@
 #include "xray/math/constants.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/opengl/shader_base.hpp"
+#include "xray/rendering/vertex_format/vertex_pt.hpp"
 #include "xray/xray_types.hpp"
 #include <cstdint>
 #include <cstring>
 #include <opengl/opengl.hpp>
 
-struct vertex_pt {
-  xray::math::float3 vertex_pos;
-  xray::math::float3 tex_coord;
-};
+using namespace xray::rendering;
+using namespace xray::math;
 
-static constexpr vertex_pt quad_vertices[] = {
-    {{-0.8f, -0.8f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{0.8f, -0.8f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-    {{0.8f, 0.8f, 0.0f}, {1.0f, 1.0f, 0.0f}},
-    {{-0.8f, 0.8f, 0.0f}, {0.0f, 1.0f, 0.0f}}};
+static const vertex_pt quad_vertices[] = {{{-0.8f, -0.8f, 0.0f}, {0.0f, 0.0f}},
+                                          {{0.8f, -0.8f, 0.0f}, {1.0f, 0.0f}},
+                                          {{0.8f, 0.8f, 0.0f}, {1.0f, 1.0f}},
+                                          {{-0.8f, 0.8f, 0.0f}, {0.0f, 1.0f}}};
 
 static constexpr uint16_t quad_indices[] = {0, 1, 2, 0, 2, 3};
 
@@ -60,9 +58,9 @@ void app::colored_circle::init() noexcept {
 
     gl::BindVertexBuffer(0, raw_handle(vertex_buff_), 0, sizeof(vertex_pt));
     gl::VertexAttribFormat(0, 3, gl::FLOAT, gl::FALSE_,
-                           XR_U32_OFFSETOF(vertex_pt, vertex_pos));
-    gl::VertexAttribFormat(1, 3, gl::FLOAT, gl::FALSE_,
-                           XR_U32_OFFSETOF(vertex_pt, tex_coord));
+                           XR_U32_OFFSETOF(vertex_pt, position));
+    gl::VertexAttribFormat(1, 2, gl::FLOAT, gl::FALSE_,
+                           XR_U32_OFFSETOF(vertex_pt, texcoord));
 
     gl::VertexAttribBinding(0, 0);
     gl::VertexAttribBinding(1, 0);

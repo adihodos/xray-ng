@@ -123,7 +123,7 @@ void app::soubroutines_demo::draw(const draw_context_t& draw_ctx) {
 
   {
     struct light_info {
-      float3    pos{0.0f, 12.0f, 0.0f};
+      vec3f     pos{0.0f, 12.0f, 0.0f};
       float     pad1;
       rgb_color ka{0.1f, 0.1f, 0.1f};
       rgb_color kd{1.0f, 1.0f, 1.0f};
@@ -157,9 +157,9 @@ void app::soubroutines_demo::draw(const draw_context_t& draw_ctx) {
     draw_prog_.set_uniform_block("material_info", std_materials[mtl_idx_ % 2]);
 
     struct transforms {
-      float4x4 wvp;
-      float4x4 mv;
-      float4x4 nv;
+      mat4f wvp;
+      mat4f mv;
+      mat4f nv;
     } tf;
 
     tf.wvp = draw_ctx.proj_view_matrix;

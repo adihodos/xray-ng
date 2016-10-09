@@ -211,8 +211,8 @@ constexpr const scalar4x4<T> scalar4x4<T>::stdc::null;
 template <typename T>
 constexpr const scalar4x4<T> scalar4x4<T>::stdc::identity;
 
-using float4x4  = scalar4x4<float>;
-using double4x4 = scalar4x4<double>;
+using mat4f = scalar4x4<float>;
+using mat4d = scalar4x4<double>;
 
 template <typename T>
 scalar4x4<T>::scalar4x4(const T* input, const size_t count) noexcept {

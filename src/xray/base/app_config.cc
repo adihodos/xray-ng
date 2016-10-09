@@ -16,10 +16,11 @@ xray::base::app_config::app_config(const char* cfg_path /*= nullptr*/) {
   _unique_instance = this;
 
   //
-  // set come defaults
+  // set defaults
   paths_.model_path       = "assets/models";
   paths_.texture_path     = "assets/textures";
   paths_.shader_path      = "assets/shaders";
+  paths_.fonts_path       = "assets/fonts";
   paths_.camera_cfg_path  = "config/camera";
   paths_.objects_cfg_path = "config/objects";
 
@@ -64,6 +65,7 @@ xray::base::app_config::app_config(const char* cfg_path /*= nullptr*/) {
       {"directories.shaders", &paths_.shader_path},
       {"directories.models", &paths_.model_path},
       {"directories.textures", &paths_.texture_path},
+      {"directories.fonts", &paths_.fonts_path},
       {"directories.shader_configs", &paths_.shader_cfg_path},
       {"directories.camera_configs", &paths_.camera_cfg_path},
       {"directories.object_configs", &paths_.objects_cfg_path},
@@ -71,14 +73,10 @@ xray::base::app_config::app_config(const char* cfg_path /*= nullptr*/) {
 
   for (auto& path_load_info : paths_to_load) {
     const char* path_value{nullptr};
+    app_conf_file.lookup_value(path_load_info.conf_file_entry_name, path_value);
 
-    if (!app_conf_file.lookup_value(path_load_info.conf_file_entry_name,
-                                    path_value) ||
-        !path_value) {
-      continue;
-    }
-
-    platformstl::path_a loaded_path{path_value};
+    platformstl::path_a loaded_path{path_value ? path_value
+                                               : path_load_info.path->c_str()};
     if (platformstl::filesystem_traits<char>::is_directory(
             loaded_path.c_str()) &&
         !loaded_path.has_sep()) {

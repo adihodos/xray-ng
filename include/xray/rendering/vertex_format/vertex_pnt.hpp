@@ -50,20 +50,20 @@ struct vertex_pnt {
              const float tv) noexcept
       : position{px, py, pz}, normal{nx, ny, nz}, texcoord{tu, tv} {}
 
-  vertex_pnt(const math::float3& pos, const math::float3& normal_vec,
-             const math::float2& texc) noexcept
+  vertex_pnt(const math::vec3f& pos, const math::vec3f& normal_vec,
+             const math::vec2f& texc) noexcept
       : position{pos}, normal{normal_vec}, texcoord{texc} {}
 
   static const char* name() noexcept { return "vertex_pnt"; }
 
   ///< Position in space.
-  math::float3 position;
+  math::vec3f position;
 
   ///< Normal at vertex.
-  math::float3 normal;
+  math::vec3f normal;
 
   ///< Texture coordinates.
-  math::float2 texcoord;
+  math::vec2f texcoord;
 };
 
 template <>

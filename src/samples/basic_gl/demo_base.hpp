@@ -50,7 +50,10 @@ public:
 
   virtual void resize_event(const resize_context_t&) {}
 
+  virtual void compose_ui() {}
+
   bool valid() const noexcept { return _valid; }
+  explicit operator bool() const noexcept { return valid(); }
 
 protected:
   bool _valid{false};

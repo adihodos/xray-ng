@@ -59,7 +59,7 @@ void app::per_fragment_lighting_demo::init() {
 
     transform(raw_ptr(mesh.geometry),
               raw_ptr(mesh.geometry) + mesh.vertex_count,
-              back_inserter(vertices), [](const auto &vs_in) {
+              back_inserter(vertices), [](const auto& vs_in) {
                 return vertex_pn{vs_in.position, vs_in.normal};
               });
 
@@ -116,7 +116,7 @@ void app::per_fragment_lighting_demo::init() {
           2.0f * std::cos((two_pi<float> / 5.0f) * static_cast<float>(idx));
       const auto z_pos =
           2.0f * std::sin((two_pi<float> / 5.0f) * static_cast<float>(idx));
-      _lights[idx].direction = -normalize(float3{x_pos, 1.2f, z_pos + 1.0f});
+      _lights[idx].direction = -normalize(vec3f{x_pos, 1.2f, z_pos + 1.0f});
     }
 
     _lights[0].ka = {0.75f, 0.75f, 0.75f, 1.0f};
@@ -140,7 +140,7 @@ void app::per_fragment_lighting_demo::init() {
 }
 
 void app::per_fragment_lighting_demo::draw(
-    const xray::rendering::draw_context_t &dc) noexcept {
+    const xray::rendering::draw_context_t& dc) noexcept {
 
   assert(valid());
 
@@ -151,7 +151,7 @@ void app::per_fragment_lighting_demo::draw(
     // Setup uniforms
     directional_light scene_lights[NUM_LIGHTS];
     transform(begin(_lights), end(_lights), begin(scene_lights),
-              [&dc](const auto &in_light) {
+              [&dc](const auto& in_light) {
                 auto out_light = in_light;
                 out_light.direction =
                     normalize(mul_vec(dc.view_matrix, in_light.direction));
@@ -163,12 +163,12 @@ void app::per_fragment_lighting_demo::draw(
     _draw_prog.set_uniform_block("object_material", material::stdc::copper);
 
     const auto world_mtx =
-        float4x4{R3::rotate_y(_rotations.y) * R3::rotate_x(_rotations.x)};
+        mat4f{R3::rotate_y(_rotations.y) * R3::rotate_x(_rotations.x)};
 
     struct matrix_pack {
-      float4x4 world_to_view;
-      float4x4 norm_to_view;
-      float4x4 world_view_proj;
+      mat4f world_to_view;
+      mat4f norm_to_view;
+      mat4f world_view_proj;
     } const matrix_uf_pack{dc.view_matrix * world_mtx,
                            dc.view_matrix * world_mtx,
                            dc.proj_view_matrix * world_mtx};

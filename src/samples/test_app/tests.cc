@@ -43,7 +43,7 @@ TEST_CASE("fixed vector is correctly initialized", "[fixed_vector]") {
   using namespace std;
 
   SECTION("default constructor") {
-    fixed_vector<scalar2i32, 8> vec{};
+    fixed_vector<vec2i32, 8> vec{};
 
     REQUIRE(vec.size() == 0);
     REQUIRE(vec.max_size() == 8);
@@ -52,17 +52,17 @@ TEST_CASE("fixed vector is correctly initialized", "[fixed_vector]") {
   }
 
   SECTION("construct with default value") {
-    fixed_vector<float2, 8> vec{5u};
+    fixed_vector<vec2f, 8> vec{5u};
     REQUIRE(vec.size() == 5u);
     REQUIRE(vec.empty() == false);
     REQUIRE(vec.begin() != vec.end());
   }
 
   SECTION("construct from single value") {
-    fixed_vector<float2, 8> vec{4, float2::stdc::unit_x};
+    fixed_vector<vec2f, 8> vec{4, vec2f::stdc::unit_x};
     REQUIRE(vec.size() == 4);
-    REQUIRE(vec[0] == float2::stdc::unit_x);
-    REQUIRE(vec[3] == float2::stdc::unit_x);
+    REQUIRE(vec[0] == vec2f::stdc::unit_x);
+    REQUIRE(vec[3] == vec2f::stdc::unit_x);
   }
 
   SECTION("construct from range") {
@@ -90,32 +90,32 @@ TEST_CASE("fixed vector insertion", "[fixed_vector]") {
   using namespace xray::math;
   using namespace std;
 
-  fixed_vector<float2, 16> v{};
+  fixed_vector<vec2f, 16> v{};
 
   SECTION("push-back") {
-    v.push_back(float2::stdc::unit_x);
-    v.push_back(float2::stdc::unit_y);
+    v.push_back(vec2f::stdc::unit_x);
+    v.push_back(vec2f::stdc::unit_y);
 
     REQUIRE(v.size() == 2);
-    REQUIRE(v.front() == float2::stdc::unit_x);
-    REQUIRE(v.back() == float2::stdc::unit_y);
+    REQUIRE(v.front() == vec2f::stdc::unit_x);
+    REQUIRE(v.back() == vec2f::stdc::unit_y);
     REQUIRE(v.front() == v[0]);
     REQUIRE(v.back() == v[1]);
   }
 
   SECTION("insert at front") {
-    v.insert(v.begin(), float2::stdc::unit_x);
+    v.insert(v.begin(), vec2f::stdc::unit_x);
 
     REQUIRE(v.size() == 1);
-    REQUIRE(v.front() == float2::stdc::unit_x);
+    REQUIRE(v.front() == vec2f::stdc::unit_x);
     REQUIRE(v.front() == v[0]);
     REQUIRE(v.front() == v.back());
   }
 
   SECTION("insert at end") {
-    v.insert(v.end(), float2::stdc::unit_y);
+    v.insert(v.end(), vec2f::stdc::unit_y);
     REQUIRE(v.size() == 1);
-    REQUIRE(v.back() == float2::stdc::unit_y);
+    REQUIRE(v.back() == vec2f::stdc::unit_y);
     REQUIRE(v.back() == v[0]);
     REQUIRE(v.back() == v.front());
   }
