@@ -17,38 +17,36 @@
         "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/include-fixed",
         "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../x86_64-w64-mingw32/include"
     ],
-
     "clang-format.formatOnSave": true,
     "clang-format.style": "file",
     // Editor
-
-  // Controls the font family.
-  "editor.fontFamily": "'Roboto Mono Medium'",
-
-  // Controls the font weight.
-  "editor.fontWeight": "100",
-
-  // Controls the font size in pixels.
-  "editor.fontSize": 20,
-
-  // Controls the line height. Use 0 to compute the lineHeight from the fontSize.
-  "editor.lineHeight": 0,
-
-  // Controls visibility of line numbers
-  "editor.lineNumbers": true,
-
-  // Controls visibility of the glyph margin
-  "editor.glyphMargin": false,
-
-  // Columns at which to show vertical rulers
-  "editor.rulers": [80],
-
-  // Characters that will be used as word separators when doing word related navigations or operations
-  "editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?",
-
-  // The number of spaces a tab is equal to. This setting is overriden based on the file contents when `editor.detectIndentation` is on.
-  "editor.tabSize": 2,
-
-  "editor.fontLigatures": true
-
+    // Controls the font family.
+    "editor.fontFamily": "'Roboto Mono Medium'",
+    // Controls the font weight.
+    "editor.fontWeight": "100",
+    // Controls the font size in pixels.
+    "editor.fontSize": 20,
+    // Controls the line height. Use 0 to compute the lineHeight from the fontSize.
+    "editor.lineHeight": 0,
+    // Controls visibility of line numbers
+    "editor.lineNumbers": true,
+    // Controls visibility of the glyph margin
+    "editor.glyphMargin": false,
+    // Columns at which to show vertical rulers
+    "editor.rulers": [
+        80
+    ],
+    // Characters that will be used as word separators when doing word related navigations or operations
+    "editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?",
+    // The number of spaces a tab is equal to. This setting is overriden based on the file contents when `editor.detectIndentation` is on.
+    "editor.tabSize": 2,
+    "editor.fontLigatures": true,
+    "cmake.configureArgs": [
+        "-DCMAKE_BUILD_TYPE=Debug"
+    ],
+    "cmake.clearOutputBeforeBuild": true,
+    "cmake.buildDirectory": "${workspaceRoot}/build",
+    "cmake.buildToolArgs": [
+        "-j8"
+    ]
 }

@@ -115,7 +115,6 @@ private:
   app_config() = default;
 
   XRAY_NO_COPY(app_config);
-  XRAY_NO_MOVE(app_config);
 };
 
 /// @}

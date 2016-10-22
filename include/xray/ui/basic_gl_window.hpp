@@ -49,7 +49,6 @@ public:
 
 private:
   XRAY_NO_COPY(glfw_scoped_initializer);
-  XRAY_NO_MOVE(glfw_scoped_initializer);
 
 private:
   bool succeeded_;

@@ -175,10 +175,6 @@
   type_name(type_name const&) = delete;                                        \
   type_name& operator=(type_name const&) = delete
 
-#define XRAY_NO_MOVE(type_name)                                                \
-  type_name(type_name&&) = delete;                                             \
-  type_name& operator=(type_name&&) = delete
-
 #define XRAY_DEFAULT_MOVE(type_name)                                           \
   type_name(type_name&&) = default;                                            \
   type_name& operator=(type_name&&) = default
