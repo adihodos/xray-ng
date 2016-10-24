@@ -28,23 +28,43 @@
 
 #pragma once
 
-#include <cstring>
-#include <type_traits>
-
-#include "xray/xray.hpp"
-
 namespace xray {
 namespace base {
 
-/// \brief      Automatically set a POD type to 0 when creating an object
-///             of this type.
-template <typename pod_type>
-struct pod_zero : public pod_type {
+/// \addtogroup __GroupXrayBase
+/// @{
 
-  static_assert(std::is_pod<pod_type>::value, "Only POD types allowed!");
+/// \brief Helper class to allow usage of unique_ppointer objects with
+/// non pointer resource types.
+template <typename _ResType, _ResType _NullValue>
+struct resource_holder {
+public:
+  resource_holder(_ResType handle) noexcept : _handle_to_resource{handle} {}
 
-  pod_zero() noexcept { memset(this, 0, sizeof(*this)); }
+  resource_holder(std::nullptr_t = nullptr) noexcept
+      : _handle_to_resource{_NullValue} {}
+
+  operator _ResType() noexcept { return _handle_to_resource; }
+
+  explicit operator bool() const noexcept {
+    return _handle_to_resource != _NullValue;
+  }
+
+  bool operator==(const resource_holder<_ResType, _NullValue>& rhs) const
+      noexcept {
+    return _handle_to_resource == rhs._handle_to_resource;
+  }
+
+  bool operator!=(const resource_holder<_ResType, _NullValue>& rhs) const
+      noexcept {
+    return !(*this == rhs);
+  }
+
+private:
+  _ResType _handle_to_resource;
 };
+
+/// @}
 
 } // namespace base
 } // namespace xray

@@ -79,6 +79,7 @@ struct key_symbol {
     scrol_lock,
     left_shift,
     right_shift,
+    left_control,
     right_control,
     left_menu,
     right_menu,

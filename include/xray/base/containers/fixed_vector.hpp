@@ -255,7 +255,7 @@ fixed_vector<T, MaxSize>::~fixed_vector() {
 template <typename T, size_t MaxSize>
 typename fixed_vector<T, MaxSize>::iterator
 fixed_vector<T, MaxSize>::insert(const_iterator pos, const T& value) {
-  return insert(pos, value, 1);
+  return insert(pos, value, size_t{1});
 }
 
 template <typename T, size_t MaxSize>
@@ -266,13 +266,6 @@ fixed_vector<T, MaxSize>::insert(const_iterator pos, const T& value,
   assert(cnt != 0);
 
   shift_elements(end() + cnt - 1, end() - 1, pos);
-  // auto last    = end() + cnt - 1;
-  // auto old_end = end();
-
-  // while (old_end > pos) {
-  //   copy_move_cons(last--, --old_end,
-  //                  typename std::is_move_constructible<T>::type{});
-  // }
 
   while (cnt) {
     new ((void*) pos) T{value};
@@ -290,13 +283,6 @@ fixed_vector<T, MaxSize>::insert(const_iterator pos, T&& value) {
   assert(((1 + size()) <= max_size()) && "Capacity exceeded!");
 
   shift_elements(end(), end() - 1, pos);
-  // auto last    = end();
-  // auto old_end = end();
-
-  // while (old_end > pos) {
-  //   copy_move_cons(last--, --old_end,
-  //                  typename std::is_move_constructible<T>::type{});
-  // }
 
   new ((void*) pos) T{std::move(value)};
   ++_m_count;
@@ -322,19 +308,12 @@ fixed_vector<T, MaxSize>::insert(const_iterator pos, InputIterator first,
   if (first == last)
     return begin() + (pos - begin());
 
-  // auto new_end = end() + (last - first) - 1;
-  // auto old_end = end();
-
-  // while (old_end > pos) {
-  //   copy_move_cons(new_end--, --old_end,
-  //                  typename std::is_move_constructible<T>::type{});
-  // }
   shift_elements(end() + (last - first) - 1, end() - 1, pos);
 
   auto cons_itr = begin() + (pos - begin());
 
   while (first != last) {
-    new (cons_itr) T{*first};
+    new ((void*) cons_itr) T{*first};
     ++cons_itr;
     ++first;
     ++_m_count;
@@ -358,14 +337,6 @@ template <typename... Args>
 typename fixed_vector<T, MaxSize>::iterator
 fixed_vector<T, MaxSize>::emplace(const_iterator pos, Args&&... args) {
   assert(((1 + size()) <= max_size()) && "Capacity exceeded!");
-
-  // auto last    = end();
-  // auto old_end = end();
-
-  // while (old_end > pos) {
-  //   copy_move_cons(last--, --old_end,
-  //                  typename std::is_move_constructible<T>::type{});
-  // }
 
   shift_elements(end(), end() - 1, pos);
   new ((void*) pos) T{std::forward<Args>(args)...};

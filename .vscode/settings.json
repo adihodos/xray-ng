@@ -1,27 +1,11 @@
 // Place your settings in this file to overwrite default and user settings.
 {
-    "clang.cxxflags": [
-        "-std=c++14",
-        "-I${workspaceRoot}/include",
-        "-I${workspaceRoot}/third_party",
-        // "-I${TBB_ROOT}/include",
-        // "-I${ASSIMP_ROOT}/include",
-        // "-I${FMT_ROOT}/include",
-        // "-I${GLFW_ROOT}/include",
-        "-IC:/MinGW/include",
-        "-IC:/MinGW/include/freetype2",
-        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../include/c++/6.1.0",
-        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../include/c++/6.1.0/x86_64-w6",
-        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../include/c++/6.1.0/backward",
-        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/include",
-        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/include-fixed",
-        "-Ic:/mingw/bin/../lib/gcc/x86_64-w64-mingw32/6.1.0/../../../../x86_64-w64-mingw32/include"
-    ],
-    "clang-format.formatOnSave": true,
-    "clang-format.style": "file",
+    "C_Cpp.clang_format_sortIncludes": true,
+    "C_Cpp.clang_format_style": "file",
+    "C_Cpp.clang_format_formatOnSave": true,
     // Editor
     // Controls the font family.
-    "editor.fontFamily": "'Roboto Mono Medium'",
+    "editor.fontFamily": "'Roboto Mono Light'",
     // Controls the font weight.
     "editor.fontWeight": "100",
     // Controls the font size in pixels.
