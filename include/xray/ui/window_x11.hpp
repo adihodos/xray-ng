@@ -31,7 +31,6 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "window_events.hpp"
 #include "xray/base/resource_holder.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"

@@ -24,8 +24,6 @@
 #include "xray/math/transforms_r3.hpp"
 #include "xray/math/transforms_r4.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
-#include "xray/ui/basic_gl_window.hpp"
-#include "xray/ui/window_context.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
@@ -241,7 +239,7 @@ TEST_CASE("fixed vector removal", "[fixed_vector]") {
 
   SECTION("erase some elements") {
     auto itr =
-        v.erase(find(begin(v), end(v), 'b'), find(begin(v), end(v), 'e'));
+      v.erase(find(begin(v), end(v), 'b'), find(begin(v), end(v), 'e'));
     REQUIRE(v.size() == 3);
     REQUIRE(*itr == 'e');
     REQUIRE(v[0] == 'a');

@@ -4,7 +4,6 @@
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
-#include "xray/ui/window_context.hpp"
 
 namespace app {
 

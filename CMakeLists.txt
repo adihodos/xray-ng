@@ -114,8 +114,6 @@ find_package(TBB REQUIRED)
 include_directories(${TBB_INCLUDE_DIR})
 
 if (NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
-  find_package(GLFW REQUIRED)
-  include_directories(${GLFW_INCLUDE_DIR})
   include_directories(third_party/opengl/include)
   add_subdirectory(third_party/opengl/src)
 endif()
