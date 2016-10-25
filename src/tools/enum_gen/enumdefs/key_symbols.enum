@@ -1,5 +1,5 @@
 enum_def : {
-  namespace = "namespace xray { namespace ui {";
+  namespaces = ["xray", "ui"];
   name = "key_sym";
   #is_bitfield = TRUE;
   #underlying_type = "uint8_t";

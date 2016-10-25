@@ -43,8 +43,6 @@
 #include "xray/rendering/opengl/gpu_program.hpp"
 #endif
 
-#include "xray/rendering/rendering_fwd.hpp"
-#include "xray/ui/fwd_input_events.hpp"
 #include <cassert>
 #include <cstdint>
 
@@ -56,6 +54,8 @@ namespace ui {
 
 /// \addtogroup __GroupXrayUI
 /// @{
+
+struct window_event;
 
 class imgui_backend {
 public:
@@ -72,11 +72,13 @@ public:
 
   ~imgui_backend() noexcept;
 
-  void draw_event(const xray::rendering::draw_context_t& dc);
-  bool input_event(const xray::ui::input_event_t& in_evt);
+  void draw();
+
+  bool input_event(const window_event& evt);
+
   void tick(const float delta);
   bool wants_input() const noexcept;
-  void new_frame(const xray::rendering::draw_context_t&);
+  void new_frame(const int32_t wnd_width, const int32_t wnd_height);
 
   ImFont* small_font() const noexcept { return _small_font; }
   ImFont* medium_font() const noexcept { return _medium_font; }

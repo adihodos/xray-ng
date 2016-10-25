@@ -689,5 +689,5 @@ bool key_sym::is_defined(const key_sym::e val) noexcept {
   return find(key_sym::cbegin(), key_sym::cend(), val) != key_sym::cend();
 }
 
-} // end ns
-} // end ns
+} // namespace ui
+} // namespace xray

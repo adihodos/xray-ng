@@ -30,10 +30,14 @@
 
 #include "xray/xray.hpp"
 #include "xray/math/scalar2.hpp"
-#include "xray/ui/fwd_input_events.hpp"
 #include <cstdint>
 
 namespace xray {
+
+namespace ui {
+struct window_event;
+} // namespace ui
+
 namespace scene {
 
 class camera;
@@ -44,12 +48,13 @@ class camera;
 class camera_controller_spherical_coords {
 public:
   camera_controller_spherical_coords(
-      camera* cam, const char* config_file = nullptr) noexcept;
+    camera* cam, const char* config_file = nullptr) noexcept;
 
   void set_camera(camera* cam) noexcept { cam_ = cam; }
-  const camera*           cam() const noexcept { return cam_; }
 
-  void input_event(const ui::input_event_t& input_evt) noexcept;
+  const camera* cam() const noexcept { return cam_; }
+
+  void input_event(const ui::window_event& input_evt) noexcept;
 
   void update() noexcept;
 

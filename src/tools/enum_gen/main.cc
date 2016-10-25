@@ -170,15 +170,34 @@ int main(int, char**) {
     fmt::MemoryWriter mw;
     string            outtext{template_hpp};
 
+    auto fn_gen_namespaces = [&deffile](string& ns_begin, string& ns_end) {
+      const auto ns_entry = deffile.lookup_entry("enum_def.namespaces");
+      if (!ns_entry)
+        return;
+
+      vector<string> namespaces;
+      for (uint32_t i = 0, entries_count = ns_entry.length(); i < entries_count;
+           ++i) {
+        namespaces.push_back(ns_entry[i].as_string());
+      }
+
+      ns_begin = accumulate(begin(namespaces), end(namespaces), std::string(""),
+                            [](const string& s, const string& ns) {
+                              return s + "namespace " + ns + " { ";
+                            });
+
+      ns_end = accumulate(rbegin(namespaces), rend(namespaces), std::string(""),
+                          [](const string& s, const string& ns) {
+                            return s + "} // namespace " + ns + "\n";
+                          });
+    };
+
     {
-      const char* namespc{nullptr};
-      deffile.lookup_value("enum_def.namespace", namespc);
+      string ns_beg, ns_end;
+      fn_gen_namespaces(ns_beg, ns_end);
 
-      outtext =
-          replace_all_occurences("{nsbegin}", namespc ? namespc : "", outtext);
-
-      outtext = replace_all_occurences("{nsend}", namespc ? "} // end ns" : "",
-                                       outtext);
+      outtext = replace_all_occurences("{nsbegin}", ns_beg, outtext);
+      outtext = replace_all_occurences("{nsend}", ns_end, outtext);
 
       const char* name{nullptr};
       deffile.lookup_value("enum_def.name", name);
@@ -292,11 +311,9 @@ int main(int, char**) {
       }
 
       outtext = template_cc;
-      outtext =
-          str_ext::replace_all("{nsbegin}", namespc ? namespc : "", outtext);
+      outtext = str_ext::replace_all("{nsbegin}", ns_beg, outtext);
+      outtext = str_ext::replace_all("{nsend}", ns_end, outtext);
 
-      outtext = str_ext::replace_all("{nsend}", namespc ? "} // end ns" : "",
-                                     outtext);
       outtext = str_ext::replace_all("{enum_file_hpp}",
                                      fmt::format("{}.hpp", name), outtext);
       outtext = str_ext::replace_all("{enum_name}", name, outtext);

@@ -237,5 +237,5 @@ private:
       e::f14,          e::f15};
 };
 
-} // end ns
-} // end ns
+} // namespace ui
+} // namespace xray

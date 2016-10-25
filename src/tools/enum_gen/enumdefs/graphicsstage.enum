@@ -1,6 +1,6 @@
 
 enum_def : {
-  namespace = "namespace xray { namespace rendering {";
+  namespaces = ["xray", "rendering"];
   name = "graphics_pipeline_stage";
   #is_bitfield = TRUE;
   underlying_type = "uint8_t";

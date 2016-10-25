@@ -147,6 +147,8 @@ struct key_event {
   int32_t pointer_y;
   ///< Code of key that generated the event.
   key_sym::e keycode;
+  ///< Press or release
+  event_action_type type;
   union {
     ///< Active modifiers
     uint32_t modifiers;
@@ -162,7 +164,7 @@ struct key_event {
   };
 };
 
-struct window_resize_event {
+struct window_configure_event {
   int32_t width;
   int32_t height;
   window* wnd;
@@ -177,12 +179,20 @@ struct window_loop_event {
 struct window_event {
   event_type type;
   union {
-    mouse_button_event button;
-    mouse_wheel_event  wheel;
-    mouse_motion_event motion;
-    key_event          key;
+    mouse_button_event     button;
+    mouse_wheel_event      wheel;
+    mouse_motion_event     motion;
+    key_event              key;
+    window_configure_event configure;
   } event;
 };
+
+inline bool is_input_event(const window_event& we) noexcept {
+  return we.type == event_type::key || we.type == event_type::mouse_button ||
+         we.type == event_type::mouse_motion ||
+         we.type == event_type::mouse_crossing ||
+         we.type == event_type::mouse_wheel;
+}
 
 using loop_event_delegate = base::fast_delegate<void(const window_loop_event&)>;
 using window_event_delegate = base::fast_delegate<void(const window_event&)>;

@@ -52,7 +52,7 @@ struct x11_display_deleter {
 };
 
 using x11_unique_display =
-    xray::base::unique_pointer<Display, x11_display_deleter>;
+  xray::base::unique_pointer<Display, x11_display_deleter>;
 
 struct x11_window_deleter {
   using pointer = xray::base::resource_holder<Window, 0>;
@@ -68,7 +68,7 @@ private:
 };
 
 using x11_unique_window =
-    xray::base::unique_pointer<Window, x11_window_deleter>;
+  xray::base::unique_pointer<Window, x11_window_deleter>;
 
 struct glx_context_deleter {
   glx_context_deleter() noexcept = default;
@@ -83,8 +83,8 @@ struct glx_context_deleter {
 };
 
 using glx_unique_context =
-    xray::base::unique_pointer<std::remove_pointer<GLXContext>::type,
-                               glx_context_deleter>;
+  xray::base::unique_pointer<std::remove_pointer<GLXContext>::type,
+                             glx_context_deleter>;
 
 } // namespace detail
 
@@ -132,8 +132,8 @@ public:
 
   /// @}
 
-  int32_t width() const noexcept;
-  int32_t height() const noexcept;
+  int32_t width() const noexcept { return _wnd_width; }
+  int32_t height() const noexcept { return _wnd_height; }
 
   void message_loop();
   void quit() noexcept { _quit_flag = true; }
@@ -144,6 +144,7 @@ private:
   void event_client_message(const XClientMessageEvent* x11evt);
   void event_motion_notify(const XMotionEvent* x11evt);
   void event_key(const XKeyEvent* x11evt);
+  void event_configure(const XConfigureEvent* x11evt);
 
 private:
   detail::x11_unique_display _display;

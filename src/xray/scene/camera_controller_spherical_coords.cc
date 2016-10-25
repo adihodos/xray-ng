@@ -1,4 +1,3 @@
-#include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/base/config_settings.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/math/constants.hpp"
@@ -6,8 +5,9 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/scene/camera.hpp"
-#include "xray/ui/input_event.hpp"
-#include "xray/ui/key_symbols.hpp"
+#include "xray/scene/camera_controller_spherical_coords.hpp"
+#include "xray/ui/events.hpp"
+#include "xray/ui/key_sym.hpp"
 #include <cassert>
 
 using namespace xray::base;
@@ -15,9 +15,9 @@ using namespace xray::math;
 using namespace xray::ui;
 
 xray::scene::camera_controller_spherical_coords::
-    camera_controller_spherical_coords(
-        camera* cam, const char* config_file_path /* = nullptr */) noexcept
-    : cam_{cam} {
+  camera_controller_spherical_coords(
+    camera* cam, const char* config_file_path /* = nullptr */) noexcept
+  : cam_{cam} {
   if (!config_file_path)
     return;
 
@@ -93,24 +93,29 @@ xray::scene::camera_controller_spherical_coords::
 }
 
 void xray::scene::camera_controller_spherical_coords::input_event(
-    const ui::input_event_t& input_evt) noexcept {
-  if ((input_evt.type == input_event_type::mouse_movement) &&
-      (input_evt.mouse_move_ev.params.lbutton)) {
-    mouse_moved(static_cast<float>(input_evt.mouse_move_ev.x_pos),
-                static_cast<float>(input_evt.mouse_move_ev.y_pos));
+  const ui::window_event& input_evt) noexcept {
+  using namespace xray::ui;
+
+  assert(ui::is_input_event(input_evt));
+
+  if ((input_evt.type == event_type::mouse_motion) &&
+      (input_evt.event.motion.button1)) {
+    mouse_moved(static_cast<float>(input_evt.event.motion.pointer_x),
+                static_cast<float>(input_evt.event.motion.pointer_y));
     return;
   }
 
-  if (input_evt.type == input_event_type::mouse_wheel) {
-    const auto delta = input_evt.mouse_wheel_ev.delta;
+  if (input_evt.type == event_type::mouse_wheel) {
+    const auto delta = input_evt.event.wheel.delta;
     params_.radius_  = clamp(params_.radius_ + delta * params_.speed_move_,
-                            params_.radius_min_, params_.radius_max_);
+                            params_.radius_min_,
+                            params_.radius_max_);
     return;
   }
 }
 
 void xray::scene::camera_controller_spherical_coords::mouse_moved(
-    const float x_pos, const float y_pos) noexcept {
+  const float x_pos, const float y_pos) noexcept {
   const auto delta_x = x_pos - last_mouse_pos_.x;
   const auto delta_y = y_pos - last_mouse_pos_.y;
 
@@ -133,8 +138,8 @@ void xray::scene::camera_controller_spherical_coords::mouse_moved(
 
 void xray::scene::camera_controller_spherical_coords::update() noexcept {
   assert(cam_ != nullptr);
-  const auto cam_pos = point_from_spherical_coords(
-      params_.radius_, params_.theta_, params_.phi_);
+  const auto cam_pos =
+    point_from_spherical_coords(params_.radius_, params_.theta_, params_.phi_);
 
   cam_->look_at(cam_pos, vec3f::stdc::zero, vec3f::stdc::unit_y);
 }
