@@ -114,10 +114,12 @@ constexpr const scalar3<T> scalar3<T>::stdc::zero;
 template <typename T>
 constexpr const scalar3<T> scalar3<T>::stdc::one;
 
-using float3     = scalar3<scalar_lowp>;
-using double3    = scalar3<scalar_mediump>;
-using scalar3u8  = scalar3<uint8_t>;
-using scalar3u32 = scalar3<uint32_t>;
+using vec3f    = scalar3<scalar_lowp>;
+using vec3d    = scalar3<scalar_mediump>;
+using vec3i8   = scalar3<int8_t>;
+using vec3ui8  = scalar3<uint8_t>;
+using vec3i32  = scalar3<int32_t>;
+using vec3ui32 = scalar3<uint32_t>;
 
 /// @}
 

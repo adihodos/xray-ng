@@ -74,12 +74,12 @@ void app::discard_alphamap_demo::draw(
   gl::BindSamplers(0, 2, bound_samplers);
 
   const auto world_xf =
-      float4x4{R3::rotate_x(_rotation_xy.x) * R3::rotate_y(_rotation_xy.y)};
+      mat4f{R3::rotate_x(_rotation_xy.x) * R3::rotate_y(_rotation_xy.y)};
 
   struct matrix_pack {
-    float4x4 world_view;
-    float4x4 normal_view;
-    float4x4 world_view_projection;
+    mat4f world_view;
+    mat4f normal_view;
+    mat4f world_view_projection;
   } const obj_transforms{dc.view_matrix * world_xf, dc.view_matrix * world_xf,
                          dc.proj_view_matrix * world_xf};
 
@@ -232,15 +232,15 @@ void app::discard_alphamap_demo::init() {
   }();
 
   _lights[0].cutoff_angle = radians(40.0f);
-  _lights[0].position     = float3{10.0f, 10.0f, 0.0f};
+  _lights[0].position     = vec3f{10.0f, 10.0f, 0.0f};
   _lights[0].light_power  = 80.0f;
-  _lights[0].direction    = normalize(float3{-1.0f, -1.0f, 0.0f});
+  _lights[0].direction    = normalize(vec3f{-1.0f, -1.0f, 0.0f});
   _lights[0].ka = _lights[0].kd = color_palette::material::yellow100;
 
   _lights[1].cutoff_angle = radians(40.0f);
-  _lights[1].position     = float3{-10.0f, 10.0f, 0.0f};
+  _lights[1].position     = vec3f{-10.0f, 10.0f, 0.0f};
   _lights[1].light_power  = 80.0f;
-  _lights[1].direction    = normalize(float3{1.0f, -1.0f, 0.0f});
+  _lights[1].direction    = normalize(vec3f{1.0f, -1.0f, 0.0f});
   _lights[1].ka = _lights[1].kd = color_palette::material::yellow100;
 
   _valid = true;

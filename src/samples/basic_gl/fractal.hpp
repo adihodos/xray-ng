@@ -3,7 +3,6 @@
 #include "xray/xray.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
-#include "xray/ui/window_context.hpp"
 #include <cstdint>
 
 namespace app {
@@ -39,14 +38,14 @@ private:
   void init();
 
 private:
-  xray::rendering::scoped_buffer quad_vb_;
-  xray::rendering::scoped_buffer quad_ib_;
-  xray::rendering::scoped_vertex_array    quad_layout_;
-  xray::rendering::gpu_program          quad_draw_prg_;
-  bool                                  initialized_{false};
-  uint32_t                              shape_idx_{0u};
-  uint32_t                              iter_sel_{5u};
-  fractal_params                        fp_{};
+  xray::rendering::scoped_buffer       quad_vb_;
+  xray::rendering::scoped_buffer       quad_ib_;
+  xray::rendering::scoped_vertex_array quad_layout_;
+  xray::rendering::gpu_program         quad_draw_prg_;
+  bool                                 initialized_{false};
+  uint32_t                             shape_idx_{0u};
+  uint32_t                             iter_sel_{5u};
+  fractal_params                       fp_{};
 
 private:
   XRAY_NO_COPY(fractal_painter);

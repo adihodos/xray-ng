@@ -54,7 +54,7 @@ void app::toon_shading_demo::init() {
     vertices.reserve(mesh.vertex_count);
     transform(raw_ptr(mesh.geometry),
               raw_ptr(mesh.geometry) + mesh.vertex_count,
-              back_inserter(vertices), [](const auto &in_vert) {
+              back_inserter(vertices), [](const auto& in_vert) {
                 return vertex_pn{in_vert.position, in_vert.normal};
               });
 
@@ -67,7 +67,7 @@ void app::toon_shading_demo::init() {
     }();
 
     _mesh_index_cnt = mesh.index_count;
-    _index_buffer = [&mesh]() {
+    _index_buffer   = [&mesh]() {
       GLuint ibuff{};
       gl::CreateBuffers(1, &ibuff);
       gl::NamedBufferStorage(ibuff, mesh.index_count * sizeof(uint32_t),
@@ -109,7 +109,7 @@ void app::toon_shading_demo::init() {
           2.0f * std::cos((two_pi<float> / 5.0f) * static_cast<float>(idx));
       const auto z_pos =
           2.0f * std::sin((two_pi<float> / 5.0f) * static_cast<float>(idx));
-      _lights[idx].position = float3{x_pos, 1.2f, z_pos + 1.0f};
+      _lights[idx].position = vec3f{x_pos, 1.2f, z_pos + 1.0f};
     }
 
     _lights[0].intensity = {0.9f, 0.9f, 0.9f};
@@ -122,7 +122,7 @@ void app::toon_shading_demo::init() {
 }
 
 void app::toon_shading_demo::draw(
-    const xray::rendering::draw_context_t &dc) noexcept {
+    const xray::rendering::draw_context_t& dc) noexcept {
 
   assert(valid());
 
@@ -149,9 +149,9 @@ void app::toon_shading_demo::draw(
     _draw_prog.set_uniform_block("object_material", material_ad::stdc::copper);
 
     struct matrix_pack {
-      float4x4 world_to_view;
-      float4x4 normals_to_view;
-      float4x4 world_view_proj;
+      mat4f world_to_view;
+      mat4f normals_to_view;
+      mat4f world_view_proj;
     } const obj_transforms_pack{dc.view_matrix, dc.view_matrix,
                                 dc.proj_view_matrix};
 

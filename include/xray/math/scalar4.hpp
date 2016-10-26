@@ -200,9 +200,10 @@ constexpr const scalar4<T> scalar4<T>::stdc::zero;
 template <typename T>
 constexpr const scalar4<T> scalar4<T>::stdc::one;
 
-using float4    = scalar4<float>;
-using double4   = scalar4<double>;
-using scalar4u8 = scalar4<uint8_t>;
+using vec4f   = scalar4<float>;
+using vec4d   = scalar4<double>;
+using vec4ui8 = scalar4<uint8_t>;
+using vec4i8  = scalar4<int8_t>;
 
 /// @}
 

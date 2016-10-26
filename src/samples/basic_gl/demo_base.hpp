@@ -31,6 +31,7 @@
 #include "xray/xray.hpp"
 #include "fwd_app.hpp"
 #include "xray/rendering/rendering_fwd.hpp"
+#include "xray/ui/events.hpp"
 #include <cstdint>
 
 namespace app {
@@ -41,16 +42,15 @@ public:
 
   virtual ~demo_base();
 
-  virtual void draw(const xray::rendering::draw_context_t&) = 0;
+  virtual void draw(const xray::rendering::draw_context_t&)     = 0;
+  virtual void update(const float delta_ms)                     = 0;
+  virtual void event_handler(const xray::ui::window_event& evt) = 0;
 
-  virtual void update(const float delta_ms) = 0;
-
-  virtual void key_event(const int32_t key_code, const int32_t action,
-                         const int32_t mods) = 0;
-
-  virtual void resize_event(const resize_context_t&) {}
+  virtual void compose_ui() {}
 
   bool valid() const noexcept { return _valid; }
+
+  explicit operator bool() const noexcept { return valid(); }
 
 protected:
   bool _valid{false};

@@ -50,19 +50,19 @@ public:
 
   void compose_ui();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
+  virtual void draw(const xray::rendering::draw_context_t& draw_ctx) override;
 
   virtual void update(const float delta_ms) override;
 
   virtual void key_event(const int32_t key_code, const int32_t action,
                          const int32_t mods) override;
 
-  virtual void resize_event(const resize_context_t& resize_ctx) override;
+  virtual void resize_event(const resize_context_t& rctx) override;
 
   explicit operator bool() const noexcept { return valid(); }
 
 private:
-  void init(const init_context_t& ini_ctx);
+  void init(const init_context_t& init_ctx);
   void create_framebuffer(const GLsizei r_width, const GLsizei r_height);
 
   enum { max_lights = 8u };

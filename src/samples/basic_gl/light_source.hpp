@@ -36,7 +36,7 @@ namespace app {
 
 /// \brief  A light source.
 struct light_source {
-  xray::math::float3 position;
+  xray::math::vec3f position;
 
   ///<  Padding to mirror the GLSL layout.
   float pad1;
@@ -52,13 +52,13 @@ struct light_source {
 };
 
 struct light_source2 {
-  xray::math::float3 position;
+  xray::math::vec3f position;
 
   ///<  Padding to mirror the GLSL layout.
   float pad1;
 
   ///<  Light intensity.
-  xray::math::float3 intensity;
+  xray::math::vec3f intensity;
 
   float pad2;
 
@@ -73,7 +73,7 @@ struct light_source2 {
 };
 
 struct directional_light {
-  xray::math::float3         direction;
+  xray::math::vec3f          direction;
   float                      pad1;
   xray::rendering::rgb_color ka;
   xray::rendering::rgb_color kd;
@@ -81,20 +81,20 @@ struct directional_light {
 };
 
 struct light_source3 {
-  xray::math::float3 position;
-  float              pad1;
-  xray::math::float3 intensity;
+  xray::math::vec3f position;
+  float             pad1;
+  xray::math::vec3f intensity;
 };
 
 struct light_source4 {
   xray::rendering::rgb_color color;
-  xray::math::float3         position;
+  xray::math::vec3f          position;
 };
 
 struct spotlight {
-  xray::math::float3         position;
+  xray::math::vec3f          position;
   float                      cutoff_angle;
-  xray::math::float3         direction;
+  xray::math::vec3f          direction;
   float                      light_power;
   xray::rendering::rgb_color ka;
   xray::rendering::rgb_color kd;

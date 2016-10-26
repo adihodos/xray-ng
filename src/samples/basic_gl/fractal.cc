@@ -20,16 +20,16 @@ using namespace xray::rendering;
 using namespace xray::math;
 using namespace std;
 
-static constexpr float2 kNiceShapes[] = {
-    float2{-0.7f, +0.27015f},     float2{+0.400f, +0.0f},
-    float2{-0.8f, +0.156f},       float2{+0.285f, +0.0f},
-    float2{-0.4f, +0.6f},         float2{+0.285f, +0.01f},
-    float2{-0.70176f, -0.3842f},  float2{-0.835f, -0.2321f},
-    float2{-0.74543f, +0.11301f}, float2{-0.75f, +0.11f},
-    float2{-0.1f, +0.651f},       float2{-1.36f, +0.11f},
-    float2{+0.32f, +0.043f},      float2{-0.391f, -0.587f},
-    float2{-0.7f, -0.3f},         float2{-0.75f, -0.2f},
-    float2{-0.75f, 0.15f},        float2{-0.7f, 0.35f}};
+static constexpr vec2f kNiceShapes[] = {
+    vec2f{-0.7f, +0.27015f},     vec2f{+0.400f, +0.0f},
+    vec2f{-0.8f, +0.156f},       vec2f{+0.285f, +0.0f},
+    vec2f{-0.4f, +0.6f},         vec2f{+0.285f, +0.01f},
+    vec2f{-0.70176f, -0.3842f},  vec2f{-0.835f, -0.2321f},
+    vec2f{-0.74543f, +0.11301f}, vec2f{-0.75f, +0.11f},
+    vec2f{-0.1f, +0.651f},       vec2f{-1.36f, +0.11f},
+    vec2f{+0.32f, +0.043f},      vec2f{-0.391f, -0.587f},
+    vec2f{-0.7f, -0.3f},         vec2f{-0.75f, -0.2f},
+    vec2f{-0.75f, 0.15f},        vec2f{-0.7f, 0.35f}};
 
 static constexpr uint32_t kIterations[] = {16,  32,   64,   128, 256,
                                            512, 1024, 2048, 4096};
@@ -53,16 +53,6 @@ void app::fractal_painter::init() {
                 vs_out.position = vs_in.position;
                 return vs_out;
               });
-
-    constexpr float4 quad_colors[] = {{1.0f, 0.0f, 0.0f, 1.0f},
-                                      {0.0f, 1.0f, 0.0f, 1.0f},
-                                      {0.0f, 0.0f, 1.0f, 1.0f},
-                                      {1.0f, 1.0f, 0.0f, 1.0f}};
-
-    for (size_t idx = 0, vertex_count = quad_vertices.size();
-         idx < vertex_count; ++idx) {
-      //      quad_vertices[idx].color = quad_colors[idx];
-    }
 
     quad_vb_ = make_buffer(gl::ARRAY_BUFFER, 0,
                            quad_vertices.size() * sizeof(quad_vertices[0]),

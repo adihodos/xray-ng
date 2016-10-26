@@ -47,10 +47,10 @@ void app::reflection_demo::draw(const xray::rendering::draw_context_t& dc) {
   }
 
   struct matrix_pack_t {
-    float4x4 world;
-    float4x4 world_normal;
-    float4x4 world_view_projection;
-    float3   eye_pos;
+    mat4f world;
+    mat4f world_normal;
+    mat4f world_view_projection;
+    vec3f eye_pos;
   };
 
   {
@@ -58,7 +58,7 @@ void app::reflection_demo::draw(const xray::rendering::draw_context_t& dc) {
 
     gl::BindVertexArray(raw_handle(_vertex_arr));
     const auto skybox_world = R4::translate(dc.active_camera->origin());
-    const matrix_pack_t skybox_tf_pack{skybox_world, float4x4::stdc::identity,
+    const matrix_pack_t skybox_tf_pack{skybox_world, mat4f::stdc::identity,
                                        dc.proj_view_matrix * skybox_world,
                                        dc.active_camera->origin()};
 
@@ -75,7 +75,7 @@ void app::reflection_demo::draw(const xray::rendering::draw_context_t& dc) {
 
   {
     const matrix_pack_t object_tf_pack{
-        float4x4::stdc::identity, float4x4::stdc::identity, dc.proj_view_matrix,
+        mat4f::stdc::identity, mat4f::stdc::identity, dc.proj_view_matrix,
         dc.active_camera->origin()};
 
     _draw_prog.set_uniform_block("transform_pack", object_tf_pack);

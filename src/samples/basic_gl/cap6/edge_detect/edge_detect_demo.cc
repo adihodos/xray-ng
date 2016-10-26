@@ -1,7 +1,9 @@
 #include "cap6/edge_detect/edge_detect_demo.hpp"
+#include "debug_record.hpp"
 #include "helpers.hpp"
 #include "init_context.hpp"
 #include "resize_context.hpp"
+#include "scene_loader.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/config_settings.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
@@ -15,7 +17,6 @@
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/texture_loader.hpp"
-#include "xray/scene/config_reader_scene.hpp"
 #include <algorithm>
 #include <array>
 #include <imgui/imgui.h>
@@ -27,8 +28,6 @@
 #include <unordered_map>
 #include <vector>
 
-extern xray::base::app_config* xr_app_config;
-
 using namespace xray::base;
 using namespace xray::math;
 using namespace xray::rendering;
@@ -36,8 +35,8 @@ using namespace xray::scene;
 using namespace std;
 using namespace app;
 
-app::edge_detect_demo::edge_detect_demo(const init_context_t& init_ctx) {
-  init(init_ctx);
+app::edge_detect_demo::edge_detect_demo(const init_context_t& ctx) {
+  init(ctx);
 }
 
 app::edge_detect_demo::~edge_detect_demo() {}
@@ -68,22 +67,40 @@ void app::edge_detect_demo::compose_ui() {
     }
 
     ImGui::Checkbox("Rotate model", &_rotate_object);
+
+    ImGui::Separator();
+    ImGui::BeginGroup();
+
+    for (auto first = detail::DEBUGRecord_records_begin(),
+              last  = detail::DEBUGRecord_records_end();
+         first != last; ++first) {
+      if (first->hit_count == 0)
+        continue;
+
+      ImGui::Text("BLOCK: %s %d (%3.3f)", first->func, first->line,
+                  first->millis);
+      ImGui::Separator();
+    }
+    ImGui::EndGroup();
   }
   ImGui::End();
 }
 
-void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
+void app::edge_detect_demo::draw(
+    const xray::rendering::draw_context_t& draw_ctx) {
   assert(valid());
 
   {
+    // SCOPED_NAMED_TIME_BLOCK("Phong lighting pass");
+
     //
     // first pass - normal phong lighting
     gl::BindFramebuffer(gl::FRAMEBUFFER, raw_handle(_fbo.fbo_object));
 
     {
       const float viewport_dim[] = {0.0f, 0.0f,
-                                    static_cast<float>(dc.window_width),
-                                    static_cast<float>(dc.window_height)};
+                                    static_cast<float>(draw_ctx.window_width),
+                                    static_cast<float>(draw_ctx.window_height)};
 
       gl::ViewportIndexedfv(0, viewport_dim);
       gl::ClearNamedFramebufferfv(raw_handle(_fbo.fbo_object), gl::COLOR, 0,
@@ -109,24 +126,23 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
       gl::BindSamplers(0, XR_U32_COUNTOF__(bound_samplers), bound_samplers);
     }
 
-    const auto obj_to_world = float4x4{R3::rotate_xyz(_rx, _ry, _rz)};
-    // float4x4::stdc::identity;
-    const auto obj_to_view = dc.view_matrix * obj_to_world;
+    const auto obj_to_world = mat4f{R3::rotate_xyz(_rx, _ry, _rz)};
+    const auto obj_to_view  = draw_ctx.view_matrix * obj_to_world;
 
     struct matrix_pack_t {
-      float4x4 world_view;
-      float4x4 normal_view;
-      float4x4 world_view_proj;
+      mat4f world_view;
+      mat4f normal_view;
+      mat4f world_view_proj;
     } const obj_transforms{obj_to_view, obj_to_view,
-                           dc.projection_matrix * obj_to_view};
+                           draw_ctx.projection_matrix * obj_to_view};
 
     _vertex_prg.set_uniform_block("transform_pack", obj_transforms);
 
     point_light lights[edge_detect_demo::max_lights];
     transform(begin(_lights), end(_lights), begin(lights),
-              [&dc](const auto& in_light) -> point_light {
+              [&draw_ctx](const auto& in_light) -> point_light {
                 return {in_light.ka, in_light.kd, in_light.ks,
-                        mul_point(dc.view_matrix, in_light.position)};
+                        mul_point(draw_ctx.view_matrix, in_light.position)};
               });
 
     _frag_prg.set_uniform_block("scene_lighting", lights)
@@ -146,6 +162,7 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
   //
   // second pass, edge detection
   {
+    // SCOPED_NAMED_TIME_BLOCK("edge detection pass");
     //
     // set default framebuffer
     gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
@@ -153,8 +170,8 @@ void app::edge_detect_demo::draw(const xray::rendering::draw_context_t& dc) {
     gl::BindTextureUnit(0, raw_handle(_fbo.fbo_texture));
     gl::BindSampler(0, raw_handle(_sampler_obj));
 
-    const auto surface_size = float2{static_cast<float>(dc.window_width),
-                                     static_cast<float>(dc.window_height)};
+    const auto surface_size = vec2f{static_cast<float>(draw_ctx.window_width),
+                                    static_cast<float>(draw_ctx.window_height)};
 
     constexpr const char* const drawing_subroutines[] = {
         "color_default", "color_edges_sobel", "color_edges_frei_chen"};
@@ -199,14 +216,12 @@ void app::edge_detect_demo::key_event(const int32_t /*key_code*/,
                                       const int32_t /*action*/,
                                       const int32_t /*mods*/) {}
 
-void app::edge_detect_demo::resize_event(const resize_context_t& resize_ctx) {
+void app::edge_detect_demo::resize_event(const resize_context_t& rctx) {
   assert(valid());
 
-  const auto r_width  = static_cast<GLsizei>(resize_ctx.surface_width);
-  const auto r_height = static_cast<GLsizei>(resize_ctx.surface_height);
+  const auto r_width  = static_cast<GLsizei>(rctx.surface_width);
+  const auto r_height = static_cast<GLsizei>(rctx.surface_height);
 
-  OUTPUT_DBG_MSG("Resize event [%u x %u]", resize_ctx.surface_width,
-                 resize_ctx.surface_height);
   create_framebuffer(r_width, r_height);
 }
 
@@ -328,7 +343,7 @@ void app::edge_detect_demo::init(const init_context_t& ini_ctx) {
     }
 
     _object = simple_mesh{vertex_format::pnt,
-                          c_str_ptr(xr_app_config->model_path(model_file))};
+                          c_str_ptr(ini_ctx.cfg->model_path(model_file))};
 
     if (!_object) {
       XR_LOG_CRITICAL("Failed to load model from file!");
@@ -342,22 +357,19 @@ void app::edge_detect_demo::init(const init_context_t& ini_ctx) {
   }
 
   {
-    auto lights_entry = app_cfg.lookup_entry("app.scene.lights");
-    if (!lights_entry) {
+    _lightcount =
+        xray::math::min<uint32_t>(scene_loader::parse_point_lights_section(
+                                      app_cfg.lookup_entry("app.scene.lights"),
+                                      _lights, XR_U32_COUNTOF__(_lights)),
+                                  edge_detect_demo::max_lights);
+
+    if (!_lightcount) {
       XR_LOG_CRITICAL("Lights section not found in config file!");
       XR_NOT_REACHED();
     }
-
-    _lightcount = xray::math::min<uint32_t>(lights_entry.length(),
-                                            edge_detect_demo::max_lights);
-
-    for (uint32_t idx = 0; idx < _lightcount; ++idx) {
-      const auto le = lights_entry[idx];
-      config_scene_reader::read_point_light(le, &_lights[idx]);
-    }
   }
 
-  _obj_material = [&app_cfg]() {
+  _obj_material = [&app_cfg, &ini_ctx]() {
     const char* material_file{};
     app_cfg.lookup_value("app.scene.material.file", material_file);
     if (!material_file)
@@ -366,9 +378,9 @@ void app::edge_detect_demo::init(const init_context_t& ini_ctx) {
     bool flip_yaxis{false};
     app_cfg.lookup_value("app.scene.material.flip_y", flip_yaxis);
 
-    texture_loader tex_ldr{
-        c_str_ptr(xr_app_config->texture_path(material_file)),
-        flip_yaxis ? texture_load_options::flip_y : texture_load_options::none};
+    texture_loader tex_ldr{c_str_ptr(ini_ctx.cfg->texture_path(material_file)),
+                           flip_yaxis ? texture_load_options::flip_y
+                                      : texture_load_options::none};
 
     if (!tex_ldr)
       return GLuint{};

@@ -95,14 +95,14 @@ void app::render_texture_demo::draw(const xray::rendering::draw_context_t& dc) {
   gl::BindSampler(0, raw_handle(_fbo_texture_sampler));
 
   struct matrix_transform_pack {
-    float4x4 model_view;
-    float4x4 normal_view;
-    float4x4 model_view_proj;
+    mat4f model_view;
+    mat4f normal_view;
+    mat4f model_view_proj;
   };
 
   {
-    const auto view_mtx = view_frame::look_at(_rto.cam_pos, float3::stdc::zero,
-                                              float3::stdc::unit_y);
+    const auto view_mtx = view_frame::look_at(_rto.cam_pos, vec3f::stdc::zero,
+                                              vec3f::stdc::unit_y);
     const auto proj_mtx = projection::perspective_symmetric(
         static_cast<float>(_rto.rendertarget_size.x),
         static_cast<float>(_rto.rendertarget_size.y), radians(_rto.fov), 0.5f,
@@ -140,8 +140,8 @@ void app::render_texture_demo::draw(const xray::rendering::draw_context_t& dc) {
 
   {
     const auto cube_world = _dbg_opts.object_rotates
-                                ? float4x4{R3::rotate_y(_cube_r_angle)}
-                                : float4x4::stdc::identity;
+                                ? mat4f{R3::rotate_y(_cube_r_angle)}
+                                : mat4f::stdc::identity;
     const auto model_view      = dc.view_matrix * cube_world;
     const auto model_view_proj = dc.proj_view_matrix * cube_world;
     const matrix_transform_pack tf_pack_cube{model_view, model_view,

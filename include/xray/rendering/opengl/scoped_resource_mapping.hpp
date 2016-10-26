@@ -32,6 +32,7 @@
 #include "xray/base/logger.hpp"
 #include <cstdint>
 #include <opengl/opengl.hpp>
+#include <utility>
 
 namespace xray {
 namespace rendering {
@@ -40,36 +41,46 @@ class scoped_resource_mapping {
 public:
   scoped_resource_mapping(const uint32_t resource, const uint32_t access,
                           const uint32_t length, const uint32_t offset = 0)
-      : gl_resource_{resource} {
+      : _gl_resource{resource} {
 
-    mapping_ptr_ = gl::MapNamedBufferRange(resource, offset, length, access);
+    _mapping_ptr = gl::MapNamedBufferRange(resource, offset, length, access);
 
-    if (!mapping_ptr_) {
+    if (!_mapping_ptr) {
       XR_LOG_ERR("Failed to map buffer into client memory!");
     }
   }
 
   ~scoped_resource_mapping() {
-    if (mapping_ptr_) {
-      const auto result = gl::UnmapNamedBuffer(gl_resource_);
+    if (_mapping_ptr) {
+      const auto result = gl::UnmapNamedBuffer(_gl_resource);
       if (result != gl::TRUE_)
         XR_LOG_ERR("Failed to unmap buffer !");
     }
   }
 
-  bool valid() const noexcept { return mapping_ptr_ != nullptr; }
+  scoped_resource_mapping(scoped_resource_mapping&& rval) {
+    std::swap(_mapping_ptr, rval._mapping_ptr);
+    std::swap(_gl_resource, rval._gl_resource);
+  }
+
+  scoped_resource_mapping& operator=(scoped_resource_mapping&& rval) {
+    std::swap(_mapping_ptr, rval._mapping_ptr);
+    std::swap(_gl_resource, rval._gl_resource);
+    return *this;
+  }
+
+  bool valid() const noexcept { return _mapping_ptr != nullptr; }
 
   explicit operator bool() const noexcept { return valid(); }
 
-  void* memory() const noexcept { return mapping_ptr_; }
+  void* memory() const noexcept { return _mapping_ptr; }
 
 private:
-  void*    mapping_ptr_{nullptr};
-  uint32_t gl_resource_{0};
+  void*    _mapping_ptr{nullptr};
+  uint32_t _gl_resource{0};
 
 private:
   XRAY_NO_COPY(scoped_resource_mapping);
-  XRAY_NO_MOVE(scoped_resource_mapping);
 };
 
 } // namespace rendering

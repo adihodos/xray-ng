@@ -43,24 +43,24 @@ class camera {
 public:
   camera() noexcept = default;
 
-  const math::float3& origin() const noexcept { return origin_; }
+  const math::vec3f& origin() const noexcept { return origin_; }
 
-  const math::float3& direction() const noexcept { return direction_; }
+  const math::vec3f& direction() const noexcept { return direction_; }
 
-  const math::float3& right() const noexcept { return right_; }
+  const math::vec3f& right() const noexcept { return right_; }
 
-  const math::float3& up() const noexcept { return up_; }
+  const math::vec3f& up() const noexcept { return up_; }
 
-  void set_view_matrix(const math::float4x4& view);
-  const math::float4x4& view() const noexcept;
+  void set_view_matrix(const math::mat4f& view);
+  const math::mat4f& view() const noexcept;
 
-  void set_projection(const math::float4x4& projection) noexcept;
-  const math::float4x4& projection() const noexcept;
+  void set_projection(const math::mat4f& projection) noexcept;
+  const math::mat4f& projection() const noexcept;
 
-  const math::float4x4& projection_view() const noexcept;
+  const math::mat4f& projection_view() const noexcept;
 
-  void look_at(const math::float3& eye_pos, const math::float3& target,
-               const math::float3& world_up) noexcept;
+  void look_at(const math::vec3f& eye_pos, const math::vec3f& target,
+               const math::vec3f& world_up) noexcept;
 
 private:
   void invalidate() noexcept { updated_ = false; }
@@ -68,14 +68,14 @@ private:
   void update() const noexcept;
 
 private:
-  math::float3           right_{math::float3::stdc::zero};
-  math::float3           up_{math::float3::stdc::zero};
-  math::float3           direction_{math::float3::stdc::zero};
-  math::float3           origin_{math::float3::stdc::zero};
-  mutable math::float4x4 view_{math::float4x4::stdc::identity};
-  mutable math::float4x4 projection_{math::float4x4::stdc::identity};
-  mutable math::float4x4 projection_view_{math::float4x4::stdc::identity};
-  mutable bool           updated_{false};
+  math::vec3f         right_{math::vec3f::stdc::zero};
+  math::vec3f         up_{math::vec3f::stdc::zero};
+  math::vec3f         direction_{math::vec3f::stdc::zero};
+  math::vec3f         origin_{math::vec3f::stdc::zero};
+  mutable math::mat4f view_{math::mat4f::stdc::identity};
+  mutable math::mat4f projection_{math::mat4f::stdc::identity};
+  mutable math::mat4f projection_view_{math::mat4f::stdc::identity};
+  mutable bool        updated_{false};
 };
 
 /// @}

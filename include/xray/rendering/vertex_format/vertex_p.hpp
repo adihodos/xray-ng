@@ -50,10 +50,10 @@ struct vertex_p {
   vertex_p(const float px, const float py, const float pz) noexcept
       : position{px, py, pz} {}
 
-  vertex_p(const math::float3& pos) noexcept : position{pos} {}
+  vertex_p(const math::vec3f& pos) noexcept : position{pos} {}
 
   ///< Position in space.
-  math::float3 position;
+  math::vec3f position;
 };
 
 template <>

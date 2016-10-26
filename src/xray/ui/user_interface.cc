@@ -1,9 +1,9 @@
-#include "xray/ui/user_interface.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/pod_zero.hpp"
-#include "xray/math/projection.hpp"
 #include "xray/math/objects/rectangle.hpp"
+#include "xray/math/projection.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/ui/user_interface.hpp"
 #if defined(XRAY_RENDERER_DIRECTX)
 #include "xray/rendering/directx/scoped_mapping.hpp"
 #include "xray/rendering/directx/scoped_state.hpp"
@@ -12,9 +12,11 @@
 #include "xray/rendering/opengl/shader_base.hpp"
 #include <opengl/opengl.hpp>
 #endif
+#include "xray/base/app_config.hpp"
+#include "xray/base/shims/attribute/basic_path.hpp"
 #include "xray/rendering/draw_context.hpp"
-#include "xray/ui/input_event.hpp"
-#include "xray/ui/key_symbols.hpp"
+#include "xray/ui/events.hpp"
+#include "xray/ui/key_sym.hpp"
 #include <imgui/imgui.h>
 
 using namespace xray::base;
@@ -30,45 +32,49 @@ struct font_img_data {
 };
 
 #if defined(XRAY_RENDERER_OPENGL)
-static constexpr const char* IMGUI_VERTEX_SHADER[] = {
-    "#version 450 core \n"
-    "\n"
-    "layout (row_major) uniform; \n"
-    "layout (location = 0) in vec2 vs_in_pos;\n"
-    "layout (location = 1) in vec2 vs_in_uv;\n"
-    "layout (location = 2) in vec4 vs_in_col;\n"
-    "\n"
-    "out PS_IN {\n"
-    "   layout (location = 0) vec2 frag_uv;\n"
-    "   layout (location = 1) vec4 frag_col;\n"
-    "} vs_out;\n"
-    "\n"
-    "layout (binding = 0) uniform matrix_pack {\n"
-    "   mat4 projection;\n"
-    "};\n"
-    "\n"
-    "void main() {\n"
-    "   gl_Position = projection * vec4(vs_in_pos, 0.0f, 1.0f);\n"
-    "   vs_out.frag_uv = vs_in_uv;\n"
-    "   vs_out.frag_col = vs_in_col;\n"
-    "}"};
+static constexpr const char* IMGUI_VERTEX_SHADER =
+  "#version 450 core \n"
+  "\n"
+  "layout (row_major) uniform; \n"
+  "layout (location = 0) in vec2 vs_in_pos;\n"
+  "layout (location = 1) in vec2 vs_in_uv;\n"
+  "layout (location = 2) in vec4 vs_in_col;\n"
+  "\n"
+  "out PS_IN {\n"
+  "   layout (location = 0) vec2 frag_uv;\n"
+  "   layout (location = 1) vec4 frag_col;\n"
+  "} vs_out;\n"
+  "\n"
+  "layout (binding = 0) uniform matrix_pack {\n"
+  "   mat4 projection;\n"
+  "};\n"
+  "\n"
+  "out gl_PerVertex {\n"
+  "   vec4 gl_Position;\n"
+  "};\n"
+  "\n"
+  "void main() {\n"
+  "   gl_Position = projection * vec4(vs_in_pos, 0.0f, 1.0f);\n"
+  "   vs_out.frag_uv = vs_in_uv;\n"
+  "   vs_out.frag_col = vs_in_col;\n"
+  "}";
 
-static constexpr const char* IMGUI_FRAGMENT_SHADER[] = {
-    "#version 450 core \n"
-    "\n"
-    "in PS_IN {\n"
-    "   layout (location = 0) vec2 frag_uv;\n"
-    "   layout (location = 1) vec4 frag_col;\n"
-    "} ps_in;\n"
-    "\n"
-    "layout (location = 0) out vec4 frag_color;\n"
-    "\n"
-    "uniform sampler2D font_texture;\n"
-    "\n"
-    "void main() {\n"
-    "   frag_color = ps_in.frag_col * texture2D(font_texture, ps_in.frag_uv); "
-    "\n"
-    "}"};
+static constexpr const char* IMGUI_FRAGMENT_SHADER =
+  "#version 450 core \n"
+  "\n"
+  "in PS_IN {\n"
+  "   layout (location = 0) vec2 frag_uv;\n"
+  "   layout (location = 1) vec4 frag_col;\n"
+  "} ps_in;\n"
+  "\n"
+  "layout (location = 0) out vec4 frag_color;\n"
+  "\n"
+  "uniform sampler2D font_texture;\n"
+  "\n"
+  "void main() {\n"
+  "   frag_color = ps_in.frag_col * texture2D(font_texture, ps_in.frag_uv); "
+  "\n"
+  "}";
 
 #else
 static constexpr const char IMGUI_SHADER[] = "#pragma pack_matrix(row_major)\n \
@@ -105,14 +111,14 @@ float4 ps_main(in const nk_ps_in ps_in) : SV_TARGET { \
 }";
 
 static constexpr auto IMGUI_SHADER_LEN =
-    static_cast<uint32_t>(sizeof(IMGUI_SHADER));
+  static_cast<uint32_t>(sizeof(IMGUI_SHADER));
 
 #endif
 
 #if defined(XRAY_RENDERER_DIRECTX)
 xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
                                        ID3D11DeviceContext* context) noexcept
-    : _gui{&ImGui::GetIO()} {
+  : _gui{&ImGui::GetIO()} {
   _rcon.device  = device;
   _rcon.context = context;
 
@@ -125,8 +131,8 @@ xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
     buffer_desc.StructureByteStride = 0;
     buffer_desc.Usage               = D3D11_USAGE_DYNAMIC;
 
-    _rcon.device->CreateBuffer(&buffer_desc, nullptr,
-                               raw_ptr_ptr(_rcon.vertex_buffer));
+    _rcon.device->CreateBuffer(
+      &buffer_desc, nullptr, raw_ptr_ptr(_rcon.vertex_buffer));
     if (!_rcon.vertex_buffer)
       return;
   }
@@ -140,16 +146,16 @@ xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
     buffer_desc.StructureByteStride = 0;
     buffer_desc.Usage               = D3D11_USAGE_DYNAMIC;
 
-    _rcon.device->CreateBuffer(&buffer_desc, nullptr,
-                               raw_ptr_ptr(_rcon.index_buffer));
+    _rcon.device->CreateBuffer(
+      &buffer_desc, nullptr, raw_ptr_ptr(_rcon.index_buffer));
     if (!_rcon.index_buffer)
       return;
   }
 
   {
     font_img_data font_img;
-    _gui->Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width,
-                                    &font_img.height, &font_img.bpp);
+    _gui->Fonts->GetTexDataAsRGBA32(
+      &font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
     if (!font_img.pixels)
       return;
 
@@ -172,14 +178,14 @@ xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
     tex_data.SysMemSlicePitch = font_img.width * font_img.height * 4;
 
     com_ptr<ID3D11Texture2D> font_texture;
-    _rcon.device->CreateTexture2D(&tex_desc, &tex_data,
-                                  raw_ptr_ptr(font_texture));
+    _rcon.device->CreateTexture2D(
+      &tex_desc, &tex_data, raw_ptr_ptr(font_texture));
 
     if (!font_texture)
       return;
 
-    _rcon.device->CreateShaderResourceView(raw_ptr(font_texture), nullptr,
-                                           raw_ptr_ptr(_rcon.font_texture));
+    _rcon.device->CreateShaderResourceView(
+      raw_ptr(font_texture), nullptr, raw_ptr_ptr(_rcon.font_texture));
 
     if (!_rcon.font_texture)
       return;
@@ -203,12 +209,12 @@ xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
 
   {
     _rcon.vs =
-        vertex_shader{_rcon.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "vs_main"};
+      vertex_shader{_rcon.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "vs_main"};
     if (!_rcon.vs)
       return;
 
     _rcon.ps =
-        pixel_shader{_rcon.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "ps_main"};
+      pixel_shader{_rcon.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "ps_main"};
     if (!_rcon.ps)
       return;
   }
@@ -236,7 +242,7 @@ xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
     dss_desc.StencilEnable = false;
 
     _rcon.device->CreateDepthStencilState(
-        &dss_desc, raw_ptr_ptr(_rcon.depth_stencil_state));
+      &dss_desc, raw_ptr_ptr(_rcon.depth_stencil_state));
     if (!_rcon.depth_stencil_state)
       return;
   }
@@ -256,18 +262,35 @@ xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
 
   {
     const D3D11_INPUT_ELEMENT_DESC vertex_fmt_desc[] = {
-        {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
-         D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0,
-         XR_U32_OFFSETOF(ImDrawVert, col), D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
-         XR_U32_OFFSETOF(ImDrawVert, uv), D3D11_INPUT_PER_VERTEX_DATA, 0}};
+      {"POSITION",
+       0,
+       DXGI_FORMAT_R32G32_FLOAT,
+       0,
+       0,
+       D3D11_INPUT_PER_VERTEX_DATA,
+       0},
+      {"COLOR",
+       0,
+       DXGI_FORMAT_R8G8B8A8_UNORM,
+       0,
+       XR_U32_OFFSETOF(ImDrawVert, col),
+       D3D11_INPUT_PER_VERTEX_DATA,
+       0},
+      {"TEXCOORD",
+       0,
+       DXGI_FORMAT_R32G32_FLOAT,
+       0,
+       XR_U32_OFFSETOF(ImDrawVert, uv),
+       D3D11_INPUT_PER_VERTEX_DATA,
+       0}};
 
     auto signature_bytecode = _rcon.vs.bytecode();
 
-    _rcon.device->CreateInputLayout(
-        vertex_fmt_desc, 3, signature_bytecode->GetBufferPointer(),
-        signature_bytecode->GetBufferSize(), raw_ptr_ptr(_rcon.input_layout));
+    _rcon.device->CreateInputLayout(vertex_fmt_desc,
+                                    3,
+                                    signature_bytecode->GetBufferPointer(),
+                                    signature_bytecode->GetBufferSize(),
+                                    raw_ptr_ptr(_rcon.input_layout));
 
     if (!_rcon.input_layout)
       return;
@@ -282,8 +305,8 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
   _rendercontext._vertex_buffer = []() {
     GLuint vbuff{};
     gl::CreateBuffers(1, &vbuff);
-    gl::NamedBufferStorage(vbuff, imgui_backend::VERTEX_BUFFER_SIZE, nullptr,
-                           gl::MAP_WRITE_BIT);
+    gl::NamedBufferStorage(
+      vbuff, imgui_backend::VERTEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
 
     return vbuff;
   }();
@@ -296,8 +319,8 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
   _rendercontext._index_buffer = []() {
     GLuint ibuff{};
     gl::CreateBuffers(1, &ibuff);
-    gl::NamedBufferStorage(ibuff, imgui_backend::INDEX_BUFFER_SIZE, nullptr,
-                           gl::MAP_WRITE_BIT);
+    gl::NamedBufferStorage(
+      ibuff, imgui_backend::INDEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
     return ibuff;
   }();
 
@@ -310,65 +333,100 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
   ]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
-    gl::BindVertexArray(vao);
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibh);
+
     gl::VertexArrayVertexBuffer(vao, 0, vbh, 0, sizeof(ImDrawVert));
+    gl::VertexArrayElementBuffer(vao, ibh);
 
     gl::EnableVertexArrayAttrib(vao, 0);
     gl::EnableVertexArrayAttrib(vao, 1);
     gl::EnableVertexArrayAttrib(vao, 2);
 
-    gl::VertexArrayAttribFormat(vao, 0, 2, gl::FLOAT, gl::FALSE_,
-                                XR_U32_OFFSETOF(ImDrawVert, pos));
-    gl::VertexArrayAttribFormat(vao, 1, 2, gl::FLOAT, gl::FALSE_,
-                                XR_U32_OFFSETOF(ImDrawVert, uv));
-    gl::VertexArrayAttribFormat(vao, 2, 4, gl::UNSIGNED_BYTE, gl::TRUE_,
+    gl::VertexArrayAttribFormat(
+      vao, 0, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(ImDrawVert, pos));
+    gl::VertexArrayAttribFormat(
+      vao, 1, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(ImDrawVert, uv));
+    gl::VertexArrayAttribFormat(vao,
+                                2,
+                                4,
+                                gl::UNSIGNED_BYTE,
+                                gl::TRUE_,
                                 XR_U32_OFFSETOF(ImDrawVert, col));
 
     gl::VertexArrayAttribBinding(vao, 0, 0);
     gl::VertexArrayAttribBinding(vao, 1, 0);
     gl::VertexArrayAttribBinding(vao, 2, 0);
 
-    gl::BindVertexArray(0);
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, 0);
-
     return vao;
   }
   ();
 
-  _rendercontext._draw_prog = []() {
-    const GLuint compiled_shaders[] = {
-        make_shader(gl::VERTEX_SHADER, IMGUI_VERTEX_SHADER,
-                    XR_U32_COUNTOF__(IMGUI_VERTEX_SHADER)),
-        make_shader(gl::FRAGMENT_SHADER, IMGUI_FRAGMENT_SHADER,
-                    XR_U32_COUNTOF__(IMGUI_FRAGMENT_SHADER))};
+  _rendercontext._vs = gpu_program_builder{}
+                         .add_string(IMGUI_VERTEX_SHADER)
+                         .build<render_stage::e::vertex>();
 
-    return gpu_program{compiled_shaders};
-  }();
-
-  if (!_rendercontext._draw_prog) {
-    XR_LOG_ERR("Failed to compile/link program!");
+  if (!_rendercontext._vs) {
+    XR_LOG_ERR("Failed to create vertex shader!");
     return;
+  }
+
+  _rendercontext._fs = gpu_program_builder{}
+                         .add_string(IMGUI_FRAGMENT_SHADER)
+                         .build<render_stage::e::fragment>();
+
+  if (!_rendercontext._vs || !_rendercontext._fs) {
+    XR_LOG_ERR("Failed to create vertex/fragment shaders!");
+    return;
+  }
+
+  _rendercontext._pipeline = program_pipeline{[]() {
+    GLuint phandle{};
+    gl::CreateProgramPipelines(1, &phandle);
+    return phandle;
+  }()};
+
+  _rendercontext._pipeline.use_vertex_program(_rendercontext._vs)
+    .use_fragment_program(_rendercontext._fs);
+
+  {
+    _small_font = _gui->Fonts->AddFontDefault();
+
+    ImFontConfig config;
+    config.OversampleH         = 3;
+    config.OversampleV         = 1;
+    config.GlyphExtraSpacing.x = 1.0f;
+
+    const auto font_path =
+      app_config::instance()->font_path("PxPlus_VGA_SquarePx.ttf");
+    _medium_font =
+      _gui->Fonts->AddFontFromFileTTF(c_str_ptr(font_path), 18, &config);
+    assert(_medium_font != nullptr);
   }
 
   _rendercontext._font_texture = [g = _gui]() {
     GLuint texh{};
 
     font_img_data font_img;
-    g->Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width,
-                                 &font_img.height, &font_img.bpp);
+    g->Fonts->GetTexDataAsRGBA32(
+      &font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
 
     gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
     gl::TextureStorage2D(texh, 1, gl::RGBA8, font_img.width, font_img.height);
-    gl::TextureSubImage2D(texh, 0, 0, 0, font_img.width, font_img.height,
-                          gl::RGBA, gl::UNSIGNED_BYTE, font_img.pixels);
+    gl::TextureSubImage2D(texh,
+                          0,
+                          0,
+                          0,
+                          font_img.width,
+                          font_img.height,
+                          gl::RGBA,
+                          gl::UNSIGNED_BYTE,
+                          font_img.pixels);
 
     return texh;
   }
   ();
 
   _gui->Fonts->TexID =
-      reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
+    reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
 
   _rendercontext._font_sampler = []() {
     GLuint smph{};
@@ -387,10 +445,7 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
 
 xray::ui::imgui_backend::~imgui_backend() noexcept { ImGui::Shutdown(); }
 
-void xray::ui::imgui_backend::draw_event(
-    const xray::rendering::draw_context_t& drw_ctx) {
-
-  XR_UNUSED_ARG(drw_ctx);
+void xray::ui::imgui_backend::draw() {
   ImGui::Render();
   auto draw_data = ImGui::GetDrawData();
 
@@ -398,13 +453,13 @@ void xray::ui::imgui_backend::draw_event(
   auto dc = _rcon.context;
 
   {
-    scoped_resource_mapping vb_map{dc, raw_ptr(_rcon.vertex_buffer),
-                                   D3D11_MAP_WRITE_DISCARD};
+    scoped_resource_mapping vb_map{
+      dc, raw_ptr(_rcon.vertex_buffer), D3D11_MAP_WRITE_DISCARD};
     if (!vb_map)
       return;
 
-    scoped_resource_mapping ib_map{dc, raw_ptr(_rcon.index_buffer),
-                                   D3D11_MAP_WRITE_DISCARD};
+    scoped_resource_mapping ib_map{
+      dc, raw_ptr(_rcon.index_buffer), D3D11_MAP_WRITE_DISCARD};
     if (!ib_map)
       return;
 
@@ -414,9 +469,11 @@ void xray::ui::imgui_backend::draw_event(
     for (int32_t i = 0; i < draw_data->CmdListsCount; ++i) {
       const auto cmd_lst = draw_data->CmdLists[i];
 
-      memcpy(vertices, &cmd_lst->VtxBuffer[0],
+      memcpy(vertices,
+             &cmd_lst->VtxBuffer[0],
              cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]));
-      memcpy(indices, &cmd_lst->IdxBuffer[0],
+      memcpy(indices,
+             &cmd_lst->IdxBuffer[0],
              cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]));
 
       vertices += cmd_lst->VtxBuffer.size();
@@ -427,7 +484,7 @@ void xray::ui::imgui_backend::draw_event(
   auto& gui = ImGui::GetIO();
   {
     const auto proj_matrix = projection::orthographic(
-        0.0f, gui.DisplaySize.x, 0.0f, gui.DisplaySize.y, 0.0f, 1.0f);
+      0.0f, gui.DisplaySize.x, 0.0f, gui.DisplaySize.y, 0.0f, 1.0f);
 
     _rcon.vs.set_uniform_block("matrix_pack", proj_matrix);
     _rcon.ps.set_sampler("font_sampler", raw_ptr(_rcon.font_sampler));
@@ -435,11 +492,11 @@ void xray::ui::imgui_backend::draw_event(
   }
 
   const float        blend_factor[4] = {0.f, 0.f, 0.f, 0.f};
-  scoped_blend_state blend_state{dc, raw_ptr(_rcon.blend_state), blend_factor,
-                                 0xffffffff};
+  scoped_blend_state blend_state{
+    dc, raw_ptr(_rcon.blend_state), blend_factor, 0xffffffff};
 
-  scoped_depth_stencil_state ds_state{dc, raw_ptr(_rcon.depth_stencil_state),
-                                      0};
+  scoped_depth_stencil_state ds_state{
+    dc, raw_ptr(_rcon.depth_stencil_state), 0};
   scoped_rasterizer_state raster_state{dc, raw_ptr(_rcon.raster_state)};
   scoped_scissor_rects    scissor_rects{dc, nullptr, 0};
 
@@ -481,7 +538,7 @@ void xray::ui::imgui_backend::draw_event(
 
       dc->RSSetScissorRects(1, &scissor_rc);
       _rcon.ps.set_resource_view(
-          "font_tex", static_cast<ID3D11ShaderResourceView*>(cmd->TextureId));
+        "font_tex", static_cast<ID3D11ShaderResourceView*>(cmd->TextureId));
       _rcon.ps.bind(dc);
       dc->DrawIndexed(cmd->ElemCount, index_offset, vertex_offset);
       index_offset += cmd->ElemCount;
@@ -490,10 +547,10 @@ void xray::ui::imgui_backend::draw_event(
     vertex_offset += cmd_list->VtxBuffer.size();
   }
 #else
-  const auto fb_width = static_cast<int32_t>(_gui->DisplaySize.x *
-                                             _gui->DisplayFramebufferScale.x);
-  const auto fb_height = static_cast<int32_t>(_gui->DisplaySize.y *
-                                              _gui->DisplayFramebufferScale.y);
+  const auto fb_width =
+    static_cast<int32_t>(_gui->DisplaySize.x * _gui->DisplayFramebufferScale.x);
+  const auto fb_height =
+    static_cast<int32_t>(_gui->DisplaySize.y * _gui->DisplayFramebufferScale.y);
   if (fb_width == 0 || fb_height == 0)
     return;
 
@@ -530,8 +587,8 @@ void xray::ui::imgui_backend::draw_event(
       depth_enabled ? gl::Enable(gl::DEPTH_TEST) : gl::Disable(gl::DEPTH_TEST);
       scissors_enabled ? gl::Enable(gl::SCISSOR_TEST)
                        : gl::Disable(gl::SCISSOR_TEST);
-      gl::Viewport(last_viewport[0], last_viewport[1], last_viewport[2],
-                   last_viewport[3]);
+      gl::Viewport(
+        last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
     }
   } state_save_restore{};
 
@@ -544,13 +601,16 @@ void xray::ui::imgui_backend::draw_event(
 
   gl::Viewport(0, 0, fb_width, fb_height);
   const auto projection_mtx =
-      projection::ortho_off_center(0.0f, static_cast<float>(fb_width), 0.0f,
-                                   static_cast<float>(fb_height), -1.0f, +1.0f);
+    projection::ortho_off_center(0.0f,
+                                 static_cast<float>(fb_width),
+                                 0.0f,
+                                 static_cast<float>(fb_height),
+                                 -1.0f,
+                                 +1.0f);
 
-  gl::UseProgram(_rendercontext._draw_prog.handle());
-  _rendercontext._draw_prog.set_uniform_block("matrix_pack", projection_mtx);
-  _rendercontext._draw_prog.set_uniform("font_texture", 0);
-  _rendercontext._draw_prog.bind_to_pipeline();
+  _rendercontext._vs.set_uniform_block("matrix_pack", projection_mtx);
+  _rendercontext._fs.set_uniform("font_texture", 0);
+  _rendercontext._pipeline.use();
   gl::BindVertexArray(raw_handle(_rendercontext._vertex_arr));
 
   {
@@ -571,7 +631,7 @@ void xray::ui::imgui_backend::draw_event(
         return;
 
       const auto vertex_bytes =
-          cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]);
+        cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]);
       assert(vertex_bytes <= imgui_backend::VERTEX_BUFFER_SIZE);
       memcpy(vb_map.memory(), &cmd_lst->VtxBuffer[0], vertex_bytes);
     }
@@ -585,25 +645,27 @@ void xray::ui::imgui_backend::draw_event(
         return;
 
       const auto index_bytes =
-          cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]);
+        cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]);
       assert(index_bytes <= imgui_backend::INDEX_BUFFER_SIZE);
       memcpy(ib_map.memory(), &cmd_lst->IdxBuffer[0], index_bytes);
     }
 
     for (auto cmd_itr = cmd_lst->CmdBuffer.begin(),
               cmd_end = cmd_lst->CmdBuffer.end();
-         cmd_itr != cmd_end; ++cmd_itr) {
+         cmd_itr != cmd_end;
+         ++cmd_itr) {
 
       const GLuint textures_to_bind[] = {(GLuint)(intptr_t) cmd_itr->TextureId};
       gl::BindTextures(0, 1, textures_to_bind);
 
       gl::Scissor(
-          static_cast<int32_t>(cmd_itr->ClipRect.x),
-          fb_height - static_cast<int32_t>(cmd_itr->ClipRect.w),
-          static_cast<int32_t>(cmd_itr->ClipRect.z - cmd_itr->ClipRect.x),
-          static_cast<int32_t>(cmd_itr->ClipRect.w - cmd_itr->ClipRect.y));
+        static_cast<int32_t>(cmd_itr->ClipRect.x),
+        fb_height - static_cast<int32_t>(cmd_itr->ClipRect.w),
+        static_cast<int32_t>(cmd_itr->ClipRect.z - cmd_itr->ClipRect.x),
+        static_cast<int32_t>(cmd_itr->ClipRect.w - cmd_itr->ClipRect.y));
 
-      gl::DrawElements(gl::TRIANGLES, cmd_itr->ElemCount,
+      gl::DrawElements(gl::TRIANGLES,
+                       cmd_itr->ElemCount,
                        sizeof(ImDrawIdx) == 2 ? gl::UNSIGNED_SHORT
                                               : gl::UNSIGNED_INT,
                        idx_buff_offset);
@@ -615,35 +677,34 @@ void xray::ui::imgui_backend::draw_event(
 #endif
 }
 
-void xray::ui::imgui_backend::new_frame(
-    const xray::rendering::draw_context_t& dc) {
-
-  _gui->DisplaySize = ImVec2{static_cast<float>(dc.window_width),
-                             static_cast<float>(dc.window_height)};
-  //  SetCursor(gui.MouseDrawCursor ? nullptr : LoadCursor(nullptr, IDC_ARROW));
+void xray::ui::imgui_backend::new_frame(const int32_t wnd_width,
+                                        const int32_t wnd_height) {
+  _gui->DisplaySize =
+    ImVec2{static_cast<float>(wnd_width), static_cast<float>(wnd_height)};
   ImGui::NewFrame();
 }
 
 bool xray::ui::imgui_backend::input_event(
-    const xray::ui::input_event_t& in_evt) {
+  const xray::ui::window_event& in_evt) {
 
-  if (in_evt.type == input_event_type::key) {
-    const auto& ke              = in_evt.key_ev;
-    _gui->KeysDown[ke.key_code] = ke.down;
+  if (in_evt.type == event_type::key) {
+    const auto& ke = in_evt.event.key;
+    _gui->KeysDown[key_sym::to_integer(ke.keycode)] =
+      ke.type == event_action_type::press;
     return true;
   }
 
-  if (in_evt.type == input_event_type::mouse_button) {
-    const auto& mb      = in_evt.mouse_button_ev;
+  if (in_evt.type == event_type::mouse_button) {
+    const auto& mb      = in_evt.event.button;
     bool        handled = true;
 
-    switch (mb.btn_id) {
-    case mouse_button::left:
-      _gui->MouseDown[0] = mb.down;
+    switch (mb.button) {
+    case mouse_button::button1:
+      _gui->MouseDown[0] = mb.type == event_action_type::press;
       break;
 
-    case mouse_button::right:
-      _gui->MouseDown[1] = mb.down;
+    case mouse_button::button3:
+      _gui->MouseDown[1] = mb.type == event_action_type::press;
       break;
 
     default:
@@ -654,16 +715,16 @@ bool xray::ui::imgui_backend::input_event(
     return handled;
   }
 
-  if (in_evt.type == input_event_type::mouse_movement) {
-    const auto& mm   = in_evt.mouse_move_ev;
-    _gui->MousePos.x = static_cast<float>(mm.x_pos);
-    _gui->MousePos.y = static_cast<float>(mm.y_pos);
+  if (in_evt.type == event_type::mouse_motion) {
+    const auto& mm   = in_evt.event.motion;
+    _gui->MousePos.x = static_cast<float>(mm.pointer_x);
+    _gui->MousePos.y = static_cast<float>(mm.pointer_y);
 
     return true;
   }
 
-  if (in_evt.type == input_event_type::mouse_wheel) {
-    const auto& mw = in_evt.mouse_wheel_ev;
+  if (in_evt.type == event_type::mouse_wheel) {
+    const auto& mw = in_evt.event.wheel;
     _gui->MouseWheel += mw.delta > 0 ? +1.0f : -1.0f;
     return true;
   }
@@ -680,24 +741,24 @@ bool xray::ui::imgui_backend::wants_input() const noexcept {
 }
 
 void xray::ui::imgui_backend::setup_key_mappings() {
-  _gui->KeyMap[ImGuiKey_Tab]        = key_symbol::tab;
-  _gui->KeyMap[ImGuiKey_LeftArrow]  = key_symbol::left;
-  _gui->KeyMap[ImGuiKey_RightArrow] = key_symbol::right;
-  _gui->KeyMap[ImGuiKey_UpArrow]    = key_symbol::up;
-  _gui->KeyMap[ImGuiKey_DownArrow]  = key_symbol::down;
-  _gui->KeyMap[ImGuiKey_PageUp]     = key_symbol::page_up;
-  _gui->KeyMap[ImGuiKey_PageDown]   = key_symbol::page_down;
-  _gui->KeyMap[ImGuiKey_Home]       = key_symbol::home;
-  _gui->KeyMap[ImGuiKey_End]        = key_symbol::end;
-  _gui->KeyMap[ImGuiKey_Delete]     = key_symbol::del;
-  _gui->KeyMap[ImGuiKey_Backspace]  = key_symbol::backspace;
-  _gui->KeyMap[ImGuiKey_Enter]      = key_symbol::enter;
-  _gui->KeyMap[ImGuiKey_Escape]     = key_symbol::escape;
-  _gui->KeyMap[ImGuiKey_A]          = 'A';
-  _gui->KeyMap[ImGuiKey_C]          = 'C';
-  _gui->KeyMap[ImGuiKey_V]          = 'V';
-  _gui->KeyMap[ImGuiKey_X]          = 'X';
-  _gui->KeyMap[ImGuiKey_Y]          = 'Y';
-  _gui->KeyMap[ImGuiKey_Z]          = 'Z';
-  _gui->RenderDrawListsFn           = nullptr;
+  _gui->KeyMap[ImGuiKey_Tab]        = key_sym::to_integer(key_sym::e::tab);
+  _gui->KeyMap[ImGuiKey_LeftArrow]  = key_sym::to_integer(key_sym::e::left);
+  _gui->KeyMap[ImGuiKey_RightArrow] = key_sym::to_integer(key_sym::e::right);
+  _gui->KeyMap[ImGuiKey_UpArrow]    = key_sym::to_integer(key_sym::e::up);
+  _gui->KeyMap[ImGuiKey_DownArrow]  = key_sym::to_integer(key_sym::e::down);
+  _gui->KeyMap[ImGuiKey_PageUp]     = key_sym::to_integer(key_sym::e::page_up);
+  _gui->KeyMap[ImGuiKey_PageDown]  = key_sym::to_integer(key_sym::e::page_down);
+  _gui->KeyMap[ImGuiKey_Home]      = key_sym::to_integer(key_sym::e::home);
+  _gui->KeyMap[ImGuiKey_End]       = key_sym::to_integer(key_sym::e::end);
+  _gui->KeyMap[ImGuiKey_Delete]    = key_sym::to_integer(key_sym::e::del);
+  _gui->KeyMap[ImGuiKey_Backspace] = key_sym::to_integer(key_sym::e::backspace);
+  _gui->KeyMap[ImGuiKey_Enter]     = key_sym::to_integer(key_sym::e::enter);
+  _gui->KeyMap[ImGuiKey_Escape]    = key_sym::to_integer(key_sym::e::escape);
+  _gui->KeyMap[ImGuiKey_A]         = 'A';
+  _gui->KeyMap[ImGuiKey_C]         = 'C';
+  _gui->KeyMap[ImGuiKey_V]         = 'V';
+  _gui->KeyMap[ImGuiKey_X]         = 'X';
+  _gui->KeyMap[ImGuiKey_Y]         = 'Y';
+  _gui->KeyMap[ImGuiKey_Z]         = 'Z';
+  _gui->RenderDrawListsFn          = nullptr;
 }

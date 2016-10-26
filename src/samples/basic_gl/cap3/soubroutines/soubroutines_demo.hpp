@@ -29,14 +29,14 @@ private:
   void init();
 
 private:
-  xray::rendering::scoped_buffer vertex_buffer_;
-  uint32_t                              vertex_count_{0};
-  xray::rendering::scoped_buffer index_buffer_;
-  uint32_t                              index_count_{0};
-  xray::rendering::scoped_vertex_array    vertex_layout_;
-  xray::rendering::gpu_program          draw_prog_;
-  bool                                  use_ads_lighting_{true};
-  uint32_t                              mtl_idx_{0};
+  xray::rendering::scoped_buffer       vertex_buffer_;
+  uint32_t                             vertex_count_{0};
+  xray::rendering::scoped_buffer       index_buffer_;
+  uint32_t                             index_count_{0};
+  xray::rendering::scoped_vertex_array vertex_layout_;
+  xray::rendering::gpu_program         draw_prog_;
+  bool                                 use_ads_lighting_{true};
+  uint32_t                             mtl_idx_{0};
 
 private:
   XRAY_NO_COPY(soubroutines_demo);

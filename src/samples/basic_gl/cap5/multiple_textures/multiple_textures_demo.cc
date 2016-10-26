@@ -49,9 +49,9 @@ void app::multiple_textures_demo::draw(
   gl::BindSamplers(0, 2, bound_samplers);
 
   struct matrix_pack {
-    float4x4 world_view;
-    float4x4 normals_view;
-    float4x4 world_view_proj;
+    mat4f world_view;
+    mat4f normals_view;
+    mat4f world_view_proj;
   } const object_transforms{dc.view_matrix, dc.view_matrix,
                             dc.proj_view_matrix};
 
@@ -96,7 +96,7 @@ void app::multiple_textures_demo::init() {
               back_inserter(vertices), [](const auto& in_vx) {
 
                 const auto texcoord_gl =
-                    float2{in_vx.texcoords.u, 1.0f - in_vx.texcoords.v};
+                    vec2f{in_vx.texcoords.u, 1.0f - in_vx.texcoords.v};
 
                 return vertex_pnt{in_vx.position, in_vx.normal * (-1.0f),
                                   texcoord_gl};

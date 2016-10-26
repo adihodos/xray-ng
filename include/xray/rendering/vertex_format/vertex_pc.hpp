@@ -52,10 +52,10 @@ struct vertex_pc {
             const float alpha = 1.0f) noexcept
       : position{px, py, pz}, color{red, green, blue, alpha} {}
 
-  vertex_pc(const math::float3& pos, const rendering::rgb_color& clr) noexcept
+  vertex_pc(const math::vec3f& pos, const rendering::rgb_color& clr) noexcept
       : position{pos}, color{clr} {}
 
-  math::float3         position;
+  math::vec3f          position;
   rendering::rgb_color color;
 };
 

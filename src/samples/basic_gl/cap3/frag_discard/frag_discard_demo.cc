@@ -63,7 +63,7 @@ void app::frag_discard_demo::init() {
         raw_ptr(mesh.geometry), raw_ptr(mesh.geometry) + mesh.vertex_count};
 
     transform(begin(input_verts), end(input_verts), back_inserter(vertices),
-              [](const auto &in_vert) {
+              [](const auto& in_vert) {
                 return vertex_pnt{in_vert.position, in_vert.normal,
                                   in_vert.texcoords};
               });
@@ -124,9 +124,9 @@ void app::frag_discard_demo::init() {
   //
   // shaders
   {
-    constexpr const char *const VS_FILE =
+    constexpr const char* const VS_FILE =
         "shaders/cap3/frag_discard/vert_shader.glsl";
-    constexpr const char *const FS_FILE =
+    constexpr const char* const FS_FILE =
         "shaders/cap3/frag_discard/frag_shader.glsl";
 
     auto vert_shader = make_shader(gl::VERTEX_SHADER, VS_FILE);
@@ -158,7 +158,7 @@ void app::frag_discard_demo::key_event(const int32_t /*key_code*/,
                                        const int32_t /*mods*/) noexcept {}
 
 void app::frag_discard_demo::draw(
-    const xray::rendering::draw_context_t &dc) noexcept {
+    const xray::rendering::draw_context_t& dc) noexcept {
 
   assert(valid());
 
@@ -168,16 +168,16 @@ void app::frag_discard_demo::draw(
   //
   // set uniforms
   {
-    auto light_src = LIGHT_SOURCE;
+    auto light_src     = LIGHT_SOURCE;
     light_src.position = mul_point(dc.view_matrix, light_src.position);
 
     draw_prog_.set_uniform_block("light_source", light_src);
     draw_prog_.set_uniform_block("material", STD_MATERIALS[0]);
 
     struct transforms {
-      float4x4 mv;
-      float4x4 nv;
-      float4x4 mvp;
+      mat4f mv;
+      mat4f nv;
+      mat4f mvp;
     } const tf_uniform{dc.view_matrix, dc.view_matrix, dc.proj_view_matrix};
 
     draw_prog_.set_uniform_block("transforms", tf_uniform);

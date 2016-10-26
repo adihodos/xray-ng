@@ -41,20 +41,22 @@
 #else
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/rendering/opengl/program_pipeline.hpp"
 #endif
 
-#include "xray/rendering/rendering_fwd.hpp"
-#include "xray/ui/fwd_input_events.hpp"
 #include <cassert>
 #include <cstdint>
 
 struct ImGuiIO;
+struct ImFont;
 
 namespace xray {
 namespace ui {
 
 /// \addtogroup __GroupXrayUI
 /// @{
+
+struct window_event;
 
 class imgui_backend {
 public:
@@ -71,13 +73,18 @@ public:
 
   ~imgui_backend() noexcept;
 
-  void draw_event(const xray::rendering::draw_context_t& dc);
-  bool input_event(const xray::ui::input_event_t& in_evt);
+  void draw();
+
+  bool input_event(const window_event& evt);
+
   void tick(const float delta);
   bool wants_input() const noexcept;
-  void new_frame(const xray::rendering::draw_context_t&);
+  void new_frame(const int32_t wnd_width, const int32_t wnd_height);
 
-private :
+  ImFont* small_font() const noexcept { return _small_font; }
+  ImFont* medium_font() const noexcept { return _medium_font; }
+
+private:
   void setup_key_mappings();
 
 private:
@@ -103,15 +110,18 @@ private:
     xray::rendering::scoped_buffer       _vertex_buffer;
     xray::rendering::scoped_buffer       _index_buffer;
     xray::rendering::scoped_vertex_array _vertex_arr;
-    xray::rendering::gpu_program         _draw_prog;
+    xray::rendering::vertex_program      _vs;
+    xray::rendering::fragment_program    _fs;
+    xray::rendering::program_pipeline    _pipeline;
     xray::rendering::scoped_texture      _font_texture;
     xray::rendering::scoped_sampler      _font_sampler;
     bool                                 _valid{false};
   } _rendercontext;
 
-  
 #endif
   ImGuiIO* _gui;
+  ImFont*  _small_font;
+  ImFont*  _medium_font;
 
 private:
   XRAY_NO_COPY(imgui_backend);

@@ -56,9 +56,9 @@ void app::fog_demo::draw(const xray::rendering::draw_context_t& dc) {
                                     FOG_IMPLEMENTATIONS[_linear_fog]);
 
   struct matrix_pack_t {
-    float4x4 world_view;
-    float4x4 normal_view;
-    float4x4 world_view_proj;
+    mat4f world_view;
+    mat4f normal_view;
+    mat4f world_view_proj;
   };
 
   for (const auto& mesh : _meshes) {

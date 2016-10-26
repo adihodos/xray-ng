@@ -1,6 +1,6 @@
 
 enum_def : {
-  namespace = "namespace app {";
+  namespaces = ["app"];
   name = "phong_material_component";
   #is_bitfield = TRUE;
   underlying_type = "uint8_t";

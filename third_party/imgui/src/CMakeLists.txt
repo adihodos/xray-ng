@@ -20,4 +20,4 @@ if (WIN32 AND NOT MSVC)
 endif()    
 
 add_library(xray-imgui STATIC ${project_sources})
-target_link_libraries(xray-imgui ${platform_libs})
+target_link_libraries(xray-imgui xray-opengl-renderer ${platform_libs})

@@ -37,7 +37,7 @@ void app::directional_light_demo::init() {
 
     transform(raw_ptr(mesh.geometry),
               raw_ptr(mesh.geometry) + mesh.vertex_count,
-              back_inserter(vertices), [](const auto &vs_in) {
+              back_inserter(vertices), [](const auto& vs_in) {
                 return vertex_pn{vs_in.position, vs_in.normal};
               });
 
@@ -116,7 +116,7 @@ void app::directional_light_demo::init() {
             2.0f * std::cos((two_pi<float> / 5.0f) * static_cast<float>(idx));
         const auto z_pos =
             2.0f * std::sin((two_pi<float> / 5.0f) * static_cast<float>(idx));
-        _lights[idx].direction = -normalize(float3{x_pos, 1.2f, z_pos + 1.0f});
+        _lights[idx].direction = -normalize(vec3f{x_pos, 1.2f, z_pos + 1.0f});
       }
 
       _lights[0].ka = {0.75f, 0.75f, 0.75f, 1.0f};
@@ -141,7 +141,7 @@ void app::directional_light_demo::init() {
 }
 
 void app::directional_light_demo::draw(
-    const xray::rendering::draw_context_t &dc) noexcept {
+    const xray::rendering::draw_context_t& dc) noexcept {
 
   assert(valid());
   gl::BindVertexArray(raw_handle(_vertex_array));
@@ -149,7 +149,7 @@ void app::directional_light_demo::draw(
   {
     directional_light scene_lights[NUM_LIGHTS];
     transform(begin(_lights), end(_lights), begin(scene_lights),
-              [&dc](const auto &in_light) {
+              [&dc](const auto& in_light) {
                 auto out_light = in_light;
                 out_light.direction =
                     normalize(mul_vec(dc.view_matrix, in_light.direction));
@@ -160,9 +160,9 @@ void app::directional_light_demo::draw(
     _draw_program.set_uniform_block("obj_mat", material::stdc::copper);
 
     struct transform_matrix_pack {
-      float4x4 world_to_view;
-      float4x4 normals_to_view;
-      float4x4 world_view_proj;
+      mat4f world_to_view;
+      mat4f normals_to_view;
+      mat4f world_view_proj;
     } const mtx_uniform{dc.view_matrix, dc.view_matrix, dc.proj_view_matrix};
 
     _draw_program.set_uniform_block("transforms", mtx_uniform);

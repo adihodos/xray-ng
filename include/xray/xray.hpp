@@ -36,6 +36,9 @@
 #include <cstddef>
 #include <cstdint>
 
+#define XRAY_FUNCTION_NAME __FUNCTION__
+#define XRAY_QUALIFIED_FUNCTION_NAME __PRETTY_FUNCTION__
+
 #define XRAY_STRINGIZE_a(x) #x
 #define XRAY_STRINGIZE_w(x) L## #x
 #define XRAY_PASTE_X_Y(X, Y) X##Y
@@ -171,10 +174,6 @@
 #define XRAY_NO_COPY(type_name)                                                \
   type_name(type_name const&) = delete;                                        \
   type_name& operator=(type_name const&) = delete
-
-#define XRAY_NO_MOVE(type_name)                                                \
-  type_name(type_name&&) = delete;                                             \
-  type_name& operator=(type_name&&) = delete
 
 #define XRAY_DEFAULT_MOVE(type_name)                                           \
   type_name(type_name&&) = default;                                            \

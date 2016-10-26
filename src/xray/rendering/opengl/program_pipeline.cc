@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2016 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,22 +26,24 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+/// \file program_pipeline.cc
 
-#include "xray/xray.hpp"
-#include "xray/scene/config_reader_base.hpp"
-#include "xray/math/scalar3.hpp"
+#include "xray/rendering/opengl/program_pipeline.hpp"
+#include <algorithm>
 
-namespace xray {
-namespace scene {
+using namespace std;
 
-struct float3_reader {
-  static bool read_float3(const xray::base::config_entry& e,
-                          xray::math::float3*             f) noexcept {
-    return config_reader_base::read_floats(e, 3, f->components) == 3;
-  }
-};
+void xray::rendering::program_pipeline::use() {
+  assert(static_cast<bool>(_pipeline));
+  assert(any_of(begin(_programs), end(_programs), [](const auto p) {
+    return p != nullptr;
+  }));
 
-} // namespace scene
-} // namespace xray
+  gl::UseProgram(0);
+  gl::BindProgramPipeline(raw_handle(_pipeline));
 
+  for_each(begin(_programs), end(_programs), [](detail::gpu_program_base* prg) {
+    if (prg)
+      prg->flush_uniforms();
+  });
+}

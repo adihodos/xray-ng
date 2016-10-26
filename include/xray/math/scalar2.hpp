@@ -106,10 +106,10 @@ constexpr const scalar2<T> scalar2<T>::stdc::zero;
 template <typename T>
 constexpr const scalar2<T> scalar2<T>::stdc::one;
 
-using float2     = scalar2<scalar_lowp>;
-using double2    = scalar2<scalar_mediump>;
-using scalar2u32 = scalar2<uint32_t>;
-using scalar2i32 = scalar2<int32_t>;
+using vec2f    = scalar2<scalar_lowp>;
+using vec2d    = scalar2<scalar_mediump>;
+using vec2i32  = scalar2<int32_t>;
+using vec2ui32 = scalar2<uint32_t>;
 
 /// @}
 

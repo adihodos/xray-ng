@@ -3,12 +3,12 @@
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 
-void xray::scene::camera::set_view_matrix(const math::float4x4& view) {
+void xray::scene::camera::set_view_matrix(const math::mat4f& view) {
   view_ = view;
 
-  //origin_.x = view_.a03;
-  //origin_.y = view_.a13;
-  //origin_.z = view_.a23;
+  // origin_.x = view_.a03;
+  // origin_.y = view_.a13;
+  // origin_.z = view_.a23;
 
   right_.x = view_.a00;
   right_.y = view_.a10;
@@ -25,17 +25,16 @@ void xray::scene::camera::set_view_matrix(const math::float4x4& view) {
   invalidate();
 }
 
-const xray::math::float4x4& xray::scene::camera::view() const noexcept {
+const xray::math::mat4f& xray::scene::camera::view() const noexcept {
   return view_;
 }
 
-const xray::math::float4x4& xray::scene::camera::projection() const noexcept {
+const xray::math::mat4f& xray::scene::camera::projection() const noexcept {
   update();
   return projection_;
 }
 
-const xray::math::float4x4& xray::scene::camera::projection_view() const
-    noexcept {
+const xray::math::mat4f& xray::scene::camera::projection_view() const noexcept {
   return projection_view_;
 }
 
@@ -48,14 +47,14 @@ void xray::scene::camera::update() const noexcept {
 }
 
 void xray::scene::camera::set_projection(
-    const math::float4x4& projection) noexcept {
+    const math::mat4f& projection) noexcept {
   projection_ = projection;
   invalidate();
 }
 
-void xray::scene::camera::look_at(const math::float3& eye_pos,
-                                  const math::float3& target,
-                                  const math::float3& world_up) noexcept {
+void xray::scene::camera::look_at(const math::vec3f& eye_pos,
+                                  const math::vec3f& target,
+                                  const math::vec3f& world_up) noexcept {
   origin_ = eye_pos;
   set_view_matrix(math::view_frame::look_at(eye_pos, target, world_up));
 }

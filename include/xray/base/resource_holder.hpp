@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2016 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,31 +28,43 @@
 
 #pragma once
 
-/// \file   fwd_input_events.hpp
-
-#include "xray/xray.hpp"
-
 namespace xray {
-namespace ui {
+namespace base {
 
-/// \addtogroup __GroupXrayUI
+/// \addtogroup __GroupXrayBase
 /// @{
 
-enum class mouse_button;
+/// \brief Helper class to allow usage of unique_ppointer objects with
+/// non pointer resource types.
+template <typename _ResType, _ResType _NullValue>
+struct resource_holder {
+public:
+  resource_holder(_ResType handle) noexcept : _handle_to_resource{handle} {}
 
-enum class input_event_type;
+  resource_holder(std::nullptr_t = nullptr) noexcept
+      : _handle_to_resource{_NullValue} {}
 
-struct key_event_data_t;
+  operator _ResType() noexcept { return _handle_to_resource; }
 
-struct mouse_button_event_data_t;
+  explicit operator bool() const noexcept {
+    return _handle_to_resource != _NullValue;
+  }
 
-struct mouse_wheel_event_data_t;
+  bool operator==(const resource_holder<_ResType, _NullValue>& rhs) const
+      noexcept {
+    return _handle_to_resource == rhs._handle_to_resource;
+  }
 
-struct mouse_move_event_data_t;
+  bool operator!=(const resource_holder<_ResType, _NullValue>& rhs) const
+      noexcept {
+    return !(*this == rhs);
+  }
 
-struct input_event_t;
+private:
+  _ResType _handle_to_resource;
+};
 
 /// @}
 
-} // namespace ui
+} // namespace base
 } // namespace xray

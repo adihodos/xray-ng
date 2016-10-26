@@ -43,9 +43,9 @@ namespace rendering {
 struct draw_context_t {
   uint32_t             window_width;
   uint32_t             window_height;
-  math::float4x4       view_matrix;
-  math::float4x4       projection_matrix;
-  math::float4x4       proj_view_matrix;
+  math::mat4f          view_matrix;
+  math::mat4f          projection_matrix;
+  math::mat4f          proj_view_matrix;
   const scene::camera* active_camera;
   void*                renderer;
 };

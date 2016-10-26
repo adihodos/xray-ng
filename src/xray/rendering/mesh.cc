@@ -48,11 +48,11 @@ struct vertex_load_option {
   enum { load_normals = 1u, load_texcoord = 1u << 1, load_tangents = 1u << 2 };
 };
 
-float3 ai_vector_to_xray_vector(const aiVector3D& input) noexcept {
+vec3f ai_vector_to_xray_vector(const aiVector3D& input) noexcept {
   return {input.x, input.y, input.z};
 }
 
-float2 ai_vector_to_xray_vector(const aiVector2D& input) noexcept {
+vec2f ai_vector_to_xray_vector(const aiVector2D& input) noexcept {
   return {input.x, input.y};
 }
 
@@ -60,15 +60,15 @@ template <typename OutVec, typename InVec>
 struct vector_cast_impl;
 
 template <>
-struct vector_cast_impl<xray::math::float3, aiVector3D> {
-  static xray::math::float3 cast(const aiVector3D& vec) noexcept {
+struct vector_cast_impl<xray::math::vec3f, aiVector3D> {
+  static xray::math::vec3f cast(const aiVector3D& vec) noexcept {
     return {vec.x, vec.y, vec.z};
   }
 };
 
 template <>
-struct vector_cast_impl<xray::math::float2, aiVector3D> {
-  static xray::math::float2 cast(const aiVector3D& vec) noexcept {
+struct vector_cast_impl<xray::math::vec2f, aiVector3D> {
+  static xray::math::vec2f cast(const aiVector3D& vec) noexcept {
     return {vec.x, vec.y};
   }
 };
@@ -141,25 +141,25 @@ static void mesh_load_vertex_data(const InputVertexType* input_vertices,
   }
 }
 
-static void mesh_load_pos(float3* where, const uint32_t stride,
+static void mesh_load_pos(vec3f* where, const uint32_t stride,
                           const aiMesh* mesh, const uint32_t base_vertex) {
   mesh_load_vertex_data(mesh->mVertices, mesh->mNumVertices, stride,
                         base_vertex, where);
 }
 
-static void mesh_load_normal(float3* where, const uint32_t stride,
+static void mesh_load_normal(vec3f* where, const uint32_t stride,
                              const aiMesh* mesh, const uint32_t base_vertex) {
   mesh_load_vertex_data(mesh->mNormals, mesh->mNumVertices, stride, base_vertex,
                         where);
 }
 
-static void mesh_load_texcoord(float2* where, const uint32_t stride,
+static void mesh_load_texcoord(vec2f* where, const uint32_t stride,
                                const aiMesh* mesh, const uint32_t base_vertex) {
   mesh_load_vertex_data(mesh->mTextureCoords[0], mesh->mNumVertices, stride,
                         base_vertex, where);
 }
 
-static void mesh_load_tangent(float3* where, const uint32_t stride,
+static void mesh_load_tangent(vec3f* where, const uint32_t stride,
                               const aiMesh* mesh, const uint32_t base_vertex) {
   mesh_load_vertex_data(mesh->mTangents, mesh->mNumVertices, stride,
                         base_vertex, where);
@@ -559,7 +559,7 @@ void xray::rendering::simple_mesh::create_buffers(
 
   //    //    XRAY_TIMED_SCOPE("mesh aabb computation");
   _boundingbox = bounding_box3_axis_aligned(
-      static_cast<const float3*>(args->vertexbuffer_data), args->vertexcount,
+      static_cast<const vec3f*>(args->vertexbuffer_data), args->vertexcount,
       args->fmt_into->element_size);
 
   //    struct aabb_reduce_body {
@@ -578,7 +578,7 @@ void xray::rendering::simple_mesh::create_buffers(
   //        for (size_t idx = range.begin(), pts_cnt = range.end(); idx <
   //        pts_cnt;
   //             ++idx) {
-  //          const auto pt = reinterpret_cast<const float3*>(
+  //          const auto pt = reinterpret_cast<const vec3f*>(
   //              static_cast<const uint8_t*>(_points) + idx * _stride);
 
   //          _boundingbox.min.x = math::min(_boundingbox.min.x, pt->x);

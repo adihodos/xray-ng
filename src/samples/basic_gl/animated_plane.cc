@@ -45,7 +45,7 @@ void app::animated_paper_plane::init() noexcept {
     gl::EnableVertexAttribArray(0);
 
     gl::BindVertexBuffer(0, raw_handle(vertex_buff_), 0,
-                         sizeof(xray::math::float2));
+                         sizeof(xray::math::vec2f));
 
     gl::VertexAttribFormat(0, 2, gl::FLOAT, gl::FALSE_, 0);
     gl::VertexAttribBinding(0, 0);
@@ -90,7 +90,7 @@ void app::animated_paper_plane::draw(
   gl::BindVertexArray(raw_handle(layout_desc_));
   gl::UseProgram(drawing_program_.handle());
 
-  drawing_program_.set_uniform("vertex_color", float3{1.0f, 0.4f, 0.8f});
+  drawing_program_.set_uniform("vertex_color", vec3f{1.0f, 0.4f, 0.8f});
 
   const auto  rotate_mtx = R3::rotate_z(rotation_angle_);
   const float values[] = {rotate_mtx.a00, rotate_mtx.a01, rotate_mtx.a02, 0.0f,

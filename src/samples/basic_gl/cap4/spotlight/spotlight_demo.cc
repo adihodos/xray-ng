@@ -53,7 +53,7 @@ void ripple_grid(xray::rendering::geometry_data_t* mesh,
   const auto scale_z = rp.grid_depth * 0.5f;
 
   for (auto& vertex : vertices) {
-    vertex.normal    = float3::stdc::zero;
+    vertex.normal    = vec3f::stdc::zero;
     const auto x_pos = vertex.position.x / scale_x;
     const auto z_pos = vertex.position.z / scale_z;
 
@@ -201,10 +201,10 @@ void app::spotlight_demo::init() {
                                                 color_palette::material::white,
                                                 color_palette::material::white};
 
-    const float3 light_pos[NUM_LIGHTS] = {
+    const vec3f light_pos[NUM_LIGHTS] = {
         {-10.0f, 10.0f, 0.0f}, {+10.0f, 10.0f, 0.0f}, {0.0f, 10.0f, 0.0f}};
 
-    const float3 light_lookat[NUM_LIGHTS] = {
+    const vec3f light_lookat[NUM_LIGHTS] = {
         {-5.0f, 0.0f, 0.0f}, {+5.0f, 0.0f, 0.0f}, {+0.0f, 0.0f, 0.0f}};
 
     for (uint32_t idx = 0; idx < spotlight_demo::NUM_LIGHTS; ++idx) {
@@ -259,13 +259,13 @@ void app::spotlight_demo::draw(const xray::rendering::draw_context_t& dc) {
     }
 
     const auto world = R4::translate(mesh.translation) *
-                       float4x4{R3::rotate_x(mesh.rotation_xy.x)} *
-                       float4x4{R3::rotate_y(mesh.rotation_xy.y)};
+                       mat4f{R3::rotate_x(mesh.rotation_xy.x)} *
+                       mat4f{R3::rotate_y(mesh.rotation_xy.y)};
 
     struct matrix_transform_pack {
-      float4x4 world_to_view;
-      float4x4 normals_to_view;
-      float4x4 world_view_proj;
+      mat4f world_to_view;
+      mat4f normals_to_view;
+      mat4f world_view_proj;
     } transform_pack{dc.view_matrix * world, dc.view_matrix * world,
                      dc.proj_view_matrix * world};
 
@@ -307,7 +307,7 @@ void app::spotlight_demo::key_event(const int32_t key_code,
                                     const int32_t /*mods*/) {
 
   if ((key_code == GLFW_KEY_BACKSPACE) && (action == GLFW_PRESS)) {
-    _meshes[0].rotation_xy = float2::stdc::zero;
+    _meshes[0].rotation_xy = vec2f::stdc::zero;
     _rotate_mesh           = !_rotate_mesh;
   }
 }

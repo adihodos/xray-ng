@@ -48,7 +48,6 @@ private:
 
 private:
   XRAY_NO_COPY(scoped_triangle_winding);
-  XRAY_NO_MOVE(scoped_triangle_winding);
 };
 
 struct scoped_vertex_array_binding {
@@ -65,7 +64,6 @@ private:
 
 private:
   XRAY_NO_COPY(scoped_vertex_array_binding);
-  XRAY_NO_MOVE(scoped_vertex_array_binding);
 };
 
 struct scoped_element_array_binding {
@@ -84,10 +82,9 @@ private:
 
 private:
   XRAY_NO_COPY(scoped_element_array_binding);
-  XRAY_NO_MOVE(scoped_element_array_binding);
 };
 
-//struct scoped_
+// struct scoped_
 
 } // namespace rendering
 } // namespace xray

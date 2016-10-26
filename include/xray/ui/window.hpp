@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2016 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,31 +28,9 @@
 
 #pragma once
 
+/// \file window.hpp
+
 #include "xray/xray.hpp"
-#include "xray/scene/config_reader_base.hpp"
-#include "xray/rendering/colors/rgb_color.hpp"
-
-namespace xray {
-namespace scene {
-
-struct rgb_color_reader {
-  static bool read_rgb_color(const xray::base::config_entry& e,
-                             xray::rendering::rgb_color*     c) noexcept {
-    const auto components_read =
-        config_reader_base::read_floats(e, 4, c->components);
-
-    if (components_read == 4)
-      return true;
-
-    if (components_read == 3) {
-      c->components[3] = 1.0f;
-      return true;
-    }
-
-    return true;
-  }
-};
-
-} // namespace scene
-} // namespace xray
-
+#if defined(XRAY_OS_IS_POSIX_FAMILY)
+#include "xray/ui/window_x11.hpp"
+#endif /* defined XRAY_OS_IS_POSIX_FAMILY */
