@@ -1,0 +1,7 @@
+enum_def : {
+  namespaces = ["xray", "rendering"];
+  name = "render_stage";
+  #is_bitfield = TRUE;
+  #underlying_type = "uint8_t";
+  members = ["vertex", "tess_control", "tess_eval", "geometry", "fragment", "compute"];
+};

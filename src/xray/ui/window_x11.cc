@@ -830,6 +830,9 @@ void xray::ui::window::event_key(const XKeyEvent* x11evt) {
 }
 
 void xray::ui::window::event_configure(const XConfigureEvent* x11evt) {
+  _wnd_width  = x11evt->width;
+  _wnd_height = x11evt->height;
+
   window_configure_event cfg_evt;
   cfg_evt.width  = x11evt->width;
   cfg_evt.height = x11evt->height;

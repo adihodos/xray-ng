@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2016 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,34 +26,24 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+/// \file program_pipeline.cc
 
-#include "xray/xray.hpp"
-#include "fwd_app.hpp"
-#include "xray/rendering/rendering_fwd.hpp"
-#include "xray/ui/events.hpp"
-#include <cstdint>
+#include "xray/rendering/opengl/program_pipeline.hpp"
+#include <algorithm>
 
-namespace app {
+using namespace std;
 
-class demo_base {
-public:
-  demo_base() = default;
+void xray::rendering::program_pipeline::use() {
+  assert(static_cast<bool>(_pipeline));
+  assert(any_of(begin(_programs), end(_programs), [](const auto p) {
+    return p != nullptr;
+  }));
 
-  virtual ~demo_base();
+  gl::UseProgram(0);
+  gl::BindProgramPipeline(raw_handle(_pipeline));
 
-  virtual void draw(const xray::rendering::draw_context_t&)     = 0;
-  virtual void update(const float delta_ms)                     = 0;
-  virtual void event_handler(const xray::ui::window_event& evt) = 0;
-
-  virtual void compose_ui() {}
-
-  bool valid() const noexcept { return _valid; }
-
-  explicit operator bool() const noexcept { return valid(); }
-
-protected:
-  bool _valid{false};
-};
-
-} // namespace app
+  for_each(begin(_programs), end(_programs), [](detail::gpu_program_base* prg) {
+    if (prg)
+      prg->flush_uniforms();
+  });
+}

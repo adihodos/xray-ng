@@ -10,8 +10,8 @@ set(project_sources
     # ${proj_inc_dir}/animated_plane.hpp
     # ${proj_src_dir}/animated_plane.cc
     # ${proj_inc_dir}/animated_plane_model.hpp
-    # ${proj_inc_dir}/colored_circle.hpp
-    # ${proj_src_dir}/colored_circle.cc
+    ${proj_inc_dir}/cap2/colored_circle/colored_circle_demo.hpp
+    ${proj_src_dir}/cap2/colored_circle/colored_circle_demo.cc
     ${proj_inc_dir}/demo_base.hpp
     ${proj_src_dir}/demo_base.cc
     ${proj_inc_dir}/debug_record.hpp
@@ -25,14 +25,14 @@ set(project_sources
     # ${proj_inc_dir}/lit_torus.hpp
     # ${proj_src_dir}/lit_torus.cc
     ${proj_src_dir}/main.cc
-    ${proj_inc_dir}/material.hpp
-    ${proj_src_dir}/material.cc
-    ${proj_inc_dir}/phong_material_component.hpp
-    ${proj_src_dir}/phong_material_component.cc
+    # ${proj_inc_dir}/material.hpp
+    # ${proj_src_dir}/material.cc
+    # ${proj_inc_dir}/phong_material_component.hpp
+    # ${proj_src_dir}/phong_material_component.cc
     # ${proj_inc_dir}/resize_context.hpp
-    ${proj_inc_dir}/std_assets.hpp
-    ${proj_inc_dir}/scene_loader.hpp
-    ${proj_src_dir}/scene_loader.cc
+    # ${proj_inc_dir}/std_assets.hpp
+    # ${proj_inc_dir}/scene_loader.hpp
+    # ${proj_src_dir}/scene_loader.cc
     # ${proj_inc_dir}/cap3/soubroutines/soubroutines_demo.hpp
     # ${proj_src_dir}/cap3/soubroutines/soubroutines_demo.cc
     # ${proj_inc_dir}/cap3/frag_discard/frag_discard_demo.hpp
@@ -63,8 +63,8 @@ set(project_sources
     # ${proj_src_dir}/cap5/refraction/refraction_demo.cc
     # ${proj_inc_dir}/cap5/render_texture/render_texture_demo.hpp
     # ${proj_src_dir}/cap5/render_texture/render_texture_demo.cc
-    ${proj_inc_dir}/cap6/edge_detect/edge_detect_demo.hpp
-    ${proj_src_dir}/cap6/edge_detect/edge_detect_demo.cc
+    # ${proj_inc_dir}/cap6/edge_detect/edge_detect_demo.hpp
+    # ${proj_src_dir}/cap6/edge_detect/edge_detect_demo.cc
     # ${proj_inc_dir}/cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp
     # ${proj_src_dir}/cap6/hdr_tonemapping/hdr_tonemapping_demo.cc
     )

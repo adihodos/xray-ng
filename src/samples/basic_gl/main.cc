@@ -1,4 +1,5 @@
-#include "animated_plane.hpp"
+
+// #include "animated_plane.hpp"
 // #include "cap3/frag_discard/frag_discard_demo.hpp"
 // #include "cap3/soubroutines/soubroutines_demo.hpp"
 // #include "cap4/directional_lights/directional_lights_demo.hpp"
@@ -14,9 +15,10 @@
 // #include "cap5/refraction/refraction_demo.hpp"
 // #include "cap5/render_texture/render_texture_demo.hpp"
 // #include "cap5/textures/textures_demo.hpp"
-#include "cap6/edge_detect/edge_detect_demo.hpp"
+// #include "cap6/edge_detect/edge_detect_demo.hpp"
 // #include "cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp"
 // #include "colored_circle.hpp"
+#include "cap2/colored_circle/colored_circle_demo.hpp"
 #include "debug_record.hpp"
 // #include "fractal.hpp"
 #include "init_context.hpp"
@@ -69,6 +71,8 @@ using namespace xray::rendering;
 xray::base::app_config* xr_app_config{nullptr};
 
 namespace app {
+
+enum class demo { none, colored_circle };
 
 class basic_scene {
 public:
@@ -125,12 +129,12 @@ private:
   xray::ui::imgui_backend                      _ui;
   xray::base::stats_thread                     _stats_collector;
   xray::base::stats_thread::process_stats_info _proc_stats;
-  xray::base::unique_pointer<demo_base>        _demo;
   xray::base::timer_highp                      _timer;
   xray::rendering::rgb_color                   _clear_color{
     xray::rendering::color_palette::material::orange700};
-  bool _ui_active{false};
-  bool _initialized{false};
+  xray::base::unique_pointer<demo_base> _demo;
+  bool                                  _ui_active{false};
+  bool                                  _initialized{false};
 
 private:
   XRAY_NO_COPY(basic_scene);
@@ -147,17 +151,17 @@ basic_scene::basic_scene(xray::ui::window* wnd) : _wnd{wnd} {
                                       0.3f,
                                       1000.0f));
 
-  gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
-  gl::Enable(gl::DEPTH_TEST);
-  gl::Enable(gl::CULL_FACE);
+  // gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+  // gl::Enable(gl::DEPTH_TEST);
+  // gl::Enable(gl::CULL_FACE);
 
   // _demo = make_unique<edge_detect_demo>(
   //     init_context_t{_appwnd->width(), _appwnd->height(), xr_app_config});
-
-  // if (!*_demo) {
-  //   XR_LOG_CRITICAL("Failed to created demo!");
-  //   XR_NOT_REACHED();
-  // }
+  _demo = make_unique<colored_circle_demo>();
+  if (!_demo->valid()) {
+    XR_LOG_CRITICAL("Failed to initialize demo !");
+    XR_NOT_REACHED();
+  }
 
   // events.compose_ui = make_delegate(*_demo, &demo_base::compose_ui);
   _initialized = true;
@@ -165,45 +169,42 @@ basic_scene::basic_scene(xray::ui::window* wnd) : _wnd{wnd} {
 
 void basic_scene::tick(const float delta) {
   _cam_control.update();
-
   _proc_stats = _stats_collector.process_stats();
 
   if (_ui_active) {
     _ui.new_frame(_wnd->width(), _wnd->height());
     _ui.tick(delta);
-    setup_ui();
+    // setup_ui();
 
-    if (events.compose_ui)
-      events.compose_ui();
+    if (_demo)
+      _demo->compose_ui();
   }
 
-  // _demo->update(delta);
+  if (_demo)
+    _demo->update(delta);
 }
 
 void basic_scene::draw(const xray::ui::window_loop_event& levt) {
 
-  const xray::math::vec4f viewport{0.0f,
-                                   0.0f,
-                                   static_cast<float>(levt.wnd_width),
-                                   static_cast<float>(levt.wnd_height)};
+  if (_demo) {
+    const draw_context_t draw_ctx{(uint32_t) levt.wnd_width,
+                                  (uint32_t) levt.wnd_height,
+                                  _cam.view(),
+                                  _cam.projection(),
+                                  _cam.projection_view(),
+                                  &_cam,
+                                  nullptr};
+    _demo->draw(draw_ctx);
+  } else {
+    const xray::math::vec4f viewport{0.0f,
+                                     0.0f,
+                                     static_cast<float>(levt.wnd_width),
+                                     static_cast<float>(levt.wnd_height)};
+    gl::ViewportIndexedfv(0, viewport.components);
+    gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
+    gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
+  }
 
-  gl::ViewportIndexedfv(0, viewport.components);
-
-  // constexpr auto clear_color =
-  //   xray::rendering::color_palette::material::deeporangea400;
-
-  gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
-  gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
-
-  // draw_context_t draw_ctx{(uint32_t) levt.wnd_width,
-  //                         (uint32_t) levt.wnd_height,
-  //                         _cam.view(),
-  //                         _cam.projection(),
-  //                         _cam.projection_view(),
-  //                         &_cam,
-  //                         nullptr};
-
-  // _demo->draw(draw_ctx);
   if (_ui_active) {
     _ui.draw();
   }
@@ -255,8 +256,10 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
                                         radians(70.0f),
                                         0.3f,
                                         1000.0f));
-    return;
   }
+
+  if (_demo)
+    _demo->event_handler(event);
 }
 
 void basic_scene::setup_ui() {
@@ -272,12 +275,9 @@ void basic_scene::setup_ui() {
 }
 
 void basic_scene::main_loop(const xray::ui::window_loop_event& loop_evt) {
-
   _timer.update_and_reset();
   tick(_timer.elapsed_millis());
   draw(loop_evt);
-
-  // std::this_thread::sleep_for(std::chrono::milliseconds{50});
 }
 
 } // namespace app

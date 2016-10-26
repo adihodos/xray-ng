@@ -31,6 +31,9 @@ set(project_sources
     ${proj_inc_dir}/vertex_format/vertex_pt.hpp
     ${proj_inc_dir}/vertex_format/vertex_pntt.hpp
 
+    ${proj_inc_dir}/render_stage.hpp
+    ${proj_src_dir}/render_stage.cc
+
     ${proj_inc_dir}/texture_loader.hpp
     ${proj_src_dir}/texture_loader.cc
 
