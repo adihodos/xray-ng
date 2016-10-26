@@ -32,7 +32,7 @@ struct font_img_data {
 };
 
 #if defined(XRAY_RENDERER_OPENGL)
-static constexpr const char* IMGUI_VERTEX_SHADER[] = {
+static constexpr const char* IMGUI_VERTEX_SHADER =
   "#version 450 core \n"
   "\n"
   "layout (row_major) uniform; \n"
@@ -49,13 +49,17 @@ static constexpr const char* IMGUI_VERTEX_SHADER[] = {
   "   mat4 projection;\n"
   "};\n"
   "\n"
+  "out gl_PerVertex {\n"
+  "   vec4 gl_Position;\n"
+  "};\n"
+  "\n"
   "void main() {\n"
   "   gl_Position = projection * vec4(vs_in_pos, 0.0f, 1.0f);\n"
   "   vs_out.frag_uv = vs_in_uv;\n"
   "   vs_out.frag_col = vs_in_col;\n"
-  "}"};
+  "}";
 
-static constexpr const char* IMGUI_FRAGMENT_SHADER[] = {
+static constexpr const char* IMGUI_FRAGMENT_SHADER =
   "#version 450 core \n"
   "\n"
   "in PS_IN {\n"
@@ -70,7 +74,7 @@ static constexpr const char* IMGUI_FRAGMENT_SHADER[] = {
   "void main() {\n"
   "   frag_color = ps_in.frag_col * texture2D(font_texture, ps_in.frag_uv); "
   "\n"
-  "}"};
+  "}";
 
 #else
 static constexpr const char IMGUI_SHADER[] = "#pragma pack_matrix(row_major)\n \
@@ -329,9 +333,9 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
   ]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
-    gl::BindVertexArray(vao);
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibh);
+
     gl::VertexArrayVertexBuffer(vao, 0, vbh, 0, sizeof(ImDrawVert));
+    gl::VertexArrayElementBuffer(vao, ibh);
 
     gl::EnableVertexArrayAttrib(vao, 0);
     gl::EnableVertexArrayAttrib(vao, 1);
@@ -352,29 +356,36 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
     gl::VertexArrayAttribBinding(vao, 1, 0);
     gl::VertexArrayAttribBinding(vao, 2, 0);
 
-    gl::BindVertexArray(0);
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, 0);
-
     return vao;
   }
   ();
 
-  _rendercontext._draw_prog = []() {
-    const GLuint compiled_shaders[] = {
-      make_shader(gl::VERTEX_SHADER,
-                  IMGUI_VERTEX_SHADER,
-                  XR_U32_COUNTOF__(IMGUI_VERTEX_SHADER)),
-      make_shader(gl::FRAGMENT_SHADER,
-                  IMGUI_FRAGMENT_SHADER,
-                  XR_U32_COUNTOF__(IMGUI_FRAGMENT_SHADER))};
+  _rendercontext._vs = gpu_program_builder{}
+                         .add_string(IMGUI_VERTEX_SHADER)
+                         .build<graphics_pipeline_stage::vertex>();
 
-    return gpu_program{compiled_shaders};
-  }();
-
-  if (!_rendercontext._draw_prog) {
-    XR_LOG_ERR("Failed to compile/link program!");
+  if (!_rendercontext._vs) {
+    XR_LOG_ERR("Failed to create vertex shader!");
     return;
   }
+
+  _rendercontext._fs = gpu_program_builder{}
+                         .add_string(IMGUI_FRAGMENT_SHADER)
+                         .build<graphics_pipeline_stage::fragment>();
+
+  if (!_rendercontext._vs || !_rendercontext._fs) {
+    XR_LOG_ERR("Failed to create vertex/fragment shaders!");
+    return;
+  }
+
+  _rendercontext._pipeline = program_pipeline{[]() {
+    GLuint phandle{};
+    gl::CreateProgramPipelines(1, &phandle);
+    return phandle;
+  }()};
+
+  _rendercontext._pipeline.use_vertex_program(_rendercontext._vs)
+    .use_fragment_program(_rendercontext._fs);
 
   {
     _small_font = _gui->Fonts->AddFontDefault();
@@ -597,10 +608,9 @@ void xray::ui::imgui_backend::draw() {
                                  -1.0f,
                                  +1.0f);
 
-  gl::UseProgram(_rendercontext._draw_prog.handle());
-  _rendercontext._draw_prog.set_uniform_block("matrix_pack", projection_mtx);
-  _rendercontext._draw_prog.set_uniform("font_texture", 0);
-  _rendercontext._draw_prog.bind_to_pipeline();
+  _rendercontext._vs.set_uniform_block("matrix_pack", projection_mtx);
+  _rendercontext._fs.set_uniform("font_texture", 0);
+  _rendercontext._pipeline.use();
   gl::BindVertexArray(raw_handle(_rendercontext._vertex_arr));
 
   {

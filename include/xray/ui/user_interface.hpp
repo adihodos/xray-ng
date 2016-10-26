@@ -41,6 +41,7 @@
 #else
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/rendering/opengl/program_pipeline.hpp"
 #endif
 
 #include <cassert>
@@ -109,7 +110,9 @@ private:
     xray::rendering::scoped_buffer       _vertex_buffer;
     xray::rendering::scoped_buffer       _index_buffer;
     xray::rendering::scoped_vertex_array _vertex_arr;
-    xray::rendering::gpu_program         _draw_prog;
+    xray::rendering::vertex_program      _vs;
+    xray::rendering::fragment_program    _fs;
+    xray::rendering::program_pipeline    _pipeline;
     xray::rendering::scoped_texture      _font_texture;
     xray::rendering::scoped_sampler      _font_sampler;
     bool                                 _valid{false};

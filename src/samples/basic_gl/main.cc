@@ -157,11 +157,11 @@ basic_scene::basic_scene(xray::ui::window* wnd) : _wnd{wnd} {
 
   // _demo = make_unique<edge_detect_demo>(
   //     init_context_t{_appwnd->width(), _appwnd->height(), xr_app_config});
-  _demo = make_unique<colored_circle_demo>();
-  if (!_demo->valid()) {
-    XR_LOG_CRITICAL("Failed to initialize demo !");
-    XR_NOT_REACHED();
-  }
+  // _demo = make_unique<colored_circle_demo>();
+  // if (!_demo->valid()) {
+  //   XR_LOG_CRITICAL("Failed to initialize demo !");
+  //   XR_NOT_REACHED();
+  // }
 
   // events.compose_ui = make_delegate(*_demo, &demo_base::compose_ui);
   _initialized = true;
@@ -178,6 +178,8 @@ void basic_scene::tick(const float delta) {
 
     if (_demo)
       _demo->compose_ui();
+    else
+      setup_ui();
   }
 
   if (_demo)
