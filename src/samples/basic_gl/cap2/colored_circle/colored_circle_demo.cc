@@ -72,14 +72,14 @@ void app::colored_circle_demo::init() noexcept {
   {
     _vs = gpu_program_builder{}
             .add_file("shaders/cap2/colored_circle/vertex_shader.glsl")
-            .build<graphics_pipeline_stage::vertex>();
+            .build<render_stage::e::vertex>();
 
     if (!_vs)
       return;
 
     _fs = gpu_program_builder{}
             .add_file("shaders/cap2/colored_circle/frag_shader.glsl")
-            .build<graphics_pipeline_stage::fragment>();
+            .build<render_stage::e::fragment>();
 
     if (!_fs)
       return;

@@ -362,7 +362,7 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
 
   _rendercontext._vs = gpu_program_builder{}
                          .add_string(IMGUI_VERTEX_SHADER)
-                         .build<graphics_pipeline_stage::vertex>();
+                         .build<render_stage::e::vertex>();
 
   if (!_rendercontext._vs) {
     XR_LOG_ERR("Failed to create vertex shader!");
@@ -371,7 +371,7 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
 
   _rendercontext._fs = gpu_program_builder{}
                          .add_string(IMGUI_FRAGMENT_SHADER)
-                         .build<graphics_pipeline_stage::fragment>();
+                         .build<render_stage::e::fragment>();
 
   if (!_rendercontext._vs || !_rendercontext._fs) {
     XR_LOG_ERR("Failed to create vertex/fragment shaders!");

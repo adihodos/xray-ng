@@ -20,140 +20,6 @@
 #include <unordered_map>
 #include <utility>
 
-#define CASE_TO_STRING(case_id)                                                \
-  case case_id:                                                                \
-    return #case_id;                                                           \
-    break
-
-const char*
-subroutine_uniform_interface_to_string(const uint32_t ifc) noexcept {
-  switch (ifc) {
-    CASE_TO_STRING(gl::VERTEX_SUBROUTINE_UNIFORM);
-    CASE_TO_STRING(gl::FRAGMENT_SUBROUTINE_UNIFORM);
-  default:
-    break;
-  }
-
-  return "unknown/error";
-}
-
-const char* pipeline_stage_to_string(
-  const xray::rendering::graphics_pipeline_stage ifc) noexcept {
-  switch (ifc) {
-    CASE_TO_STRING(xray::rendering::graphics_pipeline_stage::vertex);
-    CASE_TO_STRING(xray::rendering::graphics_pipeline_stage::geometry);
-    CASE_TO_STRING(xray::rendering::graphics_pipeline_stage::fragment);
-    CASE_TO_STRING(xray::rendering::graphics_pipeline_stage::tess_control);
-    CASE_TO_STRING(xray::rendering::graphics_pipeline_stage::tess_eval);
-    CASE_TO_STRING(xray::rendering::graphics_pipeline_stage::compute);
-  default:
-    break;
-  }
-
-  return "unknown/error";
-}
-
-GLenum pipeline_stage_to_shader_type(
-  const xray::rendering::pipeline_stage ps) noexcept {
-  switch (ps) {
-  case xray::rendering::pipeline_stage::vertex:
-    return gl::VERTEX_SHADER;
-    break;
-
-  case xray::rendering::pipeline_stage::geometry:
-    return gl::GEOMETRY_SHADER;
-    break;
-
-  case xray::rendering::pipeline_stage::fragment:
-    return gl::FRAGMENT_SHADER;
-    break;
-
-  default:
-    break;
-  }
-
-  return 0;
-}
-
-uint32_t
-pipeline_stage_to_gl_enum(const xray::rendering::pipeline_stage ps) noexcept {
-  switch (ps) {
-  case xray::rendering::pipeline_stage::vertex:
-    return gl::VERTEX_SHADER;
-    break;
-
-  case xray::rendering::pipeline_stage::fragment:
-    return gl::FRAGMENT_SHADER;
-    break;
-
-  case xray::rendering::pipeline_stage::geometry:
-    return gl::GEOMETRY_SHADER;
-    break;
-
-  default:
-    break;
-  }
-
-  return 0;
-}
-
-xray::rendering::graphics_pipeline_stage
-gl_stage_to_pipeline_stage(const uint32_t stage) noexcept {
-  switch (stage) {
-  case gl::VERTEX_SUBROUTINE:
-    return xray::rendering::graphics_pipeline_stage::vertex;
-    break;
-
-  case gl::FRAGMENT_SUBROUTINE:
-    return xray::rendering::graphics_pipeline_stage::fragment;
-    break;
-
-  case gl::GEOMETRY_SUBROUTINE:
-    return xray::rendering::graphics_pipeline_stage::geometry;
-    break;
-
-  default:
-    assert(false && "Unmaped stage!");
-    break;
-  }
-
-  return xray::rendering::graphics_pipeline_stage::last;
-}
-
-const char* subroutine_interface_to_string(const uint32_t ifc) noexcept {
-  switch (ifc) {
-    CASE_TO_STRING(gl::VERTEX_SUBROUTINE);
-    CASE_TO_STRING(gl::FRAGMENT_SUBROUTINE);
-
-  default:
-    break;
-  }
-
-  return "unknown/error";
-}
-
-xray::rendering::pipeline_stage
-map_subroutine_interface_to_pipeline_stage(const uint32_t gl_id) noexcept {
-  switch (gl_id) {
-  case gl::VERTEX_SUBROUTINE_UNIFORM:
-    return xray::rendering::pipeline_stage::vertex;
-    break;
-
-  case gl::FRAGMENT_SUBROUTINE_UNIFORM:
-    return xray::rendering::pipeline_stage::fragment;
-    break;
-
-  case gl::GEOMETRY_SUBROUTINE_UNIFORM:
-    return xray::rendering::pipeline_stage::geometry;
-    break;
-
-  default:
-    break;
-  }
-
-  return xray::rendering::pipeline_stage::last;
-}
-
 template <uint32_t uniform_type>
 struct uniform_traits;
 
@@ -769,10 +635,8 @@ bool xray::rendering::detail::gpu_program_helpers::
     const auto uniform_location = gl::GetProgramResourceLocation(
       phandle, api_subroutine_uniform_interface_name, name_buff.data());
 
-    subs_uniforms->push_back({name_buff.data(),
-                              graphics_pipeline_stage::last,
-                              static_cast<uint8_t>(uniform_location),
-                              0xFF});
+    subs_uniforms->push_back(
+      {name_buff.data(), static_cast<uint8_t>(uniform_location), 0xFF});
   }
 
   //
@@ -823,9 +687,7 @@ bool xray::rendering::detail::gpu_program_helpers::
     const auto subroutine_index = gl::GetProgramResourceIndex(
       phandle, api_subroutine_interface_name, name_buff.data());
 
-    subs->push_back({name_buff.data(),
-                     graphics_pipeline_stage::last,
-                     static_cast<uint8_t>(subroutine_index)});
+    subs->push_back({name_buff.data(), static_cast<uint8_t>(subroutine_index)});
   }
 
   sort(begin(*subs), end(*subs), [](const auto& lhs, const auto& rhs) {

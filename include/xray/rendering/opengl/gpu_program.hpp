@@ -37,6 +37,7 @@
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/shader_base.hpp"
+#include "xray/rendering/render_stage.hpp"
 #include "xray/xray_types.hpp"
 #include <algorithm>
 #include <cassert>
@@ -65,24 +66,13 @@ struct gpu_program_handle {
 
 using scoped_program_handle = xray::base::unique_handle<gpu_program_handle>;
 
-enum class graphics_pipeline_stage : uint8_t {
-  first,
-  vertex = first,
-  tess_control,
-  tess_eval,
-  geometry,
-  fragment,
-  compute,
-  last
-};
-
 enum class shader_source_type { file, code, binary };
 
-template <graphics_pipeline_stage ps>
+template <render_stage::e ps>
 struct xray_to_opengl;
 
 template <>
-struct xray_to_opengl<graphics_pipeline_stage::vertex> {
+struct xray_to_opengl<render_stage::e::vertex> {
   static constexpr GLenum     shader_type       = gl::VERTEX_SHADER;
   static constexpr GLbitfield shader_bit        = gl::VERTEX_SHADER_BIT;
   static constexpr GLenum sub_uniform_interface = gl::VERTEX_SUBROUTINE_UNIFORM;
@@ -90,7 +80,7 @@ struct xray_to_opengl<graphics_pipeline_stage::vertex> {
 };
 
 template <>
-struct xray_to_opengl<graphics_pipeline_stage::tess_control> {
+struct xray_to_opengl<render_stage::e::tess_control> {
   static constexpr GLenum     shader_type = gl::TESS_CONTROL_SHADER;
   static constexpr GLbitfield shader_bit  = gl::TESS_CONTROL_SHADER_BIT;
   static constexpr GLenum     sub_uniform_interface =
@@ -99,7 +89,7 @@ struct xray_to_opengl<graphics_pipeline_stage::tess_control> {
 };
 
 template <>
-struct xray_to_opengl<graphics_pipeline_stage::tess_eval> {
+struct xray_to_opengl<render_stage::e::tess_eval> {
   static constexpr GLenum     shader_type = gl::TESS_EVALUATION_SHADER;
   static constexpr GLbitfield shader_bit  = gl::TESS_EVALUATION_SHADER_BIT;
   static constexpr GLenum     sub_uniform_interface =
@@ -108,7 +98,7 @@ struct xray_to_opengl<graphics_pipeline_stage::tess_eval> {
 };
 
 template <>
-struct xray_to_opengl<graphics_pipeline_stage::geometry> {
+struct xray_to_opengl<render_stage::e::geometry> {
   static constexpr GLenum     shader_type = gl::GEOMETRY_SHADER;
   static constexpr GLbitfield shader_bit  = gl::GEOMETRY_SHADER_BIT;
   static constexpr GLenum     sub_uniform_interface =
@@ -117,7 +107,7 @@ struct xray_to_opengl<graphics_pipeline_stage::geometry> {
 };
 
 template <>
-struct xray_to_opengl<graphics_pipeline_stage::fragment> {
+struct xray_to_opengl<render_stage::e::fragment> {
   static constexpr GLenum     shader_type = gl::FRAGMENT_SHADER;
   static constexpr GLbitfield shader_bit  = gl::FRAGMENT_SHADER_BIT;
   static constexpr GLenum     sub_uniform_interface =
@@ -126,7 +116,7 @@ struct xray_to_opengl<graphics_pipeline_stage::fragment> {
 };
 
 template <>
-struct xray_to_opengl<graphics_pipeline_stage::compute> {
+struct xray_to_opengl<render_stage::e::compute> {
   static constexpr GLenum     shader_type = gl::COMPUTE_SHADER;
   static constexpr GLbitfield shader_bit  = gl::COMPUTE_SHADER_BIT;
   static constexpr GLenum     sub_uniform_interface =
@@ -166,8 +156,6 @@ struct shader_source_descriptor {
   explicit shader_source_descriptor(
     const shader_source_string src_str) noexcept;
 };
-
-enum pipeline_stage : uint8_t { vertex, geometry, fragment, last };
 
 namespace detail {
 
@@ -262,34 +250,26 @@ struct uniform_t {
 struct shader_subroutine {
   shader_subroutine() = default;
 
-  shader_subroutine(const char*                   name,
-                    const graphics_pipeline_stage stage,
-                    const uint8_t                 index)
-    : ss_name{name}, ss_stage{stage}, ss_index{index} {}
+  shader_subroutine(const char* name, const uint8_t index)
+    : ss_name{name}, ss_index{index} {}
 
-  std::string             ss_name{};
-  graphics_pipeline_stage ss_stage{graphics_pipeline_stage::last};
-  uint8_t                 ss_index{0xFF};
+  std::string ss_name{};
+  uint8_t     ss_index{0xFF};
 };
 
 ///   \brief Info about an active subroutine uniform of a shader.
 struct shader_subroutine_uniform {
   shader_subroutine_uniform() = default;
 
-  shader_subroutine_uniform(const char*                   name,
-                            const graphics_pipeline_stage stage,
-                            const uint8_t                 location,
-                            const uint8_t                 assigned_index)
+  shader_subroutine_uniform(const char*   name,
+                            const uint8_t location,
+                            const uint8_t assigned_index)
     : ssu_name{name}
-    , ssu_stage{stage}
     , ssu_location{location}
     , ssu_assigned_subroutine_idx{assigned_index} {}
 
   ///< Uniform name.
   std::string ssu_name{};
-
-  ///< Stage (vertex, geometry, fragment, etc).
-  graphics_pipeline_stage ssu_stage{graphics_pipeline_stage::last};
 
   ///< Assigned location by the shader compiler.
   uint8_t ssu_location{0xFF};
@@ -489,7 +469,7 @@ gpu_program_base& gpu_program_base::set_uniform(const char* uniform_name,
 
 } // namespace detail
 
-template <graphics_pipeline_stage stage>
+template <render_stage::e stage>
 class gpu_program_t : public detail::gpu_program_base {
   /// \name Types and constants
   /// @{
@@ -497,7 +477,7 @@ public:
   using base_class = detail::gpu_program_base;
   using gpu_program_base::handle_type;
 
-  static constexpr graphics_pipeline_stage program_stage = stage;
+  static constexpr render_stage::e program_stage = stage;
 
   static constexpr GLenum api_shader_type = xray_to_opengl<stage>::shader_type;
 
@@ -530,25 +510,24 @@ private:
   XRAY_NO_COPY(gpu_program_t);
 };
 
-template <graphics_pipeline_stage stage>
+template <render_stage::e stage>
 gpu_program_t<stage>::gpu_program_t(scoped_program_handle handle)
   : detail::gpu_program_base{std::move(handle),
                              xray_to_opengl<stage>::shader_type,
                              api_subroutine_uniform_interface_name,
                              api_subroutine_interface_name} {}
 
-using vertex_program = gpu_program_t<graphics_pipeline_stage::vertex>;
+using vertex_program = gpu_program_t<render_stage::e::vertex>;
 
-using tess_eval_program = gpu_program_t<graphics_pipeline_stage::tess_eval>;
+using tess_eval_program = gpu_program_t<render_stage::e::tess_eval>;
 
-using tess_control_program =
-  gpu_program_t<graphics_pipeline_stage::tess_control>;
+using tess_control_program = gpu_program_t<render_stage::e::tess_control>;
 
-using geometry_program = gpu_program_t<graphics_pipeline_stage::geometry>;
+using geometry_program = gpu_program_t<render_stage::e::geometry>;
 
-using fragment_program = gpu_program_t<graphics_pipeline_stage::fragment>;
+using fragment_program = gpu_program_t<render_stage::e::fragment>;
 
-using compute_program = gpu_program_t<graphics_pipeline_stage::compute>;
+using compute_program = gpu_program_t<render_stage::e::compute>;
 
 class gpu_program_builder {
 public:
@@ -578,8 +557,8 @@ public:
     return *this;
   }
 
-  template <graphics_pipeline_stage stage>
-  gpu_program_t<stage>              build() const {
+  template <render_stage::e stage>
+  gpu_program_t<stage>      build() const {
     return gpu_program_t<stage>{
       build_program(xray_to_opengl<stage>::shader_type)};
   }
