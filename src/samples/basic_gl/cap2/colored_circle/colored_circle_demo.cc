@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <imgui/imgui.h>
 #include <opengl/opengl.hpp>
 
 using namespace xray::rendering;
@@ -108,15 +109,10 @@ void app::colored_circle_demo::draw(
   gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, clear_color.components);
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
 
-  // // constexpr float outer_color[] = {0.0f, 0.0f, 0.0f, 1.0f};
-  // constexpr float inner_color[] = {1.0f, 1.0f, 0.75f, 1.0f};
-  constexpr float inner_radius = 0.25f;
-  constexpr float outer_radius = 0.45f;
-
   _fs.set_uniform("InnerColor", color_palette::web::spring_green.components)
     .set_uniform("OuterColor", clear_color)
-    .set_uniform("RadiusInner", inner_radius)
-    .set_uniform("RadiusOuter", outer_radius);
+    .set_uniform("RadiusInner", _inner_radius)
+    .set_uniform("RadiusOuter", _outer_radius);
   _pipeline.use();
 
   gl::BindVertexArray(raw_handle(layout_desc_));
@@ -129,4 +125,10 @@ void app::colored_circle_demo::update(const float /* delta_ms */) {}
 void app::colored_circle_demo::event_handler(
   const xray::ui::window_event& /* evt */) {}
 
-void app::colored_circle_demo::compose_ui() {}
+void app::colored_circle_demo::compose_ui() {
+  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
+  ImGui::Begin("Options");
+  ImGui::SliderFloat("Inner radius", &_inner_radius, 0.01, 0.3f, "%3.3f", 1.0f);
+  ImGui::SliderFloat("Outer radius", &_outer_radius, 0.10, 0.7f, "%3.3f", 1.0f);
+  ImGui::End();
+}

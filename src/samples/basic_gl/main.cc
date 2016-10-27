@@ -32,6 +32,7 @@
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/perf_stats_collector.hpp"
+#include "xray/base/scoped_guard.hpp"
 #include "xray/base/shims/string.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/math_std.hpp"
@@ -72,7 +73,7 @@ xray::base::app_config* xr_app_config{nullptr};
 
 namespace app {
 
-enum class demo { none, colored_circle };
+enum class demo_type : int32_t { none, colored_circle };
 
 class basic_scene {
 public:
@@ -103,26 +104,10 @@ private:
 
   void setup_ui();
 
-private:
-  xray::ui::window* _wnd;
-  //  lit_object                                      obj_;
-  //  soubroutines_demo                               obj_;
-  //  frag_discard_demo                               obj_;
-  //  multiple_lights_demo                            obj_;
-  //  directional_light_demo                          obj_;
-  //  per_fragment_lighting_demo                      obj_;
-  //  toon_shading_demo                               obj_;
-  //  spotlight_demo                                  obj_;
-  //  fog_demo                                        obj_;
-  //  textures_demo obj_;
-  //  multiple_textures_demo obj_;
-  //  discard_alphamap_demo obj_;
-  //    normal_map_demo obj_;
-  //    reflection_demo                                 obj_;
-  //  refraction_demo obj_;
-  //  render_texture_demo obj_;
+  unique_pointer<demo_base> make_demo(const demo_type dtype);
 
-  // hdr_tonemap                                     obj_;
+private:
+  xray::ui::window*                               _wnd;
   xray::scene::camera                             _cam;
   xray::scene::camera_controller_spherical_coords _cam_control{
     &_cam, controller_cfg_file_path};
@@ -132,8 +117,9 @@ private:
   xray::base::timer_highp                      _timer;
   xray::rendering::rgb_color                   _clear_color{
     xray::rendering::color_palette::material::orange700};
+
   xray::base::unique_pointer<demo_base> _demo;
-  bool                                  _ui_active{false};
+  demo_type                             _demotype{demo_type::none};
   bool                                  _initialized{false};
 
 private:
@@ -151,19 +137,6 @@ basic_scene::basic_scene(xray::ui::window* wnd) : _wnd{wnd} {
                                       0.3f,
                                       1000.0f));
 
-  // gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
-  // gl::Enable(gl::DEPTH_TEST);
-  // gl::Enable(gl::CULL_FACE);
-
-  // _demo = make_unique<edge_detect_demo>(
-  //     init_context_t{_appwnd->width(), _appwnd->height(), xr_app_config});
-  // _demo = make_unique<colored_circle_demo>();
-  // if (!_demo->valid()) {
-  //   XR_LOG_CRITICAL("Failed to initialize demo !");
-  //   XR_NOT_REACHED();
-  // }
-
-  // events.compose_ui = make_delegate(*_demo, &demo_base::compose_ui);
   _initialized = true;
 }
 
@@ -171,16 +144,13 @@ void basic_scene::tick(const float delta) {
   _cam_control.update();
   _proc_stats = _stats_collector.process_stats();
 
-  if (_ui_active) {
-    _ui.new_frame(_wnd->width(), _wnd->height());
-    _ui.tick(delta);
-    // setup_ui();
+  _ui.new_frame(_wnd->width(), _wnd->height());
+  _ui.tick(delta);
 
-    if (_demo)
-      _demo->compose_ui();
-    else
-      setup_ui();
-  }
+  if (_demo)
+    _demo->compose_ui();
+  else
+    setup_ui();
 
   if (_demo)
     _demo->update(delta);
@@ -207,9 +177,7 @@ void basic_scene::draw(const xray::ui::window_loop_event& levt) {
     gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
   }
 
-  if (_ui_active) {
-    _ui.draw();
-  }
+  _ui.draw();
 }
 
 void basic_scene::window_event_handler(const xray::ui::window_event& event) {
@@ -224,13 +192,14 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
         const auto key_code = key_evt.keycode;
 
         switch (key_code) {
-        case key_sym::e::key_o: {
-          _ui_active = !_ui_active;
-          return;
-        } break;
 
         case key_sym::e::escape: {
-          _wnd->quit();
+          if (!_demo) {
+            _wnd->quit();
+          } else {
+            _demo     = nullptr;
+            _demotype = demo_type::none;
+          }
           return;
         } break;
 
@@ -240,11 +209,9 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
       }
     }
 
-    if (_ui_active) {
-      _ui.input_event(event);
-      if (_ui.wants_input())
-        return;
-    }
+    _ui.input_event(event);
+    if (_ui.wants_input())
+      return;
 
     _cam_control.input_event(event);
     return;
@@ -264,16 +231,42 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
     _demo->event_handler(event);
 }
 
+unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
+  switch (dtype) {
+  case demo_type::colored_circle:
+    return xray::base::make_unique<colored_circle_demo>();
+    break;
+
+  default:
+    break;
+  }
+
+  return nullptr;
+}
+
 void basic_scene::setup_ui() {
-  ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiSetCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(100.0f, 100.0f), ImGuiSetCond_FirstUseEver);
-  ImGui::Begin("Render target clear color :");
-  ImGui::SliderFloat("Red", &_clear_color.r, 0.0f, 1.0f, "%3.3f");
-  ImGui::Separator();
-  ImGui::SliderFloat("Green", &_clear_color.g, 0.0f, 1.0f, "%3.3f");
-  ImGui::Separator();
-  ImGui::SliderFloat("Blue", &_clear_color.b, 0.0f, 1.0f, "%3.3f");
-  ImGui::End();
+  ImGui::SetNextWindowPosCenter(ImGuiSetCond_Always);
+  ImGui::SetNextWindowSize({300, 100}, ImGuiSetCond_Always);
+  ImGui::Begin("Select a demo to run");
+
+  XRAY_SCOPE_EXIT { ImGui::End(); };
+
+  const char* demoList[] = {"None", "Colored Circle"};
+
+  demo_type selected_demo{_demotype};
+  if (ImGui::Combo("", (int32_t*) &selected_demo, demoList, 2)) {
+
+    if (selected_demo != _demotype) {
+      auto new_demo = make_demo(selected_demo);
+
+      if (!new_demo || !new_demo->valid())
+        return;
+
+      _demo     = std::move(new_demo);
+      _demotype = selected_demo;
+      XR_LOG_INFO("Selection index {}", (int32_t) selected_demo);
+    }
+  }
 }
 
 void basic_scene::main_loop(const xray::ui::window_loop_event& loop_evt) {

@@ -29,6 +29,8 @@ private:
   xray::rendering::vertex_program      _vs;
   xray::rendering::fragment_program    _fs;
   xray::rendering::program_pipeline    _pipeline;
+  float                                _inner_radius{0.15f};
+  float                                _outer_radius{0.60f};
 
 private:
   XRAY_NO_COPY(colored_circle_demo);
