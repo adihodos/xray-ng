@@ -1,4 +1,6 @@
-#version 440 core
+#version 450 core
+
+layout(origin_upper_left) in vec4 gl_FragCoord;
 
 layout(binding = 0) uniform fractal_params {
     float   fp_width;
@@ -7,14 +9,12 @@ layout(binding = 0) uniform fractal_params {
     uint    fp_max_iterations;
 };
 
-in struct vertex_pc
+in VS_OUT_PS_IN
 {
     layout(location = 0) vec2 position;
-    layout(location = 1) vec4 color;
 } ps_in;
 
 out vec4 frag_color;
-
 
 float bernstein_red(const float t) {
     return 9.0f * (1.0f - t) * t * t * t;
@@ -103,8 +103,6 @@ complex_t screen_to_complex(const vec2 screen_coords) {
 
     return c;
 }
-
-layout(origin_upper_left) in vec4 gl_FragCoord;
 
 void main() {
     complex_t z = screen_to_complex(gl_FragCoord.xy);

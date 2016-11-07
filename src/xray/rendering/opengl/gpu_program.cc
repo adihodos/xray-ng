@@ -248,7 +248,29 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
     raw_handle(gpu_prg), XR_I32_COUNTOF__(log_buff), &log_len, log_buff);
   log_buff[log_len] = 0;
 
-  XR_LOG_CRITICAL("Failed to compile/link program, error : [[{}]]",
+  auto stage_id = [stg]() {
+
+#define STG_NAME(s)                                                            \
+  case s:                                                                      \
+    return #s;                                                                 \
+    break
+
+    switch (stg) {
+      STG_NAME(gl::VERTEX_SHADER);
+      STG_NAME(gl::FRAGMENT_SHADER);
+      STG_NAME(gl::GEOMETRY_SHADER);
+
+    default:
+      break;
+    }
+
+#undef STG_NAME
+
+    return "Unknown ??";
+  }();
+
+  XR_LOG_CRITICAL("Failed to compile/link {} program, error:\n[[{}]]",
+                  stage_id,
                   &log_buff[0]);
 
   return scoped_program_handle{};

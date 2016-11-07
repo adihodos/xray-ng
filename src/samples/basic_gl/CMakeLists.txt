@@ -16,8 +16,8 @@ set(project_sources
     ${proj_src_dir}/demo_base.cc
     ${proj_inc_dir}/debug_record.hpp
     ${proj_src_dir}/debug_record.cc
-    # ${proj_src_dir}/fractal.cc
-    # ${proj_inc_dir}/fractal.hpp
+    ${proj_src_dir}/misc/fractals/fractal_demo.cc
+    ${proj_inc_dir}/misc/fractals/fractal_demo.hpp
     ${proj_inc_dir}/fwd_app.hpp
     ${proj_inc_dir}/helpers.hpp
     # ${proj_inc_dir}/init_context.hpp
@@ -73,6 +73,10 @@ set(shader_files
     ${proj_src_dir}/shaders/dbg/debug.vs
     ${proj_src_dir}/shaders/dbg/debug.gs
     ${proj_src_dir}/shaders/dbg/debug.fs
+
+    ${proj_src_dir}/shaders/misc/fractals/fractal_vert.glsl
+    ${proj_inc_dir}/shaders/misc/fractals/fractal_frag.glsl
+
     ${proj_src_dir}/shaders/less4/phong_lighting.glsl
     ${proj_src_dir}/shaders/less4/frag_passthrough.glsl
     ${proj_src_dir}/shaders/cap3/soubroutines/vert_shader.glsl
@@ -125,7 +129,6 @@ target_link_libraries(basic-gl-app
     # libconfig
     # stb
     ${ASSIMP_LIBRARY}
-    ${GLFW_LIBRARY}
     ${SYS_DEP_LIBS})
 
 add_custom_target(COPY_TBB ALL
