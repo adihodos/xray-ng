@@ -149,6 +149,7 @@ static uint32_t get_resource_size(const uint32_t res_type) noexcept {
   case gl::SAMPLER_2D:
   case gl::SAMPLER_CUBE:
   case gl::SAMPLER_1D:
+  case gl::SAMPLER_2D_ARRAY:
     return 4u;
     break;
 

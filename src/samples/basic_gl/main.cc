@@ -50,6 +50,7 @@
 #include "cap2/colored_circle/colored_circle_demo.hpp"
 #include "debug_record.hpp"
 #include "misc/fractals/fractal_demo.hpp"
+#include "misc/texture_array/texture_array_demo.hpp"
 // #include "fractal.hpp"
 #include "init_context.hpp"
 // #include "lit_torus.hpp"
@@ -103,7 +104,7 @@ xray::base::app_config* xr_app_config{nullptr};
 
 namespace app {
 
-enum class demo_type : int32_t { none, colored_circle, fractal };
+enum class demo_type : int32_t { none, colored_circle, fractal, texture_array };
 
 class basic_scene {
 public:
@@ -271,6 +272,10 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     return xray::base::make_unique<fractal_demo>();
     break;
 
+  case demo_type::texture_array:
+    return xray::base::make_unique<texture_array_demo>();
+    break;
+
   default:
     break;
   }
@@ -285,7 +290,8 @@ void basic_scene::setup_ui() {
 
   XRAY_SCOPE_EXIT { ImGui::End(); };
 
-  const char* demo_list[] = {"None", "Colored Circle", "Julia fractal"};
+  const char* demo_list[] = {
+    "None", "Colored Circle", "Julia fractal", "Texture array"};
 
   demo_type selected_demo{_demotype};
   if (ImGui::Combo("",

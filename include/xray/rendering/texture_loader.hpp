@@ -31,6 +31,7 @@
 #include "xray/xray.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include <cstdint>
+#include <opengl/opengl.hpp>
 #include <stb/stb_image.h>
 #include <string>
 
@@ -61,13 +62,13 @@ public:
   ~texture_loader() = default;
 
   explicit texture_loader(
-      const std::string&         file_path,
-      const texture_load_options load_opts = texture_load_options::none)
-      : texture_loader{file_path.c_str(), load_opts} {}
+    const std::string&         file_path,
+    const texture_load_options load_opts = texture_load_options::none)
+    : texture_loader{file_path.c_str(), load_opts} {}
 
   explicit texture_loader(
-      const char*                file_path,
-      const texture_load_options load_opts = texture_load_options::none);
+    const char*                file_path,
+    const texture_load_options load_opts = texture_load_options::none);
 
   texture_loader& operator=(texture_loader&&) = default;
   texture_loader(texture_loader&&)            = default;
@@ -80,6 +81,13 @@ public:
   int32_t height() const noexcept { return _y_size; }
 
   int32_t depth() const noexcept { return _levels; }
+
+  GLenum format() const noexcept {
+    assert(_texdata != nullptr);
+    return _levels == 3 ? gl::RGB : gl::RGBA;
+  }
+
+  GLenum pixel_size() const noexcept { return gl::UNSIGNED_BYTE; }
 
   const uint8_t* data() const noexcept { return xray::base::raw_ptr(_texdata); }
 
