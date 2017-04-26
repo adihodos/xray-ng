@@ -26,13 +26,26 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+/// \file window_x11.hpp
+
 #pragma once
 
-/// \file window.hpp
-
 #include "xray/xray.hpp"
-#if defined(XRAY_OS_IS_POSIX_FAMILY)
-#include "xray/ui/window_x11.hpp"
-#else /* defined XRAY_OS_IS_POSIX_FAMILY */
-#include "xray/ui/window_win32.hpp"
-#endif /* !defined XRAY_OS_IS_POSIX_FAMILY */
+#include <cstdint>
+
+namespace xray {
+namespace ui {
+
+struct window_params_t {
+  const char* title;
+  int32_t     ver_major;
+  int32_t     ver_minor;
+  int32_t     depth_bits;
+  int32_t     stencil_bits;
+  int32_t     color_bits;
+  int32_t     sample_count;
+  uint32_t    debug_output_level;
+};
+
+} // namespace ui
+} // namespace xray

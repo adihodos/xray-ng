@@ -10,6 +10,9 @@ if (WIN32)
             ${proj_src_dir}/app_window.cc
             ${proj_src_dir}/key_symbols_win.cc)
     else()
+        set(platform_sources
+            ${proj_inc_dir}/window_win32.hpp
+            ${proj_src_dir}/window_win32.cc)
     endif()
 else()
     set(platform_sources
@@ -27,8 +30,12 @@ set(PROJECT_SOURCES_MAIN
 
 #source_group("xray_ui" FILES ${PROJECT_SOURCES_MAIN})
 
-if (WIN32 AND XRAY_USE_DIRECTX11)
-    set(platform_libs dwmapi)
+if (WIN32) 
+    if (XRAY_USE_DIRECTX11)
+        set(platform_libs dwmapi)
+    else()
+        set(platform_libs gdi32 user32 kernel32)
+    endif()
 else()
     set(platform_libs X11 GLX)
 endif()

@@ -4,7 +4,8 @@ import string
 def gen_keysyms_x11() :
   keySymData = [
     ('symtables/x11.keymap.1', 'X11_MISC_FUNCTION_KEYS_MAPPING_TABLE', 0xFF, None),
-    ('symtables/x11.keymap.0', 'X11_LATIN1_KEYS_MAPPING_TABLE', 0x000000FF, 8)
+    ('symtables/x11.keymap.0', 'X11_LATIN1_KEYS_MAPPING_TABLE', 0x000000FF, 8),
+    ('symtables/win32.keymap', 'WIN32_KEYS_MAPPING_TABLE', 0xFF, None)
   ]
 
   i = 0

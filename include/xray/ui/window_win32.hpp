@@ -31,60 +31,46 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#include "xray/base/basic_timer.hpp"
 #include "xray/base/resource_holder.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/window_params.hpp"
-#include <GL/glx.h>
-#include <X11/Xlib.h>
 #include <atomic>
-#include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <windows.h>
 
 namespace xray {
 namespace ui {
 
 namespace detail {
 
-struct x11_display_deleter {
-  void operator()(Display* dpy) const noexcept { XCloseDisplay(dpy); }
+struct hdc_deleter {
+  HWND _window;
+  hdc_deleter() noexcept = default;
+  explicit hdc_deleter(const HWND wnd) noexcept : _window{wnd} {}
+
+  void operator()(HDC dc) const noexcept { ReleaseDC(_window, dc); }
 };
 
-using x11_unique_display =
-  xray::base::unique_pointer<Display, x11_display_deleter>;
+using scoped_window_dc =
+  base::unique_pointer<std::remove_pointer<HDC>::type, hdc_deleter>;
 
-struct x11_window_deleter {
-  using pointer = xray::base::resource_holder<Window, 0>;
+struct hglrc_deleter {
+  HDC _windowDC;
+  hglrc_deleter() noexcept = default;
+  explicit hglrc_deleter(const HDC windowDC) noexcept : _windowDC{windowDC} {}
 
-  x11_window_deleter() noexcept = default;
-
-  explicit x11_window_deleter(Display* dpy) noexcept : _display{dpy} {}
-
-  void operator()(Window wnd) const noexcept { XDestroyWindow(_display, wnd); }
-
-private:
-  Display* _display{};
-};
-
-using x11_unique_window =
-  xray::base::unique_pointer<Window, x11_window_deleter>;
-
-struct glx_context_deleter {
-  glx_context_deleter() noexcept = default;
-
-  explicit glx_context_deleter(Display* dpy) noexcept : _display{dpy} {}
-
-  void operator()(GLXContext glx_ctx) const noexcept {
-    glXDestroyContext(_display, glx_ctx);
+  void operator()(HGLRC openglContext) const noexcept {
+    wglMakeCurrent(_windowDC, nullptr);
+    if (openglContext)
+      wglDeleteContext(openglContext);
   }
-
-  Display* _display{};
 };
 
-using glx_unique_context =
-  xray::base::unique_pointer<std::remove_pointer<GLXContext>::type,
-                             glx_context_deleter>;
+using scoped_opengl_context =
+  base::unique_pointer<std::remove_pointer<HGLRC>::type, hglrc_deleter>;
 
 } // namespace detail
 
@@ -98,7 +84,7 @@ public:
   /// \name Construction and destruction.
   /// @{
 public:
-  using handle_type = Window;
+  using handle_type = HWND;
 
   explicit window(const window_params_t& wparam);
 
@@ -106,7 +92,7 @@ public:
 
   /// @}
 
-  handle_type handle() const noexcept { return base::raw_ptr(_window); }
+  handle_type handle() const noexcept { return _window; }
 
   void disable_cursor() noexcept;
   void enable_cursor() noexcept;
@@ -115,7 +101,8 @@ public:
   /// @{
 public:
   explicit operator bool() const noexcept { return valid(); }
-  bool valid() const noexcept { return static_cast<bool>(_glx_context); }
+
+  bool valid() const noexcept { return _glcontext != nullptr; }
 
   /// @}
 
@@ -124,24 +111,37 @@ public:
 
   void message_loop();
   void quit() noexcept { _quit_flag = true; }
-  void swap_buffers() noexcept;
 
 private:
-  void event_mouse_button(const XButtonEvent* x11evt);
-  void event_client_message(const XClientMessageEvent* x11evt);
-  void event_motion_notify(const XMotionEvent* x11evt);
-  void event_key(const XKeyEvent* x11evt);
-  void event_configure(const XConfigureEvent* x11evt);
+  static LRESULT WINAPI window_proc_stub(HWND   wnd,
+                                         UINT   msg,
+                                         WPARAM wparam,
+                                         LPARAM lparam);
+
+  LRESULT window_proc(UINT message, WPARAM wparam, LPARAM lparam);
+
+  void initialize(const window_params_t* wpar);
+
+  void
+  event_mouse_button(const uint32_t type, const WPARAM wp, const LPARAM lp);
+
+  void event_mouse_wheel(const WPARAM wparam, const LPARAM lparam);
+
+  void event_key(const uint32_t type, const WPARAM wp, const LPARAM lp);
+
+  void event_motion_notify(const WPARAM wparam, const LPARAM lparam);
+
+  void event_configure(const WPARAM wparam, const LPARAM lparam);
 
 private:
-  detail::x11_unique_display _display;
-  detail::x11_unique_window  _window;
-  detail::glx_unique_context _glx_context;
-  Atom                       _window_delete_atom{None};
-  int32_t                    _default_screen{-1};
-  int32_t                    _wnd_width{-1};
-  int32_t                    _wnd_height{-1};
-  std::atomic<int32_t>       _quit_flag{false};
+  HWND                          _window{nullptr};
+  int32_t                       _pixelformat_id{};
+  detail::scoped_window_dc      _window_dc{};
+  detail::scoped_opengl_context _glcontext{};
+  int32_t                       _wnd_width{-1};
+  int32_t                       _wnd_height{-1};
+  std::atomic<int32_t>          _quit_flag{false};
+  base::timer_highp             _timer{};
 
 private:
   XRAY_NO_COPY(window);

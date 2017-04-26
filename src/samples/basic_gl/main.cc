@@ -331,8 +331,9 @@ int main(int argc, char** argv) {
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;
 
-  window_params_t wnd_params = {"OpenGL Demo", 4, 5, 24, 8, 32, 0, 0};
-  window          main_window{wnd_params};
+  const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 0u};
+
+  window main_window{wnd_params};
   if (!main_window) {
     XR_LOG_ERR("Failed to initialize application window!");
     return EXIT_FAILURE;
