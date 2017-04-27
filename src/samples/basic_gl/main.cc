@@ -28,10 +28,6 @@
 
 /// \file main.cc
 
-#include "xray/rendering/vertex_format/vertex_pnt.hpp"
-#include "xray/rendering/opengl/gl_handles.hpp"
-#include "xray/rendering/geometry/geometry_data.hpp"
-#include "xray/rendering/geometry/geometry_factory.hpp"
 // #include "animated_plane.hpp"
 // #include "cap3/frag_discard/frag_discard_demo.hpp"
 // #include "cap3/soubroutines/soubroutines_demo.hpp"
@@ -54,6 +50,7 @@
 #include "cap2/colored_circle/colored_circle_demo.hpp"
 #include "debug_record.hpp"
 #include "misc/fractals/fractal_demo.hpp"
+#include "misc/mesh/mesh_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
 // #include "fractal.hpp"
 #include "init_context.hpp"
@@ -108,7 +105,13 @@ xray::base::app_config* xr_app_config{nullptr};
 
 namespace app {
 
-enum class demo_type : int32_t { none, colored_circle, fractal, texture_array };
+enum class demo_type : int32_t {
+  none,
+  colored_circle,
+  fractal,
+  texture_array,
+  mesh
+};
 
 class basic_scene {
 public:
@@ -192,7 +195,6 @@ void basic_scene::tick(const float delta) {
 }
 
 void basic_scene::draw(const xray::ui::window_loop_event& levt) {
-
   if (_demo) {
     const draw_context_t draw_ctx{(uint32_t) levt.wnd_width,
                                   (uint32_t) levt.wnd_height,
@@ -219,15 +221,12 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
   using namespace xray::ui;
 
   if (is_input_event(event)) {
-
     if (event.type == event_type::key) {
       const auto key_evt = event.event.key;
       if (key_evt.type == event_action_type::press) {
-
         const auto key_code = key_evt.keycode;
 
         switch (key_code) {
-
         case key_sym::e::escape: {
           if (!_demo) {
             _wnd->quit();
@@ -280,6 +279,10 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     return xray::base::make_unique<texture_array_demo>();
     break;
 
+  case demo_type::mesh:
+    return xray::base::make_unique<mesh_demo>();
+    break;
+
   default:
     break;
   }
@@ -295,14 +298,13 @@ void basic_scene::setup_ui() {
   XRAY_SCOPE_EXIT { ImGui::End(); };
 
   const char* demo_list[] = {
-    "None", "Colored Circle", "Julia fractal", "Texture array"};
+    "None", "Colored Circle", "Julia fractal", "Texture array", "Mesh"};
 
   demo_type selected_demo{_demotype};
   if (ImGui::Combo("",
                    (int32_t*) &selected_demo,
                    demo_list,
                    XR_I32_COUNTOF__(demo_list))) {
-
     if (selected_demo != _demotype) {
       auto new_demo = make_demo(selected_demo);
 
@@ -320,47 +322,6 @@ void basic_scene::main_loop(const xray::ui::window_loop_event& loop_evt) {
   _timer.update_and_reset();
   tick(_timer.elapsed_millis());
   draw(loop_evt);
-}
-
-class basic_mesh {
-public :
-  basic_mesh() noexcept = default;
-
-  explicit basic_mesh(const char* path);
-
-  bool valid() const noexcept {
-    return _vertexbuffer && _indexbuffer;
-  }
-
-  explicit operator bool() const noexcept {
-    return valid();
-  }
-
-private :
-  std::vector<xray::rendering::vertex_pnt> _vertices;
-  std::vector<uint32_t> _indices;
-  xray::rendering::scoped_buffer _vertexbuffer;
-  xray::rendering::scoped_buffer _indexbuffer;
-  xray::rendering::scoped_vertex_array _vertexarray;
-
-private :
-  XRAY_NO_COPY(basic_mesh);
-};
-
-basic_mesh::basic_mesh(const char* path) {
-  using namespace xray::rendering;
-
-  geometry_data_t geometry;
-  geometry_factory::load_model(
-    &geometry, path, 
-    mesh_import_options::convert_left_handed 
-    | mesh_import_options::remove_points_lines);
-
-  if (!geometry) {
-    return;
-  }
-
-
 }
 
 } // namespace app

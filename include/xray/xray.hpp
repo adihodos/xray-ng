@@ -145,7 +145,7 @@
 #define XRAY_OS_IS_LINUX
 #define XRAY_OS_STRING "GNU Linux"
 
-#elif defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) ||              \
+#elif defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || \
     defined(__WINDOWS__)
 
 #define XRAY_OS_IS_WINDOWS
@@ -171,24 +171,24 @@
 ///  };
 /// \endcode
 
-#define XRAY_NO_COPY(type_name)                                                \
-  type_name(type_name const&) = delete;                                        \
+#define XRAY_NO_COPY(type_name)         \
+  type_name(type_name const&) = delete; \
   type_name& operator=(type_name const&) = delete
 
-#define XRAY_DEFAULT_MOVE(type_name)                                           \
-  type_name(type_name&&) = default;                                            \
+#define XRAY_DEFAULT_MOVE(type_name) \
+  type_name(type_name&&) = default;  \
   type_name& operator=(type_name&&) = default
 
 ///
 /// \def XRAY_GEN_OPAQUE_TYPE(type)
 /// \brief Generates a unique type.
-#define XRAY_GEN_OPAQUE_TYPE(type)                                             \
+#define XRAY_GEN_OPAQUE_TYPE(type) \
   typedef struct XRAY_internal_opaque_type##type { int32_t i; } const* type;
 
 #if defined(XRAY_COMPILER_IS_MSVC)
 
 #ifndef SUPPRESS_WARNING_START
-#define SUPPRESS_WARNING_START(args)                                           \
+#define SUPPRESS_WARNING_START(args) \
   __pragma(warning(push)) __pragma(warning(disable : args))
 #endif /* !SUPPRESS_WARNING */
 
@@ -208,7 +208,18 @@
 
 #endif /* !XRAY_COMPILER_IS_MSVC */
 
-#define XR_U32_OFFSETOF(type_name, member_name)                                \
+#define XR_U32_OFFSETOF(type_name, member_name) \
   static_cast<uint32_t>(offsetof(type_name, member_name))
 
-#define XR_UNUSED_ARG(arg_name) (void) arg_name
+#define XR_UNUSED_ARG(arg_name) (void)arg_name
+
+namespace xray {
+namespace base {
+
+template <typename ContainerType>
+inline size_t container_bytes_size(const ContainerType& c) noexcept {
+  return c.size() * sizeof(c[0]);
+}
+
+}  // namespace base
+}  // namespace xray

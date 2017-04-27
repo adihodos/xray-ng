@@ -37,10 +37,12 @@
 #include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
+#include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace xray {
 namespace rendering {
@@ -74,17 +76,20 @@ class simple_mesh {
 public:
   simple_mesh() noexcept = default;
 
-  simple_mesh(const vertex_format fmt, const geometry_data_t& geometry,
+  simple_mesh(const vertex_format      fmt,
+              const geometry_data_t&   geometry,
               const primitive_topology topology = primitive_topology::triangle);
 
   simple_mesh(
-      const vertex_format fmt, const char* mesh_file,
-      const uint32_t load_options = mesh_load_option::remove_points_lines);
+    const vertex_format fmt,
+    const char*         mesh_file,
+    const uint32_t      load_options = mesh_load_option::remove_points_lines);
 
   simple_mesh(
-      const vertex_format fmt, const std::string& mesh_file,
-      const uint32_t load_options = mesh_load_option::remove_points_lines)
-      : simple_mesh{fmt, mesh_file.c_str(), load_options} {}
+    const vertex_format fmt,
+    const std::string&  mesh_file,
+    const uint32_t      load_options = mesh_load_option::remove_points_lines)
+    : simple_mesh{fmt, mesh_file.c_str(), load_options} {}
 
   XRAY_DEFAULT_MOVE(simple_mesh);
 
@@ -127,7 +132,8 @@ public:
   primitive_topology topology() const noexcept { return _topology; }
 
 private:
-  bool load_model_impl(const char* model_data, const size_t data_size,
+  bool load_model_impl(const char*    model_data,
+                       const size_t   data_size,
                        const uint32_t mesh_process_opts,
                        const uint32_t mesh_import_opts);
 
@@ -209,6 +215,47 @@ private:
 
 private:
   XRAY_NO_COPY(mesh_graphics_rep);
+};
+
+class basic_mesh {
+public:
+  basic_mesh() noexcept = default;
+  XRAY_DEFAULT_MOVE(basic_mesh);
+
+  explicit basic_mesh(const char* path);
+
+  bool valid() const noexcept { return _vertexbuffer && _indexbuffer; }
+
+  explicit operator bool() const noexcept { return valid(); }
+
+  GLuint vertex_buffer() const noexcept {
+    assert(valid());
+    return xray::base::raw_handle(_vertexbuffer);
+  }
+
+  GLuint index_buffer() const noexcept {
+    assert(valid());
+    return xray::base::raw_handle(_indexbuffer);
+  }
+
+  GLuint vertex_array() const noexcept {
+    assert(valid());
+    return xray::base::raw_handle(_vertexarray);
+  }
+
+  const uint32_t index_count() const noexcept {
+    return (uint32_t) _indices.size();
+  }
+
+private:
+  std::vector<xray::rendering::vertex_pnt> _vertices;
+  std::vector<uint32_t>                    _indices;
+  xray::rendering::scoped_buffer           _vertexbuffer;
+  xray::rendering::scoped_buffer           _indexbuffer;
+  xray::rendering::scoped_vertex_array     _vertexarray;
+
+private:
+  XRAY_NO_COPY(basic_mesh);
 };
 
 /// @}

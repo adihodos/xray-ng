@@ -87,15 +87,20 @@ public:
     return _levels == 3 ? gl::RGB : gl::RGBA;
   }
 
+  GLenum internal_format() const noexcept {
+    assert(_texdata != nullptr);
+    return _levels == 3 ? gl::RGB8 : gl::RGBA8;
+  }
+
   GLenum pixel_size() const noexcept { return gl::UNSIGNED_BYTE; }
 
   const uint8_t* data() const noexcept { return xray::base::raw_ptr(_texdata); }
 
 private:
   xray::base::unique_pointer<stbi_uc, detail::stbi_img_deleter> _texdata;
-  int32_t _x_size{};
-  int32_t _y_size{};
-  int32_t _levels{};
+  int32_t                                                       _x_size{};
+  int32_t                                                       _y_size{};
+  int32_t                                                       _levels{};
 
 private:
   XRAY_NO_COPY(texture_loader);

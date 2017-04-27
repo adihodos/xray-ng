@@ -13,6 +13,7 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
+#include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/opengl/scoped_state.hpp"
 #include "xray/rendering/vertex_format/vertex_p.hpp"
 #include "xray/rendering/vertex_format/vertex_pn.hpp"
@@ -27,7 +28,6 @@
 #include <cstring>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <span.h>
-// #include <tbb/tbb.h>
 #include <vector>
 
 using namespace std;
@@ -226,7 +226,6 @@ bool xray::rendering::simple_mesh::load_model_impl(
   const size_t   data_size,
   const uint32_t mesh_process_opts,
   const uint32_t mesh_import_opts) {
-
   struct ai_propstore_deleter {
     void operator()(aiPropertyStore* prop_store) const noexcept {
       if (prop_store)
@@ -267,7 +266,6 @@ bool xray::rendering::simple_mesh::load_model_impl(
   //  Count vertices and indices.
   for (uint32_t mesh_index = 0; mesh_index < imported_scene->mNumMeshes;
        ++mesh_index) {
-
     const aiMesh* curr_mesh = imported_scene->mMeshes[mesh_index];
     _vertexcount += curr_mesh->mNumVertices;
     num_faces += curr_mesh->mNumFaces;
@@ -359,7 +357,6 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format fmt,
                                           const char*         mesh_file,
                                           const uint32_t      load_options)
   : _vertexformat{fmt}, _topology{primitive_topology::triangle} {
-
   constexpr uint32_t default_processing_opts =
     aiProcess_CalcTangentSpace |         // calculate tangents and
     aiProcess_JoinIdenticalVertices |    // join identical vertices/
@@ -466,7 +463,6 @@ xray::rendering::simple_mesh::simple_mesh(const vertex_format      fmt,
   , _indexformat{index_format::u32}
   , _topology{topology}
   , _vertex_format_info{get_vertex_format_description(_vertexformat)} {
-
   size_t vertex_bytes{};
 
   if (fmt != vertex_format::pntt) {
@@ -660,7 +656,6 @@ void xray::rendering::simple_mesh::create_buffers(
 xray::rendering::mesh_graphics_rep::mesh_graphics_rep(
   const simple_mesh& mesh_geometry)
   : _geometry{&mesh_geometry} {
-
   _vertexbuffer = [ge = _geometry]() {
     GLuint vb{};
     gl::CreateBuffers(1, &vb);
@@ -755,4 +750,268 @@ void xray::rendering::mesh_graphics_rep::draw() noexcept {
   } else {
     gl::DrawArrays(topology, 0, ge->vertex_count());
   }
+}
+
+struct geometry_blob {
+  std::vector<xray::rendering::vertex_pnt> vertices;
+  std::vector<uint32_t>                    indices;
+};
+
+static bool
+load_geometry_impl(const char*                                model_data_ptr,
+                   const size_t                               data_size,
+                   const uint32_t                             load_flags,
+                   const xray::rendering::mesh_import_options import_opts,
+                   geometry_blob*                             mesh_data) {
+  struct ai_propstore_deleter {
+    void operator()(aiPropertyStore* prop_store) const noexcept {
+      if (prop_store)
+        aiReleasePropertyStore(prop_store);
+    }
+  };
+
+  unique_pointer<aiPropertyStore, ai_propstore_deleter> import_props{
+    aiCreatePropertyStore()};
+
+  if (!import_props) {
+    XR_LOG_ERR("Failed to create Assimp property store object!");
+    return false;
+  }
+
+  {
+    aiSetImportPropertyInteger(
+      raw_ptr(import_props), AI_CONFIG_IMPORT_TER_MAKE_UVS, 1);
+
+    if (import_opts & mesh_import_options::remove_points_lines) {
+      aiSetImportPropertyInteger(raw_ptr(import_props),
+                                 AI_CONFIG_PP_SBP_REMOVE,
+                                 aiPrimitiveType_LINE | aiPrimitiveType_POINT);
+    }
+  }
+
+  auto imported_scene = aiImportFileFromMemoryWithProperties(
+    model_data_ptr, data_size, load_flags, nullptr, raw_ptr(import_props));
+
+  if (!imported_scene) {
+    XR_LOG_ERR("Assimp import error : failed to load scene from model file !");
+    return false;
+  }
+
+  size_t num_vertices = 0;
+  size_t num_indices  = 0;
+  size_t num_faces    = 0;
+
+  //
+  //  Count vertices and indices.
+  for (uint32_t mesh_index = 0; mesh_index < imported_scene->mNumMeshes;
+       ++mesh_index) {
+    const aiMesh* curr_mesh = imported_scene->mMeshes[mesh_index];
+    num_vertices += curr_mesh->mNumVertices;
+    num_faces += curr_mesh->mNumFaces;
+
+    for (uint32_t face_index = 0; face_index < curr_mesh->mNumFaces;
+         ++face_index) {
+      const aiFace* curr_face = &curr_mesh->mFaces[face_index];
+      num_indices += curr_face->mNumIndices;
+    }
+  }
+
+  // mesh_data->setup(num_vertices, num_indices);
+  mesh_data->vertices.resize(num_vertices);
+  mesh_data->indices.resize(size_t{num_indices});
+
+  uint32_t vertex_count   = 0;
+  uint32_t index_count    = 0;
+  uint32_t indices_offset = 0;
+
+  for (uint32_t mesh_index = 0; mesh_index < imported_scene->mNumMeshes;
+       ++mesh_index) {
+    const aiMesh* curr_mesh = imported_scene->mMeshes[mesh_index];
+
+    if (!curr_mesh->mVertices)
+      continue;
+
+    //
+    // Collect vertices
+    for (uint32_t vertex_idx = 0; vertex_idx < curr_mesh->mNumVertices;
+         ++vertex_idx) {
+      const auto  output_pos = vertex_idx + vertex_count;
+      const auto& vtx        = curr_mesh->mVertices[vertex_idx];
+
+      mesh_data->vertices[output_pos].position = {vtx.x, vtx.y, vtx.z};
+    }
+
+    //
+    // collect normals
+
+    {
+      struct msvc_fuck_off {
+        static auto get_normal_from_mesh(const aiVector3D* input,
+                                         const uint32_t    pos) noexcept {
+          return vec3f{input[pos].x, input[pos].y, input[pos].z};
+        }
+
+        static auto get_null_normal(const aiVector3D* /*input*/,
+                                    const uint32_t /*pos*/) noexcept {
+          return vec3f::stdc::zero;
+        }
+      };
+
+      auto fn_get_normal = curr_mesh->HasNormals()
+                             ? &msvc_fuck_off::get_normal_from_mesh
+                             : &msvc_fuck_off::get_null_normal;
+
+      for (uint32_t idx = 0; idx < curr_mesh->mNumVertices; ++idx) {
+        const auto output_pos = idx + vertex_count;
+        mesh_data->vertices[output_pos].normal =
+          fn_get_normal(curr_mesh->mNormals, idx);
+      }
+    }
+
+    //
+    // collect texture coordinates.
+    {
+      struct msvc_fuckery {
+        static auto get_texcoord_from_mesh(const aiVector3D* const* texcoords,
+                                           const uint32_t pos) noexcept {
+          return vec2f{texcoords[0][pos].x, texcoords[0][pos].y};
+        }
+
+        static auto
+        get_default_texcoords(const aiVector3D* const* /*texcoords*/,
+                              const uint32_t /*pos*/) noexcept {
+          return vec2f{0.5f, 0.5f};
+        }
+      };
+
+      auto fn_get_texcoords = curr_mesh->HasTextureCoords(0)
+                                ? &msvc_fuckery::get_texcoord_from_mesh
+                                : &msvc_fuckery::get_default_texcoords;
+
+      for (uint32_t idx = 0; idx < curr_mesh->mNumVertices; ++idx) {
+        const auto output_pos = idx + vertex_count;
+        mesh_data->vertices[output_pos].texcoord =
+          fn_get_texcoords(curr_mesh->mTextureCoords, idx);
+      }
+    }
+
+    //
+    //  Collect indices defining primitives.
+    for (uint32_t face_index = 0; face_index < curr_mesh->mNumFaces;
+         ++face_index) {
+      const aiFace* curr_face = &curr_mesh->mFaces[face_index];
+
+      for (uint32_t i = 0; i < curr_face->mNumIndices; ++i) {
+        mesh_data->indices[index_count++] =
+          curr_face->mIndices[i] + indices_offset;
+      }
+    }
+
+    indices_offset += curr_mesh->mNumVertices;
+    vertex_count += curr_mesh->mNumVertices;
+  }
+
+  return true;
+}
+
+static bool
+load_geometry(geometry_blob*                             mesh_data,
+              const char*                                file_path,
+              const xray::rendering::mesh_import_options import_opts) {
+  assert(mesh_data != nullptr);
+  assert(file_path != nullptr);
+
+  constexpr uint32_t default_processing_opts =
+    aiProcess_CalcTangentSpace |         // calculate tangents and
+    aiProcess_JoinIdenticalVertices |    // join identical vertices/
+    aiProcess_ValidateDataStructure |    // perform a full validation of the
+    aiProcess_ImproveCacheLocality |     // improve the cache locality of
+    aiProcess_RemoveRedundantMaterials | // remove redundant materials
+    aiProcess_FindDegenerates |          // remove degenerated polygons from the
+    aiProcess_FindInvalidData |          // detect invalid model data, such as
+    aiProcess_GenUVCoords |       // convert spherical, cylindrical, box and
+    aiProcess_TransformUVCoords | // preprocess UV transformations
+    aiProcess_FindInstances |     // search for instanced meshes and remove
+    aiProcess_LimitBoneWeights |  // limit bone weights to 4 per vertex
+    aiProcess_OptimizeMeshes |    // join small meshes, if possible;
+    aiProcess_SplitByBoneCount |  // split meshes with too many bones.
+    0;
+
+  constexpr auto post_processing_opts =
+    default_processing_opts | aiProcess_GenSmoothNormals | // generate smooth
+    aiProcess_SplitLargeMeshes |                           // split large,
+    aiProcess_Triangulate | // triangulate polygons with
+    aiProcess_SortByPType | // make 'clean' meshes which consist of a
+    0;
+
+  const auto all_processing_opts =
+    post_processing_opts |
+    (import_opts & mesh_import_options::convert_left_handed
+       ? aiProcess_ConvertToLeftHanded
+       : 0);
+
+  try {
+    platformstl::memory_mapped_file mesh_mmfile{file_path};
+
+    return load_geometry_impl(static_cast<const char*>(mesh_mmfile.memory()),
+                              mesh_mmfile.size(),
+                              all_processing_opts,
+                              import_opts,
+                              mesh_data);
+  } catch (const std::exception&) {
+    XR_LOG_ERR("Failed to import model file {}", file_path);
+  }
+
+  return false;
+}
+
+xray::rendering::basic_mesh::basic_mesh(const char* path) {
+  using namespace xray::rendering;
+
+  geometry_blob geometry;
+  load_geometry(&geometry,
+                path,
+                mesh_import_options::convert_left_handed |
+                  mesh_import_options::remove_points_lines);
+
+  if (geometry.vertices.empty() || geometry.indices.empty()) {
+    return;
+  }
+
+  _vertices = std::move(geometry.vertices);
+  _indices  = std::move(geometry.indices);
+
+  gl::CreateBuffers(1, raw_handle_ptr(_vertexbuffer));
+  gl::NamedBufferStorage(raw_handle(_vertexbuffer),
+                         xray::base::container_bytes_size(_vertices),
+                         _vertices.data(),
+                         0);
+
+  gl::CreateBuffers(1, raw_handle_ptr(_indexbuffer));
+  gl::NamedBufferStorage(raw_handle(_indexbuffer),
+                         xray::base::container_bytes_size(_indices),
+                         _indices.data(),
+                         0);
+
+  gl::CreateVertexArrays(1, raw_handle_ptr(_vertexarray));
+  const auto vao = raw_handle(_vertexarray);
+
+  gl::VertexArrayVertexBuffer(
+    vao, 0, raw_handle(_vertexbuffer), 0, sizeof(vertex_pnt));
+  gl::VertexArrayElementBuffer(vao, raw_handle(_indexbuffer));
+
+  gl::EnableVertexArrayAttrib(vao, 0);
+  gl::VertexArrayAttribFormat(
+    vao, 0, 3, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pnt, position));
+  gl::VertexArrayAttribBinding(vao, 0, 0);
+
+  gl::EnableVertexArrayAttrib(vao, 1);
+  gl::VertexArrayAttribFormat(
+    vao, 1, 3, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pnt, normal));
+  gl::VertexArrayAttribBinding(vao, 1, 0);
+
+  gl::EnableVertexArrayAttrib(vao, 2);
+  gl::VertexArrayAttribFormat(
+    vao, 2, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pnt, texcoord));
+  gl::VertexArrayAttribBinding(vao, 2, 0);
 }

@@ -22,6 +22,9 @@ set(project_sources
     ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
     ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
 
+    ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
+    ${proj_src_dir}/misc/mesh/mesh_demo.cc
+
     ${proj_inc_dir}/fwd_app.hpp
     ${proj_inc_dir}/helpers.hpp
     # ${proj_inc_dir}/init_context.hpp
@@ -79,10 +82,13 @@ set(shader_files
     ${proj_src_dir}/shaders/dbg/debug.fs
 
     ${proj_src_dir}/shaders/misc/fractals/fractal_vert.glsl
-    ${proj_inc_dir}/shaders/misc/fractals/fractal_frag.glsl
+    ${proj_src_dir}/shaders/misc/fractals/fractal_frag.glsl
 
     ${proj_src_dir}/shaders/misc/texture_array/shader.vert.glsl
-    ${proj_inc_dir}/shaders/misc/texture_array/shader.frag.glsl
+    ${proj_src_dir}/shaders/misc/texture_array/shader.frag.glsl
+
+    ${proj_src_dir}/shaders/misc/mesh/vs.glsl
+    ${proj_src_dir}/shaders/misc/mesh/fs.glsl
 
     ${proj_src_dir}/shaders/less4/phong_lighting.glsl
     ${proj_src_dir}/shaders/less4/frag_passthrough.glsl

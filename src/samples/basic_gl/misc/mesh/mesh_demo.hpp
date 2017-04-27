@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2016 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,57 +26,44 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+/// \file mesh_demo.hpp
+
 #pragma once
 
-/// \file   geometry_data.hpp    Class with geometric data.
-
-#include <cstddef>
-#include <cstdint>
-#include "xray/base/unique_pointer.hpp"
-#include "xray/rendering/vertex_format/vertex_pntt.hpp"
 #include "xray/xray.hpp"
+#include "demo_base.hpp"
+#include "xray/rendering/mesh.hpp"
+#include "xray/rendering/opengl/gl_handles.hpp"
+#include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/rendering/opengl/program_pipeline.hpp"
+#include <cstdint>
 
-namespace xray {
-namespace rendering {
+namespace app {
 
-/// \addtogroup __GroupXrayRendering
-/// @{
+class mesh_demo : public demo_base {
+public:
+  mesh_demo();
 
-///     Stores geometry data (vertices and conectivity information).
-struct geometry_data_t {
-  template <typename vector_type>
-  using scoped_vector_array_t = xray::base::unique_pointer<vector_type[]>;
+  ~mesh_demo();
 
-  using size_type = size_t;
+  virtual void draw(const xray::rendering::draw_context_t&) override;
+  virtual void update(const float delta_ms) override;
+  virtual void event_handler(const xray::ui::window_event& evt) override;
+  virtual void compose_ui() override;
 
-  geometry_data_t() noexcept {}
+private:
+  void init();
 
-  geometry_data_t(const size_type num_vertices, const size_type num_indices) {
-    setup(num_vertices, num_indices);
-  }
+private:
+  xray::rendering::basic_mesh       _mesh;
+  xray::rendering::vertex_program   _vs;
+  xray::rendering::fragment_program _fs;
+  xray::rendering::program_pipeline _pipeline;
+  xray::rendering::scoped_texture   _objtex;
+  xray::rendering::scoped_sampler   _sampler;
 
-  void setup(const size_type num_vertices, const size_type num_indices) {
-    vertex_count = num_vertices;
-    index_count = num_indices;
-    geometry =
-        scoped_vector_array_t<vertex_pntt>{new vertex_pntt[num_vertices]};
-    indices = scoped_vector_array_t<uint32_t>{new uint32_t[num_indices]};
-  }
-
-  explicit operator bool() const noexcept {
-    return vertex_count != 0 && index_count != 0;
-  }
-
-  size_type vertex_count{0};
-  size_type index_count{0};
-  scoped_vector_array_t<vertex_pntt> geometry;
-  scoped_vector_array_t<uint32_t> indices;
-
- private:
-  XRAY_NO_COPY(geometry_data_t);
+private:
+  XRAY_NO_COPY(mesh_demo);
 };
 
-/// @}
-
-}  // namespace rendering
-}  // namespace xray
+} // namespace app
