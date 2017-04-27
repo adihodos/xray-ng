@@ -28,6 +28,10 @@
 
 /// \file main.cc
 
+#include "xray/rendering/vertex_format/vertex_pnt.hpp"
+#include "xray/rendering/opengl/gl_handles.hpp"
+#include "xray/rendering/geometry/geometry_data.hpp"
+#include "xray/rendering/geometry/geometry_factory.hpp"
 // #include "animated_plane.hpp"
 // #include "cap3/frag_discard/frag_discard_demo.hpp"
 // #include "cap3/soubroutines/soubroutines_demo.hpp"
@@ -316,6 +320,47 @@ void basic_scene::main_loop(const xray::ui::window_loop_event& loop_evt) {
   _timer.update_and_reset();
   tick(_timer.elapsed_millis());
   draw(loop_evt);
+}
+
+class basic_mesh {
+public :
+  basic_mesh() noexcept = default;
+
+  explicit basic_mesh(const char* path);
+
+  bool valid() const noexcept {
+    return _vertexbuffer && _indexbuffer;
+  }
+
+  explicit operator bool() const noexcept {
+    return valid();
+  }
+
+private :
+  std::vector<xray::rendering::vertex_pnt> _vertices;
+  std::vector<uint32_t> _indices;
+  xray::rendering::scoped_buffer _vertexbuffer;
+  xray::rendering::scoped_buffer _indexbuffer;
+  xray::rendering::scoped_vertex_array _vertexarray;
+
+private :
+  XRAY_NO_COPY(basic_mesh);
+};
+
+basic_mesh::basic_mesh(const char* path) {
+  using namespace xray::rendering;
+
+  geometry_data_t geometry;
+  geometry_factory::load_model(
+    &geometry, path, 
+    mesh_import_options::convert_left_handed 
+    | mesh_import_options::remove_points_lines);
+
+  if (!geometry) {
+    return;
+  }
+
+
 }
 
 } // namespace app

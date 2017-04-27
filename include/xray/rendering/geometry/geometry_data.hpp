@@ -63,6 +63,10 @@ struct geometry_data_t {
     indices = scoped_vector_array_t<uint32_t>{new uint32_t[num_indices]};
   }
 
+  explicit operator bool() const noexcept {
+    return vertex_count != 0 && index_count != 0;
+  }
+
   size_type                          vertex_count{0};
   size_type                          index_count{0};
   scoped_vector_array_t<vertex_pntt> geometry;

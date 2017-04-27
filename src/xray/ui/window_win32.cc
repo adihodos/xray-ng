@@ -188,7 +188,9 @@ PFNWGLCHOOSEPIXELFORMATARBPROC    wgl::ChoosePixelFormatARB;
 PFNWGLCREATECONTEXTATTRIBSARBPROC wgl::CreateContextAttribsARB;
 PFNWGLSWAPINTERVALEXTPROC         wgl::SwapIntervalEXT;
 
-xray::ui::window::window(const window_params_t& wparam) {}
+xray::ui::window::window(const window_params_t& wparam) {
+  initialize(&wparam);
+}
 
 xray::ui::window::~window() {}
 
@@ -336,8 +338,6 @@ void xray::ui::window::initialize(const window_params_t* wp) {
   //
   // Since we have found a suitable pixel format, we will now create
   // the real window, where we will draw stuff.
-
-  // constexpr const char* const kWindowClassName = "___@@##_TEMPWGLWindow";
 
   const WNDCLASSEX wndClass = {
     sizeof(wndClass),

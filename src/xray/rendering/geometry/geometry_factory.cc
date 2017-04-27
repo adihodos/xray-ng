@@ -18,7 +18,7 @@
 #include <cstring>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <span.h>
-#include <tbb/tbb.h>
+// #include <tbb/tbb.h>
 #include <vector>
 
 using namespace std;
@@ -39,11 +39,11 @@ compute_normals(xray::rendering::geometry_data_t* geometry) noexcept {
 
   for (size_t tri_idx = 0; tri_idx < geometry->index_count / 3; ++tri_idx) {
     const vec3f& p0 =
-        geometry->geometry[geometry->indices[tri_idx * 3 + 0]].position;
+      geometry->geometry[geometry->indices[tri_idx * 3 + 0]].position;
     const vec3f& p1 =
-        geometry->geometry[geometry->indices[tri_idx * 3 + 1]].position;
+      geometry->geometry[geometry->indices[tri_idx * 3 + 1]].position;
     const vec3f& p2 =
-        geometry->geometry[geometry->indices[tri_idx * 3 + 2]].position;
+      geometry->geometry[geometry->indices[tri_idx * 3 + 2]].position;
 
     const vec3f normal{cross(p1 - p0, p2 - p0)};
 
@@ -175,8 +175,11 @@ static void subdivide_geometry(std::vector<vertex_pntt>* input_vertices,
 // }
 
 void xray::rendering::geometry_factory::cylinder(
-    const uint32_t ring_tesselation_factor, const uint32_t vertical_rings,
-    const float height, const float radius, geometry_data_t* cylinder) {
+  const uint32_t   ring_tesselation_factor,
+  const uint32_t   vertical_rings,
+  const float      height,
+  const float      radius,
+  geometry_data_t* cylinder) {
 
   assert(ring_tesselation_factor >= 3);
   assert(cylinder != nullptr);
@@ -190,7 +193,7 @@ void xray::rendering::geometry_factory::cylinder(
 
   const float delta_y = height / static_cast<float>(ring_count - 1u);
   const float delta_xz =
-      two_pi<float> / static_cast<float>(ring_tesselation_factor);
+    two_pi<float> / static_cast<float>(ring_tesselation_factor);
 
   cylinder->setup(vertex_count, index_count);
 
@@ -219,7 +222,7 @@ void xray::rendering::geometry_factory::cylinder(
 
       vertex_ptr->texcoords.x = theta / two_pi<float>;
       vertex_ptr->texcoords.y =
-          1.0f - static_cast<float>(i) / static_cast<float>(ring_count - 1);
+        1.0f - static_cast<float>(i) / static_cast<float>(ring_count - 1);
 
       ++vertex_ptr;
     }
@@ -228,8 +231,8 @@ void xray::rendering::geometry_factory::cylinder(
   auto index_ptr = raw_ptr(cylinder->indices);
   auto last_idx  = index_ptr + index_count;
 
-  auto write_index_fn = [ring_vertexcount, last_idx](uint32_t i, uint32_t j,
-                                                     uint32_t* idx_ptr) {
+  auto write_index_fn = [ring_vertexcount,
+                         last_idx](uint32_t i, uint32_t j, uint32_t* idx_ptr) {
     assert((idx_ptr + 6) <= last_idx);
 
     *idx_ptr++ = i * ring_vertexcount + j;
@@ -265,64 +268,64 @@ void xray::rendering::geometry_factory::box(const float      width,
   //                             static_cast<ptrdiff_t>(mesh_data->vertex_count)};
 
   // Fill in the front face vertex data.
-  v[0] = vertex_pntt(-w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f,
-                     1.0f);
-  v[1] = vertex_pntt(-w2, +h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f,
-                     0.0f);
-  v[2] = vertex_pntt(+w2, +h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-                     0.0f);
-  v[3] = vertex_pntt(+w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-                     1.0f);
+  v[0] =
+    vertex_pntt(-w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+  v[1] =
+    vertex_pntt(-w2, +h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  v[2] =
+    vertex_pntt(+w2, +h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+  v[3] =
+    vertex_pntt(+w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
 
   // Fill in the back face vertex data.
-  v[4] = vertex_pntt(-w2, -h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f,
-                     1.0f);
-  v[5] = vertex_pntt(+w2, -h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-                     1.0f);
-  v[6] = vertex_pntt(+w2, +h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-                     0.0f);
-  v[7] = vertex_pntt(-w2, +h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f,
-                     0.0f);
+  v[4] =
+    vertex_pntt(-w2, -h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+  v[5] =
+    vertex_pntt(+w2, -h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+  v[6] =
+    vertex_pntt(+w2, +h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  v[7] =
+    vertex_pntt(-w2, +h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
   // Fill in the top face vertex data.
-  v[8] = vertex_pntt(-w2, +h2, -d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
-                     1.0f);
-  v[9] = vertex_pntt(-w2, +h2, +d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
-                     0.0f);
-  v[10] = vertex_pntt(+w2, +h2, +d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-                      0.0f);
-  v[11] = vertex_pntt(+w2, +h2, -d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-                      1.0f);
+  v[8] =
+    vertex_pntt(-w2, +h2, -d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+  v[9] =
+    vertex_pntt(-w2, +h2, +d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  v[10] =
+    vertex_pntt(+w2, +h2, +d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+  v[11] =
+    vertex_pntt(+w2, +h2, -d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
 
   // Fill in the bottom face vertex data.
-  v[12] = vertex_pntt(-w2, -h2, -d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f,
-                      1.0f);
-  v[13] = vertex_pntt(+w2, -h2, -d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-                      1.0f);
-  v[14] = vertex_pntt(+w2, -h2, +d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-                      0.0f);
-  v[15] = vertex_pntt(-w2, -h2, +d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f,
-                      0.0f);
+  v[12] = vertex_pntt(
+    -w2, -h2, -d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+  v[13] = vertex_pntt(
+    +w2, -h2, -d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+  v[14] = vertex_pntt(
+    +w2, -h2, +d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  v[15] = vertex_pntt(
+    -w2, -h2, +d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
   // Fill in the left face vertex data.
-  v[16] = vertex_pntt(-w2, -h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f,
-                      1.0f);
-  v[17] = vertex_pntt(-w2, +h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f,
-                      0.0f);
-  v[18] = vertex_pntt(-w2, +h2, -d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f,
-                      0.0f);
-  v[19] = vertex_pntt(-w2, -h2, -d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f,
-                      1.0f);
+  v[16] = vertex_pntt(
+    -w2, -h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f);
+  v[17] = vertex_pntt(
+    -w2, +h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f);
+  v[18] = vertex_pntt(
+    -w2, +h2, -d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f);
+  v[19] = vertex_pntt(
+    -w2, -h2, -d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f);
 
   // Fill in the right face vertex data.
-  v[20] = vertex_pntt(+w2, -h2, -d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
-                      1.0f);
-  v[21] = vertex_pntt(+w2, +h2, -d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
-                      0.0f);
-  v[22] = vertex_pntt(+w2, +h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-                      0.0f);
-  v[23] = vertex_pntt(+w2, -h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-                      1.0f);
+  v[20] =
+    vertex_pntt(+w2, -h2, -d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+  v[21] =
+    vertex_pntt(+w2, +h2, -d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+  v[22] =
+    vertex_pntt(+w2, +h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
+  v[23] =
+    vertex_pntt(+w2, -h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 
   //
   // Create the indices.
@@ -495,92 +498,95 @@ void xray::rendering::geometry_factory::grid(const float      grid_width,
   mesh_data->setup(static_cast<uint32_t>(vertex_count),
                    static_cast<uint32_t>(face_count * 3));
 
-  typedef tbb::blocked_range2d<size_t, size_t> grid_domain_t;
+  // typedef tbb::blocked_range2d<size_t, size_t> grid_domain_t;
 
-  tbb::parallel_for(
-      grid_domain_t{0, vertices_per_row, 0, vertices_per_col},
-      [=](const grid_domain_t& thread_subdomain) {
-        for (size_t row_idx = thread_subdomain.rows().begin();
-             row_idx < thread_subdomain.rows().end(); ++row_idx) {
-          const float z_coord = half_depth - row_idx * delta_z;
+  // tbb::parallel_for(
+  //   grid_domain_t{0, vertices_per_row, 0, vertices_per_col},
+  //   [=](const grid_domain_t& thread_subdomain) {
+  //     for (size_t row_idx = thread_subdomain.rows().begin();
+  //          row_idx < thread_subdomain.rows().end();
+  //          ++row_idx) {
+  //       const float z_coord = half_depth - row_idx * delta_z;
 
-          for (size_t col_idx = thread_subdomain.cols().begin();
-               col_idx < thread_subdomain.cols().end(); ++col_idx) {
-            vertex_pntt& output_vtx =
-                mesh_data->geometry[row_idx * vertices_per_col + col_idx];
+  //       for (size_t col_idx = thread_subdomain.cols().begin();
+  //            col_idx < thread_subdomain.cols().end();
+  //            ++col_idx) {
+  //         vertex_pntt& output_vtx =
+  //           mesh_data->geometry[row_idx * vertices_per_col + col_idx];
 
-            const float x_coord = -half_width + col_idx * delta_x;
+  //         const float x_coord = -half_width + col_idx * delta_x;
 
-            output_vtx.position = math::vec3f{x_coord, 0.0f, z_coord};
-            output_vtx.normal   = math::vec3f::stdc::unit_y;
-            output_vtx.tangent  = math::vec3f::stdc::unit_x;
-            output_vtx.texcoords =
-                math::vec2f{col_idx * delta_tu, row_idx * delta_tv};
-          }
-        }
-      });
+  //         output_vtx.position = math::vec3f{x_coord, 0.0f, z_coord};
+  //         output_vtx.normal   = math::vec3f::stdc::unit_y;
+  //         output_vtx.tangent  = math::vec3f::stdc::unit_x;
+  //         output_vtx.texcoords =
+  //           math::vec2f{col_idx * delta_tu, row_idx * delta_tv};
+  //       }
+  //     }
+  //   });
 
-  //
-  // Setup indices for the generated vertices.
-  auto index_array =
-      gsl::span<uint32_t>(raw_ptr(mesh_data->indices), mesh_data->index_count);
+  // //
+  // // Setup indices for the generated vertices.
+  // auto index_array =
+  //   gsl::span<uint32_t>(raw_ptr(mesh_data->indices), mesh_data->index_count);
 
-  size_t quad_idx = 0;
-  for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
-    for (size_t col_idx = 0; col_idx < column_count; ++col_idx) {
+  // size_t quad_idx = 0;
+  // for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
+  //   for (size_t col_idx = 0; col_idx < column_count; ++col_idx) {
 
-      //
-      //  First face.
-      index_array[quad_idx] =
-          static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
+  //     //
+  //     //  First face.
+  //     index_array[quad_idx] =
+  //       static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
 
-      index_array[quad_idx + 1] =
-          static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
+  //     index_array[quad_idx + 1] =
+  //       static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
 
-      index_array[quad_idx + 2] =
-          static_cast<uint32_t>(row_idx * vertices_per_col + col_idx);
+  //     index_array[quad_idx + 2] =
+  //       static_cast<uint32_t>(row_idx * vertices_per_col + col_idx);
 
-      //
-      //  Second face
-      index_array[quad_idx + 3] =
-          static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
+  //     //
+  //     //  Second face
+  //     index_array[quad_idx + 3] =
+  //       static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
 
-      index_array[quad_idx + 4] =
-          static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx + 1);
+  //     index_array[quad_idx + 4] =
+  //       static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx +
+  //       1);
 
-      index_array[quad_idx + 5] =
-          static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
+  //     index_array[quad_idx + 5] =
+  //       static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
 
-      quad_idx += 6; // next quad
-    }
-  }
+  //     quad_idx += 6; // next quad
+  //   }
+  // }
 }
 
 void xray::rendering::geometry_factory::fullscreen_quad(
-    geometry_data_t* grid_geometry) {
+  geometry_data_t* grid_geometry) {
   grid_geometry->setup(4, 6);
 
-  constexpr float coords[] = {-1.0f, -1.0f, -1.0f, +1.0f,
-                              +1.0f, +1.0f, +1.0f, -1.0f};
+  constexpr float coords[] = {
+    -1.0f, -1.0f, -1.0f, +1.0f, +1.0f, +1.0f, +1.0f, -1.0f};
 
   constexpr math::vec3f normal_vec{0.0f, 0.0f, -1.0f};
-  constexpr float       texcoords[] = {0.0f, 1.0f, 0.0f, 0.0f,
-                                 1.0f, 0.0f, 1.0f, 1.0f};
+  constexpr float       texcoords[] = {
+    0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f};
 
   for (size_t idx = 0; idx < 4; ++idx) {
     grid_geometry->geometry[idx].position =
-        math::vec3f{coords[idx * 2 + 0], coords[idx * 2 + 1], 0.0f};
+      math::vec3f{coords[idx * 2 + 0], coords[idx * 2 + 1], 0.0f};
 
     grid_geometry->geometry[idx].normal  = normal_vec;
     grid_geometry->geometry[idx].tangent = vec3f::stdc::unit_x;
     grid_geometry->geometry[idx].texcoords =
-        math::vec2f{texcoords[idx * 2 + 0], texcoords[idx * 2 + 1]};
+      math::vec2f{texcoords[idx * 2 + 0], texcoords[idx * 2 + 1]};
   }
 
   static constexpr uint32_t fsquad_indices[] = {0, 2, 1, 0, 3, 2};
 
-  memcpy(raw_ptr(grid_geometry->indices), fsquad_indices,
-         sizeof(fsquad_indices));
+  memcpy(
+    raw_ptr(grid_geometry->indices), fsquad_indices, sizeof(fsquad_indices));
 }
 
 // void xray::rendering::geometry_factory::create_spherical_shape(
@@ -768,32 +774,36 @@ void xray::rendering::geometry_factory::fullscreen_quad(
 // }
 
 void xray::rendering::geometry_factory::geosphere(
-    const float radius, const uint32_t max_subdivisions,
-    geometry_data_t* mesh) {
+  const float radius, const uint32_t max_subdivisions, geometry_data_t* mesh) {
 
   assert(mesh != nullptr);
   assert(radius > 0.0f);
 
   const uint32_t subdivisions =
-      math::clamp(max_subdivisions, max_subdivisions, uint32_t{5});
+    math::clamp(max_subdivisions, max_subdivisions, uint32_t{5});
 
   //
   // Approximate a sphere by tessellating an icosahedron.
   constexpr auto xpos = 0.525731f;
   constexpr auto zpos = 0.850651f;
 
-  constexpr vec3f pos[12] = {
-      math::vec3f{-xpos, 0.0f, +zpos}, math::vec3f{+xpos, 0.0f, +zpos},
-      math::vec3f{-xpos, 0.0f, -zpos}, math::vec3f{+xpos, 0.0f, -zpos},
-      math::vec3f{0.0f, +zpos, +xpos}, math::vec3f{0.0f, +zpos, -xpos},
-      math::vec3f{0.0f, -zpos, +xpos}, math::vec3f{0.0f, -zpos, -xpos},
-      math::vec3f{+zpos, +xpos, 0.0f}, math::vec3f{-zpos, +xpos, 0.0f},
-      math::vec3f{+zpos, -xpos, 0.0f}, math::vec3f{-zpos, -xpos, 0.0f}};
+  constexpr vec3f pos[12] = {math::vec3f{-xpos, 0.0f, +zpos},
+                             math::vec3f{+xpos, 0.0f, +zpos},
+                             math::vec3f{-xpos, 0.0f, -zpos},
+                             math::vec3f{+xpos, 0.0f, -zpos},
+                             math::vec3f{0.0f, +zpos, +xpos},
+                             math::vec3f{0.0f, +zpos, -xpos},
+                             math::vec3f{0.0f, -zpos, +xpos},
+                             math::vec3f{0.0f, -zpos, -xpos},
+                             math::vec3f{+zpos, +xpos, 0.0f},
+                             math::vec3f{-zpos, +xpos, 0.0f},
+                             math::vec3f{+zpos, -xpos, 0.0f},
+                             math::vec3f{-zpos, -xpos, 0.0f}};
 
   constexpr uint32_t k[60] = {
-      1,  0, 4, 4, 0, 9,  4, 9, 5,  8, 4, 5, 1,  4,  8, 1, 8, 10, 10, 8,
-      3,  8, 5, 3, 3, 5,  2, 3, 2,  7, 3, 7, 10, 10, 7, 6, 6, 7,  11, 6,
-      11, 0, 6, 0, 1, 10, 6, 1, 11, 9, 0, 2, 9,  11, 5, 9, 2, 11, 7,  2,
+    1,  0, 4, 4, 0, 9,  4, 9, 5,  8, 4, 5, 1,  4,  8, 1, 8, 10, 10, 8,
+    3,  8, 5, 3, 3, 5,  2, 3, 2,  7, 3, 7, 10, 10, 7, 6, 6, 7,  11, 6,
+    11, 0, 6, 0, 1, 10, 6, 1, 11, 9, 0, 2, 9,  11, 5, 9, 2, 11, 7,  2,
   };
 
   //
@@ -817,7 +827,7 @@ void xray::rendering::geometry_factory::geosphere(
     //
     // Derive texture coordinates from spherical coordinates.
     const float theta =
-        angle_from_xy(vertices[i].position.x, vertices[i].position.z);
+      angle_from_xy(vertices[i].position.x, vertices[i].position.z);
 
     const float phi = acosf(vertices[i].position.x / radius);
 
@@ -870,7 +880,7 @@ void xray::rendering::geometry_factory::hexahedron(geometry_data_t* mesh) {
   }
 
   constexpr uint32_t indices[] = {
-      // clang-format off
+    // clang-format off
       0, 3, 2,
       0, 2, 1,
       0, 1, 5,
@@ -883,7 +893,7 @@ void xray::rendering::geometry_factory::hexahedron(geometry_data_t* mesh) {
       6, 3, 7,
       6, 7, 4,
       6, 4, 5
-      // clang-format on
+    // clang-format on
   };
 
   memcpy(base::raw_ptr(mesh->indices), indices, sizeof(indices));
@@ -893,13 +903,15 @@ void xray::rendering::geometry_factory::hexahedron(geometry_data_t* mesh) {
 void xray::rendering::geometry_factory::octahedron(geometry_data_t* mesh) {
   mesh->setup(6u, 24u);
 
-  constexpr vec3f vertices[] = {
-      vec3f{1.0f, 0.0f, 0.0f}, vec3f{-1.0f, 0.0f, 0.0f},
-      vec3f{0.0f, 1.0f, 0.0f}, vec3f{0.0f, -1.0f, 0.0f},
-      vec3f{0.0f, 0.0f, 1.0f}, vec3f{0.0f, 0.0f, -1.0f}};
+  constexpr vec3f vertices[] = {vec3f{1.0f, 0.0f, 0.0f},
+                                vec3f{-1.0f, 0.0f, 0.0f},
+                                vec3f{0.0f, 1.0f, 0.0f},
+                                vec3f{0.0f, -1.0f, 0.0f},
+                                vec3f{0.0f, 0.0f, 1.0f},
+                                vec3f{0.0f, 0.0f, -1.0f}};
 
   constexpr uint32_t indices[] = {
-      // clang-format off
+    // clang-format off
       4, 0, 2,
       4, 2, 1,
       4, 1, 3,
@@ -908,7 +920,7 @@ void xray::rendering::geometry_factory::octahedron(geometry_data_t* mesh) {
       5, 1, 2,
       5, 3, 1,
       5, 0, 3
-      // clang-format on
+    // clang-format on
   };
 
   for (size_t idx = 0; idx < XR_COUNTOF__(vertices); ++idx) {
@@ -927,7 +939,7 @@ void xray::rendering::geometry_factory::dodecahedron(geometry_data_t* mesh) {
   constexpr auto c = 0.9341723589627158f;
 
   constexpr vec3f vertices[] = {
-      // clang-format off
+    // clang-format off
       vec3f{a, a, a},
       vec3f{a, a, -a},
       vec3f{a, -a, a},
@@ -994,7 +1006,7 @@ void xray::rendering::geometry_factory::dodecahedron(geometry_data_t* mesh) {
       7, 18, 19,
       7,  14, 15,
       7,  10, 11
-      // clang-format on
+    // clang-format on
   };
 
   for (size_t idx = 0; idx < XR_COUNTOF__(vertices); ++idx) {
@@ -1034,7 +1046,7 @@ void xray::rendering::geometry_factory::icosahedron(geometry_data_t* mesh) {
                             vec3f{0.0f, -t, -1.0f} * it};
 
   constexpr uint32_t indices[] = {
-      // clang-format off
+    // clang-format off
       0, 8, 4,
       0,  5, 10,
       2, 4, 9,
@@ -1055,7 +1067,7 @@ void xray::rendering::geometry_factory::icosahedron(geometry_data_t* mesh) {
       9, 4,  6,
       10, 5, 7,
       11, 7, 5
-      // clang-format on
+    // clang-format on
   };
 
   mesh->setup(static_cast<uint32_t>(XR_COUNTOF__(vertices)),
@@ -1139,7 +1151,8 @@ static auto ai_vec_to_xray_vec(const aiVector3D& ai_vec) noexcept {
 }
 
 static bool
-load_model_impl(const char* model_data_ptr, const size_t data_size,
+load_model_impl(const char*                                model_data_ptr,
+                const size_t                               data_size,
                 const uint32_t                             load_flags,
                 const xray::rendering::mesh_import_options import_opts,
                 xray::rendering::geometry_data_t*          mesh_data) {
@@ -1152,7 +1165,7 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
   };
 
   unique_pointer<aiPropertyStore, ai_propstore_deleter> import_props{
-      aiCreatePropertyStore()};
+    aiCreatePropertyStore()};
 
   if (!import_props) {
     XR_LOG_ERR("Failed to create Assimp property store object!");
@@ -1160,17 +1173,18 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
   }
 
   {
-    aiSetImportPropertyInteger(raw_ptr(import_props),
-                               AI_CONFIG_IMPORT_TER_MAKE_UVS, 1);
+    aiSetImportPropertyInteger(
+      raw_ptr(import_props), AI_CONFIG_IMPORT_TER_MAKE_UVS, 1);
 
     if (import_opts & mesh_import_options::remove_points_lines) {
-      aiSetImportPropertyInteger(raw_ptr(import_props), AI_CONFIG_PP_SBP_REMOVE,
+      aiSetImportPropertyInteger(raw_ptr(import_props),
+                                 AI_CONFIG_PP_SBP_REMOVE,
                                  aiPrimitiveType_LINE | aiPrimitiveType_POINT);
     }
   }
 
   auto imported_scene = aiImportFileFromMemoryWithProperties(
-      model_data_ptr, data_size, load_flags, nullptr, raw_ptr(import_props));
+    model_data_ptr, data_size, load_flags, nullptr, raw_ptr(import_props));
 
   if (!imported_scene) {
     XR_LOG_ERR("Assimp import error : failed to load scene from model file !");
@@ -1217,7 +1231,7 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
       const auto output_pos = vertex_idx + vertex_count;
 
       mesh_data->geometry[output_pos].position =
-          ai_vec_to_xray_vec(curr_mesh->mVertices[vertex_idx]);
+        ai_vec_to_xray_vec(curr_mesh->mVertices[vertex_idx]);
     }
 
     //
@@ -1237,13 +1251,13 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
       };
 
       auto fn_get_normal = curr_mesh->HasNormals()
-                               ? &msvc_fuck_off::get_normal_from_mesh
-                               : &msvc_fuck_off::get_null_normal;
+                             ? &msvc_fuck_off::get_normal_from_mesh
+                             : &msvc_fuck_off::get_null_normal;
 
       for (uint32_t idx = 0; idx < curr_mesh->mNumVertices; ++idx) {
         const auto output_pos = idx + vertex_count;
         mesh_data->geometry[output_pos].normal =
-            fn_get_normal(curr_mesh->mNormals, idx);
+          fn_get_normal(curr_mesh->mNormals, idx);
       }
     }
 
@@ -1264,13 +1278,13 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
       };
 
       auto fn_get_texcoords = curr_mesh->HasTextureCoords(0)
-                                  ? &msvc_fuckery::get_texcoord_from_mesh
-                                  : &msvc_fuckery::get_default_texcoords;
+                                ? &msvc_fuckery::get_texcoord_from_mesh
+                                : &msvc_fuckery::get_default_texcoords;
 
       for (uint32_t idx = 0; idx < curr_mesh->mNumVertices; ++idx) {
         const auto output_pos = idx + vertex_count;
         mesh_data->geometry[output_pos].texcoords =
-            fn_get_texcoords(curr_mesh->mTextureCoords, idx);
+          fn_get_texcoords(curr_mesh->mTextureCoords, idx);
       }
     }
 
@@ -1279,7 +1293,7 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
     if (curr_mesh->HasTangentsAndBitangents()) {
       for (uint32_t tan_idx = 0; tan_idx < curr_mesh->mNumVertices; ++tan_idx) {
         mesh_data->geometry[tan_idx + vertex_count].tangent =
-            ai_vec_to_xray_vec(curr_mesh->mTangents[tan_idx]);
+          ai_vec_to_xray_vec(curr_mesh->mTangents[tan_idx]);
       }
     }
 
@@ -1291,7 +1305,7 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
 
       for (uint32_t i = 0; i < curr_face->mNumIndices; ++i) {
         mesh_data->indices[index_count++] =
-            curr_face->mIndices[i] + indices_offset;
+          curr_face->mIndices[i] + indices_offset;
       }
     }
 
@@ -1303,46 +1317,49 @@ load_model_impl(const char* model_data_ptr, const size_t data_size,
 }
 
 bool xray::rendering::geometry_factory::load_model(
-    geometry_data_t* mesh_data, const char* file_path,
-    const mesh_import_options import_opts) {
+  geometry_data_t*          mesh_data,
+  const char*               file_path,
+  const mesh_import_options import_opts) {
 
   assert(mesh_data != nullptr);
   assert(file_path != nullptr);
 
   constexpr uint32_t default_processing_opts =
-      aiProcess_CalcTangentSpace |         // calculate tangents and
-      aiProcess_JoinIdenticalVertices |    // join identical vertices/
-      aiProcess_ValidateDataStructure |    // perform a full validation of the
-      aiProcess_ImproveCacheLocality |     // improve the cache locality of
-      aiProcess_RemoveRedundantMaterials | // remove redundant materials
-      aiProcess_FindDegenerates |   // remove degenerated polygons from the
-      aiProcess_FindInvalidData |   // detect invalid model data, such as
-      aiProcess_GenUVCoords |       // convert spherical, cylindrical, box and
-      aiProcess_TransformUVCoords | // preprocess UV transformations
-      aiProcess_FindInstances |     // search for instanced meshes and remove
-      aiProcess_LimitBoneWeights |  // limit bone weights to 4 per vertex
-      aiProcess_OptimizeMeshes |    // join small meshes, if possible;
-      aiProcess_SplitByBoneCount |  // split meshes with too many bones.
-      0;
+    aiProcess_CalcTangentSpace |         // calculate tangents and
+    aiProcess_JoinIdenticalVertices |    // join identical vertices/
+    aiProcess_ValidateDataStructure |    // perform a full validation of the
+    aiProcess_ImproveCacheLocality |     // improve the cache locality of
+    aiProcess_RemoveRedundantMaterials | // remove redundant materials
+    aiProcess_FindDegenerates |          // remove degenerated polygons from the
+    aiProcess_FindInvalidData |          // detect invalid model data, such as
+    aiProcess_GenUVCoords |       // convert spherical, cylindrical, box and
+    aiProcess_TransformUVCoords | // preprocess UV transformations
+    aiProcess_FindInstances |     // search for instanced meshes and remove
+    aiProcess_LimitBoneWeights |  // limit bone weights to 4 per vertex
+    aiProcess_OptimizeMeshes |    // join small meshes, if possible;
+    aiProcess_SplitByBoneCount |  // split meshes with too many bones.
+    0;
 
   constexpr auto post_processing_opts =
-      default_processing_opts | aiProcess_GenSmoothNormals | // generate smooth
-      aiProcess_SplitLargeMeshes |                           // split large,
-      aiProcess_Triangulate | // triangulate polygons with
-      aiProcess_SortByPType | // make 'clean' meshes which consist of a
-      0;
+    default_processing_opts | aiProcess_GenSmoothNormals | // generate smooth
+    aiProcess_SplitLargeMeshes |                           // split large,
+    aiProcess_Triangulate | // triangulate polygons with
+    aiProcess_SortByPType | // make 'clean' meshes which consist of a
+    0;
 
   const auto all_processing_opts =
-      post_processing_opts |
-      (import_opts & mesh_import_options::convert_left_handed
-           ? aiProcess_ConvertToLeftHanded
-           : 0);
+    post_processing_opts |
+    (import_opts & mesh_import_options::convert_left_handed
+       ? aiProcess_ConvertToLeftHanded
+       : 0);
 
   try {
     platformstl::memory_mapped_file mesh_mmfile{file_path};
 
     return load_model_impl(static_cast<const char*>(mesh_mmfile.memory()),
-                           mesh_mmfile.size(), all_processing_opts, import_opts,
+                           mesh_mmfile.size(),
+                           all_processing_opts,
+                           import_opts,
                            mesh_data);
   } catch (const std::exception&) {
     XR_LOG_ERR("Failed to import model file {}", file_path);

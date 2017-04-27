@@ -110,8 +110,8 @@ message("Compiler flags = ${CMAKE_CXX_FLAGS}")
 
 #
 # required libraries
-find_package(TBB REQUIRED)
-include_directories(${TBB_INCLUDE_DIR})
+# find_package(TBB REQUIRED)
+# include_directories(${TBB_INCLUDE_DIR})
 
 if (NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
   include_directories(third_party/opengl/include)

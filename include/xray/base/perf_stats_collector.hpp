@@ -32,10 +32,10 @@
 
 #include "xray/xray.hpp"
 #include "xray/base/unique_handle.hpp"
-#include <tbb/atomic.h>
-#include <tbb/tbb_thread.h>
-#include <vector>
+#include <atomic>
 #include <platformstl/synch/util/features.h>
+#include <thread>
+#include <vector>
 
 #if defined(XRAY_OS_IS_WINDOWS)
 #include "xray/base/windows/handle_traits.hpp"
@@ -65,7 +65,7 @@ public:
 
   void signal_stop() {
 #if defined(XRAY_OS_IS_WINDOWS)
-      SetEvent(xray::base::raw_handle(_events[1]));
+    SetEvent(xray::base::raw_handle(_events[1]));
 #endif
   }
   process_stats_info process_stats() const noexcept;
@@ -92,7 +92,7 @@ private:
 #if defined(XRAY_OS_IS_WINDOWS)
     std::vector<HCOUNTER> counters;
 #endif
-    std::vector<double>                                            values;
+    std::vector<double> values;
 #if defined(XRAY_OS_IS_WINDOWS)
     xray::base::unique_handle<xray::base::win32::pdh_query_handle> query;
 #endif
@@ -110,9 +110,9 @@ private:
 #if defined(XRAY_OS_IS_WINDOWS)
   xray::base::unique_handle<xray::base::win32::event_handle> _events[2];
 #endif
-  process_statistics                                         _proc_stats;
-  tbb::atomic<bool> _initialized{false};
-  tbb::tbb_thread   _collector_thread;
+  process_statistics _proc_stats;
+  std::atomic<bool>  _initialized{false};
+  std::thread        _collector_thread;
 
 private:
   XRAY_NO_COPY(stats_thread);

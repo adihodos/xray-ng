@@ -756,6 +756,8 @@
 #define STLSOFT_COMPILER_VERSION_STRING "Visual C++ 12.0"
 #elif (_MSC_VER == 1900)
 #define STLSOFT_COMPILER_VERSION_STRING "Visual C++ 14.0"
+#elif (_MSC_VER == 1910)
+#define STLSOFT_COMPILER_VERSION_STRING "Visual C++ 15.0"
 #else /* ? _MSC_VER */
 #error Currently only versions 5.0, 6.0, 7.0, 7.1, 8.0, 9.0, 10.0, 11.0, 12.0, and 14.0 of the Visual C++ compiler are supported by the STLSoft libraries
 #endif /* _MSC_VER */
@@ -2770,7 +2772,7 @@ supported by STLSoft
     (__GNUC__ == 3 && __GNUC_MINOR__ >= 3 && !defined(__APPLE__))
 
 /* This version of the technique for GCC 3.3+ was suggested by Lars Rune
- * Nøstdal,
+ * Nï¿½stdal,
  * from Norway. Many thanks, Lars!
  */
 
