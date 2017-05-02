@@ -142,7 +142,8 @@ target_link_libraries(basic-gl-app
     # libconfig
     # stb
     ${ASSIMP_LIBRARY}
-    ${SYS_DEP_LIBS})
+    ${SYS_DEP_LIBS}
+    tbb_static)
 
 #add_custom_target(COPY_TBB ALL
 #    COMMAND ${CMAKE_COMMAND} -E copy ${TBB_LIBRARY} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
