@@ -142,6 +142,9 @@ include_directories(third_party/imgui/include)
 include_directories(third_party/easyloggingpp/include)
 include_directories(third_party/catch/include)
 
+add_subdirectory(third_party/tbb)
+include_directories(third_party/tbb/include)
+
 add_subdirectory(third_party/libconfig/src)
 add_subdirectory(third_party/stb/src)
 add_subdirectory(third_party/imgui/src)

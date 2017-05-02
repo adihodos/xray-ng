@@ -1,24 +1,14 @@
 #include "xray/rendering/mesh.hpp"
-#include "xray/base/array_dimension.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
-#include "xray/base/enum_cast.hpp"
 #include "xray/base/logger.hpp"
-#include "xray/base/unique_pointer.hpp"
-#include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/objects/aabb3_math.hpp"
 #include "xray/math/objects/sphere_math.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
-#include "xray/rendering/geometry/geometry_data.hpp"
-#include "xray/rendering/geometry/geometry_factory.hpp"
-#include "xray/rendering/opengl/scoped_state.hpp"
-#include "xray/rendering/vertex_format/vertex_p.hpp"
-#include "xray/rendering/vertex_format/vertex_pn.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
-#include "xray/rendering/vertex_format/vertex_pntt.hpp"
 #include <assimp/Importer.hpp>
 #include <assimp/cimport.h>
 #include <assimp/postprocess.h>
@@ -27,7 +17,8 @@
 #include <cmath>
 #include <cstring>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
-#include <span.h>
+#include <random>
+#include <tbb/tbb.h>
 #include <vector>
 
 using namespace std;
@@ -808,6 +799,9 @@ load_geometry_impl(const char*                                model_data_ptr,
   size_t num_indices  = 0;
   size_t num_faces    = 0;
 
+  vector<uint32_t> vertex_offsets;
+  vector<uint32_t> index_offsets;
+
   //
   //  Count vertices and indices.
   for (uint32_t mesh_index = 0; mesh_index < imported_scene->mNumMeshes;
@@ -921,6 +915,175 @@ load_geometry_impl(const char*                                model_data_ptr,
   return true;
 }
 
+static bool load_geometry_impl_parallel(
+  const char*                                model_data_ptr,
+  const size_t                               data_size,
+  const uint32_t                             load_flags,
+  const xray::rendering::mesh_import_options import_opts,
+  geometry_blob*                             mesh_data) {
+  struct ai_propstore_deleter {
+    void operator()(aiPropertyStore* prop_store) const noexcept {
+      if (prop_store)
+        aiReleasePropertyStore(prop_store);
+    }
+  };
+
+  unique_pointer<aiPropertyStore, ai_propstore_deleter> import_props{
+    aiCreatePropertyStore()};
+
+  if (!import_props) {
+    XR_LOG_ERR("Failed to create Assimp property store object!");
+    return false;
+  }
+
+  {
+    aiSetImportPropertyInteger(
+      raw_ptr(import_props), AI_CONFIG_IMPORT_TER_MAKE_UVS, 1);
+
+    if (import_opts & mesh_import_options::remove_points_lines) {
+      aiSetImportPropertyInteger(raw_ptr(import_props),
+                                 AI_CONFIG_PP_SBP_REMOVE,
+                                 aiPrimitiveType_LINE | aiPrimitiveType_POINT);
+    }
+  }
+
+  auto imported_scene = aiImportFileFromMemoryWithProperties(
+    model_data_ptr, data_size, load_flags, nullptr, raw_ptr(import_props));
+
+  if (!imported_scene) {
+    XR_LOG_ERR("Assimp import error : failed to load scene from model file !");
+    return false;
+  }
+
+  size_t num_vertices = 0;
+  size_t num_indices  = 0;
+  size_t num_faces    = 0;
+
+  vector<uint32_t> vertex_offsets;
+  vector<uint32_t> index_offsets;
+
+  vertex_offsets.push_back(0);
+  index_offsets.push_back(0);
+
+  //
+  //  Count vertices and indices.
+  for (uint32_t mesh_index = 0; mesh_index < imported_scene->mNumMeshes;
+       ++mesh_index) {
+    const aiMesh* curr_mesh = imported_scene->mMeshes[mesh_index];
+    num_vertices += curr_mesh->mNumVertices;
+    num_faces += curr_mesh->mNumFaces;
+
+    for (uint32_t face_index = 0; face_index < curr_mesh->mNumFaces;
+         ++face_index) {
+      const aiFace* curr_face = &curr_mesh->mFaces[face_index];
+      num_indices += curr_face->mNumIndices;
+    }
+
+    vertex_offsets.push_back(num_vertices);
+    index_offsets.push_back(num_indices);
+  }
+
+  mesh_data->vertices.resize(num_vertices);
+  mesh_data->indices.resize(size_t{num_indices});
+
+  tbb::parallel_for(
+    tbb::blocked_range<uint32_t>{0u, imported_scene->mNumMeshes},
+    [ s = imported_scene, md = mesh_data, &vertex_offsets, &index_offsets ](
+      const tbb::blocked_range<uint32_t>& domain) {
+
+      for (uint32_t i = domain.begin(), cnt = domain.end(); i < cnt; ++i) {
+        const auto voff = vertex_offsets[i];
+        const auto ioff = index_offsets[i];
+
+        OUTPUT_DBG_MSG("voff %u / ioff %u", voff, ioff);
+
+        const auto curr_mesh = s->mMeshes[i];
+
+        ////
+
+        if (!curr_mesh->mVertices)
+          continue;
+
+        //
+        // Collect vertices
+        for (uint32_t vertex_idx = 0; vertex_idx < curr_mesh->mNumVertices;
+             ++vertex_idx) {
+          const auto& vtx = curr_mesh->mVertices[vertex_idx];
+          md->vertices[vertex_idx + voff].position = {vtx.x, vtx.y, vtx.z};
+        }
+
+        //
+        // collect normals
+
+        {
+          struct msvc_fuck_off {
+            static auto get_normal_from_mesh(const aiVector3D* input,
+                                             const uint32_t    pos) noexcept {
+              return vec3f{input[pos].x, input[pos].y, input[pos].z};
+            }
+
+            static auto get_null_normal(const aiVector3D* /*input*/,
+                                        const uint32_t /*pos*/) noexcept {
+              return vec3f::stdc::zero;
+            }
+          };
+
+          auto fn_get_normal = curr_mesh->HasNormals()
+                                 ? &msvc_fuck_off::get_normal_from_mesh
+                                 : &msvc_fuck_off::get_null_normal;
+
+          for (uint32_t idx = 0; idx < curr_mesh->mNumVertices; ++idx) {
+            md->vertices[idx + voff].normal =
+              fn_get_normal(curr_mesh->mNormals, idx);
+          }
+        }
+
+        //
+        // collect texture coordinates.
+        {
+          struct msvc_fuckery {
+            static auto
+            get_texcoord_from_mesh(const aiVector3D* const* texcoords,
+                                   const uint32_t           pos) noexcept {
+              return vec2f{texcoords[0][pos].x, texcoords[0][pos].y};
+            }
+
+            static auto
+            get_default_texcoords(const aiVector3D* const* /*texcoords*/,
+                                  const uint32_t /*pos*/) noexcept {
+              return vec2f{0.5f, 0.5f};
+            }
+          };
+
+          auto fn_get_texcoords = curr_mesh->HasTextureCoords(0)
+                                    ? &msvc_fuckery::get_texcoord_from_mesh
+                                    : &msvc_fuckery::get_default_texcoords;
+
+          for (uint32_t idx = 0; idx < curr_mesh->mNumVertices; ++idx) {
+            md->vertices[idx + voff].texcoord =
+              fn_get_texcoords(curr_mesh->mTextureCoords, idx);
+          }
+        }
+
+        //
+        //  Collect indices defining primitives.
+        for (uint32_t face_index = 0; face_index < curr_mesh->mNumFaces;
+             ++face_index) {
+          const aiFace* curr_face = &curr_mesh->mFaces[face_index];
+
+          for (uint32_t j = 0; j < curr_face->mNumIndices; ++j) {
+            md->indices[ioff + face_index * 3 + j] =
+              curr_face->mIndices[j] + voff;
+          }
+        }
+
+        ////
+      }
+    });
+
+  return true;
+}
+
 static bool
 load_geometry(geometry_blob*                             mesh_data,
               const char*                                file_path,
@@ -957,14 +1120,18 @@ load_geometry(geometry_blob*                             mesh_data,
        ? aiProcess_ConvertToLeftHanded
        : 0);
 
+  timer_highp op_tm;
+
   try {
     platformstl::memory_mapped_file mesh_mmfile{file_path};
 
-    return load_geometry_impl(static_cast<const char*>(mesh_mmfile.memory()),
-                              mesh_mmfile.size(),
-                              all_processing_opts,
-                              import_opts,
-                              mesh_data);
+    const auto result =
+      load_geometry_impl(static_cast<const char*>(mesh_mmfile.memory()),
+                         mesh_mmfile.size(),
+                         all_processing_opts,
+                         import_opts,
+                         mesh_data);
+    return result;
   } catch (const std::exception&) {
     XR_LOG_ERR("Failed to import model file {}", file_path);
   }
@@ -972,19 +1139,141 @@ load_geometry(geometry_blob*                             mesh_data,
   return false;
 }
 
+xray::rendering::basic_mesh::basic_mesh(
+  const xray::rendering::vertex_pnt* vertices,
+  const size_t                       num_vertices,
+  const uint32_t*                    indices,
+  const size_t                       num_indices) {
+
+  _vertices.resize(num_vertices);
+  _indices.resize(num_indices);
+
+  memcpy(_vertices.data(), vertices, num_vertices * sizeof(vertices[0]));
+  memcpy(_indices.data(), indices, num_indices * sizeof(indices[0]));
+
+  compute_aabb();
+  setup_buffers();
+}
+
 xray::rendering::basic_mesh::basic_mesh(const char* path) {
   using namespace xray::rendering;
 
-  geometry_blob geometry;
-  load_geometry(&geometry, path, mesh_import_options::remove_points_lines);
+  {
+    geometry_blob geometry;
+    load_geometry(&geometry, path, mesh_import_options::remove_points_lines);
 
-  if (geometry.vertices.empty() || geometry.indices.empty()) {
-    return;
+    if (geometry.vertices.empty() || geometry.indices.empty()) {
+      return;
+    }
+
+    _vertices = std::move(geometry.vertices);
+    _indices  = std::move(geometry.indices);
   }
 
-  _vertices = std::move(geometry.vertices);
-  _indices  = std::move(geometry.indices);
+  compute_aabb();
+  setup_buffers();
+}
 
+void xray::rendering::basic_mesh::compute_aabb() {
+  assert(!_vertices.empty());
+
+  vector<int32_t> numbaz;
+
+  random_device                     rd;
+  default_random_engine             re{rd()};
+  uniform_int_distribution<int32_t> dist{-4096, +4096};
+
+  generate_n(back_inserter(numbaz), 1024, [&dist, &re]() { return dist(re); });
+
+  auto pair = std::minmax_element(begin(numbaz), end(numbaz));
+
+  struct numba_reducer {
+  public:
+    numba_reducer() = default;
+
+    numba_reducer(const numba_reducer& rhs, tbb::split)
+      : _min{rhs._min}, _max{rhs._max} {}
+
+    void operator()(const tbb::blocked_range<const int32_t*>& r) {
+      for (auto b = r.begin(), e = r.end(); b < e; ++b) {
+        _min = std::min(*b, _min);
+        _max = std::max(*b, _max);
+      }
+    }
+
+    void join(const numba_reducer& rhs) {
+      _min = std::min(rhs.min(), _min);
+      _max = std::max(rhs.max(), _max);
+    }
+
+    int32_t min() const noexcept { return _min; }
+    int32_t max() const noexcept { return _max; }
+
+  private:
+    int32_t _min{numeric_limits<int32_t>::max()};
+    int32_t _max{numeric_limits<int32_t>::min()};
+  };
+
+  numba_reducer nr;
+  tbb::parallel_reduce(
+    tbb::blocked_range<const int32_t*>{numbaz.data(),
+                                       numbaz.data() + numbaz.size()},
+    nr);
+
+  timer_highp op_tm;
+
+  {
+    scoped_timing_object<timer_highp> sto{&op_tm};
+
+    struct aabb_reducer {
+    public:
+      aabb_reducer(const vertex_pnt* vertices) : _vertices{vertices} {}
+
+      aabb_reducer(const aabb_reducer& rhs, tbb::split)
+        : _vertices{rhs._vertices}, _aabb{rhs._aabb} {}
+
+      void operator()(const tbb::blocked_range<uint32_t>& rng) {
+        _aabb =
+          bounding_box3_axis_aligned((const vec3f*) (_vertices + rng.begin()),
+                                     rng.size(),
+                                     sizeof(_vertices[0]));
+      }
+
+      void join(const aabb_reducer& other) {
+        _aabb = math::merge(_aabb, other.bounding_box());
+      }
+
+      const aabb3f& bounding_box() const noexcept { return _aabb; }
+
+    private:
+      const vertex_pnt* _vertices{nullptr};
+      aabb3f            _aabb{aabb3f::stdc::identity};
+    };
+
+    //_aabb =
+    //  math::bounding_box3_axis_aligned((const math::vec3f*) _vertices.data(),
+    //                                   _vertices.size(),
+    //                                   sizeof(_vertices[0]));
+
+    aabb_reducer reducer{_vertices.data()};
+    tbb::parallel_reduce(
+      tbb::blocked_range<uint32_t>{0u, (uint32_t) _vertices.size()}, reducer);
+
+    _aabb = reducer.bounding_box();
+
+    OUTPUT_DBG_MSG("AABB : [%3.3f, %3.3f, %3.3f] : [%3.3f, %3.3f, %3.3f]",
+                   _aabb.min.x,
+                   _aabb.min.y,
+                   _aabb.min.z,
+                   _aabb.max.x,
+                   _aabb.max.y,
+                   _aabb.max.z);
+  }
+
+  OUTPUT_DBG_MSG("Mesh AABB compute time = %3.3f", op_tm.elapsed_millis());
+}
+
+void xray::rendering::basic_mesh::setup_buffers() {
   gl::CreateBuffers(1, raw_handle_ptr(_vertexbuffer));
   gl::NamedBufferStorage(raw_handle(_vertexbuffer),
                          xray::base::container_bytes_size(_vertices),
