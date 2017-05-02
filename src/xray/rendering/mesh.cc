@@ -28,6 +28,7 @@
 #include <cstring>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <span.h>
+#include <tbb/tbb.h>
 #include <vector>
 
 using namespace std;
