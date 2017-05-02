@@ -33,7 +33,7 @@ app::mesh_demo::~mesh_demo() {}
 void app::mesh_demo::init() {
   assert(!valid());
 
-  _mesh = basic_mesh{xr_app_config->model_path("a4/a4.obj").c_str()};
+  _mesh = basic_mesh{xr_app_config->model_path("f4/f4phantom.obj").c_str()};
   if (!_mesh) {
     return;
   }
@@ -96,6 +96,7 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
 
   gl::ClearNamedFramebufferfv(
     0, gl::COLOR, 0, color_palette::web::black.components);
+  gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
 
   gl::ViewportIndexedf(0,
                        0.0f,
@@ -111,18 +112,9 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
     mat4f view;
   } tfmat;
 
-  tfmat.view = view_frame_rh::look_at(
-    {0.0f, 0.0f, -5.0f}, vec3f::stdc::zero, vec3f::stdc::unit_y);
-
-  tfmat.world_view_proj =
-    projection_rh::perspective_symmetric((float) draw_ctx.window_width,
-                                         (float) draw_ctx.window_height,
-                                         radians(65.0f),
-                                         0.1f,
-                                         100.0f) *
-    tfmat.view;
-
-  tfmat.normals = tfmat.view;
+  tfmat.view            = draw_ctx.view_matrix;
+  tfmat.world_view_proj = draw_ctx.proj_view_matrix;
+  tfmat.normals         = draw_ctx.view_matrix;
 
   _vs.set_uniform_block("TransformMatrices", tfmat);
   _fs.set_uniform("IMAGE_TEX", 0);
@@ -133,6 +125,9 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
 
   const GLuint bound_samplers[] = {raw_handle(_sampler)};
   gl::BindSamplers(0, 1, bound_samplers);
+
+  gl::Enable(gl::CULL_FACE);
+  gl::Enable(gl::DEPTH_TEST);
 
   gl::DrawElements(
     gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);

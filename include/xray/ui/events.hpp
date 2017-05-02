@@ -80,7 +80,7 @@ struct mouse_button_event {
   union {
     ///< Active modifiers
     uint32_t modifiers;
-    union {
+    struct {
       uint32_t button1 : 1;
       uint32_t button2 : 1;
       uint32_t button3 : 1;
@@ -104,7 +104,7 @@ struct mouse_wheel_event {
   union {
     ///< Active modifiers
     uint32_t modifiers;
-    union {
+    struct {
       uint32_t button1 : 1;
       uint32_t button2 : 1;
       uint32_t button3 : 1;
@@ -126,7 +126,7 @@ struct mouse_motion_event {
   union {
     ///< Active modifiers
     uint32_t modifiers;
-    union {
+    struct {
       uint32_t button1 : 1;
       uint32_t button2 : 1;
       uint32_t button3 : 1;
@@ -152,7 +152,7 @@ struct key_event {
   union {
     ///< Active modifiers
     uint32_t modifiers;
-    union {
+    struct {
       uint32_t button1 : 1;
       uint32_t button2 : 1;
       uint32_t button3 : 1;
