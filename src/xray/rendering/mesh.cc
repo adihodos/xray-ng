@@ -1177,98 +1177,73 @@ xray::rendering::basic_mesh::basic_mesh(const char* path) {
 void xray::rendering::basic_mesh::compute_aabb() {
   assert(!_vertices.empty());
 
-  vector<int32_t> numbaz;
+  timer_highp op_tm;
 
-  random_device                     rd;
-  default_random_engine             re{rd()};
-  uniform_int_distribution<int32_t> dist{-4096, +4096};
-
-  generate_n(back_inserter(numbaz), 1024, [&dist, &re]() { return dist(re); });
-
-  auto pair = std::minmax_element(begin(numbaz), end(numbaz));
-
-  struct numba_reducer {
+  struct aabb_reducer {
   public:
-    numba_reducer() = default;
+    aabb_reducer() noexcept = default;
 
-    numba_reducer(const numba_reducer& rhs, tbb::split)
-      : _min{rhs._min}, _max{rhs._max} {}
+    aabb_reducer(const aabb_reducer& rhs, tbb::split) : _aabb{rhs._aabb} {}
 
-    void operator()(const tbb::blocked_range<const int32_t*>& r) {
-      for (auto b = r.begin(), e = r.end(); b < e; ++b) {
-        _min = std::min(*b, _min);
-        _max = std::max(*b, _max);
+    void operator()(const tbb::blocked_range<const vertex_pnt*>& rng) {
+      for (auto b = rng.begin(), e = rng.end(); b < e; ++b) {
+        _aabb.max = max(_aabb.max, b->position);
+        _aabb.min = min(_aabb.min, b->position);
       }
     }
 
-    void join(const numba_reducer& rhs) {
-      _min = std::min(rhs.min(), _min);
-      _max = std::max(rhs.max(), _max);
+    void join(const aabb_reducer& other) {
+      _aabb = math::merge(_aabb, other.bounding_box());
     }
 
-    int32_t min() const noexcept { return _min; }
-    int32_t max() const noexcept { return _max; }
+    const aabb3f& bounding_box() const noexcept { return _aabb; }
 
   private:
-    int32_t _min{numeric_limits<int32_t>::max()};
-    int32_t _max{numeric_limits<int32_t>::min()};
+    aabb3f _aabb{aabb3f::stdc::identity};
   };
-
-  numba_reducer nr;
-  tbb::parallel_reduce(
-    tbb::blocked_range<const int32_t*>{numbaz.data(),
-                                       numbaz.data() + numbaz.size()},
-    nr);
-
-  timer_highp op_tm;
 
   {
     scoped_timing_object<timer_highp> sto{&op_tm};
 
-    struct aabb_reducer {
-    public:
-      aabb_reducer(const vertex_pnt* vertices) : _vertices{vertices} {}
-
-      aabb_reducer(const aabb_reducer& rhs, tbb::split)
-        : _vertices{rhs._vertices}, _aabb{rhs._aabb} {}
-
-      void operator()(const tbb::blocked_range<uint32_t>& rng) {
-        _aabb =
-          bounding_box3_axis_aligned((const vec3f*) (_vertices + rng.begin()),
-                                     rng.size(),
-                                     sizeof(_vertices[0]));
-      }
-
-      void join(const aabb_reducer& other) {
-        _aabb = math::merge(_aabb, other.bounding_box());
-      }
-
-      const aabb3f& bounding_box() const noexcept { return _aabb; }
-
-    private:
-      const vertex_pnt* _vertices{nullptr};
-      aabb3f            _aabb{aabb3f::stdc::identity};
-    };
-
-    //_aabb =
-    //  math::bounding_box3_axis_aligned((const math::vec3f*) _vertices.data(),
-    //                                   _vertices.size(),
-    //                                   sizeof(_vertices[0]));
-
-    aabb_reducer reducer{_vertices.data()};
+    aabb_reducer reducer{};
     tbb::parallel_reduce(
-      tbb::blocked_range<uint32_t>{0u, (uint32_t) _vertices.size()}, reducer);
+      tbb::blocked_range<const vertex_pnt*>{&_vertices[0],
+                                            &_vertices[0] + _vertices.size()},
+      reducer);
 
     _aabb = reducer.bounding_box();
-
-    OUTPUT_DBG_MSG("AABB : [%3.3f, %3.3f, %3.3f] : [%3.3f, %3.3f, %3.3f]",
-                   _aabb.min.x,
-                   _aabb.min.y,
-                   _aabb.min.z,
-                   _aabb.max.x,
-                   _aabb.max.y,
-                   _aabb.max.z);
   }
+
+  OUTPUT_DBG_MSG("AABB parallel reduce : [%3.3f, %3.3f, %3.3f] : [%3.3f, "
+                 "%3.3f, %3.3f]\n Time %3.3f",
+                 _aabb.min.x,
+                 _aabb.min.y,
+                 _aabb.min.z,
+                 _aabb.max.x,
+                 _aabb.max.y,
+                 _aabb.max.z,
+                 op_tm.elapsed_millis());
+
+  aabb3f aabb;
+
+  {
+    scoped_timing_object<timer_highp> sto{&op_tm};
+
+    aabb =
+      math::bounding_box3_axis_aligned((const math::vec3f*) _vertices.data(),
+                                       _vertices.size(),
+                                       sizeof(_vertices[0]));
+  }
+
+  OUTPUT_DBG_MSG("AABB parallel reduce : [%3.3f, %3.3f, %3.3f] : [%3.3f, "
+                 "%3.3f, %3.3f]\n Time %3.3f",
+                 aabb.min.x,
+                 aabb.min.y,
+                 aabb.min.z,
+                 aabb.max.x,
+                 aabb.max.y,
+                 aabb.max.z,
+                 op_tm.elapsed_millis());
 
   OUTPUT_DBG_MSG("Mesh AABB compute time = %3.3f", op_tm.elapsed_millis());
 }

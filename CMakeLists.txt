@@ -121,8 +121,8 @@ endif()
 find_package(ASSIMP REQUIRED)
 include_directories(${ASSIMP_INCLUDE_DIR})
 
-find_package(FMT REQUIRED)
-include_directories(${FMT_INCLUDE_DIR})
+# find_package(FMT REQUIRED)
+# include_directories(${FMT_INCLUDE_DIR})
 
 if (CMAKE_BUILD_TYPE MATCHES Debug)
     message(" ---> Debug build <---")
@@ -144,6 +144,9 @@ include_directories(third_party/catch/include)
 
 add_subdirectory(third_party/tbb)
 include_directories(third_party/tbb/include)
+
+add_subdirectory(third_party/fmt)
+include_directories(third_party/fmt)
 
 add_subdirectory(third_party/libconfig/src)
 add_subdirectory(third_party/stb/src)

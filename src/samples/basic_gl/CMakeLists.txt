@@ -148,6 +148,7 @@ target_link_libraries(basic-gl-app
 #add_custom_target(COPY_TBB ALL
 #    COMMAND ${CMAKE_COMMAND} -E copy ${TBB_LIBRARY} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 #
+
 add_custom_target(COPY_ASSIMP ALL
     COMMAND ${CMAKE_COMMAND} -E copy ${ASSIMP_BIN_LIBRARY} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
