@@ -92,6 +92,7 @@
 #include <cstdint>
 #include <imgui/imgui.h>
 #include <opengl/opengl.hpp>
+#include <tbb/tbb.h>
 #include <thread>
 
 using namespace xray;
@@ -333,6 +334,8 @@ int main(int argc, char** argv) {
   XR_LOGGER_START(argc, argv);
   XR_LOGGER_CONFIG_FILE("config/logging.conf");
   XR_LOG_INFO("Starting up ...");
+
+  tbb::task_scheduler_init tbb_initializer{};
 
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;

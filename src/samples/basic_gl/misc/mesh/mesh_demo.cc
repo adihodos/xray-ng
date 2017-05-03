@@ -33,8 +33,10 @@ app::mesh_demo::~mesh_demo() {}
 void app::mesh_demo::init() {
   assert(!valid());
 
-  static constexpr auto MODEL_FILE = "SuperCobra.3ds";
-  // "f4/f4phantom.obj"
+  static constexpr auto MODEL_FILE =
+    //"SuperCobra.3ds";
+    "f4/f4phantom.obj";
+  //"sa23/sa23_aurora.obj";
 
   _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
   if (!_mesh) {
@@ -55,13 +57,34 @@ void app::mesh_demo::init() {
   if (!_fs)
     return;
 
+  _vsnormals = gpu_program_builder{}
+                 .add_file("shaders/misc/mesh/vs.pass.glsl")
+                 .build<render_stage::e::vertex>();
+
+  if (!_vsnormals)
+    return;
+
+  _gsnormals = gpu_program_builder{}
+                 .add_file("shaders/misc/mesh/gs.glsl")
+                 .build<render_stage::e::geometry>();
+
+  if (!_gsnormals)
+    return;
+
+  _fsnormals = gpu_program_builder{}
+                 .add_file("shaders/misc/mesh/fs.color.glsl")
+                 .build<render_stage::e::fragment>();
+
+  if (!_fsnormals)
+    return;
+
   _pipeline = program_pipeline{[]() {
     GLuint ppl{};
     gl::CreateProgramPipelines(1, &ppl);
     return ppl;
   }()};
 
-  _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
+  //_pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
 
   texture_loader tldr{
     xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str()};
@@ -121,7 +144,11 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
 
   _vs.set_uniform_block("TransformMatrices", tfmat);
   _fs.set_uniform("IMAGE_TEX", 0);
-  _pipeline.use();
+
+  _pipeline.use_vertex_program(_vs)
+    .use_fragment_program(_fs)
+    .disable_stage(render_stage::e::geometry)
+    .use();
 
   const GLuint bound_textures[] = {raw_handle(_objtex)};
   gl::BindTextures(0, 1, bound_textures);
@@ -131,6 +158,28 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
 
   gl::Enable(gl::CULL_FACE);
   gl::Enable(gl::DEPTH_TEST);
+
+  gl::DrawElements(
+    gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+
+  struct {
+    mat4f     WORLD_VIEW_PROJECTION;
+    rgb_color COLOR_START;
+    rgb_color COLOR_END;
+    float     NORMAL_LENGTH;
+  } gs_uniforms;
+
+  gs_uniforms.WORLD_VIEW_PROJECTION = tfmat.world_view_proj;
+  gs_uniforms.COLOR_START           = _drawparams.start_color;
+  gs_uniforms.COLOR_END             = _drawparams.end_color;
+  gs_uniforms.NORMAL_LENGTH         = _drawparams.normal_len;
+
+  _gsnormals.set_uniform_block("TransformMatrices", gs_uniforms);
+
+  _pipeline.use_vertex_program(_vsnormals)
+    .use_geometry_program(_gsnormals)
+    .use_fragment_program(_fsnormals)
+    .use();
 
   gl::DrawElements(
     gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
@@ -145,12 +194,13 @@ void app::mesh_demo::event_handler(const xray::ui::window_event& evt) {
 }
 
 void app::mesh_demo::compose_ui() {
-  // ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
-  // ImGui::Begin("Options");
-  // ImGui::Combo("Shapes", &_shape_idx, &get_next_shape_description, nullptr,
-  //             (int32_t)XR_COUNTOF__(NICE_SHAPES),
-  //             (int32_t)XR_COUNTOF__(NICE_SHAPES) / 2);
+  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
+  ImGui::Begin("Options");
 
-  // ImGui::SliderInt("Iterations", &_iterations, 32, 4096, nullptr);
-  // ImGui::End();
+  ImGui::SliderFloat("Normal length", &_drawparams.normal_len, 0.1f, 3.0f);
+  ImGui::SliderFloat3(
+    "Start color", _drawparams.start_color.components, 0.0f, 1.0f);
+  ImGui::SliderFloat3(
+    "End color", _drawparams.end_color.components, 0.0f, 1.0f);
+  ImGui::End();
 }
