@@ -1,3 +1,6 @@
 [submodule "third_party/tbb"]
 	path = third_party/tbb
 	url = https://github.com/wjakob/tbb.git
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = https://github.com/fmtlib/fmt.git
