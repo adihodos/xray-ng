@@ -28,16 +28,7 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-struct aabb_draw {
-  aabb_draw();
-
-private:
-  xray::rendering::vertex_program   _vs;
-  xray::rendering::geometry_program _gs;
-  xray::rendering::fragment_program _fs;
-};
-
-aabb_draw::aabb_draw() {
+app::aabb_draw::aabb_draw() {
   _vs = gpu_program_builder{}
           .add_file("shaders/draw_aabb/vs.glsl")
           .build<render_stage::e::vertex>();
@@ -58,18 +49,53 @@ aabb_draw::aabb_draw() {
 
   if (!_fs)
     return;
+
+  _pipeline = program_pipeline{[]() {
+    GLuint pp{};
+    gl::CreateProgramPipelines(1, &pp);
+    return pp;
+  }()};
+
+  _pipeline.use_vertex_program(_vs)
+    .use_geometry_program(_gs)
+    .use_fragment_program(_fs);
+
+  _valid = true;
 }
 
-app::mesh_demo::mesh_demo() {
-  aabb_draw ad{};
+void app::aabb_draw::draw(const draw_context_t& ctx) {
+  gl::BindVertexArray(0);
+  // gl::BindBuffer(gl::ARRAY_BUFFER, 0);
 
-  init();
+  struct {
+    mat4f     world_view_proj;
+    rgb_color line_start;
+    rgb_color line_end;
+    float     width;
+    float     height;
+    float     depth;
+  } box_params = {ctx.proj_view_matrix * R4::translate(_boundingbox.center()),
+                  color_palette::web::red,
+                  color_palette::web::green,
+                  _boundingbox.width() * 0.5f,
+                  _boundingbox.height() * 0.5f,
+                  _boundingbox.depth() * 0.5f};
+
+  _gs.set_uniform_block("DrawParams", box_params);
+  _pipeline.use();
+
+  gl::DrawArrays(gl::POINTS, 0, 1);
 }
+
+app::mesh_demo::mesh_demo() { init(); }
 
 app::mesh_demo::~mesh_demo() {}
 
 void app::mesh_demo::init() {
   assert(!valid());
+
+  if (!_abbdraw)
+    return;
 
   static constexpr auto MODEL_FILE =
     //"SuperCobra.3ds";
@@ -130,8 +156,6 @@ void app::mesh_demo::init() {
     gl::CreateProgramPipelines(1, &ppl);
     return ppl;
   }()};
-
-  //_pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
 
   texture_loader tldr{
     xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str()};
@@ -209,30 +233,35 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
   gl::DrawElements(
     gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
 
-  if (!_drawparams._drawnormals)
-    return;
+  if (_drawparams.drawnormals) {
 
-  struct {
-    mat4f     WORLD_VIEW_PROJECTION;
-    rgb_color COLOR_START;
-    rgb_color COLOR_END;
-    float     NORMAL_LENGTH;
-  } gs_uniforms;
+    struct {
+      mat4f     WORLD_VIEW_PROJECTION;
+      rgb_color COLOR_START;
+      rgb_color COLOR_END;
+      float     NORMAL_LENGTH;
+    } gs_uniforms;
 
-  gs_uniforms.WORLD_VIEW_PROJECTION = tfmat.world_view_proj;
-  gs_uniforms.COLOR_START           = _drawparams.start_color;
-  gs_uniforms.COLOR_END             = _drawparams.end_color;
-  gs_uniforms.NORMAL_LENGTH         = _drawparams.normal_len;
+    gs_uniforms.WORLD_VIEW_PROJECTION = tfmat.world_view_proj;
+    gs_uniforms.COLOR_START           = _drawparams.start_color;
+    gs_uniforms.COLOR_END             = _drawparams.end_color;
+    gs_uniforms.NORMAL_LENGTH         = _drawparams.normal_len;
 
-  _gsnormals.set_uniform_block("TransformMatrices", gs_uniforms);
+    _gsnormals.set_uniform_block("TransformMatrices", gs_uniforms);
 
-  _pipeline.use_vertex_program(_vsnormals)
-    .use_geometry_program(_gsnormals)
-    .use_fragment_program(_fsnormals)
-    .use();
+    _pipeline.use_vertex_program(_vsnormals)
+      .use_geometry_program(_gsnormals)
+      .use_fragment_program(_fsnormals)
+      .use();
 
-  gl::DrawElements(
-    gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+    gl::DrawElements(
+      gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+  }
+
+  if (_drawparams.draw_boundingbox) {
+    _abbdraw.set_aabb(_mesh.aabb());
+    _abbdraw.draw(draw_ctx);
+  }
 }
 
 void app::mesh_demo::update(const float /* delta_ms */) {}
@@ -247,9 +276,9 @@ void app::mesh_demo::compose_ui() {
   ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
   ImGui::Begin("Options");
 
-  ImGui::Checkbox("Draw normals", &_drawparams._drawnormals);
+  ImGui::Checkbox("Draw normals", &_drawparams.drawnormals);
 
-  if (_drawparams._drawnormals) {
+  if (_drawparams.drawnormals) {
     ImGui::SliderFloat("Normal length", &_drawparams.normal_len, 0.1f, 3.0f);
     ImGui::SliderFloat3(
       "Start color", _drawparams.start_color.components, 0.0f, 1.0f);
@@ -257,5 +286,6 @@ void app::mesh_demo::compose_ui() {
       "End color", _drawparams.end_color.components, 0.0f, 1.0f);
   }
 
+  ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
   ImGui::End();
 }

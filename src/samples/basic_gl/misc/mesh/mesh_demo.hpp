@@ -42,6 +42,32 @@
 
 namespace app {
 
+class aabb_draw {
+public:
+  aabb_draw();
+
+  void draw(const xray::rendering::draw_context_t& ctx);
+
+  bool valid() const noexcept { return _valid; }
+
+  explicit operator bool() const noexcept { return valid(); }
+
+  void set_aabb(const xray::math::aabb3f& aabb) noexcept {
+    _boundingbox = aabb;
+  }
+
+private:
+  xray::math::aabb3f _boundingbox{xray::math::vec3f{-1.0f},
+                                  xray::math::vec3f{+1.0f}};
+  xray::rendering::vertex_program   _vs;
+  xray::rendering::geometry_program _gs;
+  xray::rendering::fragment_program _fs;
+  xray::rendering::program_pipeline _pipeline;
+  bool                              _valid{false};
+
+  XRAY_NO_COPY(aabb_draw);
+};
+
 class mesh_demo : public demo_base {
 public:
   mesh_demo();
@@ -57,6 +83,7 @@ private:
   void init();
 
 private:
+  aabb_draw                         _abbdraw;
   xray::rendering::basic_mesh       _mesh;
   xray::rendering::vertex_program   _vs;
   xray::rendering::fragment_program _fs;
@@ -67,7 +94,8 @@ private:
   xray::rendering::geometry_program _gsnormals;
   xray::rendering::fragment_program _fsnormals;
   struct {
-    bool                       _drawnormals{false};
+    bool                       drawnormals{false};
+    bool                       draw_boundingbox{false};
     xray::rendering::rgb_color start_color{
       xray::rendering::color_palette::web::red};
     xray::rendering::rgb_color end_color{

@@ -15,7 +15,7 @@ out GS_OUT_FS_IN {
   vec4 color;
 } gs_out;
 
-layout (std140, row_major, binding = 0) uniform DrawParams {
+layout (std140, row_major) uniform DrawParams {
   mat4 WORLD_VIEW_PROJECTION;
   vec4 LINE_STARTCOLOR;
   vec4 LINE_ENDCOLOR;
@@ -44,11 +44,11 @@ void main() {
   );
 
   for (int i = 0; i < indices.length(); ++i) {
-    gl_Position = WORLD_VIEW_PROJECTION * vec4(vertices[indices[i].x], 1.0f);
+    gl_Position = WORLD_VIEW_PROJECTION * vec4(gs_in[0].pos + vertices[indices[i].x], 1.0f);
     gs_out.color = LINE_STARTCOLOR;
     EmitVertex();
 
-    gl_Position = WORLD_VIEW_PROJECTION * vec4(vertices[indices[i].y], 1.0f);
+    gl_Position = WORLD_VIEW_PROJECTION * vec4(gs_in[0].pos + vertices[indices[i].y], 1.0f);
     gs_out.color = LINE_ENDCOLOR;
     EmitVertex();
 

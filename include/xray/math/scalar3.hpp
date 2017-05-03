@@ -68,8 +68,10 @@ struct scalar3 {
 
   scalar3() noexcept = default;
 
+  constexpr scalar3(const T val) noexcept : scalar3{val, val, val} {}
+
   constexpr scalar3(const T xval, const T yval, const T zval) noexcept
-      : x{xval}, y{yval}, z{zval} {}
+    : x{xval}, y{yval}, z{zval} {}
 
   /// \name Self assign math operators
   /// @{

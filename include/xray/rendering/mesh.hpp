@@ -80,9 +80,7 @@ public:
     return xray::base::raw_handle(_vertexarray);
   }
 
-  const uint32_t index_count() const noexcept {
-    return (uint32_t) _indices.size();
-  }
+  uint32_t index_count() const noexcept { return (uint32_t) _indices.size(); }
 
   const xray::rendering::vertex_pnt* vertices() const noexcept {
     assert(valid());

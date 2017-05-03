@@ -13,6 +13,7 @@ set(project_sources
     ${proj_src_dir}/config_settings.cc
     ${proj_inc_dir}/containers/fixed_vector.hpp
     ${proj_inc_dir}/debug_output.hpp
+    ${proj_src_dir}/debug_output.cc
     ${proj_inc_dir}/delegate_list.hpp
     ${proj_inc_dir}/fast_delegate.hpp
     ${proj_inc_dir}/fnv_hash.hpp
