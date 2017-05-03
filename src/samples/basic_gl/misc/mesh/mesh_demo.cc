@@ -33,7 +33,10 @@ app::mesh_demo::~mesh_demo() {}
 void app::mesh_demo::init() {
   assert(!valid());
 
-  _mesh = basic_mesh{xr_app_config->model_path("f4/f4phantom.obj").c_str()};
+  static constexpr auto MODEL_FILE = "SuperCobra.3ds";
+  // "f4/f4phantom.obj"
+
+  _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
   if (!_mesh) {
     return;
   }
