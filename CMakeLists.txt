@@ -118,11 +118,8 @@ if (NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
   add_subdirectory(third_party/opengl/src)
 endif()
 
-find_package(ASSIMP REQUIRED)
-include_directories(${ASSIMP_INCLUDE_DIR})
-
-# find_package(FMT REQUIRED)
-# include_directories(${FMT_INCLUDE_DIR})
+# find_package(ASSIMP REQUIRED)
+# include_directories(${ASSIMP_INCLUDE_DIR})
 
 if (CMAKE_BUILD_TYPE MATCHES Debug)
     message(" ---> Debug build <---")
@@ -147,6 +144,10 @@ include_directories(third_party/tbb/include)
 
 add_subdirectory(third_party/fmt)
 include_directories(third_party/fmt)
+
+include_directories(third_party/tinyobj/include)
+include_directories(third_party/tinyobj/src)
+add_subdirectory(third_party/tinyobj)
 
 add_subdirectory(third_party/libconfig/src)
 add_subdirectory(third_party/stb/src)

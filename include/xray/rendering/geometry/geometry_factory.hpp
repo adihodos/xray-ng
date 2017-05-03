@@ -40,30 +40,6 @@ namespace rendering {
 
 struct geometry_data_t;
 
-/// \brief      Import options for meshes. Can be combined via operator |.
-enum class mesh_import_options : uint16_t {
-  none = 0U,
-
-  ///< Convert indices and normals to use a left handed coordinate system
-  convert_left_handed = 1U << 0,
-
-  ///< Remove any points and lines from the mesh (leaving only triangles/quads)
-  remove_points_lines = 1U << 1
-};
-
-inline constexpr mesh_import_options
-operator|(const mesh_import_options opt_a,
-          const mesh_import_options opt_b) noexcept {
-
-  return static_cast<mesh_import_options>(static_cast<uint16_t>(opt_a) |
-                                          static_cast<uint16_t>(opt_b));
-}
-
-inline constexpr bool operator&(const mesh_import_options opt_a,
-                                const mesh_import_options opt_b) noexcept {
-  return (static_cast<uint16_t>(opt_a) & static_cast<uint16_t>(opt_b)) != 0;
-}
-
 class geometry_factory {
 public:
   static void tetrahedron(geometry_data_t* mesh);
@@ -83,16 +59,20 @@ public:
   // static void create_circle(const float radius, const uint32_t num_slices,
   //                           geometry_data_t* circle_geometry);
 
-  static void cylinder(const uint32_t ring_tesselation_factor,
-                       const uint32_t rings_count, const float height,
-                       const float radius, geometry_data_t* cylinder);
+  static void cylinder(const uint32_t   ring_tesselation_factor,
+                       const uint32_t   rings_count,
+                       const float      height,
+                       const float      radius,
+                       geometry_data_t* cylinder);
 
   /// Creates a box centered around the origin, with the specified
   /// dimensions.
   /// \param  width   Dimension along the X axis.
   /// \param  height  Dimension along the Y axis.
   /// \param  depth   Dimension along the Z axis.
-  static void box(const float width, const float height, const float depth,
+  static void box(const float      width,
+                  const float      height,
+                  const float      depth,
                   geometry_data_t* box_geometry);
 
   ///
@@ -109,8 +89,10 @@ public:
   /// Creates a grid in the XZ plane, centered around the origin.
   /// \param  grid_width  Length along the X axis.
   /// \param  grid_depth  Length along the Z axis.
-  static void grid(const float grid_width, const float grid_depth,
-                   const size_t row_count, const size_t column_count,
+  static void grid(const float      grid_width,
+                   const float      grid_depth,
+                   const size_t     row_count,
+                   const size_t     column_count,
                    geometry_data_t* grid_geometry);
 
   /// Creates a sphere, centered at the origin.
@@ -135,25 +117,29 @@ public:
   //                                    const uint32_t   tess_factor_vert,
   //                                    geometry_data_t* mesh);
 
-  static void geosphere(const float radius, const uint32_t max_subdivisions,
+  static void geosphere(const float      radius,
+                        const uint32_t   max_subdivisions,
                         geometry_data_t* mesh);
 
-  static void torus(const float outer_radius, const float inner_radius,
-                    const uint32_t sides, const uint32_t rings,
+  static void torus(const float      outer_radius,
+                    const float      inner_radius,
+                    const uint32_t   sides,
+                    const uint32_t   rings,
                     geometry_data_t* mesh);
   /// Creates a quad spanning the whole screen. Vertices will be in NDC
   /// space.
   static void fullscreen_quad(geometry_data_t* grid_geometry);
 
-  static bool
-  load_model(geometry_data_t* mesh, const char* file_path,
-             const mesh_import_options import_opts = mesh_import_options::none);
+  // static bool
+  // load_model(geometry_data_t* mesh, const char* file_path,
+  //           const mesh_import_options import_opts =
+  //           mesh_import_options::none);
 
-  static bool load_model(
-      geometry_data_t* mesh, const std::string& mode_path,
-      const mesh_import_options import_opts = mesh_import_options::none) {
-    return load_model(mesh, mode_path.c_str(), import_opts);
-  }
+  // static bool load_model(
+  //    geometry_data_t* mesh, const std::string& mode_path,
+  //    const mesh_import_options import_opts = mesh_import_options::none) {
+  //  return load_model(mesh, mode_path.c_str(), import_opts);
+  //}
 };
 
 /// @}

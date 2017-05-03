@@ -87,11 +87,27 @@ public:
       frag_prg, render_stage::e::fragment, gl::FRAGMENT_SHADER_BIT);
   }
 
-  // program_pipeline& disable_stage(const render_stage::e stage) noexcept {
-  //   gl::UseProgramStages(base::raw_handle(_pipeline), )
-  //   _programs[render_stage::to_integer(stage)] = nullptr;
-  //   return *this;
-  // }
+  program_pipeline&
+  use_geometry_program(geometry_program& geometry_prg) noexcept {
+    return use_stage(
+      geometry_prg, render_stage::e::geometry, gl::GEOMETRY_SHADER_BIT);
+  }
+
+  program_pipeline& disable_stage(const render_stage::e stage) noexcept {
+    static constexpr GLbitfield STAGE_TO_BITFIELD[] = {
+      gl::VERTEX_SHADER_BIT,
+      gl::TESS_CONTROL_SHADER_BIT,
+      gl::TESS_EVALUATION_SHADER_BIT,
+      gl::GEOMETRY_SHADER_BIT,
+      gl::FRAGMENT_SHADER_BIT};
+
+    gl::UseProgramStages(base::raw_handle(_pipeline),
+                         STAGE_TO_BITFIELD[render_stage::to_integer(stage)],
+                         0);
+
+    _programs[render_stage::to_integer(stage)] = nullptr;
+    return *this;
+  }
 
   void use();
 

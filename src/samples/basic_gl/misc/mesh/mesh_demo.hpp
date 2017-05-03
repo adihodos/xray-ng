@@ -32,6 +32,8 @@
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
+#include "xray/rendering/colors/color_palettes.hpp"
+#include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
@@ -61,6 +63,16 @@ private:
   xray::rendering::program_pipeline _pipeline;
   xray::rendering::scoped_texture   _objtex;
   xray::rendering::scoped_sampler   _sampler;
+  xray::rendering::vertex_program   _vsnormals;
+  xray::rendering::geometry_program _gsnormals;
+  xray::rendering::fragment_program _fsnormals;
+  struct {
+    xray::rendering::rgb_color start_color{
+      xray::rendering::color_palette::web::red};
+    xray::rendering::rgb_color end_color{
+      xray::rendering::color_palette::web::medium_spring_green};
+    float normal_len{1.0f};
+  } _drawparams{};
 
 private:
   XRAY_NO_COPY(mesh_demo);

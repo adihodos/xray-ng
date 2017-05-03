@@ -42,4 +42,4 @@ set(project_sources
 )
 
 add_library(xray-rendering STATIC ${project_sources})
-target_link_libraries(xray-rendering ${TBB_LIBRARY} stb)
+target_link_libraries(xray-rendering ${TBB_LIBRARY} stb tinyobj)
