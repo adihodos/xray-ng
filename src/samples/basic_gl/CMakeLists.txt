@@ -139,18 +139,8 @@ target_link_libraries(basic-gl-app
     xray-rendering
     xray-scene
     xray-ui
-    # libconfig
-    # stb
-    ${ASSIMP_LIBRARY}
     ${SYS_DEP_LIBS}
     tbb_static)
-
-#add_custom_target(COPY_TBB ALL
-#    COMMAND ${CMAKE_COMMAND} -E copy ${TBB_LIBRARY} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-#
-
-add_custom_target(COPY_ASSIMP ALL
-    COMMAND ${CMAKE_COMMAND} -E copy ${ASSIMP_BIN_LIBRARY} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 add_custom_target(COPY_SHADERS ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders

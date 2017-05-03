@@ -47,8 +47,8 @@ struct R3 {
 
   /// \brief      Returns a rotation matrix using Euler angles.
   template <typename T>
-  static scalar3x3<T> rotate_euler_xyz(const T rx, const T ry,
-                                       const T rz) noexcept;
+  static scalar3x3<T>
+  rotate_euler_xyz(const T rx, const T ry, const T rz) noexcept;
 
   /// \brief      Returns a matrix for a rotation around the X axis.
   template <typename T>
@@ -64,8 +64,8 @@ struct R3 {
 
   /// \brief      Returns a matrix for a rotation around the all three axis.
   template <typename T>
-  static scalar3x3<T> rotate_xyz(const T angle_x, const T angle_y,
-                                 const T angle_z) noexcept;
+  static scalar3x3<T>
+  rotate_xyz(const T angle_x, const T angle_y, const T angle_z) noexcept;
   /// \brief      Returns a matrix for a rotation with a specified angle around
   /// an arbitrary axis.
   template <typename T>
@@ -81,6 +81,23 @@ struct R3 {
   /// \brief      Returns a matrix for a reflection around a plane's normal.
   template <typename T>
   static scalar3x3<T> reflect_plane(const scalar3<T>& plane_norm) noexcept;
+
+  template <typename T>
+  static scalar3x3<T> scale_x(const T s) noexcept;
+
+  template <typename T>
+  static scalar3x3<T> scale_y(const T s) noexcept;
+
+  template <typename T>
+  static scalar3x3<T> scale_z(const T s) noexcept;
+
+  template <typename T>
+  static scalar3x3<T> scale_xyz(const T sx, const T sy, const T sz) noexcept;
+
+  template <typename T>
+  static scalar3x3<T> scale(const T s) noexcept {
+    return scale_xyz(s, s, s);
+  }
 };
 
 template <typename T>
@@ -147,8 +164,8 @@ scalar3x3<T> R3::rotate_z(const T theta) noexcept {
 }
 
 template <typename T>
-scalar3x3<T> R3::rotate_xyz(const T angle_x, const T angle_y,
-                            const T angle_z) noexcept {
+scalar3x3<T>
+R3::rotate_xyz(const T angle_x, const T angle_y, const T angle_z) noexcept {
   const auto cosx = std::cos(angle_x);
   const auto sinx = std::sin(angle_x);
 
@@ -229,6 +246,70 @@ scalar3x3<T> R3::reflect_plane(const scalar3<T>& plane_norm) noexcept {
           T{-2} * plane_norm.z * plane_norm.x,
           T{-2} * plane_norm.z * plane_norm.y,
           T{1} - T{2} * plane_norm.z * plane_norm.z};
+}
+
+template <typename T>
+scalar3x3<T> R3::scale_x(const T s) noexcept {
+  return {// x
+          s,
+          T{},
+          T{},
+          // y
+          T{},
+          T{1},
+          T{},
+          // z
+          T{},
+          T{},
+          T{1}};
+}
+
+template <typename T>
+scalar3x3<T> R3::scale_y(const T s) noexcept {
+  return {// x
+          T{1},
+          T{},
+          T{},
+          // y
+          T{},
+          s,
+          T{},
+          // z
+          T{},
+          T{},
+          T{1}};
+}
+
+template <typename T>
+scalar3x3<T> R3::scale_z(const T s) noexcept {
+  return {// x
+          T{1},
+          T{},
+          T{},
+          // y
+          T{},
+          T{1},
+          T{},
+          // z
+          T{},
+          T{},
+          s};
+}
+
+template <typename T>
+scalar3x3<T> R3::scale_xyz(const T sx, const T sy, const T sz) noexcept {
+  return {// x
+          sx,
+          T{},
+          T{},
+          // y
+          T{},
+          sy,
+          T{},
+          // z
+          T{},
+          T{},
+          sz};
 }
 
 /// @}

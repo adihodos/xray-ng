@@ -67,6 +67,7 @@ private:
   xray::rendering::geometry_program _gsnormals;
   xray::rendering::fragment_program _fsnormals;
   struct {
+    bool                       _drawnormals{false};
     xray::rendering::rgb_color start_color{
       xray::rendering::color_palette::web::red};
     xray::rendering::rgb_color end_color{

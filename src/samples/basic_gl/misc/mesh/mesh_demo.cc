@@ -6,6 +6,8 @@
 #include "xray/math/scalar4.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
+#include "xray/math/transforms_r3.hpp"
+#include "xray/math/transforms_r4.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/draw_context.hpp"
 #include "xray/rendering/texture_loader.hpp"
@@ -26,7 +28,43 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-app::mesh_demo::mesh_demo() { init(); }
+struct aabb_draw {
+  aabb_draw();
+
+private:
+  xray::rendering::vertex_program   _vs;
+  xray::rendering::geometry_program _gs;
+  xray::rendering::fragment_program _fs;
+};
+
+aabb_draw::aabb_draw() {
+  _vs = gpu_program_builder{}
+          .add_file("shaders/draw_aabb/vs.glsl")
+          .build<render_stage::e::vertex>();
+
+  if (!_vs)
+    return;
+
+  _gs = gpu_program_builder{}
+          .add_file("shaders/draw_aabb/gs.glsl")
+          .build<render_stage::e::geometry>();
+
+  if (!_gs)
+    return;
+
+  _fs = gpu_program_builder{}
+          .add_file("shaders/draw_aabb/fs.pass.glsl")
+          .build<render_stage::e::fragment>();
+
+  if (!_fs)
+    return;
+}
+
+app::mesh_demo::mesh_demo() {
+  aabb_draw ad{};
+
+  init();
+}
 
 app::mesh_demo::~mesh_demo() {}
 
@@ -37,6 +75,15 @@ void app::mesh_demo::init() {
     //"SuperCobra.3ds";
     "f4/f4phantom.obj";
   //"sa23/sa23_aurora.obj";
+  //"cube_rounded.obj";
+  //"stanford/dragon/dragon.obj";
+  //"stanford/teapot/teapot.obj";
+  //"stanford/sportscar/sportsCar.obj";
+  //"stanford/sibenik/sibenik.obj";
+  //"stanford/rungholt/rungholt.obj";
+  //"stanford/lost-empire/lost_empire.obj";
+  //"stanford/cube/cube.obj";
+  //"stanford/head/head.OBJ";
 
   _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
   if (!_mesh) {
@@ -138,9 +185,9 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
     mat4f view;
   } tfmat;
 
-  tfmat.view            = draw_ctx.view_matrix;
-  tfmat.world_view_proj = draw_ctx.proj_view_matrix;
-  tfmat.normals         = draw_ctx.view_matrix;
+  tfmat.view            = draw_ctx.view_matrix * mat4f{R3::scale(1.2f)};
+  tfmat.world_view_proj = draw_ctx.projection_matrix * tfmat.view;
+  tfmat.normals         = tfmat.view;
 
   _vs.set_uniform_block("TransformMatrices", tfmat);
   _fs.set_uniform("IMAGE_TEX", 0);
@@ -161,6 +208,9 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
 
   gl::DrawElements(
     gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+
+  if (!_drawparams._drawnormals)
+    return;
 
   struct {
     mat4f     WORLD_VIEW_PROJECTION;
@@ -197,10 +247,15 @@ void app::mesh_demo::compose_ui() {
   ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
   ImGui::Begin("Options");
 
-  ImGui::SliderFloat("Normal length", &_drawparams.normal_len, 0.1f, 3.0f);
-  ImGui::SliderFloat3(
-    "Start color", _drawparams.start_color.components, 0.0f, 1.0f);
-  ImGui::SliderFloat3(
-    "End color", _drawparams.end_color.components, 0.0f, 1.0f);
+  ImGui::Checkbox("Draw normals", &_drawparams._drawnormals);
+
+  if (_drawparams._drawnormals) {
+    ImGui::SliderFloat("Normal length", &_drawparams.normal_len, 0.1f, 3.0f);
+    ImGui::SliderFloat3(
+      "Start color", _drawparams.start_color.components, 0.0f, 1.0f);
+    ImGui::SliderFloat3(
+      "End color", _drawparams.end_color.components, 0.0f, 1.0f);
+  }
+
   ImGui::End();
 }

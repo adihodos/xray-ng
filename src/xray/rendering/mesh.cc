@@ -107,37 +107,44 @@ xray::rendering::basic_mesh::basic_mesh(const char* path) {
 
   unordered_map<index_t, uint32_t> idxmap;
 
-  for_each(begin(attrs.indices),
-           end(attrs.indices),
-           [ has_normals = !attrs.normals.empty(), a = &attrs, &idxmap, this ](
-             const index_t& idx) {
+  for_each(begin(attrs.indices), end(attrs.indices), [
+    has_normals   = !attrs.normals.empty(),
+    has_texcoords = !attrs.texcoords.empty(),
+    a             = &attrs,
+    &idxmap,
+    this
+  ](const index_t& idx) {
 
-             auto it = idxmap.find(idx);
-             if (it != end(idxmap)) {
-               _indices.push_back(it->second);
-             } else {
-               vertex_pnt v;
+    auto it = idxmap.find(idx);
+    if (it != end(idxmap)) {
+      _indices.push_back(it->second);
+    } else {
+      vertex_pnt v;
 
-               v.position = {a->vertices[idx.vertex_index * 3 + 0],
-                             a->vertices[idx.vertex_index * 3 + 1],
-                             a->vertices[idx.vertex_index * 3 + 2]};
+      v.position = {a->vertices[idx.vertex_index * 3 + 0],
+                    a->vertices[idx.vertex_index * 3 + 1],
+                    a->vertices[idx.vertex_index * 3 + 2]};
 
-               v.texcoord = {a->texcoords[idx.texcoord_index * 2 + 0],
-                             1.0f - a->texcoords[idx.texcoord_index * 2 + 1]};
+      if (has_texcoords) {
+        v.texcoord = {a->texcoords[idx.texcoord_index * 2 + 0],
+                      1.0f - a->texcoords[idx.texcoord_index * 2 + 1]};
+      } else {
+        v.texcoord = vec2f::stdc::zero;
+      }
 
-               if (has_normals) {
-                 v.normal = {a->normals[idx.normal_index * 3 + 0],
-                             a->normals[idx.normal_index * 3 + 1],
-                             a->normals[idx.normal_index * 3 + 2]};
-               } else {
-                 v.normal = vec3f::stdc::zero;
-               }
+      if (has_normals) {
+        v.normal = {a->normals[idx.normal_index * 3 + 0],
+                    a->normals[idx.normal_index * 3 + 1],
+                    a->normals[idx.normal_index * 3 + 2]};
+      } else {
+        v.normal = vec3f::stdc::zero;
+      }
 
-               _vertices.push_back(v);
-               idxmap[idx] = (uint32_t) _vertices.size() - 1;
-               _indices.push_back((uint32_t) _vertices.size() - 1);
-             }
-           });
+      _vertices.push_back(v);
+      idxmap[idx] = (uint32_t) _vertices.size() - 1;
+      _indices.push_back((uint32_t) _vertices.size() - 1);
+    }
+  });
 
   if (attrs.normals.empty()) {
     assert((_indices.size() % 3) == 0);

@@ -1,7 +1,7 @@
 #version 450 core
 
 layout (triangles) in;
-layout (line_strip, max_vertices = 2) out;
+layout (line_strip, max_vertices = 6) out;
 
 in VS_OUT_GS_IN {
   vec3 pos;
