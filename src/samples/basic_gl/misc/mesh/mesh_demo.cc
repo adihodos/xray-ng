@@ -1,6 +1,7 @@
 #include "misc/mesh/mesh_demo.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
+#include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar4.hpp"
@@ -20,6 +21,7 @@
 #include <imgui/imgui.h>
 #include <iterator>
 #include <opengl/opengl.hpp>
+#include <span.h>
 #include <vector>
 
 using namespace xray::base;
@@ -32,9 +34,9 @@ extern xray::base::app_config* xr_app_config;
 
 struct scoped_polygon_mode_setting {
 public:
-  explicit scoped_polygon_mode_setting(const GLenum new_mode) {
+  explicit scoped_polygon_mode_setting(const int32_t new_mode) {
     gl::GetIntegerv(gl::POLYGON_MODE, &_old_mode);
-    gl::PolygonMode(gl::FRONT_AND_BACK, new_mode);
+    gl::PolygonMode(gl::FRONT_AND_BACK, (GLenum) new_mode);
   }
 
   ~scoped_polygon_mode_setting() {
@@ -133,7 +135,7 @@ void app::mesh_demo::init() {
   //"stanford/head/head.OBJ";
 
   geometry_data_t blob;
-  geometry_factory::grid(128.0f, 128.0f, 128, 128, &blob);
+  geometry_factory::grid(16.0f, 16.0f, 128, 128, &blob);
 
   vector<vertex_pnt> verts;
   transform(raw_ptr(blob.geometry),
@@ -143,9 +145,24 @@ void app::mesh_demo::init() {
               return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
             });
 
+  const vertex_ripple_parameters rparams{_rippledata.amplitude,
+                                         _rippledata.period * two_pi<float>,
+                                         _rippledata.width,
+                                         _rippledata.height};
+
+  vertex_effect::ripple(
+    gsl::span<vertex_pnt>{verts},
+    gsl::span<uint32_t>{raw_ptr(blob.indices),
+                        raw_ptr(blob.indices) + blob.index_count},
+    rparams);
+
   //  _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
-  _mesh = basic_mesh{
-    verts.data(), verts.size(), raw_ptr(blob.indices), blob.index_count};
+  _mesh = basic_mesh{verts.data(),
+                     verts.size(),
+                     raw_ptr(blob.indices),
+                     blob.index_count,
+                     mesh_type::writable};
+
   if (!_mesh) {
     return;
   }
@@ -327,5 +344,27 @@ void app::mesh_demo::compose_ui() {
   }
 
   // ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
+
   ImGui::End();
+
+  ImGui::Begin("Mesh parameters");
+  bool update_mesh =
+    ImGui::SliderFloat("Amplitude", &_rippledata.amplitude, 0.1f, 10.0f);
+
+  update_mesh |= ImGui::SliderFloat("Period", &_rippledata.period, 0.0f, 10.0f);
+  update_mesh |= ImGui::SliderFloat("Width", &_rippledata.width, 0.1f, 32.0f);
+  update_mesh |= ImGui::SliderFloat("Height", &_rippledata.height, 0.1f, 32.0f);
+
+  ImGui::End();
+
+  if (!update_mesh)
+    return;
+
+  const vertex_ripple_parameters rparams{_rippledata.amplitude,
+                                         _rippledata.period * two_pi<float>,
+                                         _rippledata.width,
+                                         _rippledata.height};
+
+  vertex_effect::ripple(_mesh.vertices(), _mesh.indices(), rparams);
+  _mesh.update_vertices();
 }

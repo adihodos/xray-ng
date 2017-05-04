@@ -40,6 +40,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <span.h>
 #include <vector>
 
 namespace xray {
@@ -49,17 +50,20 @@ struct mesh_load_option {
   enum { remove_points_lines = 1u << 1, convert_left_handed = 1u << 2 };
 };
 
+enum class mesh_type { readonly, writable };
+
 class basic_mesh {
 public:
   basic_mesh() noexcept = default;
   XRAY_DEFAULT_MOVE(basic_mesh);
 
-  explicit basic_mesh(const char* path);
+  basic_mesh(const char* path, const mesh_type type = mesh_type::readonly);
 
   basic_mesh(const xray::rendering::vertex_pnt* vertices,
              const size_t                       num_vertices,
              const uint32_t*                    indices,
-             const size_t                       num_indices);
+             const size_t                       num_indices,
+             const mesh_type                    mtype = mesh_type::readonly);
 
   bool valid() const noexcept { return _vertexbuffer && _indexbuffer; }
 
@@ -81,10 +85,26 @@ public:
   }
 
   uint32_t index_count() const noexcept { return (uint32_t) _indices.size(); }
+  uint32_t vertex_count() const noexcept { return (uint32_t) _vertices.size(); }
 
-  const xray::rendering::vertex_pnt* vertices() const noexcept {
+  gsl::span<vertex_pnt> vertices() noexcept {
     assert(valid());
-    return _vertices.data();
+    return {_vertices};
+  }
+
+  gsl::span<const vertex_pnt> vertices() const noexcept {
+    assert(valid());
+    return {_vertices};
+  }
+
+  gsl::span<uint32_t> indices() noexcept {
+    assert(valid());
+    return {_indices};
+  }
+
+  gsl::span<const uint32_t> indices() const noexcept {
+    assert(valid());
+    return {_indices};
   }
 
   const xray::math::aabb3f& aabb() const noexcept {
@@ -92,10 +112,14 @@ public:
     return _aabb;
   }
 
+  void update_vertices() noexcept;
+  void update_indices() noexcept;
+
 private:
   void compute_aabb();
   void setup_buffers();
 
+  mesh_type                                _mtype;
   std::vector<xray::rendering::vertex_pnt> _vertices;
   std::vector<uint32_t>                    _indices;
   xray::rendering::scoped_buffer           _vertexbuffer;

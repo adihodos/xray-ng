@@ -33,11 +33,64 @@
 
 #include "xray/xray.hpp"
 #include <cstdint>
+#include <span.h>
 
 namespace xray {
 namespace rendering {
 
 struct geometry_data_t;
+
+struct vertex_ripple_parameters {
+  float amplitude;
+  float period;
+  float width;
+  float height;
+};
+
+struct vertex_effect {
+  template <typename vertex_type>
+  static void ripple(gsl::span<vertex_type>          vertices,
+                     gsl::span<uint32_t>             indices,
+                     const vertex_ripple_parameters& rp) noexcept;
+};
+
+template <typename vertex_type>
+void xray::rendering::vertex_effect::ripple(
+  gsl::span<vertex_type>          vertices,
+  gsl::span<uint32_t>             indices,
+  const vertex_ripple_parameters& rp) noexcept {
+
+  const auto scale_x = rp.width * 0.5f;
+  const auto scale_z = rp.height * 0.5f;
+
+  for (auto& vertex : vertices) {
+    vertex.normal    = vec3f::stdc::zero;
+    const auto x_pos = vertex.position.x / scale_x;
+    const auto z_pos = vertex.position.z / scale_z;
+
+    vertex.position.y =
+      rp.amplitude * std::sin(rp.period * (x_pos * x_pos + z_pos * z_pos));
+  }
+
+  assert((indices.length() % 3) == 0);
+
+  for (uint32_t i = 0, idx_count = indices.length(); i < idx_count; i += 3) {
+    auto& v0 = vertices[indices[i + 0]];
+    auto& v1 = vertices[indices[i + 1]];
+    auto& v2 = vertices[indices[i + 2]];
+
+    const auto normal =
+      cross(v2.position - v0.position, v1.position - v0.position);
+
+    v0.normal += normal;
+    v1.normal += normal;
+    v2.normal += normal;
+  }
+
+  for (auto& vertex : vertices) {
+    vertex.normal = normalize(vertex.normal);
+  }
+}
 
 class geometry_factory {
 public:

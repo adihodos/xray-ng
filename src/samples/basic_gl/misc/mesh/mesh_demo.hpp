@@ -34,6 +34,7 @@
 #include "demo_base.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
@@ -57,7 +58,7 @@ public:
   }
 
 private:
-  xray::math::aabb3f _boundingbox{xray::math::vec3f{-1.0f},
+  xray::math::aabb3f                _boundingbox{xray::math::vec3f{-1.0f},
                                   xray::math::vec3f{+1.0f}};
   xray::rendering::vertex_program   _vs;
   xray::rendering::geometry_program _gs;
@@ -93,6 +94,7 @@ private:
   xray::rendering::vertex_program   _vsnormals;
   xray::rendering::geometry_program _gsnormals;
   xray::rendering::fragment_program _fsnormals;
+
   struct {
     bool                       drawnormals{false};
     bool                       draw_boundingbox{false};
@@ -103,6 +105,9 @@ private:
       xray::rendering::color_palette::web::medium_spring_green};
     float normal_len{1.0f};
   } _drawparams{};
+
+  xray::rendering::vertex_ripple_parameters _rippledata{
+    0.6f, 3.0f, 16.0f, 16.0f};
 
 private:
   XRAY_NO_COPY(mesh_demo);

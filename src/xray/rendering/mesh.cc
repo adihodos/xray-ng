@@ -8,6 +8,7 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
+#include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include <cassert>
 #include <cmath>
@@ -36,7 +37,9 @@ xray::rendering::basic_mesh::basic_mesh(
   const xray::rendering::vertex_pnt* vertices,
   const size_t                       num_vertices,
   const uint32_t*                    indices,
-  const size_t                       num_indices) {
+  const size_t                       num_indices,
+  const mesh_type                    mtype)
+  : _mtype{mtype} {
 
   _vertices.resize(num_vertices);
   _indices.resize(num_indices);
@@ -86,7 +89,8 @@ struct hash<tinyobj_opt::index_t> {
 };
 } // namespace std
 
-xray::rendering::basic_mesh::basic_mesh(const char* path) {
+xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
+  : _mtype{type} {
   using namespace xray::rendering;
 
   attrib_t           attrs;
@@ -235,13 +239,13 @@ void xray::rendering::basic_mesh::setup_buffers() {
   gl::NamedBufferStorage(raw_handle(_vertexbuffer),
                          xray::base::container_bytes_size(_vertices),
                          _vertices.data(),
-                         0);
+                         _mtype == mesh_type::readonly ? 0 : gl::MAP_WRITE_BIT);
 
   gl::CreateBuffers(1, raw_handle_ptr(_indexbuffer));
   gl::NamedBufferStorage(raw_handle(_indexbuffer),
                          xray::base::container_bytes_size(_indices),
                          _indices.data(),
-                         0);
+                         _mtype == mesh_type::readonly ? 0 : gl::MAP_WRITE_BIT);
 
   gl::CreateVertexArrays(1, raw_handle_ptr(_vertexarray));
   const auto vao = raw_handle(_vertexarray);
@@ -264,4 +268,32 @@ void xray::rendering::basic_mesh::setup_buffers() {
   gl::VertexArrayAttribFormat(
     vao, 2, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pnt, texcoord));
   gl::VertexArrayAttribBinding(vao, 2, 0);
+}
+
+void xray::rendering::basic_mesh::update_vertices() noexcept {
+  assert(_mtype == mesh_type::writable);
+
+  scoped_resource_mapping vbmap{vertex_buffer(),
+                                gl::MAP_WRITE_BIT,
+                                (uint32_t) container_bytes_size(_vertices)};
+
+  if (!vbmap) {
+    return;
+  }
+
+  memcpy(vbmap.memory(), _vertices.data(), container_bytes_size(_vertices));
+}
+
+void xray::rendering::basic_mesh::update_indices() noexcept {
+  assert(_mtype == mesh_type::writable);
+
+  scoped_resource_mapping ibmap{index_buffer(),
+                                gl::MAP_WRITE_BIT,
+                                (uint32_t) container_bytes_size(_indices)};
+
+  if (!ibmap) {
+    return;
+  }
+
+  memcpy(ibmap.memory(), _indices.data(), container_bytes_size(_indices));
 }
