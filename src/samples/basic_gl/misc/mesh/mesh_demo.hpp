@@ -96,6 +96,7 @@ private:
   struct {
     bool                       drawnormals{false};
     bool                       draw_boundingbox{false};
+    bool                       draw_wireframe{false};
     xray::rendering::rgb_color start_color{
       xray::rendering::color_palette::web::red};
     xray::rendering::rgb_color end_color{

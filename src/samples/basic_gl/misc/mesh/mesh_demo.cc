@@ -10,6 +10,8 @@
 #include "xray/math/transforms_r4.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/draw_context.hpp"
+#include "xray/rendering/geometry/geometry_data.hpp"
+#include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
 #include <algorithm>
@@ -27,6 +29,22 @@ using namespace xray::ui;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
+
+struct scoped_polygon_mode_setting {
+public:
+  explicit scoped_polygon_mode_setting(const GLenum new_mode) {
+    gl::GetIntegerv(gl::POLYGON_MODE, &_old_mode);
+    gl::PolygonMode(gl::FRONT_AND_BACK, new_mode);
+  }
+
+  ~scoped_polygon_mode_setting() {
+    gl::PolygonMode(gl::FRONT_AND_BACK, (GLenum) _old_mode);
+  }
+
+private:
+  GLint _old_mode{gl::NONE};
+  XRAY_NO_COPY(scoped_polygon_mode_setting);
+};
 
 app::aabb_draw::aabb_draw() {
   _vs = gpu_program_builder{}
@@ -114,7 +132,20 @@ void app::mesh_demo::init() {
   //"stanford/cube/cube.obj";
   //"stanford/head/head.OBJ";
 
-  _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
+  geometry_data_t blob;
+  geometry_factory::grid(128.0f, 128.0f, 128, 128, &blob);
+
+  vector<vertex_pnt> verts;
+  transform(raw_ptr(blob.geometry),
+            raw_ptr(blob.geometry) + blob.vertex_count,
+            back_inserter(verts),
+            [](const vertex_pntt& vsin) {
+              return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
+            });
+
+  //  _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
+  _mesh = basic_mesh{
+    verts.data(), verts.size(), raw_ptr(blob.indices), blob.index_count};
   if (!_mesh) {
     return;
   }
@@ -188,7 +219,7 @@ void app::mesh_demo::init() {
   gl::SamplerParameteri(smp, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
   gl::SamplerParameteri(smp, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
 
-  gl::Enable(gl::CULL_FACE);
+  //  gl::Enable(gl::CULL_FACE);
   gl::Enable(gl::DEPTH_TEST);
 
   _valid = true;
@@ -233,8 +264,13 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
   const GLuint bound_samplers[] = {raw_handle(_sampler)};
   gl::BindSamplers(0, 1, bound_samplers);
 
-  gl::DrawElements(
-    gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+  {
+    scoped_polygon_mode_setting set_wireframe{
+      _drawparams.draw_wireframe ? gl::LINE : gl::FILL};
+
+    gl::DrawElements(
+      gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+  }
 
   if (_drawparams.drawnormals) {
 
@@ -279,6 +315,7 @@ void app::mesh_demo::compose_ui() {
   ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
   ImGui::Begin("Options");
 
+  ImGui::Checkbox("Draw wireframe", &_drawparams.draw_wireframe);
   ImGui::Checkbox("Draw normals", &_drawparams.drawnormals);
 
   if (_drawparams.drawnormals) {

@@ -5,5 +5,5 @@ out VS_OUT_GS_IN {
 } vs_out;
 
 void main() {
-  vs_out.pos = vec3(0);
+  vs_out.pos = vec3(float(gl_VertexID));
 }

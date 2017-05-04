@@ -520,41 +520,57 @@ void xray::rendering::geometry_factory::grid(const float      grid_width,
   //     }
   //   });
 
-  // //
-  // // Setup indices for the generated vertices.
-  // auto index_array =
-  //   gsl::span<uint32_t>(raw_ptr(mesh_data->indices), mesh_data->index_count);
+  for (size_t row_idx = 0; row_idx < vertices_per_row; ++row_idx) {
+    const float z_coord = half_depth - row_idx * delta_z;
 
-  // size_t quad_idx = 0;
-  // for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
-  //   for (size_t col_idx = 0; col_idx < column_count; ++col_idx) {
+    for (size_t col_idx = 0; col_idx < vertices_per_col; ++col_idx) {
+      vertex_pntt& output_vtx =
+        mesh_data->geometry[row_idx * vertices_per_col + col_idx];
 
-  //     //
-  //     //  First face.
-  //     index_array[quad_idx] =
-  //       static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
+      const float x_coord = -half_width + col_idx * delta_x;
 
-  //     index_array[quad_idx + 1] =
-  //       static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
+      output_vtx.position = math::vec3f{x_coord, 0.0f, z_coord};
+      output_vtx.normal   = math::vec3f::stdc::unit_y;
+      output_vtx.tangent  = math::vec3f::stdc::unit_x;
+      output_vtx.texcoords =
+        math::vec2f{col_idx * delta_tu, row_idx * delta_tv};
+    }
+  }
 
-  //     index_array[quad_idx + 2] =
-  //       static_cast<uint32_t>(row_idx * vertices_per_col + col_idx);
+  //
+  // Setup indices for the generated vertices.
+  auto index_array =
+    gsl::span<uint32_t>(raw_ptr(mesh_data->indices), mesh_data->index_count);
 
-  //     //
-  //     //  Second face
-  //     index_array[quad_idx + 3] =
-  //       static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
+  size_t quad_idx = 0;
+  for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
+    for (size_t col_idx = 0; col_idx < column_count; ++col_idx) {
 
-  //     index_array[quad_idx + 4] =
-  //       static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx +
-  //       1);
+      //
+      //  First face.
+      index_array[quad_idx] =
+        static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
 
-  //     index_array[quad_idx + 5] =
-  //       static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
+      index_array[quad_idx + 1] =
+        static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
 
-  //     quad_idx += 6; // next quad
-  //   }
-  // }
+      index_array[quad_idx + 2] =
+        static_cast<uint32_t>(row_idx * vertices_per_col + col_idx);
+
+      //
+      //  Second face
+      index_array[quad_idx + 3] =
+        static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
+
+      index_array[quad_idx + 4] =
+        static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx + 1);
+
+      index_array[quad_idx + 5] =
+        static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
+
+      quad_idx += 6; // next quad
+    }
+  }
 }
 
 void xray::rendering::geometry_factory::fullscreen_quad(

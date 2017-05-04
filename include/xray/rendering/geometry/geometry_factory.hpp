@@ -33,7 +33,6 @@
 
 #include "xray/xray.hpp"
 #include <cstdint>
-#include <string>
 
 namespace xray {
 namespace rendering {
@@ -126,20 +125,10 @@ public:
                     const uint32_t   sides,
                     const uint32_t   rings,
                     geometry_data_t* mesh);
+
   /// Creates a quad spanning the whole screen. Vertices will be in NDC
   /// space.
   static void fullscreen_quad(geometry_data_t* grid_geometry);
-
-  // static bool
-  // load_model(geometry_data_t* mesh, const char* file_path,
-  //           const mesh_import_options import_opts =
-  //           mesh_import_options::none);
-
-  // static bool load_model(
-  //    geometry_data_t* mesh, const std::string& mode_path,
-  //    const mesh_import_options import_opts = mesh_import_options::none) {
-  //  return load_model(mesh, mode_path.c_str(), import_opts);
-  //}
 };
 
 /// @}
