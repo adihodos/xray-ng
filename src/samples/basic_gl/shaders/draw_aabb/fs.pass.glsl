@@ -7,5 +7,6 @@ in GS_OUT_FS_IN {
 layout (location = 0) out vec4 FinalFragColor;
 
 void main() {
-  FinalFragColor = fs_in.color;
+  FinalFragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f); 
+  //fs_in.color;
 }

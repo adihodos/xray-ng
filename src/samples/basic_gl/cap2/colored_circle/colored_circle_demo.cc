@@ -1,5 +1,5 @@
-#include "xray/xray.hpp"
 #include "cap2/colored_circle/colored_circle_demo.hpp"
+#include "xray/xray.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
 #include "xray/math/constants.hpp"
@@ -93,6 +93,8 @@ void app::colored_circle_demo::init() noexcept {
 
     _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
   }
+
+  gl::Disable(gl::DEPTH_TEST);
 
   _valid = true;
 }

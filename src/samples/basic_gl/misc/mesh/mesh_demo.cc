@@ -64,8 +64,9 @@ app::aabb_draw::aabb_draw() {
 }
 
 void app::aabb_draw::draw(const draw_context_t& ctx) {
+  gl::Disable(gl::DEPTH_TEST);
+  gl::Disable(gl::CULL_FACE);
   gl::BindVertexArray(0);
-  // gl::BindBuffer(gl::ARRAY_BUFFER, 0);
 
   struct {
     mat4f     world_view_proj;
@@ -85,6 +86,8 @@ void app::aabb_draw::draw(const draw_context_t& ctx) {
   _pipeline.use();
 
   gl::DrawArrays(gl::POINTS, 0, 1);
+  gl::Enable(gl::CULL_FACE);
+  gl::Enable(gl::DEPTH_TEST);
 }
 
 app::mesh_demo::mesh_demo() { init(); }
@@ -185,6 +188,9 @@ void app::mesh_demo::init() {
   gl::SamplerParameteri(smp, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
   gl::SamplerParameteri(smp, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
 
+  gl::Enable(gl::CULL_FACE);
+  gl::Enable(gl::DEPTH_TEST);
+
   _valid = true;
 }
 
@@ -226,9 +232,6 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
 
   const GLuint bound_samplers[] = {raw_handle(_sampler)};
   gl::BindSamplers(0, 1, bound_samplers);
-
-  gl::Enable(gl::CULL_FACE);
-  gl::Enable(gl::DEPTH_TEST);
 
   gl::DrawElements(
     gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);

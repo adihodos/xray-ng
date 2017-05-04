@@ -139,6 +139,8 @@ void app::fractal_demo::init() {
 
   _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
   _valid = true;
+
+  gl::Disable(gl::DEPTH_TEST);
 }
 
 void app::fractal_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {

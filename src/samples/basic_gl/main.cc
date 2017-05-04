@@ -325,6 +325,16 @@ void basic_scene::main_loop(const xray::ui::window_loop_event& loop_evt) {
   draw(loop_evt);
 }
 
+void APIENTRY debug_proc(GLenum        source,
+                         GLenum        type,
+                         GLuint        id,
+                         GLenum        severity,
+                         GLsizei       length,
+                         const GLchar* message,
+                         void*         userParam) {
+  OUTPUT_DBG_MSG("OpenGL message : \n%s", message);
+}
+
 } // namespace app
 
 int main(int argc, char** argv) {
@@ -340,13 +350,17 @@ int main(int argc, char** argv) {
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;
 
-  const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 0u};
+  const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 1};
 
   window main_window{wnd_params};
   if (!main_window) {
     XR_LOG_ERR("Failed to initialize application window!");
     return EXIT_FAILURE;
   }
+
+  // gl::DebugMessageControl(
+  //  gl::DONT_CARE, gl::DONT_CARE, gl::DONT_CARE, 0, nullptr, gl::TRUE_);
+  // gl::DebugMessageCallback((GLDEBUGPROC) &app::debug_proc, nullptr);
 
   app::basic_scene scene{&main_window};
   main_window.events.loop = make_delegate(scene, &app::basic_scene::main_loop);
