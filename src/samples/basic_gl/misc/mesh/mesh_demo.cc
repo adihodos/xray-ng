@@ -270,9 +270,9 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
 void app::mesh_demo::update(const float /* delta_ms */) {}
 
 void app::mesh_demo::event_handler(const xray::ui::window_event& evt) {
-  if (evt.type == event_type::mouse_wheel) {
-    auto mwe = &evt.event.wheel;
-  }
+  // if (evt.type == event_type::mouse_wheel) {
+  //   auto mwe = &evt.event.wheel;
+  // }
 }
 
 void app::mesh_demo::compose_ui() {
@@ -289,6 +289,6 @@ void app::mesh_demo::compose_ui() {
       "End color", _drawparams.end_color.components, 0.0f, 1.0f);
   }
 
-  ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
+  // ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
   ImGui::End();
 }
