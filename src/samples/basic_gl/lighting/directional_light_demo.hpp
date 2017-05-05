@@ -26,15 +26,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/// \file mesh_demo.hpp
+/// \file directional_light_demo.hpp
 
 #pragma once
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
-#include "xray/rendering/colors/color_palettes.hpp"
-#include "xray/rendering/colors/rgb_color.hpp"
-#include "xray/rendering/geometry/aabb_visualizer.hpp"
+#include "xray/math/scalar3.hpp"
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
@@ -43,11 +41,22 @@
 
 namespace app {
 
-class mesh_demo : public demo_base {
-public:
-  mesh_demo();
+struct obj_type {
+  enum { ripple, teapot };
+};
 
-  ~mesh_demo();
+struct graphics_object {
+  xray::rendering::basic_mesh* mesh{};
+  xray::math::vec3f            pos{xray::math::vec3f::stdc::zero};
+  xray::math::vec3f            rotation{xray::math::vec3f::stdc::zero};
+  float                        scale{1.0f};
+};
+
+class directional_light_demo : public demo_base {
+public:
+  directional_light_demo();
+
+  ~directional_light_demo();
 
   virtual void draw(const xray::rendering::draw_context_t&) override;
   virtual void update(const float delta_ms) override;
@@ -58,34 +67,16 @@ private:
   void init();
 
 private:
-  xray::rendering::aabb_visualizer  _abbdraw;
-  xray::rendering::basic_mesh       _mesh;
+  xray::rendering::basic_mesh       _meshes[2];
+  graphics_object                   _objects[2];
   xray::rendering::vertex_program   _vs;
   xray::rendering::fragment_program _fs;
   xray::rendering::program_pipeline _pipeline;
-  xray::rendering::scoped_texture   _objtex;
-  xray::rendering::scoped_texture   _greentexture;
+  xray::rendering::scoped_texture   _objtex[2];
   xray::rendering::scoped_sampler   _sampler;
-  xray::rendering::vertex_program   _vsnormals;
-  xray::rendering::geometry_program _gsnormals;
-  xray::rendering::fragment_program _fsnormals;
-
-  struct {
-    bool                       drawnormals{false};
-    bool                       draw_boundingbox{false};
-    bool                       draw_wireframe{false};
-    xray::rendering::rgb_color start_color{
-      xray::rendering::color_palette::web::red};
-    xray::rendering::rgb_color end_color{
-      xray::rendering::color_palette::web::medium_spring_green};
-    float normal_len{1.0f};
-  } _drawparams{};
-
-  xray::rendering::vertex_ripple_parameters _rippledata{
-    0.6f, 3.0f, 16.0f, 16.0f};
 
 private:
-  XRAY_NO_COPY(mesh_demo);
+  XRAY_NO_COPY(directional_light_demo);
 };
 
 } // namespace app

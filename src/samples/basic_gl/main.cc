@@ -49,6 +49,7 @@
 // #include "colored_circle.hpp"
 #include "cap2/colored_circle/colored_circle_demo.hpp"
 #include "debug_record.hpp"
+#include "lighting/directional_light_demo.hpp"
 #include "misc/bufferless_draw/bufferless-draw-demo.hpp"
 #include "misc/fractals/fractal_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
@@ -113,7 +114,8 @@ enum class demo_type : int32_t {
   fractal,
   texture_array,
   mesh,
-  bufferless_draw
+  bufferless_draw,
+  lighting_directional
 };
 
 class basic_scene {
@@ -290,6 +292,10 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     return xray::base::make_unique<bufferless_draw_demo>();
     break;
 
+  case demo_type::lighting_directional:
+    return xray::base::make_unique<directional_light_demo>();
+    break;
+
   default:
     break;
   }
@@ -310,7 +316,8 @@ void basic_scene::setup_ui() {
                              "Julia fractal",
                              "Texture array",
                              "Mesh",
-                             "Bufferless drawing"};
+                             "Bufferless drawing",
+                             "Directional lighting"};
 
   demo_type selected_demo{_demotype};
   if (ImGui::Combo("",

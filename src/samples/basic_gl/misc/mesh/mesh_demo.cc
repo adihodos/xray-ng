@@ -155,6 +155,15 @@ void app::mesh_demo::init() {
                         gl::UNSIGNED_BYTE,
                         tldr.data());
 
+  {
+    gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_greentexture));
+    gl::TextureStorage2D(raw_handle(_greentexture), 1, gl::RGBA8, 1, 1);
+
+    const uint8_t clr[] = {0, 255, 0, 0};
+    gl::ClearTexImage(
+      raw_handle(_greentexture), 0, gl::RGBA, gl::UNSIGNED_BYTE, clr);
+  }
+
   gl::CreateSamplers(1, raw_handle_ptr(_sampler));
   const auto smp = raw_handle(_sampler);
   gl::SamplerParameteri(smp, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
