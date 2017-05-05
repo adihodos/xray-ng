@@ -8,6 +8,7 @@ set(project_sources
     ${proj_src_dir}/gl_handles.cc
     ${proj_inc_dir}/gpu_program.hpp
     ${proj_src_dir}/gpu_program.cc
+    ${proj_inc_dir}/scoped_opengl_setting.hpp
     ${proj_inc_dir}/program_pipeline.hpp
     ${proj_src_dir}/program_pipeline.cc
     ${proj_inc_dir}/scoped_resource_mapping.hpp

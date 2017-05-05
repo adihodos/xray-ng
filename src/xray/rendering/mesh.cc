@@ -203,7 +203,7 @@ void xray::rendering::basic_mesh::compute_aabb() {
     aabb3f _aabb{aabb3f::stdc::identity};
   };
 
-  static constexpr size_t PARALLEL_REDUCE_MIN_VERTEX_COUNT = 120000u;
+  static constexpr size_t PARALLEL_REDUCE_MIN_VERTEX_COUNT = 120'000'000u;
 
   if (_vertices.size() >= PARALLEL_REDUCE_MIN_VERTEX_COUNT) {
     scoped_timing_object<timer_highp> sto{&op_tm};
@@ -217,10 +217,16 @@ void xray::rendering::basic_mesh::compute_aabb() {
     _aabb = reducer.bounding_box();
   } else {
     scoped_timing_object<timer_highp> sto{&op_tm};
-    _aabb =
-      math::bounding_box3_axis_aligned((const math::vec3f*) _vertices.data(),
-                                       _vertices.size(),
-                                       sizeof(_vertices[0]));
+
+    for_each(begin(_vertices), end(_vertices), [this](const vertex_pnt& v) {
+      _aabb.min = math::min(_aabb.min, v.position);
+      _aabb.max = math::max(_aabb.max, v.position);
+    });
+
+    //_aabb =
+    //  math::bounding_box3_axis_aligned((const math::vec3f*) _vertices.data(),
+    //                                   _vertices.size(),
+    //                                   sizeof(_vertices[0]));
   }
 
   OUTPUT_DBG_MSG("AABB : [%3.3f, %3.3f, %3.3f] : [%3.3f, "
@@ -272,6 +278,8 @@ void xray::rendering::basic_mesh::setup_buffers() {
 
 void xray::rendering::basic_mesh::update_vertices() noexcept {
   assert(_mtype == mesh_type::writable);
+
+  compute_aabb();
 
   scoped_resource_mapping vbmap{vertex_buffer(),
                                 gl::MAP_WRITE_BIT,

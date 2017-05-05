@@ -26,65 +26,47 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/// \file mesh_demo.hpp
+/// \file aabb_visualizer.hpp
 
 #pragma once
 
 #include "xray/xray.hpp"
-#include "demo_base.hpp"
-#include "xray/rendering/colors/color_palettes.hpp"
-#include "xray/rendering/colors/rgb_color.hpp"
-#include "xray/rendering/geometry/aabb_visualizer.hpp"
-#include "xray/rendering/mesh.hpp"
+#include "xray/math/objects/aabb3.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
 #include <cstdint>
 
-namespace app {
+namespace xray {
+namespace rendering {
 
-class mesh_demo : public demo_base {
+struct draw_context_t;
+struct rgb_color;
+
+class aabb_visualizer {
 public:
-  mesh_demo();
+  aabb_visualizer();
 
-  ~mesh_demo();
+  void draw(const xray::rendering::draw_context_t& ctx,
+            const xray::math::aabb3f&              boundingbox,
+            const xray::rendering::rgb_color&      draw_color,
+            const float                            line_width = 2.0f);
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
+  bool valid() const noexcept { return _valid; }
 
-private:
-  void init();
-
-private:
-  xray::rendering::aabb_visualizer  _abbdraw;
-  xray::rendering::basic_mesh       _mesh;
-  xray::rendering::vertex_program   _vs;
-  xray::rendering::fragment_program _fs;
-  xray::rendering::program_pipeline _pipeline;
-  xray::rendering::scoped_texture   _objtex;
-  xray::rendering::scoped_sampler   _sampler;
-  xray::rendering::vertex_program   _vsnormals;
-  xray::rendering::geometry_program _gsnormals;
-  xray::rendering::fragment_program _fsnormals;
-
-  struct {
-    bool                       drawnormals{false};
-    bool                       draw_boundingbox{false};
-    bool                       draw_wireframe{false};
-    xray::rendering::rgb_color start_color{
-      xray::rendering::color_palette::web::red};
-    xray::rendering::rgb_color end_color{
-      xray::rendering::color_palette::web::medium_spring_green};
-    float normal_len{1.0f};
-  } _drawparams{};
-
-  xray::rendering::vertex_ripple_parameters _rippledata{
-    0.6f, 3.0f, 16.0f, 16.0f};
+  explicit operator bool() const noexcept { return valid(); }
 
 private:
-  XRAY_NO_COPY(mesh_demo);
+  xray::rendering::scoped_buffer       _vb;
+  xray::rendering::scoped_vertex_array _vao;
+  xray::rendering::vertex_program      _vs;
+  xray::rendering::geometry_program    _gs;
+  xray::rendering::fragment_program    _fs;
+  xray::rendering::program_pipeline    _pipeline;
+  bool                                 _valid{false};
+
+  XRAY_NO_COPY(aabb_visualizer);
 };
 
-} // namespace app
+} // namespace rendering
+} // namespace xray

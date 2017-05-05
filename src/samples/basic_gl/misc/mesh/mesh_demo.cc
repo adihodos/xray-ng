@@ -13,6 +13,7 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
+#include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
 #include <algorithm>
@@ -31,84 +32,6 @@ using namespace xray::ui;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
-
-struct scoped_polygon_mode_setting {
-public:
-  explicit scoped_polygon_mode_setting(const int32_t new_mode) {
-    gl::GetIntegerv(gl::POLYGON_MODE, &_old_mode);
-    gl::PolygonMode(gl::FRONT_AND_BACK, (GLenum) new_mode);
-  }
-
-  ~scoped_polygon_mode_setting() {
-    gl::PolygonMode(gl::FRONT_AND_BACK, (GLenum) _old_mode);
-  }
-
-private:
-  GLint _old_mode{gl::NONE};
-  XRAY_NO_COPY(scoped_polygon_mode_setting);
-};
-
-app::aabb_draw::aabb_draw() {
-  _vs = gpu_program_builder{}
-          .add_file("shaders/draw_aabb/vs.glsl")
-          .build<render_stage::e::vertex>();
-
-  if (!_vs)
-    return;
-
-  _gs = gpu_program_builder{}
-          .add_file("shaders/draw_aabb/gs.glsl")
-          .build<render_stage::e::geometry>();
-
-  if (!_gs)
-    return;
-
-  _fs = gpu_program_builder{}
-          .add_file("shaders/draw_aabb/fs.pass.glsl")
-          .build<render_stage::e::fragment>();
-
-  if (!_fs)
-    return;
-
-  _pipeline = program_pipeline{[]() {
-    GLuint pp{};
-    gl::CreateProgramPipelines(1, &pp);
-    return pp;
-  }()};
-
-  _pipeline.use_vertex_program(_vs)
-    .use_geometry_program(_gs)
-    .use_fragment_program(_fs);
-
-  _valid = true;
-}
-
-void app::aabb_draw::draw(const draw_context_t& ctx) {
-  gl::Disable(gl::DEPTH_TEST);
-  gl::Disable(gl::CULL_FACE);
-  gl::BindVertexArray(0);
-
-  struct {
-    mat4f     world_view_proj;
-    rgb_color line_start;
-    rgb_color line_end;
-    float     width;
-    float     height;
-    float     depth;
-  } box_params = {ctx.proj_view_matrix * R4::translate(_boundingbox.center()),
-                  color_palette::web::red,
-                  color_palette::web::green,
-                  _boundingbox.width() * 0.5f,
-                  _boundingbox.height() * 0.5f,
-                  _boundingbox.depth() * 0.5f};
-
-  _gs.set_uniform_block("DrawParams", box_params);
-  _pipeline.use();
-
-  gl::DrawArrays(gl::POINTS, 0, 1);
-  gl::Enable(gl::CULL_FACE);
-  gl::Enable(gl::DEPTH_TEST);
-}
 
 app::mesh_demo::mesh_demo() { init(); }
 
@@ -134,34 +57,35 @@ void app::mesh_demo::init() {
   //"stanford/cube/cube.obj";
   //"stanford/head/head.OBJ";
 
-  geometry_data_t blob;
-  geometry_factory::grid(16.0f, 16.0f, 128, 128, &blob);
+  // geometry_data_t blob;
+  // geometry_factory::grid(16.0f, 16.0f, 128, 128, &blob);
 
-  vector<vertex_pnt> verts;
-  transform(raw_ptr(blob.geometry),
-            raw_ptr(blob.geometry) + blob.vertex_count,
-            back_inserter(verts),
-            [](const vertex_pntt& vsin) {
-              return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
-            });
+  // vector<vertex_pnt> verts;
+  // transform(raw_ptr(blob.geometry),
+  //          raw_ptr(blob.geometry) + blob.vertex_count,
+  //          back_inserter(verts),
+  //          [](const vertex_pntt& vsin) {
+  //            return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
+  //          });
 
-  const vertex_ripple_parameters rparams{_rippledata.amplitude,
-                                         _rippledata.period * two_pi<float>,
-                                         _rippledata.width,
-                                         _rippledata.height};
+  // const vertex_ripple_parameters rparams{_rippledata.amplitude,
+  //                                       _rippledata.period * two_pi<float>,
+  //                                       _rippledata.width,
+  //                                       _rippledata.height};
 
-  vertex_effect::ripple(
-    gsl::span<vertex_pnt>{verts},
-    gsl::span<uint32_t>{raw_ptr(blob.indices),
-                        raw_ptr(blob.indices) + blob.index_count},
-    rparams);
+  // vertex_effect::ripple(
+  //  gsl::span<vertex_pnt>{verts},
+  //  gsl::span<uint32_t>{raw_ptr(blob.indices),
+  //                      raw_ptr(blob.indices) + blob.index_count},
+  //  rparams);
 
-  //  _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
-  _mesh = basic_mesh{verts.data(),
-                     verts.size(),
-                     raw_ptr(blob.indices),
-                     blob.index_count,
-                     mesh_type::writable};
+  //_mesh = basic_mesh{verts.data(),
+  //                   verts.size(),
+  //                   raw_ptr(blob.indices),
+  //                   blob.index_count,
+  //                   mesh_type::writable};
+
+  _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
 
   if (!_mesh) {
     return;
@@ -236,8 +160,8 @@ void app::mesh_demo::init() {
   gl::SamplerParameteri(smp, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
   gl::SamplerParameteri(smp, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
 
-  //  gl::Enable(gl::CULL_FACE);
   gl::Enable(gl::DEPTH_TEST);
+  gl::Enable(gl::CULL_FACE);
 
   _valid = true;
 }
@@ -263,7 +187,7 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
     mat4f view;
   } tfmat;
 
-  tfmat.view            = draw_ctx.view_matrix * mat4f{R3::scale(1.2f)};
+  tfmat.view            = draw_ctx.view_matrix;
   tfmat.world_view_proj = draw_ctx.projection_matrix * tfmat.view;
   tfmat.normals         = tfmat.view;
 
@@ -315,14 +239,13 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
   }
 
   if (_drawparams.draw_boundingbox) {
-    _abbdraw.set_aabb(_mesh.aabb());
-    _abbdraw.draw(draw_ctx);
+    _abbdraw.draw(draw_ctx, _mesh.aabb(), color_palette::web::sea_green, 4.0f);
   }
 }
 
 void app::mesh_demo::update(const float /* delta_ms */) {}
 
-void app::mesh_demo::event_handler(const xray::ui::window_event& evt) {
+void app::mesh_demo::event_handler(const xray::ui::window_event& /*evt*/) {
   // if (evt.type == event_type::mouse_wheel) {
   //   auto mwe = &evt.event.wheel;
   // }
@@ -343,28 +266,29 @@ void app::mesh_demo::compose_ui() {
       "End color", _drawparams.end_color.components, 0.0f, 1.0f);
   }
 
-  // ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
+  ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
 
   ImGui::End();
 
-  ImGui::Begin("Mesh parameters");
-  bool update_mesh =
-    ImGui::SliderFloat("Amplitude", &_rippledata.amplitude, 0.1f, 10.0f);
+  // ImGui::Begin("Mesh parameters");
+  // bool update_mesh =
+  //  ImGui::SliderFloat("Amplitude", &_rippledata.amplitude, 0.1f, 10.0f);
 
-  update_mesh |= ImGui::SliderFloat("Period", &_rippledata.period, 0.0f, 10.0f);
-  update_mesh |= ImGui::SliderFloat("Width", &_rippledata.width, 0.1f, 32.0f);
-  update_mesh |= ImGui::SliderFloat("Height", &_rippledata.height, 0.1f, 32.0f);
+  // update_mesh |= ImGui::SliderFloat("Period", &_rippledata.period, 0.0f,
+  // 10.0f);  update_mesh |= ImGui::SliderFloat("Width", &_rippledata.width,
+  // 0.1f, 32.0f);  update_mesh |= ImGui::SliderFloat("Height",
+  // &_rippledata.height, 0.1f, 32.0f);
 
-  ImGui::End();
+  // ImGui::End();
 
-  if (!update_mesh)
-    return;
+  // if (!update_mesh)
+  //  return;
 
-  const vertex_ripple_parameters rparams{_rippledata.amplitude,
-                                         _rippledata.period * two_pi<float>,
-                                         _rippledata.width,
-                                         _rippledata.height};
+  // const vertex_ripple_parameters rparams{_rippledata.amplitude,
+  //                                       _rippledata.period * two_pi<float>,
+  //                                       _rippledata.width,
+  //                                       _rippledata.height};
 
-  vertex_effect::ripple(_mesh.vertices(), _mesh.indices(), rparams);
-  _mesh.update_vertices();
+  // vertex_effect::ripple(_mesh.vertices(), _mesh.indices(), rparams);
+  //_mesh.update_vertices();
 }

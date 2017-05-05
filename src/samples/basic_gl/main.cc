@@ -49,6 +49,7 @@
 // #include "colored_circle.hpp"
 #include "cap2/colored_circle/colored_circle_demo.hpp"
 #include "debug_record.hpp"
+#include "misc/bufferless_draw/bufferless-draw-demo.hpp"
 #include "misc/fractals/fractal_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
@@ -111,7 +112,8 @@ enum class demo_type : int32_t {
   colored_circle,
   fractal,
   texture_array,
-  mesh
+  mesh,
+  bufferless_draw
 };
 
 class basic_scene {
@@ -284,6 +286,10 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     return xray::base::make_unique<mesh_demo>();
     break;
 
+  case demo_type::bufferless_draw:
+    return xray::base::make_unique<bufferless_draw_demo>();
+    break;
+
   default:
     break;
   }
@@ -292,14 +298,19 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
 }
 
 void basic_scene::setup_ui() {
+
   ImGui::SetNextWindowPosCenter(ImGuiSetCond_Always);
   ImGui::SetNextWindowSize({300, 100}, ImGuiSetCond_Always);
   ImGui::Begin("Select a demo to run");
 
   XRAY_SCOPE_EXIT { ImGui::End(); };
 
-  const char* demo_list[] = {
-    "None", "Colored Circle", "Julia fractal", "Texture array", "Mesh"};
+  const char* demo_list[] = {"None",
+                             "Colored Circle",
+                             "Julia fractal",
+                             "Texture array",
+                             "Mesh",
+                             "Bufferless drawing"};
 
   demo_type selected_demo{_demotype};
   if (ImGui::Combo("",

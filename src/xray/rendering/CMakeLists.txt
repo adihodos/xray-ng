@@ -23,6 +23,9 @@ set(project_sources
     ${proj_inc_dir}/geometry/geometry_factory.hpp
     ${proj_src_dir}/geometry/geometry_factory.cc
 
+    ${proj_inc_dir}/geometry/aabb_visualizer.hpp
+    ${proj_src_dir}/geometry/aabb_visualizer.cc
+    
     ${proj_inc_dir}/vertex_format/vertex_format.hpp
     ${proj_inc_dir}/vertex_format/vertex_p.hpp
     ${proj_inc_dir}/vertex_format/vertex_pc.hpp

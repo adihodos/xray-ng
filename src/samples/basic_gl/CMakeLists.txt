@@ -25,6 +25,9 @@ set(project_sources
     ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
     ${proj_src_dir}/misc/mesh/mesh_demo.cc
 
+    ${proj_inc_dir}/misc/bufferless_draw/bufferless-draw-demo.hpp
+    ${proj_src_dir}/misc/bufferless_draw/bufferless-draw-demo.cc
+
     ${proj_inc_dir}/fwd_app.hpp
     ${proj_inc_dir}/helpers.hpp
     # ${proj_inc_dir}/init_context.hpp
@@ -62,7 +65,7 @@ set(project_sources
     # ${proj_inc_dir}/cap5/multiple_textures/multiple_textures_demo.cc
     # ${proj_inc_dir}/cap5/discard_alphamap/discard_alphamap_demo.hpp
     # ${proj_inc_dir}/cap5/discard_alphamap/discard_alphamap_demo.cc
-    # ${proj_inc_dir}/cap5/normal_map/normal_map_demo.hpp
+    # ${proj_inc_dir}/cap5/normal_map/normal_8map_demo.hpp
     # ${proj_inc_dir}/cap5/normal_map/normal_map_demo.cc
     # ${proj_inc_dir}/cap5/reflection/reflection_demo.hpp
     # ${proj_src_dir}/cap5/reflection/reflection_demo.cc
@@ -89,6 +92,10 @@ set(shader_files
 
     ${proj_src_dir}/shaders/misc/mesh/vs.glsl
     ${proj_src_dir}/shaders/misc/mesh/fs.glsl
+
+    ${proj_src_dir}/shaders/misc/bufferless_draw/vs.glsl
+    ${proj_src_dir}/shaders/misc/bufferless_draw/gs.glsl
+    ${proj_src_dir}/shaders/misc/bufferless_draw/fs.glsl
 
     ${proj_src_dir}/shaders/less4/phong_lighting.glsl
     ${proj_src_dir}/shaders/less4/frag_passthrough.glsl
