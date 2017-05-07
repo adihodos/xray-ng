@@ -9,6 +9,10 @@ set(project_sources
     ${proj_inc_dir}/math_base.hpp
     ${proj_inc_dir}/math_std.hpp
     ${proj_inc_dir}/projection.hpp
+
+    ${proj_inc_dir}/quaternion.hpp
+    ${proj_inc_dir}/quaternion_math.hpp
+
     ${proj_inc_dir}/rectangle.hpp
     ${proj_inc_dir}/scalar2.hpp
     ${proj_inc_dir}/scalar2x3.hpp

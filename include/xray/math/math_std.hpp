@@ -99,6 +99,11 @@ real_t angle_from_xy(const real_t x, const real_t y) noexcept {
   return theta;
 }
 
+template <typename T>
+inline T inv_sqrt(const T val) noexcept {
+  return T{1} / sqrt(val);
+}
+
 /// @}
 
 } // namespace math

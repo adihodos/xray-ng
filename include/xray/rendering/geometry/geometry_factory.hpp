@@ -32,6 +32,7 @@
 ///         geometrical shapes.
 
 #include "xray/xray.hpp"
+#include <cmath>
 #include <cstdint>
 #include <span.h>
 
@@ -64,7 +65,7 @@ void xray::rendering::vertex_effect::ripple(
   const auto scale_z = rp.height * 0.5f;
 
   for (auto& vertex : vertices) {
-    vertex.normal    = vec3f::stdc::zero;
+    vertex.normal    = decltype(vertex.normal){0};
     const auto x_pos = vertex.position.x / scale_x;
     const auto z_pos = vertex.position.z / scale_z;
 

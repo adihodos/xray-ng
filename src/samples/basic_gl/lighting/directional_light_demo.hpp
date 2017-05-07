@@ -74,6 +74,7 @@ private:
   xray::rendering::program_pipeline _pipeline;
   xray::rendering::scoped_texture   _objtex[2];
   xray::rendering::scoped_sampler   _sampler;
+  xray::math::vec3f                 _teapot_rotations{xray::math::vec3f::zero};
 
 private:
   XRAY_NO_COPY(directional_light_demo);
