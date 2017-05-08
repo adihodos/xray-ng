@@ -75,7 +75,8 @@ void xray::rendering::vertex_effect::ripple(
 
   assert((indices.length() % 3) == 0);
 
-  for (uint32_t i = 0, idx_count = indices.length(); i < idx_count; i += 3) {
+  for (uint32_t i = 0, idx_count = (uint32_t) indices.length(); i < idx_count;
+       i += 3) {
     auto& v0 = vertices[indices[i + 0]];
     auto& v1 = vertices[indices[i + 1]];
     auto& v2 = vertices[indices[i + 2]];

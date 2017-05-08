@@ -25,6 +25,8 @@ set(project_sources
 
     ${proj_inc_dir}/geometry/aabb_visualizer.hpp
     ${proj_src_dir}/geometry/aabb_visualizer.cc
+    ${proj_inc_dir}/geometry/surface_normal_visualizer.hpp
+    ${proj_src_dir}/geometry/surface_normal_visualizer.cc
     
     ${proj_inc_dir}/vertex_format/vertex_format.hpp
     ${proj_inc_dir}/vertex_format/vertex_p.hpp

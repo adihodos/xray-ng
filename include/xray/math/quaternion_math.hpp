@@ -118,12 +118,12 @@ conjugate(const quaternion<real_type>& q) noexcept {
 }
 
 template <typename real_type>
-inline T length_squared(const quaternion<real_type>& q) noexcept {
+inline real_type length_squared(const quaternion<real_type>& q) noexcept {
   return q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
 }
 
 template <typename real_type>
-inline T length(const quaternion<real_type>& q) noexcept {
+inline real_type length(const quaternion<real_type>& q) noexcept {
   return std::sqrt(length_squared(q));
 }
 

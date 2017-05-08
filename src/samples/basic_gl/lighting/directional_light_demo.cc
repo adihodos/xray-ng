@@ -3,6 +3,8 @@
 #include "xray/base/array_dimension.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
+#include "xray/math/quaternion.hpp"
+#include "xray/math/quaternion_math.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/math/transforms_r3.hpp"
@@ -36,6 +38,15 @@ app::directional_light_demo::~directional_light_demo() {}
 
 void app::directional_light_demo::init() {
   assert(!valid());
+
+  if (!_drawnormals) {
+    return;
+  }
+
+  _lights[0].direction = normalize(_demo_opts.lightdir);
+  _lights[0].ka        = color_palette::web::black;
+  _lights[0].kd        = color_palette::web::white;
+  _lights[0].ks        = color_palette::web::orange_red;
 
   static constexpr auto MODEL_FILE =
     //"SuperCobra.3ds";
@@ -84,8 +95,7 @@ void app::directional_light_demo::init() {
 
   _objects[obj_type::ripple].mesh = &_meshes[obj_type::ripple];
   _objects[obj_type::teapot].mesh = &_meshes[obj_type::teapot];
-  _objects[obj_type::teapot].pos.y +=
-    _meshes[obj_type::ripple].aabb().height() * 1.5f;
+  _objects[obj_type::teapot].pos.y += _meshes[obj_type::ripple].aabb().height();
 
   _vs = gpu_program_builder{}
           .add_file("shaders/lighting/vs.directional.glsl")
@@ -186,6 +196,21 @@ void app::directional_light_demo::draw(
 
   _vs.set_uniform_block("TransformMatrices", vs_ubo);
   _fs.set_uniform("DIFFUSE_MAP", 0);
+
+  struct {
+    directional_light lights[8];
+    uint32_t          lightscount;
+    float             specular_intensity;
+  } scene_lights;
+
+  scene_lights.lightscount = 1;
+  scene_lights.lights[0]   = _lights[0];
+  scene_lights.lights[0].direction =
+    normalize(mul_vec(draw_ctx.view_matrix, _demo_opts.lightdir));
+  scene_lights.specular_intensity = _demo_opts.specular_intensity;
+
+  _fs.set_uniform_block("LightData", scene_lights);
+
   _pipeline.use();
 
   gl::Disable(gl::CULL_FACE);
@@ -196,12 +221,17 @@ void app::directional_light_demo::draw(
   gl::BindVertexArray(teapot->mesh->vertex_array());
   gl::BindTextureUnit(0, raw_handle(_objtex[obj_type::teapot]));
 
-  const auto teapot_world = R4::translate(teapot->pos) *
-                            mat4f{R3::rotate_y(teapot->rotation.y)} *
-                            mat4f{R3::scale(teapot->scale)};
+  const auto pitch      = quaternionf{teapot->rotation.x, vec3f::stdc::unit_x};
+  const auto roll       = quaternionf{teapot->rotation.z, vec3f::stdc::unit_z};
+  const auto yaw        = quaternionf{teapot->rotation.y, vec3f::stdc::unit_y};
+  const auto qrot       = yaw * pitch * roll;
+  const auto teapot_rot = rotation_matrix(qrot);
+
+  const auto teapot_world =
+    R4::translate(teapot->pos) * teapot_rot * mat4f{R3::scale(teapot->scale)};
 
   vs_ubo.world_view_proj = draw_ctx.proj_view_matrix * teapot_world;
-  vs_ubo.normals         = teapot_world;
+  vs_ubo.normals         = teapot_rot;
 
   _vs.set_uniform_block("TransformMatrices", vs_ubo);
   _vs.flush_uniforms();
@@ -209,33 +239,68 @@ void app::directional_light_demo::draw(
   gl::Enable(gl::CULL_FACE);
   gl::DrawElements(
     gl::TRIANGLES, teapot->mesh->index_count(), gl::UNSIGNED_INT, nullptr);
+
+  if (_demo_opts.drawnormals) {
+    _drawnormals.draw(draw_ctx,
+                      *teapot->mesh,
+                      teapot_world,
+                      color_palette::web::green,
+                      color_palette::web::green);
+  }
 }
 
 void app::directional_light_demo::update(const float /* delta_ms */) {
   auto teapot = &_objects[obj_type::teapot];
-  teapot->rotation.y += 0.01f;
 
-  if (teapot->rotation.y > two_pi<float>) {
-    teapot->rotation.y -= two_pi<float>;
+  if (_demo_opts.rotate_x) {
+    teapot->rotation.x += _demo_opts.rotate_speed;
+    if (teapot->rotation.x > two_pi<float>) {
+      teapot->rotation.x -= two_pi<float>;
+    }
+  }
+
+  if (_demo_opts.rotate_y) {
+    teapot->rotation.y += _demo_opts.rotate_speed;
+
+    if (teapot->rotation.y > two_pi<float>) {
+      teapot->rotation.y -= two_pi<float>;
+    }
+  }
+
+  if (_demo_opts.rotate_z) {
+    teapot->rotation.z += _demo_opts.rotate_speed;
+
+    if (teapot->rotation.z > two_pi<float>) {
+      teapot->rotation.z -= two_pi<float>;
+    }
   }
 }
 
 void app::directional_light_demo::event_handler(
-  const xray::ui::window_event& /*evt*/) {
-  // if (evt.type == event_type::mouse_wheel) {
-  //   auto mwe = &evt.event.wheel;
-  // }
+  const xray::ui::window_event& evt) {
+  if (evt.type == event_type::key) {
+    if (evt.event.key.keycode == key_sym::e::backspace) {
+      _demo_opts = decltype(_demo_opts){};
+      return;
+    }
+  }
 }
 
 void app::directional_light_demo::compose_ui() {
   ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
   ImGui::Begin("Options");
+
+  // ImGui::Checkbox("Rotate X", &_demo_opts.rotate_x);
+  ImGui::Checkbox("Rotate Y", &_demo_opts.rotate_y);
+
+  // ImGui::Checkbox("Rotate Z", &_demo_opts.rotate_z);
+  ImGui::SliderFloat("Rotation speed", &_demo_opts.rotate_speed, 0.001f, 0.5f);
+  ImGui::SliderFloat3(
+    "Light direction", _demo_opts.lightdir.components, -1.0f, +1.0f);
+  ImGui::SliderFloat(
+    "Specular intensity", &_demo_opts.specular_intensity, 1.0f, 256.0f);
+
+  ImGui::Checkbox("Draw surface normals", &_demo_opts.drawnormals);
+
   ImGui::End();
 }
-
-struct directional_light {
-  vec3f     direction;
-  rgb_color ka;
-  rgb_color kd;
-  rgb_color ks;
-};

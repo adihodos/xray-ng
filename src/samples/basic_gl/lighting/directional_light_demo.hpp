@@ -33,6 +33,8 @@
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/rendering/geometry/surface_normal_visualizer.hpp"
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
@@ -40,6 +42,14 @@
 #include <cstdint>
 
 namespace app {
+
+struct directional_light {
+  xray::rendering::rgb_color ka;
+  xray::rendering::rgb_color kd;
+  xray::rendering::rgb_color ks;
+  xray::math::vec3f          direction;
+  float                      _pad;
+};
 
 struct obj_type {
   enum { ripple, teapot };
@@ -67,14 +77,25 @@ private:
   void init();
 
 private:
-  xray::rendering::basic_mesh       _meshes[2];
-  graphics_object                   _objects[2];
-  xray::rendering::vertex_program   _vs;
-  xray::rendering::fragment_program _fs;
-  xray::rendering::program_pipeline _pipeline;
-  xray::rendering::scoped_texture   _objtex[2];
-  xray::rendering::scoped_sampler   _sampler;
-  xray::math::vec3f                 _teapot_rotations{xray::math::vec3f::zero};
+  xray::rendering::surface_normal_visualizer _drawnormals{};
+  xray::rendering::basic_mesh                _meshes[2];
+  graphics_object                            _objects[2];
+  xray::rendering::vertex_program            _vs;
+  xray::rendering::fragment_program          _fs;
+  xray::rendering::program_pipeline          _pipeline;
+  xray::rendering::scoped_texture            _objtex[2];
+  xray::rendering::scoped_sampler            _sampler;
+  directional_light                          _lights[1];
+
+  struct {
+    xray::math::vec3f lightdir{0.0f, -1.0f, 0.0f};
+    float             specular_intensity{10.0f};
+    bool              rotate_x{false};
+    bool              rotate_y{true};
+    bool              rotate_z{false};
+    bool              drawnormals{false};
+    float             rotate_speed{0.01f};
+  } _demo_opts;
 
 private:
   XRAY_NO_COPY(directional_light_demo);

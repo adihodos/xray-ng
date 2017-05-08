@@ -26,47 +26,30 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/// \file aabb_visualizer.hpp
-
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/math/objects/aabb3.hpp"
-#include "xray/rendering/opengl/gl_handles.hpp"
-#include "xray/rendering/opengl/gpu_program.hpp"
-#include "xray/rendering/opengl/program_pipeline.hpp"
-#include <cstdint>
+#include "xray/math/quaternion.hpp"
+#include <cstdio>
+#include <stlsoft/memory/auto_buffer.hpp>
+#include <string>
 
 namespace xray {
-namespace rendering {
+namespace math {
 
-struct draw_context_t;
-struct rgb_color;
+template <typename T>
+std::string string_cast(const quaternion<T>& q) {
+  stlsoft::auto_buffer<char, 256u> tmp_buff{256u};
+  snprintf(tmp_buff.data(),
+           tmp_buff.size(),
+           "quaternion [%f, (%f, %f, %f)]",
+           q.w,
+           q.x,
+           q.y,
+           q.z);
 
-class aabb_visualizer {
-public:
-  aabb_visualizer();
+  return static_cast<const char*>(tmp_buff.data());
+}
 
-  void draw(const xray::rendering::draw_context_t& ctx,
-            const xray::math::aabb3f&              boundingbox,
-            const xray::rendering::rgb_color&      draw_color,
-            const float                            line_width = 2.0f);
-
-  bool valid() const noexcept { return _valid; }
-
-  explicit operator bool() const noexcept { return valid(); }
-
-private:
-  xray::rendering::scoped_buffer       _vb;
-  xray::rendering::scoped_vertex_array _vao;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::geometry_program    _gs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
-  bool                                 _valid{false};
-
-  XRAY_NO_COPY(aabb_visualizer);
-};
-
-} // namespace rendering
+} // namespace math
 } // namespace xray

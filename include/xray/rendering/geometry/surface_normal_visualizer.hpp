@@ -31,7 +31,7 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/math/objects/aabb3.hpp"
+#include "xray/math/scalar4x4.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
@@ -42,30 +42,32 @@ namespace rendering {
 
 struct draw_context_t;
 struct rgb_color;
+class basic_mesh;
 
-class aabb_visualizer {
+class surface_normal_visualizer {
 public:
-  aabb_visualizer();
+  surface_normal_visualizer();
 
   void draw(const xray::rendering::draw_context_t& ctx,
-            const xray::math::aabb3f&              boundingbox,
-            const xray::rendering::rgb_color&      draw_color,
-            const float                            line_width = 2.0f);
+            const basic_mesh&                      mesh,
+            const xray::math::mat4f&               worldtf,
+            const xray::rendering::rgb_color&      draw_color_start,
+            const xray::rendering::rgb_color&      draw_color_end,
+            const float                            line_length = 6.0f,
+            const float                            line_width  = 2.0f);
 
   bool valid() const noexcept { return _valid; }
 
   explicit operator bool() const noexcept { return valid(); }
 
 private:
-  xray::rendering::scoped_buffer       _vb;
-  xray::rendering::scoped_vertex_array _vao;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::geometry_program    _gs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
-  bool                                 _valid{false};
+  xray::rendering::vertex_program   _vs;
+  xray::rendering::geometry_program _gs;
+  xray::rendering::fragment_program _fs;
+  xray::rendering::program_pipeline _pipeline;
+  bool                              _valid{false};
 
-  XRAY_NO_COPY(aabb_visualizer);
+  XRAY_NO_COPY(surface_normal_visualizer);
 };
 
 } // namespace rendering

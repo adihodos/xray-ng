@@ -253,7 +253,6 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
       return;
 
     _cam_control.input_event(event);
-    return;
   }
 
   if (event.type == event_type::configure) {
@@ -375,10 +374,6 @@ int main(int argc, char** argv) {
     XR_LOG_ERR("Failed to initialize application window!");
     return EXIT_FAILURE;
   }
-
-  // gl::DebugMessageControl(
-  //  gl::DONT_CARE, gl::DONT_CARE, gl::DONT_CARE, 0, nullptr, gl::TRUE_);
-  // gl::DebugMessageCallback((GLDEBUGPROC) &app::debug_proc, nullptr);
 
   app::basic_scene scene{&main_window};
   main_window.events.loop = make_delegate(scene, &app::basic_scene::main_loop);

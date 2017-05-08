@@ -39,9 +39,9 @@ namespace math {
 
 template <typename T>
 std::string string_cast(const scalar3<T>& s) {
-  stlsoft::auto_buffer<char, 256> tmp_buff{256u};
-  snprintf(tmp_buff.data(), tmp_buff.size(), "scalar3 [%f, %f, %f]", s.x, s.y,
-           s.z);
+  stlsoft::auto_buffer<char, 256u> tmp_buff{256u};
+  snprintf(
+    tmp_buff.data(), tmp_buff.size(), "scalar3 [%f, %f, %f]", s.x, s.y, s.z);
 
   return static_cast<const char*>(tmp_buff.data());
 }

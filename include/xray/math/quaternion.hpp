@@ -153,14 +153,14 @@ inline quaternion<real_type>::quaternion(const real_type* init_data) noexcept {
 template <typename real_type>
 inline quaternion<real_type>::quaternion(
   const real_type angle, const scalar3<real_type>& axis) noexcept {
-  const auto length_squared = length_squared(axis);
+  const auto lensquared = length_squared(axis);
 
-  if (is_zero(length_squared)) {
+  if (is_zero(lensquared)) {
     w = real_type{1};
     x = y = z = real_type{};
   } else {
     const real_type scale_factor =
-      std::sin(angle / real_type{2}) / std::sqrt(length_squared);
+      std::sin(angle / real_type{2}) / std::sqrt(lensquared);
 
     w = std::cos(angle / real_type{2});
     x = axis.x * scale_factor;
@@ -203,7 +203,7 @@ quaternion<real_type>::quaternion(const scalar3<real_type>& v1,
 
 template <typename real_type>
 quaternion<real_type>& quaternion<real_type>::
-operator+=(const quaternion<real_type>& rhs) noexcept {
+                       operator+=(const quaternion<real_type>& rhs) noexcept {
   w += rhs.w;
   x += rhs.x;
   y += rhs.y;
@@ -213,7 +213,7 @@ operator+=(const quaternion<real_type>& rhs) noexcept {
 
 template <typename real_type>
 quaternion<real_type>& quaternion<real_type>::
-operator-=(const quaternion<real_type>& rhs) noexcept {
+                       operator-=(const quaternion<real_type>& rhs) noexcept {
   w -= rhs.w;
   x -= rhs.x;
   y -= rhs.y;
@@ -223,7 +223,7 @@ operator-=(const quaternion<real_type>& rhs) noexcept {
 
 template <typename real_type>
 quaternion<real_type>& quaternion<real_type>::
-operator*=(const real_type scalar) noexcept {
+                       operator*=(const real_type scalar) noexcept {
   w *= scalar;
   x *= scalar;
   y *= scalar;
@@ -233,7 +233,7 @@ operator*=(const real_type scalar) noexcept {
 
 template <typename real_type>
 quaternion<real_type>& quaternion<real_type>::
-operator/=(const real_type scalar) noexcept {
+                       operator/=(const real_type scalar) noexcept {
   return *this *= (real_type{1} / scalar);
 }
 
@@ -248,6 +248,9 @@ constexpr const quaternion<T> quaternion<T>::stdc::zero;
 
 template <typename T>
 constexpr const quaternion<T> quaternion<T>::stdc::identity;
+
+using quaternionf = quaternion<float>;
+using quaterniond = quaternion<double>;
 
 /// @}
 
