@@ -61,8 +61,26 @@ void app::directional_light_demo::init() {
   //"stanford/lost-empire/lost_empire.obj";
   //"stanford/cube/cube.obj";
   //"stanford/head/head.OBJ";
-  _meshes[obj_type::teapot] =
-    basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
+
+  //_meshes[obj_type::teapot] =
+  //  basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
+
+  {
+    geometry_data_t blob;
+    geometry_factory::torus(16.0f, 8.0f, 32u, 64u, &blob);
+    vector<vertex_pnt> vertices;
+    transform(raw_ptr(blob.geometry),
+              raw_ptr(blob.geometry) + blob.vertex_count,
+              back_inserter(vertices),
+              [](const vertex_pntt& vsin) {
+                return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
+              });
+
+    _meshes[obj_type::teapot] = basic_mesh{vertices.data(),
+                                           vertices.size(),
+                                           raw_ptr(blob.indices),
+                                           blob.index_count};
+  }
 
   if (!_meshes[obj_type::teapot]) {
     return;
@@ -231,7 +249,7 @@ void app::directional_light_demo::draw(
     R4::translate(teapot->pos) * teapot_rot * mat4f{R3::scale(teapot->scale)};
 
   vs_ubo.world_view_proj = draw_ctx.proj_view_matrix * teapot_world;
-  vs_ubo.normals         = teapot_rot;
+  vs_ubo.normals         = draw_ctx.view_matrix * teapot_rot;
 
   _vs.set_uniform_block("TransformMatrices", vs_ubo);
   _vs.flush_uniforms();
@@ -290,10 +308,10 @@ void app::directional_light_demo::compose_ui() {
   ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
   ImGui::Begin("Options");
 
-  // ImGui::Checkbox("Rotate X", &_demo_opts.rotate_x);
+  ImGui::Checkbox("Rotate X", &_demo_opts.rotate_x);
   ImGui::Checkbox("Rotate Y", &_demo_opts.rotate_y);
+  ImGui::Checkbox("Rotate Z", &_demo_opts.rotate_z);
 
-  // ImGui::Checkbox("Rotate Z", &_demo_opts.rotate_z);
   ImGui::SliderFloat("Rotation speed", &_demo_opts.rotate_speed, 0.001f, 0.5f);
   ImGui::SliderFloat3(
     "Light direction", _demo_opts.lightdir.components, -1.0f, +1.0f);

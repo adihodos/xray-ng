@@ -28,6 +28,9 @@ set(project_sources
     ${proj_inc_dir}/misc/bufferless_draw/bufferless-draw-demo.hpp
     ${proj_src_dir}/misc/bufferless_draw/bufferless-draw-demo.cc
 
+    ${proj_inc_dir}/misc/procedural_city/procedural_city_demo.hpp
+    ${proj_src_dir}/misc/procedural_city/procedural_city_demo.cc
+
     ${proj_inc_dir}/lighting/directional_light_demo.hpp
     ${proj_src_dir}/lighting/directional_light_demo.cc
 
