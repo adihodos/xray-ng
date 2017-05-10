@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2017 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -29,8 +29,6 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/math/scalar2.hpp"
-#include "xray/scene/camera_controller.hpp"
 #include <cstdint>
 
 namespace xray {
@@ -46,41 +44,22 @@ class camera;
 /// \addtogroup __GroupXrayMath
 /// @{
 
-class camera_controller_spherical_coords : public camera_controller {
+class camera_controller {
 public:
-  camera_controller_spherical_coords(camera*     cam,
-                                     const char* config_file = nullptr);
+  camera_controller(camera* cam);
+
+  virtual ~camera_controller();
 
   void set_camera(camera* cam) noexcept { cam_ = cam; }
 
   const camera* cam() const noexcept { return cam_; }
 
-  virtual void input_event(const ui::window_event& input_evt) override;
+  virtual void input_event(const ui::window_event& input_evt) = 0;
 
-  virtual void update() override;
-
-private:
-  struct controller_params_t {
-    float radius_{15.0f};
-    float theta_{-0.5f};
-    float phi_{0.5f};
-    float phi_max_{175.0f};
-    float phi_min_{5.0f};
-    float radius_max_{50.0f};
-    float radius_min_{1.0f};
-    float speed_theta_{0.1f};
-    float speed_phi_{0.1f};
-    float speed_move_{0.2f};
-
-    controller_params_t() noexcept = default;
-  };
-
-  void mouse_moved(const float x_pos, const float y_pos) noexcept;
+  virtual void update() = 0;
 
 private:
-  camera*             cam_;
-  controller_params_t params_{};
-  math::vec2f         last_mouse_pos_{math::vec2f::stdc::zero};
+  camera* cam_;
 };
 
 /// @}

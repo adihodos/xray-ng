@@ -34,6 +34,12 @@
 #include "xray/ui/events.hpp"
 #include <cstdint>
 
+namespace xray {
+namespace scene {
+class camera_controller;
+} // namespace scene
+} // namespace xray
+
 namespace app {
 
 class demo_base {
@@ -45,6 +51,10 @@ public:
   virtual void draw(const xray::rendering::draw_context_t&)     = 0;
   virtual void update(const float delta_ms)                     = 0;
   virtual void event_handler(const xray::ui::window_event& evt) = 0;
+
+  virtual xray::scene::camera_controller* camera_controller() {
+    return nullptr;
+  }
 
   virtual void compose_ui() {}
 

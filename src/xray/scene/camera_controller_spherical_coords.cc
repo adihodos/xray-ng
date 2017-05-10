@@ -1,3 +1,4 @@
+#include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/base/config_settings.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/math/constants.hpp"
@@ -5,7 +6,6 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/scene/camera.hpp"
-#include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
 #include <cassert>
@@ -16,8 +16,8 @@ using namespace xray::ui;
 
 xray::scene::camera_controller_spherical_coords::
   camera_controller_spherical_coords(
-    camera* cam, const char* config_file_path /* = nullptr */) noexcept
-  : cam_{cam} {
+    camera* cam, const char* config_file_path /* = nullptr */)
+  : camera_controller{cam} {
   if (!config_file_path)
     return;
 
@@ -93,7 +93,7 @@ xray::scene::camera_controller_spherical_coords::
 }
 
 void xray::scene::camera_controller_spherical_coords::input_event(
-  const ui::window_event& input_evt) noexcept {
+  const ui::window_event& input_evt) {
   using namespace xray::ui;
 
   assert(ui::is_input_event(input_evt));
@@ -136,7 +136,7 @@ void xray::scene::camera_controller_spherical_coords::mouse_moved(
   params_.phi_ = clamp(params_.phi_, params_.phi_min_, params_.phi_max_);
 }
 
-void xray::scene::camera_controller_spherical_coords::update() noexcept {
+void xray::scene::camera_controller_spherical_coords::update() {
   assert(cam_ != nullptr);
   const auto cam_pos =
     point_from_spherical_coords(params_.radius_, params_.theta_, params_.phi_);

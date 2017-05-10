@@ -84,6 +84,7 @@
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/draw_context.hpp"
 #include "xray/scene/camera.hpp"
+#include "xray/scene/camera_controller.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/scene/point_light.hpp"
 #include "xray/ui/events.hpp"
@@ -152,10 +153,13 @@ private:
   unique_pointer<demo_base> make_demo(const demo_type dtype);
 
 private:
-  xray::ui::window*                               _wnd;
-  xray::scene::camera                             _cam;
+  xray::ui::window*               _wnd;
+  xray::scene::camera             _cam;
+  xray::scene::camera_controller* _camcontrol{};
+
   xray::scene::camera_controller_spherical_coords _cam_control{
     &_cam, controller_cfg_file_path};
+
   xray::ui::imgui_backend                      _ui;
   xray::base::stats_thread                     _stats_collector;
   xray::base::stats_thread::process_stats_info _proc_stats;
@@ -254,7 +258,8 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
     if (_ui.wants_input())
       return;
 
-    _cam_control.input_event(event);
+    _camcontrol->input_event(event);
+    //_cam_control.input_event(event);
   }
 
   if (event.type == event_type::configure) {
@@ -267,8 +272,9 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
                                         1000.0f));
   }
 
-  if (_demo)
+  if (_demo) {
     _demo->event_handler(event);
+  }
 }
 
 unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {

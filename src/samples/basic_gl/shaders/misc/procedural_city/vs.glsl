@@ -7,6 +7,7 @@ layout (location = 2) in vec2 vs_in_texcoord;
 struct PerInstanceData {
   mat4 world;
   vec4 color;
+  int texid;
 };
 
 layout (std430, row_major, binding = 0) buffer InstanceData {
@@ -19,6 +20,8 @@ layout (std140, row_major, binding = 0) uniform Transforms {
 
 out VS_OUT_FS_IN {
   vec4 color;
+  vec2 texcoord;
+  flat int texid;
 } vs_out;
 
 out gl_PerVertex {
@@ -29,4 +32,6 @@ void main() {
   PerInstanceData id = instance_data[gl_InstanceID];
   gl_Position = (PROJ_VIEW * id.world) * vec4(vs_in_pos, 1.0f);
   vs_out.color = id.color;
+  vs_out.texcoord = vs_in_texcoord;
+  vs_out.texid = id.texid;
 }

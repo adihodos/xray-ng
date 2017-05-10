@@ -6,6 +6,8 @@ set(proj_src_dir "${CMAKE_SOURCE_DIR}/src/xray/scene")
 set(project_sources
     ${proj_inc_dir}/camera.hpp
     ${proj_src_dir}/camera.cc
+    ${proj_inc_dir}/camera_controller.hpp
+    ${proj_src_dir}/camera_controller.cc
     ${proj_inc_dir}/camera_controller_spherical_coords.hpp
     ${proj_src_dir}/camera_controller_spherical_coords.cc
     ${proj_inc_dir}/point_light.hpp

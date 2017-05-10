@@ -61,9 +61,14 @@ public:
 public:
   rgb_color() noexcept = default;
 
-  constexpr rgb_color(const float red, const float green, const float blue,
+  constexpr rgb_color(const float val) noexcept
+    : rgb_color{val, val, val, 1.0f} {}
+
+  constexpr rgb_color(const float red,
+                      const float green,
+                      const float blue,
                       const float alpha = 1.0f) noexcept
-      : r{red}, g{green}, b{blue}, a{alpha} {}
+    : r{red}, g{green}, b{blue}, a{alpha} {}
 
   /// \name   Conversions
   /// @{

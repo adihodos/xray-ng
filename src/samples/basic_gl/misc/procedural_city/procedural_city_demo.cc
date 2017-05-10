@@ -5,6 +5,8 @@
 #include "xray/math/projection.hpp"
 #include "xray/math/quaternion.hpp"
 #include "xray/math/quaternion_math.hpp"
+#include "xray/math/scalar3x3.hpp"
+#include "xray/math/scalar3x3_math.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/math/transforms_r3.hpp"
@@ -21,6 +23,7 @@
 #include <imgui/imgui.h>
 #include <iterator>
 #include <opengl/opengl.hpp>
+#include <random>
 #include <span.h>
 #include <vector>
 
@@ -32,7 +35,32 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-static constexpr uint32_t INSTANCE_COUNT{4u};
+static constexpr uint32_t          INSTANCE_COUNT{1024u};
+static constexpr const char* const TEXTURES[] = {"uv_grids/ash_uvgrid01.jpg",
+                                                 "uv_grids/ash_uvgrid02.jpg",
+                                                 "uv_grids/ash_uvgrid03.jpg",
+                                                 "uv_grids/ash_uvgrid04.jpg",
+                                                 "uv_grids/ash_uvgrid05.jpg",
+                                                 "uv_grids/ash_uvgrid06.jpg",
+                                                 "uv_grids/ash_uvgrid07.jpg",
+                                                 "uv_grids/ash_uvgrid08.jpg"};
+
+class random_engine {
+public:
+  random_engine(const float rangemin = 0.0f, const float rangemax = 1.0f)
+    : _distribution{rangemin, rangemax} {}
+
+  void set_range(const float minval, const float maxval) noexcept {
+    _distribution = std::uniform_real_distribution<float>{minval, maxval};
+  }
+
+  float next() noexcept { return _distribution(_engine); }
+
+private:
+  std::random_device                    _device{};
+  std::mt19937                          _engine{_device()};
+  std::uniform_real_distribution<float> _distribution{0.0f, 1.0f};
+};
 
 app::procedural_city_demo::procedural_city_demo() { init(); }
 
@@ -55,8 +83,11 @@ void app::procedural_city_demo::draw(
   gl::BindVertexArray(_mesh.vertex_array());
   gl::BindBufferBase(gl::SHADER_STORAGE_BUFFER, 0, raw_handle(_instancedata));
 
-  _vs.set_uniform_block("Transforms", mat4f::stdc::identity);
+  _vs.set_uniform_block("Transforms", draw_ctx.proj_view_matrix);
   _pipeline.use();
+
+  gl::BindTextureUnit(0, raw_handle(_objtex));
+  gl::BindSampler(0, raw_handle(_sampler));
 
   gl::DrawElementsInstanced(gl::TRIANGLES,
                             _mesh.index_count(),
@@ -72,12 +103,19 @@ void app::procedural_city_demo::event_handler(
 
 void app::procedural_city_demo::compose_ui() {}
 
+struct per_instance_data {
+  mat4f     tfworld;
+  rgb_color color;
+  int32_t   texid;
+  int32_t   pad[3];
+};
+
 void app::procedural_city_demo::init() {
   assert(!valid());
 
   {
     geometry_data_t blob;
-    geometry_factory::fullscreen_quad(&blob);
+    geometry_factory::box(1.0f, 1.0f, 1.0f, &blob);
     vector<vertex_pnt> vertices;
     transform(raw_ptr(blob.geometry),
               raw_ptr(blob.geometry) + blob.vertex_count,
@@ -92,31 +130,36 @@ void app::procedural_city_demo::init() {
                        blob.index_count};
   }
 
-  struct per_instance_data {
-    mat4f     tfworld;
-    rgb_color color;
-  } instances[INSTANCE_COUNT];
-
-  instances[0].tfworld =
-    R4::translate(-0.75f, -0.75f, 0.0f) * mat4f{R3::scale(0.25f)};
-  instances[0].color = color_palette::web::red;
-
-  instances[1].tfworld =
-    R4::translate(-0.75f, +0.75f, 0.0f) * mat4f{R3::scale(0.25f)};
-  instances[1].color = color_palette::web::green;
-
-  instances[2].tfworld =
-    R4::translate(+0.75f, +0.75f, 0.0f) * mat4f{R3::scale(0.25f)};
-  instances[2].color = color_palette::web::blue;
-
-  instances[3].tfworld =
-    R4::translate(+0.75f, -0.75f, 0.0f) * mat4f{R3::scale(0.25f)};
-  instances[3].color = color_palette::web::yellow;
-
   {
+    random_engine             re{};
+    vector<per_instance_data> instances{INSTANCE_COUNT};
+
+    int32_t invokeid{};
+    generate_n(begin(instances), INSTANCE_COUNT, [&invokeid, &re]() {
+
+      const auto xpos = floor(re.next() * 200.0f - 100.0f) * 10.0f;
+      const auto zpos = floor(re.next() * 200.0f - 100.0f) * 10.0f;
+      const auto yrot = re.next() * two_pi<float>;
+      const auto sx   = re.next() * 50.0f + 10.0f;
+      const auto sy   = re.next() * sx * 8.0f + 8.0f;
+      const auto sz   = sx;
+
+      per_instance_data data;
+      data.tfworld = R4::translate(xpos, 0.0f, zpos) *
+                     mat4f{R3::rotate_y(yrot) * R3::scale_xyz(sx, sy, sz)} *
+                     R4::translate(0.0f, 0.5f, 0.0f);
+      data.color = rgb_color{1.0f - re.next()};
+      data.texid = invokeid % XR_U32_COUNTOF__(TEXTURES);
+      ++invokeid;
+
+      return data;
+    });
+
     gl::CreateBuffers(1, raw_handle_ptr(_instancedata));
-    gl::NamedBufferStorage(
-      raw_handle(_instancedata), sizeof(instances), instances, 0);
+    gl::NamedBufferStorage(raw_handle(_instancedata),
+                           container_bytes_size(instances),
+                           instances.data(),
+                           0);
   }
 
   _vs = gpu_program_builder{}
@@ -143,5 +186,101 @@ void app::procedural_city_demo::init() {
 
   _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
 
+  {
+    gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, raw_handle_ptr(_objtex));
+    gl::TextureStorage3D(raw_handle(_objtex),
+                         1,
+                         gl::RGBA8,
+                         1024,
+                         1024,
+                         XR_U32_COUNTOF__(TEXTURES));
+
+    uint32_t id{};
+    for_each(begin(TEXTURES),
+             end(TEXTURES),
+             [&id, texid = raw_handle(_objtex) ](const char* texfile) {
+               texture_loader tex_ldr{
+                 xr_app_config->texture_path(texfile).c_str()};
+               if (!tex_ldr) {
+                 return;
+               }
+
+               gl::TextureSubImage3D(texid,
+                                     0,
+                                     0,
+                                     0,
+                                     id++,
+                                     tex_ldr.width(),
+                                     tex_ldr.height(),
+                                     1,
+                                     tex_ldr.format(),
+                                     gl::UNSIGNED_BYTE,
+                                     tex_ldr.data());
+             });
+  }
+
+  {
+    gl::CreateSamplers(1, raw_handle_ptr(_sampler));
+    gl::SamplerParameteri(
+      raw_handle(_sampler), gl::TEXTURE_MIN_FILTER, gl::LINEAR);
+    gl::SamplerParameteri(
+      raw_handle(_sampler), gl::TEXTURE_MAG_FILTER, gl::LINEAR);
+  }
+
+  gl::Enable(gl::DEPTH_TEST);
+  gl::Enable(gl::CULL_FACE);
+
   _valid = true;
+}
+
+class fps_camera_controller {
+public:
+  static constexpr float MOVE_SPEED   = 1.0f;
+  static constexpr float ROTATE_SPEED = 0.1f;
+
+  fps_camera_controller();
+
+  void move_up() noexcept;
+  void move_down() noexcept;
+
+  void yaw_left() noexcept;
+  void yaw_right() noexcept;
+
+private:
+  void update_view_transform();
+
+  xray::math::vec3f _position{xray::math::vec3f::stdc::zero};
+  xray::math::vec3f _orientation{xray::math::vec3f::stdc::zero};
+  xray::math::mat4f _viewmatrix;
+};
+
+fps_camera_controller::fps_camera_controller() { update_view_transform(); }
+
+void fps_camera_controller::move_up() noexcept { _position.y += MOVE_SPEED; }
+
+void fps_camera_controller::move_down() noexcept { _position.y -= MOVE_SPEED; }
+
+void fps_camera_controller::yaw_left() noexcept {
+  _orientation.y += ROTATE_SPEED;
+  if (_orientation.y > two_pi<float>) {
+    _orientation.y -= two_pi<float>;
+  }
+}
+
+void fps_camera_controller::yaw_right() noexcept {
+  _orientation.y -= ROTATE_SPEED;
+  if (_orientation.y < two_pi<float>) {
+    _orientation.y += two_pi<float>;
+  }
+}
+
+void fps_camera_controller::update_view_transform() {
+  const auto qx = quaternionf{_orientation.x, vec3f::stdc::unit_x};
+  const auto qy = quaternionf{_orientation.y, vec3f::stdc::unit_y};
+  const auto qz = quaternionf{_orientation.z, vec3f::stdc::unit_z};
+  //
+  // yaw/pitch/roll
+  const auto qall = qy * qx * qz;
+  const auto rmtx = transpose(rotation_matrix(qall));
+  _viewmatrix     = rmtx * R4::translate(-_position);
 }
