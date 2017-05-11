@@ -10,6 +10,8 @@ set(project_sources
     ${proj_src_dir}/camera_controller.cc
     ${proj_inc_dir}/camera_controller_spherical_coords.hpp
     ${proj_src_dir}/camera_controller_spherical_coords.cc
+    ${proj_inc_dir}/fps_camera_controller.hpp
+    ${proj_src_dir}/fps_camera_controller.cc
     ${proj_inc_dir}/point_light.hpp
     )
 

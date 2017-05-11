@@ -39,13 +39,15 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/scene/camera.hpp"
+#include "xray/scene/fps_camera_controller.hpp"
 #include <cstdint>
 
 namespace app {
 
 class procedural_city_demo : public demo_base {
 public:
-  procedural_city_demo();
+  procedural_city_demo(const init_context_t& inictx);
 
   ~procedural_city_demo();
 
@@ -66,6 +68,8 @@ private:
   xray::rendering::program_pipeline          _pipeline;
   xray::rendering::scoped_texture            _objtex;
   xray::rendering::scoped_sampler            _sampler;
+  xray::scene::camera                        _camera;
+  xray::scene::fps_camera_controller         _camcontrol{&_camera};
 
 private:
   XRAY_NO_COPY(procedural_city_demo);

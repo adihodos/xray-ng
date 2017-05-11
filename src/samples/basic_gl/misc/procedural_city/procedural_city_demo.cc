@@ -1,4 +1,5 @@
 #include "misc/procedural_city/procedural_city_demo.hpp"
+#include "init_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/math/constants.hpp"
@@ -31,6 +32,7 @@ using namespace xray::base;
 using namespace xray::rendering;
 using namespace xray::math;
 using namespace xray::ui;
+using namespace xray::scene;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
@@ -62,7 +64,25 @@ private:
   std::uniform_real_distribution<float> _distribution{0.0f, 1.0f};
 };
 
-app::procedural_city_demo::procedural_city_demo() { init(); }
+app::procedural_city_demo::procedural_city_demo(
+  const app::init_context_t& initctx) {
+
+  //_camera.look_at(
+  //  vec3f{0.0f, 10.0f, -10.0f}, vec3f::stdc::zero, vec3f::stdc::unit_y);
+  //_camera.set_projection(
+  //  projection_rh::perspective_symmetric((float) initctx.surface_width,
+  //                                       (float) initctx.surface_height,
+  //                                       radians(60.0f),
+  //                                       0.1f,
+  //                                       1000.0f));
+  camera_lens_parameters lp{};
+  lp.farplane = 1000.0f;
+  lp.width    = (float) initctx.surface_width;
+  lp.height   = (float) initctx.surface_height;
+
+  _camcontrol.set_lens_parameters(lp);
+  init();
+}
 
 app::procedural_city_demo::~procedural_city_demo() {}
 
@@ -83,7 +103,7 @@ void app::procedural_city_demo::draw(
   gl::BindVertexArray(_mesh.vertex_array());
   gl::BindBufferBase(gl::SHADER_STORAGE_BUFFER, 0, raw_handle(_instancedata));
 
-  _vs.set_uniform_block("Transforms", draw_ctx.proj_view_matrix);
+  _vs.set_uniform_block("Transforms", _camera.projection_view());
   _pipeline.use();
 
   gl::BindTextureUnit(0, raw_handle(_objtex));
@@ -96,10 +116,26 @@ void app::procedural_city_demo::draw(
                             INSTANCE_COUNT);
 }
 
-void app::procedural_city_demo::update(const float delta_ms) {}
+void app::procedural_city_demo::update(const float delta_ms) {
+  _camcontrol.update();
+}
 
 void app::procedural_city_demo::event_handler(
-  const xray::ui::window_event& /* evt */) {}
+  const xray::ui::window_event& evt) {
+
+  if (evt.type == event_type::configure) {
+    camera_lens_parameters lp;
+    lp.farplane = 1000.0f;
+    lp.width    = (float) evt.event.configure.width;
+    lp.height   = (float) evt.event.configure.height;
+    _camcontrol.set_lens_parameters(lp);
+    return;
+  }
+
+  if (is_input_event(evt)) {
+    _camcontrol.input_event(evt);
+  }
+}
 
 void app::procedural_city_demo::compose_ui() {}
 
@@ -231,56 +267,4 @@ void app::procedural_city_demo::init() {
   gl::Enable(gl::CULL_FACE);
 
   _valid = true;
-}
-
-class fps_camera_controller {
-public:
-  static constexpr float MOVE_SPEED   = 1.0f;
-  static constexpr float ROTATE_SPEED = 0.1f;
-
-  fps_camera_controller();
-
-  void move_up() noexcept;
-  void move_down() noexcept;
-
-  void yaw_left() noexcept;
-  void yaw_right() noexcept;
-
-private:
-  void update_view_transform();
-
-  xray::math::vec3f _position{xray::math::vec3f::stdc::zero};
-  xray::math::vec3f _orientation{xray::math::vec3f::stdc::zero};
-  xray::math::mat4f _viewmatrix;
-};
-
-fps_camera_controller::fps_camera_controller() { update_view_transform(); }
-
-void fps_camera_controller::move_up() noexcept { _position.y += MOVE_SPEED; }
-
-void fps_camera_controller::move_down() noexcept { _position.y -= MOVE_SPEED; }
-
-void fps_camera_controller::yaw_left() noexcept {
-  _orientation.y += ROTATE_SPEED;
-  if (_orientation.y > two_pi<float>) {
-    _orientation.y -= two_pi<float>;
-  }
-}
-
-void fps_camera_controller::yaw_right() noexcept {
-  _orientation.y -= ROTATE_SPEED;
-  if (_orientation.y < two_pi<float>) {
-    _orientation.y += two_pi<float>;
-  }
-}
-
-void fps_camera_controller::update_view_transform() {
-  const auto qx = quaternionf{_orientation.x, vec3f::stdc::unit_x};
-  const auto qy = quaternionf{_orientation.y, vec3f::stdc::unit_y};
-  const auto qz = quaternionf{_orientation.z, vec3f::stdc::unit_z};
-  //
-  // yaw/pitch/roll
-  const auto qall = qy * qx * qz;
-  const auto rmtx = transpose(rotation_matrix(qall));
-  _viewmatrix     = rmtx * R4::translate(-_position);
 }

@@ -58,7 +58,7 @@ public:
 
   virtual void update() = 0;
 
-private:
+protected:
   camera* cam_;
 };
 

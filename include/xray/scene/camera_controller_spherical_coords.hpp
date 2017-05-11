@@ -51,10 +51,6 @@ public:
   camera_controller_spherical_coords(camera*     cam,
                                      const char* config_file = nullptr);
 
-  void set_camera(camera* cam) noexcept { cam_ = cam; }
-
-  const camera* cam() const noexcept { return cam_; }
-
   virtual void input_event(const ui::window_event& input_evt) override;
 
   virtual void update() override;
@@ -78,7 +74,6 @@ private:
   void mouse_moved(const float x_pos, const float y_pos) noexcept;
 
 private:
-  camera*             cam_;
   controller_params_t params_{};
   math::vec2f         last_mouse_pos_{math::vec2f::stdc::zero};
 };

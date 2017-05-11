@@ -51,16 +51,20 @@ public:
 
   const math::vec3f& up() const noexcept { return up_; }
 
-  void set_view_matrix(const math::mat4f& view);
+  void               set_view_matrix(const math::mat4f& view);
   const math::mat4f& view() const noexcept;
 
-  void set_projection(const math::mat4f& projection) noexcept;
+  void               set_projection(const math::mat4f& projection) noexcept;
   const math::mat4f& projection() const noexcept;
 
   const math::mat4f& projection_view() const noexcept;
 
-  void look_at(const math::vec3f& eye_pos, const math::vec3f& target,
+  void look_at(const math::vec3f& eye_pos,
+               const math::vec3f& target,
                const math::vec3f& world_up) noexcept;
+
+  //void set_fov(const float fov_rads) noexcept;
+  //void set_near_far(const float nearplane, const float farplane);
 
 private:
   void invalidate() noexcept { updated_ = false; }

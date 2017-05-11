@@ -89,8 +89,16 @@ struct view_framing<right_handed> {
   static scalar4x4<T> look_at(const scalar3<T>& eye_pos,
                               const scalar3<T>& target,
                               const scalar3<T>& world_up) noexcept {
-    const auto direction = normalize(eye_pos - target);
-    return lookat_to_matrix(direction, eye_pos, world_up);
+    //const auto direction = normalize(eye_pos - target);
+    //return lookat_to_matrix(direction, eye_pos, world_up);
+
+    const auto dir = normalize(target - eye_pos);
+    const auto up = normalize(world_up - project(world_up, dir));
+    const auto right = cross(dir, up);
+
+    return{
+
+    };
   }
 };
 

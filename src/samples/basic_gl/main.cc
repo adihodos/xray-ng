@@ -153,13 +153,10 @@ private:
   unique_pointer<demo_base> make_demo(const demo_type dtype);
 
 private:
-  xray::ui::window*               _wnd;
-  xray::scene::camera             _cam;
-  xray::scene::camera_controller* _camcontrol{};
-
+  xray::ui::window*                               _wnd;
+  xray::scene::camera                             _cam;
   xray::scene::camera_controller_spherical_coords _cam_control{
     &_cam, controller_cfg_file_path};
-
   xray::ui::imgui_backend                      _ui;
   xray::base::stats_thread                     _stats_collector;
   xray::base::stats_thread::process_stats_info _proc_stats;
@@ -258,8 +255,7 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
     if (_ui.wants_input())
       return;
 
-    _camcontrol->input_event(event);
-    //_cam_control.input_event(event);
+    _cam_control.input_event(event);
   }
 
   if (event.type == event_type::configure) {
@@ -278,6 +274,10 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
 }
 
 unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
+
+  const init_context_t init_context{
+    (uint32_t) _wnd->width(), (uint32_t) _wnd->height(), xr_app_config};
+
   switch (dtype) {
   case demo_type::colored_circle:
     return xray::base::make_unique<colored_circle_demo>();
@@ -304,7 +304,7 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     break;
 
   case demo_type::procedural_city:
-    return xray::base::make_unique<procedural_city_demo>();
+    return xray::base::make_unique<procedural_city_demo>(init_context);
     break;
 
   default:

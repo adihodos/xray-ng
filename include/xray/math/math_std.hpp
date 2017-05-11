@@ -69,17 +69,17 @@ inline T mix(const T& a, const T& b, const U u) noexcept {
 /// -1, if x < 0,
 /// +1, if x >= 0
 template <typename T>
-inline T sgn(const T value) noexcept {
+inline constexpr T sgn(const T value) noexcept {
   return (value >= T(0)) - (value < 0);
 }
 
 template <typename T>
-inline T radians(const T degrees) noexcept {
+inline constexpr T radians(const T degrees) noexcept {
   return degrees * pi_over_180<T>;
 }
 
 template <typename T>
-inline T degrees(const T radians) noexcept {
+inline constexpr T degrees(const T radians) noexcept {
   return radians * one_eighty_over_pi<T>;
 }
 
