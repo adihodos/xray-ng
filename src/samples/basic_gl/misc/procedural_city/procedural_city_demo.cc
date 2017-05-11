@@ -68,14 +68,6 @@ private:
 app::procedural_city_demo::procedural_city_demo(
   const app::init_context_t& initctx) {
 
-  //_camera.look_at(
-  //  vec3f{0.0f, 10.0f, -10.0f}, vec3f::stdc::zero, vec3f::stdc::unit_y);
-  //_camera.set_projection(
-  //  projection_rh::perspective_symmetric((float) initctx.surface_width,
-  //                                       (float) initctx.surface_height,
-  //                                       radians(60.0f),
-  //                                       0.1f,
-  //                                       1000.0f));
   camera_lens_parameters lp{};
   lp.farplane = 1000.0f;
   lp.width    = (float) initctx.surface_width;

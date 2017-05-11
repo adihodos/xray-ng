@@ -235,14 +235,15 @@ void xray::scene::fps_camera_controller::update() {
 }
 
 void xray::scene::fps_camera_controller::update_view_transform() {
-  // const auto qx = quaternionf{_orientation.x, vec3f::stdc::unit_x};
-  // const auto qy = quaternionf{_orientation.y, vec3f::stdc::unit_y};
-  // const auto qz = quaternionf{_orientation.z, vec3f::stdc::unit_z};
-  ////
-  //// yaw/pitch/roll
-  // const auto qall = qy * qx * qz;
-  // const auto rmtx = transpose(rotation_matrix(qall));
-  // cam_->set_view_matrix(rmtx * R4::translate(-_position));
-  cam_->set_view_matrix(view_frame::look_at(
-    _position, _position + vec3f::stdc::unit_z, vec3f::stdc::unit_y));
+  const auto qx = quaternionf{_orientation.x, vec3f::stdc::unit_x};
+  const auto qy = quaternionf{_orientation.y, vec3f::stdc::unit_y};
+  const auto qz = quaternionf{_orientation.z, vec3f::stdc::unit_z};
+  //
+  // yaw/pitch/roll
+  const auto qall = qy * qx * qz;
+  const auto rmtx = transpose(rotation_matrix(qall));
+  cam_->set_view_matrix(rmtx * R4::translate(-_position));
+
+  // cam_->set_view_matrix(view_frame::look_at(
+  //   _position, _position + vec3f::stdc::unit_z, vec3f::stdc::unit_y));
 }

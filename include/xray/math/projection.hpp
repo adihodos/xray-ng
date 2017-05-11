@@ -45,43 +45,99 @@ namespace math {
 
 struct view_frame {
   template <typename T>
+  static scalar4x4<T> view_matrix(const scalar3<T> right,
+                                  const scalar3<T> up,
+                                  const scalar3<T> dir,
+                                  const scalar3<T> origin) noexcept;
+
+  template <typename T>
   static scalar4x4<T> look_at(const scalar3<T>& eye_pos,
                               const scalar3<T>& target,
                               const scalar3<T>& world_up) noexcept {
     const auto direction = normalize(target - eye_pos);
-    const auto right     = normalize(cross(world_up, direction));
-    const auto up        = cross(direction, right);
 
-    return {// 1st row
-            right.x,
-            right.y,
-            right.z,
-            -dot(right, eye_pos),
-            // 2nd row
-            up.x,
-            up.y,
-            up.z,
-            -dot(up, eye_pos),
-            // 3rd row
-            direction.x,
-            direction.y,
-            direction.z,
-            -dot(direction, eye_pos),
-            // 4th row
-            0.0f,
-            0.0f,
-            0.0f,
-            1.0f};
+    assert(!is_zero_length(direction) && "Direction vector cannot be null!");
+    assert(!are_parallel(direction, world_up) &&
+           "Direction vector and world up vector cannot be parallel!");
+
+    const auto right = normalize(cross(world_up, direction));
+    const auto up    = cross(direction, right);
+
+    return view_matrix(right, up, direction, eye_pos);
+
+    // return {// 1st row
+    //         right.x,
+    //         right.y,
+    //         right.z,
+    //         -dot(right, eye_pos),
+    //         // 2nd row
+    //         up.x,
+    //         up.y,
+    //         up.z,
+    //         -dot(up, eye_pos),
+    //         // 3rd row
+    //         direction.x,
+    //         direction.y,
+    //         direction.z,
+    //         -dot(direction, eye_pos),
+    //         // 4th row
+    //         0.0f,
+    //         0.0f,
+    //         0.0f,
+    //         1.0f};
   }
 };
+
+template <typename T>
+scalar4x4<T> view_frame::view_matrix(const scalar3<T> right,
+                                     const scalar3<T> up,
+                                     const scalar3<T> dir,
+                                     const scalar3<T> origin) noexcept {
+
+  assert(are_orthogonal(right, up) &&
+         "Right and up vector must be orthogonal !");
+  assert(are_orthogonal(right, dir) &&
+         "Right and direction vector must be orthogonal !");
+  assert(are_orthogonal(dir, up) &&
+         "Direction and up vector must be orthogonal !");
+
+  return {// 1st row
+          right.x,
+          right.y,
+          right.z,
+          -dot(right, origin),
+          // 2nd row
+          up.x,
+          up.y,
+          up.z,
+          -dot(up, origin),
+          // 3rd row
+          dir.x,
+          dir.y,
+          dir.z,
+          -dot(dir, origin),
+          // 4th row
+          T{},
+          T{},
+          T{},
+          T{1}};
+}
 
 /// \brief  Builds projection matrices assuming a left handed coordinate
 ///         system.
 struct projection {
 
   template <typename T>
-  static scalar4x4<T> perspective_symmetric(const T width,
-                                            const T height,
+  inline static scalar4x4<T> perspective_symmetric(const T width,
+                                                   const T height,
+                                                   const T fov,
+                                                   const T near_plane,
+                                                   const T far_plane) noexcept {
+    return perspective_symmetric(width / height, fov, near_plane, far_plane);
+  }
+
+  template <typename T>
+  static scalar4x4<T> perspective_symmetric(const T aspect_ratio,
                                             const T fov,
                                             const T near_plane,
                                             const T far_plane) noexcept;
@@ -110,21 +166,17 @@ struct projection {
 };
 
 template <typename T>
-scalar4x4<T> projection::perspective_symmetric(const T width,
-                                               const T height,
+scalar4x4<T> projection::perspective_symmetric(const T aspect_ratio,
                                                const T fov,
                                                const T near_plane,
                                                const T far_plane) noexcept {
-  //
-  // aspect ratio
-  const auto a = width / height;
   //
   // distance to projection plane
   const auto d = T(1) / std::tan(fov / T(2));
 
   auto proj = scalar4x4<T>::stdc::null;
 
-  proj.a00 = d / a;
+  proj.a00 = d / aspect_ratio;
 
   proj.a11 = d;
 
