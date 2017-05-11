@@ -13,6 +13,7 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
+#include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
 #include <algorithm>
@@ -255,6 +256,8 @@ void app::directional_light_demo::draw(
   _vs.flush_uniforms();
 
   gl::Enable(gl::CULL_FACE);
+  scoped_winding_order_setting faces_cw{gl::CW};
+
   gl::DrawElements(
     gl::TRIANGLES, teapot->mesh->index_count(), gl::UNSIGNED_INT, nullptr);
 

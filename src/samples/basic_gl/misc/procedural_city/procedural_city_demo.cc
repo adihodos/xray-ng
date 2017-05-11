@@ -16,6 +16,7 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
+#include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
 #include <algorithm>
@@ -109,6 +110,7 @@ void app::procedural_city_demo::draw(
   gl::BindTextureUnit(0, raw_handle(_objtex));
   gl::BindSampler(0, raw_handle(_sampler));
 
+  scoped_winding_order_setting faces_cw{gl::CW};
   gl::DrawElementsInstanced(gl::TRIANGLES,
                             _mesh.index_count(),
                             gl::UNSIGNED_INT,

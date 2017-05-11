@@ -47,11 +47,7 @@ struct right_handed {};
 
 enum class handedness { left, right };
 
-#if !defined(XRAY_USE_LEFT_HANDED)
-using xray_default_handedness = right_handed;
-#else
 using xray_default_handedness = left_handed;
-#endif
 
 /// @}
 

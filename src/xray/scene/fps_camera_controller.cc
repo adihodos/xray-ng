@@ -225,11 +225,11 @@ void xray::scene::fps_camera_controller::update() {
 
   if (!_syncstatus.lens) {
     cam_->set_projection(
-      projection_rh::perspective_symmetric(_lensparams.width,
-                                           _lensparams.height,
-                                           _lensparams.fov,
-                                           _lensparams.nearplane,
-                                           _lensparams.farplane));
+      projection::perspective_symmetric(_lensparams.width,
+                                        _lensparams.height,
+                                        _lensparams.fov,
+                                        _lensparams.nearplane,
+                                        _lensparams.farplane));
     _syncstatus.lens = true;
   }
 }
@@ -243,6 +243,6 @@ void xray::scene::fps_camera_controller::update_view_transform() {
   // const auto qall = qy * qx * qz;
   // const auto rmtx = transpose(rotation_matrix(qall));
   // cam_->set_view_matrix(rmtx * R4::translate(-_position));
-  cam_->set_view_matrix(view_frame_rh::look_at(
+  cam_->set_view_matrix(view_frame::look_at(
     _position, _position + vec3f::stdc::unit_z, vec3f::stdc::unit_y));
 }

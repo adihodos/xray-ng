@@ -39,12 +39,12 @@ namespace rendering {
 
 struct scoped_polygon_mode_setting {
 public:
-  explicit scoped_polygon_mode_setting(const int32_t new_mode) {
+  explicit scoped_polygon_mode_setting(const int32_t new_mode) noexcept {
     gl::GetIntegerv(gl::POLYGON_MODE, &_old_mode);
     gl::PolygonMode(gl::FRONT_AND_BACK, (GLenum) new_mode);
   }
 
-  ~scoped_polygon_mode_setting() {
+  ~scoped_polygon_mode_setting() noexcept {
     gl::PolygonMode(gl::FRONT_AND_BACK, (GLenum) _old_mode);
   }
 
@@ -55,16 +55,30 @@ private:
 
 struct scoped_line_width_setting {
 public:
-  explicit scoped_line_width_setting(const float new_width) {
+  explicit scoped_line_width_setting(const float new_width) noexcept {
     gl::GetFloatv(gl::LINE_WIDTH, &_old_width);
     gl::LineWidth(new_width);
   }
 
-  ~scoped_line_width_setting() { gl::LineWidth(_old_width); }
+  ~scoped_line_width_setting() noexcept { gl::LineWidth(_old_width); }
 
 private:
   float _old_width{};
   XRAY_NO_COPY(scoped_line_width_setting);
+};
+
+struct scoped_winding_order_setting {
+public:
+  explicit scoped_winding_order_setting(const GLint new_winding) noexcept {
+    gl::GetIntegerv(gl::FRONT_FACE, &_old_setting);
+    gl::FrontFace(new_winding);
+  }
+
+  ~scoped_winding_order_setting() noexcept { gl::FrontFace(_old_setting); }
+
+private:
+  GLint _old_setting{};
+  XRAY_NO_COPY(scoped_winding_order_setting);
 };
 
 } // namespace rendering

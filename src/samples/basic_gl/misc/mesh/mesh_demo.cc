@@ -218,6 +218,8 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
     scoped_polygon_mode_setting set_wireframe{
       _drawparams.draw_wireframe ? gl::LINE : gl::FILL};
 
+    scoped_winding_order_setting set_cw{gl::CW};
+
     gl::DrawElements(
       gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
   }
