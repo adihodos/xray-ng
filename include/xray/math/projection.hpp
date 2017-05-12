@@ -64,27 +64,6 @@ struct view_frame {
     const auto up    = cross(direction, right);
 
     return view_matrix(right, up, direction, eye_pos);
-
-    // return {// 1st row
-    //         right.x,
-    //         right.y,
-    //         right.z,
-    //         -dot(right, eye_pos),
-    //         // 2nd row
-    //         up.x,
-    //         up.y,
-    //         up.z,
-    //         -dot(up, eye_pos),
-    //         // 3rd row
-    //         direction.x,
-    //         direction.y,
-    //         direction.z,
-    //         -dot(direction, eye_pos),
-    //         // 4th row
-    //         0.0f,
-    //         0.0f,
-    //         0.0f,
-    //         1.0f};
   }
 };
 

@@ -68,7 +68,7 @@ struct scalar2 {
 
   using class_type = scalar2<T>;
 
-  scalar2() noexcept {}
+  scalar2() noexcept = default;
 
   constexpr scalar2(const T xval, const T yval) noexcept : x{xval}, y{yval} {}
 

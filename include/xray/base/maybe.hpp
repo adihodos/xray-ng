@@ -79,6 +79,16 @@ public:
     }
   }
 
+  /// \brief Reset to null value via assignment.
+  class_type& operator=(nothing) noexcept {
+    if (has_value()) {
+      stored_value_.~value_type();
+      has_value_ = false;
+    }
+
+    return *this;
+  }
+
   /// \brief  Assign from temporary object.
   class_type& operator=(class_type&& other) {
     if (other.has_value()) {

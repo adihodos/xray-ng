@@ -51,8 +51,7 @@ struct camera_lens_parameters {
   float fov{math::radians(65.0f)};
   float nearplane{0.1f};
   float farplane{500.0f};
-  float width{};
-  float height{};
+  float aspect_ratio{ 4.0f / 3.0f };
 };
 
 class fps_camera_controller : public camera_controller {

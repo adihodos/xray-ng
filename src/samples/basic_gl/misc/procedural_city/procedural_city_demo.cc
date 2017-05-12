@@ -70,8 +70,8 @@ app::procedural_city_demo::procedural_city_demo(
 
   camera_lens_parameters lp{};
   lp.farplane = 1000.0f;
-  lp.width    = (float) initctx.surface_width;
-  lp.height   = (float) initctx.surface_height;
+  lp.aspect_ratio =
+    (float) initctx.surface_width / (float) initctx.surface_height;
 
   _camcontrol.set_lens_parameters(lp);
   init();
@@ -120,8 +120,9 @@ void app::procedural_city_demo::event_handler(
   if (evt.type == event_type::configure) {
     camera_lens_parameters lp;
     lp.farplane = 1000.0f;
-    lp.width    = (float) evt.event.configure.width;
-    lp.height   = (float) evt.event.configure.height;
+    lp.aspect_ratio =
+      (float) evt.event.configure.width / (float) evt.event.configure.height;
+
     _camcontrol.set_lens_parameters(lp);
     return;
   }

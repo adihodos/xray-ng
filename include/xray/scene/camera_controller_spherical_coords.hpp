@@ -29,6 +29,7 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#include "xray/base/maybe.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/scene/camera_controller.hpp"
 #include <cstdint>
@@ -74,8 +75,8 @@ private:
   void mouse_moved(const float x_pos, const float y_pos) noexcept;
 
 private:
-  controller_params_t params_{};
-  math::vec2f         last_mouse_pos_{math::vec2f::stdc::zero};
+  controller_params_t                  _params{};
+  xray::base::maybe<xray::math::vec2f> _last_mouse_pos{xray::base::nothing{}};
 };
 
 /// @}
