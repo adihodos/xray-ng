@@ -886,7 +886,7 @@ void xray::rendering::geometry_factory::hexahedron(geometry_data_t* mesh) {
                             vec3f{+1.0f, +1.0f, +1.0f} * 0.57735f,
                             vec3f{-1.0f, +1.0f, +1.0f} * 0.57735f};
 
-  for (size_t idx = 0; idx < XR_COUNTOF__(vertices); ++idx) {
+  for (size_t idx = 0; idx < XR_COUNTOF(vertices); ++idx) {
     mesh->geometry[idx].position = vertices[idx];
   }
 
@@ -934,7 +934,7 @@ void xray::rendering::geometry_factory::octahedron(geometry_data_t* mesh) {
     // clang-format on
   };
 
-  for (size_t idx = 0; idx < XR_COUNTOF__(vertices); ++idx) {
+  for (size_t idx = 0; idx < XR_COUNTOF(vertices); ++idx) {
     mesh->geometry[idx].position = vertices[idx];
   }
 
@@ -1020,7 +1020,7 @@ void xray::rendering::geometry_factory::dodecahedron(geometry_data_t* mesh) {
     // clang-format on
   };
 
-  for (size_t idx = 0; idx < XR_COUNTOF__(vertices); ++idx) {
+  for (size_t idx = 0; idx < XR_COUNTOF(vertices); ++idx) {
     mesh->geometry[idx].position = vertices[idx];
   }
 
@@ -1081,10 +1081,10 @@ void xray::rendering::geometry_factory::icosahedron(geometry_data_t* mesh) {
     // clang-format on
   };
 
-  mesh->setup(static_cast<uint32_t>(XR_COUNTOF__(vertices)),
-              static_cast<uint32_t>(XR_COUNTOF__(indices)));
+  mesh->setup(static_cast<uint32_t>(XR_COUNTOF(vertices)),
+              static_cast<uint32_t>(XR_COUNTOF(indices)));
 
-  for (size_t idx = 0; idx < XR_COUNTOF__(vertices); ++idx) {
+  for (size_t idx = 0; idx < XR_COUNTOF(vertices); ++idx) {
     mesh->geometry[idx].position = vertices[idx];
   }
 

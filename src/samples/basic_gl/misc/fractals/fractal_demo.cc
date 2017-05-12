@@ -157,8 +157,8 @@ void app::fractal_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
   _fp.width      = static_cast<float>(draw_ctx.window_width);
   _fp.height     = static_cast<float>(draw_ctx.window_height);
   _fp.iterations = (uint32_t) _iterations;
-  _fp.shape_re   = NICE_SHAPES[_shape_idx % XR_COUNTOF__(NICE_SHAPES)].pos.x;
-  _fp.shape_im   = NICE_SHAPES[_shape_idx % XR_COUNTOF__(NICE_SHAPES)].pos.y;
+  _fp.shape_re   = NICE_SHAPES[_shape_idx % XR_COUNTOF(NICE_SHAPES)].pos.x;
+  _fp.shape_im   = NICE_SHAPES[_shape_idx % XR_COUNTOF(NICE_SHAPES)].pos.y;
 
   _fs.set_uniform_block("fractal_params", _fp);
 
@@ -176,7 +176,7 @@ void app::fractal_demo::event_handler(const xray::ui::window_event& evt) {
 }
 
 bool get_next_shape_description(void*, int32_t idx, const char** shape_desc) {
-  if (idx < (int32_t) XR_COUNTOF__(NICE_SHAPES)) {
+  if (idx < (int32_t) XR_COUNTOF(NICE_SHAPES)) {
     *shape_desc = NICE_SHAPES[idx].text;
     return true;
   }
@@ -191,8 +191,8 @@ void app::fractal_demo::compose_ui() {
                &_shape_idx,
                &get_next_shape_description,
                nullptr,
-               (int32_t) XR_COUNTOF__(NICE_SHAPES),
-               (int32_t) XR_COUNTOF__(NICE_SHAPES) / 2);
+               (int32_t) XR_COUNTOF(NICE_SHAPES),
+               (int32_t) XR_COUNTOF(NICE_SHAPES) / 2);
 
   ImGui::SliderInt("Iterations", &_iterations, 32, 4096, nullptr);
   ImGui::End();

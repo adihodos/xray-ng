@@ -337,7 +337,7 @@ public:
 
   template <typename vector_type>
   void set_vector_or_matrix(const vector_type& vec) noexcept {
-    set_value(vec.components, XR_COUNTOF__(vec.components));
+    set_value(vec.components, XR_COUNTOF(vec.components));
   }
 
   bool valid() const noexcept {

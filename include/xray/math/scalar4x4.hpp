@@ -216,7 +216,7 @@ using mat4d = scalar4x4<double>;
 
 template <typename T>
 scalar4x4<T>::scalar4x4(const T* input, const size_t count) noexcept {
-  base::copy_pod_range(input, math::min(XR_COUNTOF__(components), count),
+  base::copy_pod_range(input, math::min(XR_COUNTOF(components), count),
                        components);
 }
 
@@ -308,7 +308,7 @@ void scalar4x4<T>::set(const scalar3<T>& x_axis, const scalar3<T>& y_axis,
 
 template <typename T>
 scalar4x4<T>& scalar4x4<T>::operator+=(const scalar4x4<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
     components[i] += rhs.components[i];
   }
 
@@ -317,7 +317,7 @@ scalar4x4<T>& scalar4x4<T>::operator+=(const scalar4x4<T>& rhs) noexcept {
 
 template <typename T>
 scalar4x4<T>& scalar4x4<T>::operator-=(const scalar4x4<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
     components[i] -= rhs.components[i];
   }
 
@@ -326,7 +326,7 @@ scalar4x4<T>& scalar4x4<T>::operator-=(const scalar4x4<T>& rhs) noexcept {
 
 template <typename T>
 scalar4x4<T>& scalar4x4<T>::operator*=(const T k) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
     components[i] *= k;
   }
 
@@ -335,7 +335,7 @@ scalar4x4<T>& scalar4x4<T>::operator*=(const T k) noexcept {
 
 template <typename T>
 scalar4x4<T>& scalar4x4<T>::operator/=(const T k) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
     components[i] /= k;
   }
 

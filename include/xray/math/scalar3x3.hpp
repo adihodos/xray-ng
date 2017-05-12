@@ -199,7 +199,7 @@ constexpr scalar3x3<T>::scalar3x3(const T (&arr)[9]) noexcept
 
 template <typename T>
 scalar3x3<T>::scalar3x3(const T* input, const size_t count) noexcept {
-  base::copy_pod_range(input, math::min(XR_COUNTOF__(components), count),
+  base::copy_pod_range(input, math::min(XR_COUNTOF(components), count),
                        components);
 }
 
@@ -253,7 +253,7 @@ void scalar3x3<T>::set(const scalar3<T>& x_axis, const scalar3<T>& y_axis,
 
 template <typename T>
 scalar3x3<T>& scalar3x3<T>::operator+=(const scalar3x3<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
     components[i] += rhs.components[i];
   }
 
@@ -262,7 +262,7 @@ scalar3x3<T>& scalar3x3<T>::operator+=(const scalar3x3<T>& rhs) noexcept {
 
 template <typename T>
 scalar3x3<T>& scalar3x3<T>::operator-=(const scalar3x3<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
     components[i] -= rhs.components[i];
   }
 
@@ -271,7 +271,7 @@ scalar3x3<T>& scalar3x3<T>::operator-=(const scalar3x3<T>& rhs) noexcept {
 
 template <typename T>
 scalar3x3<T>& scalar3x3<T>::operator*=(const T scalar) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
     components[i] *= scalar;
   }
 
@@ -280,7 +280,7 @@ scalar3x3<T>& scalar3x3<T>::operator*=(const T scalar) noexcept {
 
 template <typename T>
 scalar3x3<T>& scalar3x3<T>::operator/=(const T scalar) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
     components[i] /= scalar;
   }
 

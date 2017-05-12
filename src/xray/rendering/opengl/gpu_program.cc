@@ -1,10 +1,10 @@
+#include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/shims/string.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
-#include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include <algorithm>
 #include <array>
@@ -19,6 +19,8 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+
+using namespace xray::base;
 
 template <uint32_t uniform_type>
 struct uniform_traits;
@@ -246,7 +248,7 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
   char  log_buff[1024];
   GLint log_len{0};
   gl::GetProgramInfoLog(
-    raw_handle(gpu_prg), XR_I32_COUNTOF__(log_buff), &log_len, log_buff);
+    raw_handle(gpu_prg), XR_I32_COUNTOF(log_buff), &log_len, log_buff);
   log_buff[log_len] = 0;
 
   auto stage_id = [stg]() {
@@ -300,7 +302,7 @@ xray::rendering::detail::gpu_program_helpers::create_shader_from_string(
   char  err_buff[1024];
   GLint bsize{0};
   gl::GetShaderInfoLog(
-    raw_handle(shader), XR_I32_COUNTOF__(err_buff), &bsize, err_buff);
+    raw_handle(shader), XR_I32_COUNTOF(err_buff), &bsize, err_buff);
   err_buff[bsize] = 0;
 
   XR_LOG_CRITICAL("Shader compilation error:\n [[{}]]", &err_buff[0]);
@@ -374,7 +376,7 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(
   //
   // colllect info about the uniforms
   stlsoft::auto_buffer<char, 128> txt_buff{static_cast<size_t>(max_name_len)};
-  vector<uniform_block_t> ublocks{};
+  vector<uniform_block_t>         ublocks{};
 
   for (uint32_t blk_idx = 0;
        blk_idx < static_cast<uint32_t>(num_uniform_blocks);
@@ -408,8 +410,8 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(
 
     } u_props;
 
-    static_assert(XR_U32_COUNTOF__(props_to_get) ==
-                    XR_U32_COUNTOF__(u_props.components),
+    static_assert(XR_U32_COUNTOF(props_to_get) ==
+                    XR_U32_COUNTOF(u_props.components),
                   "Mismatch between the count of requested properties and "
                   "their storage block");
 
@@ -418,13 +420,13 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(
     gl::GetProgramResourceiv(phandle,
                              gl::UNIFORM_BLOCK,
                              blk_idx,
-                             XR_U32_COUNTOF__(props_to_get),
+                             XR_U32_COUNTOF(props_to_get),
                              props_to_get,
-                             XR_U32_COUNTOF__(u_props.components),
+                             XR_U32_COUNTOF(u_props.components),
                              &props_retrieved,
                              u_props.components);
 
-    if ((props_retrieved != XR_U32_COUNTOF__(u_props.components)) || !u_props) {
+    if ((props_retrieved != XR_U32_COUNTOF(u_props.components)) || !u_props) {
       XR_LOG_ERR("Failed to retrieve all uniform block properties!");
       return false;
     }
@@ -546,7 +548,7 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniforms(
                                    gl::MATRIX_STRIDE};
 
     static_assert(
-      XR_U32_COUNTOF__(u_props.u_components) == XR_U32_COUNTOF__(props_to_get),
+      XR_U32_COUNTOF(u_props.u_components) == XR_U32_COUNTOF(props_to_get),
       "Size mismatch between number of properties to get and to store!");
 
     GLint props_retrieved{0};
@@ -554,13 +556,13 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniforms(
     gl::GetProgramResourceiv(phandle,
                              gl::UNIFORM,
                              u_idx,
-                             XR_U32_COUNTOF__(props_to_get),
+                             XR_U32_COUNTOF(props_to_get),
                              props_to_get,
-                             XR_U32_COUNTOF__(u_props.u_components),
+                             XR_U32_COUNTOF(u_props.u_components),
                              &props_retrieved,
                              u_props.u_components);
 
-    if (props_retrieved != XR_I32_COUNTOF__(props_to_get)) {
+    if (props_retrieved != XR_I32_COUNTOF(props_to_get)) {
       return false;
     }
 

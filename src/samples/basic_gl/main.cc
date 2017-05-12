@@ -335,7 +335,7 @@ void basic_scene::setup_ui() {
   if (ImGui::Combo("",
                    (int32_t*) &selected_demo,
                    demo_list,
-                   XR_I32_COUNTOF__(demo_list))) {
+                   XR_I32_COUNTOF(demo_list))) {
     if (selected_demo != _demotype) {
       auto new_demo = make_demo(selected_demo);
 

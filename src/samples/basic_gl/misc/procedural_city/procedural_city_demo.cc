@@ -180,7 +180,7 @@ void app::procedural_city_demo::init() {
                      mat4f{R3::rotate_y(yrot) * R3::scale_xyz(sx, sy, sz)} *
                      R4::translate(0.0f, 0.5f, 0.0f);
       data.color = rgb_color{1.0f - re.next()};
-      data.texid = invokeid % XR_U32_COUNTOF__(TEXTURES);
+      data.texid = invokeid % XR_U32_COUNTOF(TEXTURES);
       ++invokeid;
 
       return data;
@@ -224,7 +224,7 @@ void app::procedural_city_demo::init() {
                          gl::RGBA8,
                          1024,
                          1024,
-                         XR_U32_COUNTOF__(TEXTURES));
+                         XR_U32_COUNTOF(TEXTURES));
 
     uint32_t id{};
     for_each(begin(TEXTURES),

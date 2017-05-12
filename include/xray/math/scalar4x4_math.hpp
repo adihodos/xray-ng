@@ -45,7 +45,7 @@ namespace math {
 
 template <typename T>
 bool operator==(const scalar4x4<T>& lhs, const scalar4x4<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(lhs.components); ++i) {
+  for (size_t i = 0; i < XR_COUNTOF(lhs.components); ++i) {
     if (!is_equal(lhs.components[i], rhs.components[i])) {
       return false;
     }

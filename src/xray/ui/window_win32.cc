@@ -153,7 +153,7 @@ static key_sym::e map_key(const int32_t key_code) {
     return key_sym::e::unknown;
   }
 
-  if (key_code < XR_I32_COUNTOF__(WIN32_KEYS_MAPPING_TABLE)) {
+  if (key_code < XR_I32_COUNTOF(WIN32_KEYS_MAPPING_TABLE)) {
     return WIN32_KEYS_MAPPING_TABLE[key_code];
   }
 

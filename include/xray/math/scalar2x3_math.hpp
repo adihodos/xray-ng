@@ -40,7 +40,7 @@ namespace math {
     
 template <typename T>
 scalar2x3<T>& scalar2x3<T>::operator+=(const scalar2x3<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i)
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i)
     components[i] += rhs.components[i];
 
   return *this;
@@ -48,7 +48,7 @@ scalar2x3<T>& scalar2x3<T>::operator+=(const scalar2x3<T>& rhs) noexcept {
 
 template <typename T>
 scalar2x3<T>& scalar2x3<T>::operator-=(const scalar2x3<T>& rhs) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i)
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i)
     components[i] -= rhs.components[i];
 
   return *this;
@@ -56,7 +56,7 @@ scalar2x3<T>& scalar2x3<T>::operator-=(const scalar2x3<T>& rhs) noexcept {
 
 template <typename T>
 scalar2x3<T>& scalar2x3<T>::operator*=(const T k) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i)
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i)
     components[i] *= k;
 
   return *this;
@@ -64,7 +64,7 @@ scalar2x3<T>& scalar2x3<T>::operator*=(const T k) noexcept {
 
 template <typename T>
 scalar2x3<T>& scalar2x3<T>::operator/=(const T k) noexcept {
-  for (size_t i = 0; i < XR_COUNTOF__(components); ++i)
+  for (size_t i = 0; i < XR_COUNTOF(components); ++i)
     components[i] /= k;
 
   return *this;

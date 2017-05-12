@@ -114,7 +114,7 @@ void app::texture_array_demo::init() {
     GLuint texture{};
     gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, &texture);
     gl::TextureStorage3D(
-      texture, 4, gl::RGBA8, 1024, 1024, XR_I32_COUNTOF__(TEXTURE_FILES));
+      texture, 4, gl::RGBA8, 1024, 1024, XR_I32_COUNTOF(TEXTURE_FILES));
 
     int32_t z_offset{};
     for_each(
@@ -230,13 +230,13 @@ void app::texture_array_demo::compose_ui() {
   if (ImGui::Button("<< Previous image")) {
     XR_LOG_INFO("Pushed button!");
     _image_index =
-      clamp(_image_index - 1, 0, XR_I32_COUNTOF__(TEXTURE_FILES) - 1);
+      clamp(_image_index - 1, 0, XR_I32_COUNTOF(TEXTURE_FILES) - 1);
   }
 
   if (ImGui::Button("Next image >>")) {
     XR_LOG_INFO("Pushed button!");
     _image_index =
-      clamp(_image_index + 1, 0, XR_I32_COUNTOF__(TEXTURE_FILES) - 1);
+      clamp(_image_index + 1, 0, XR_I32_COUNTOF(TEXTURE_FILES) - 1);
   }
 
   ImGui::Separator();

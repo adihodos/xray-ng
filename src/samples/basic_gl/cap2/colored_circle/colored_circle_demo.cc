@@ -119,7 +119,7 @@ void app::colored_circle_demo::draw(
 
   gl::BindVertexArray(raw_handle(layout_desc_));
   gl::DrawElements(
-    gl::TRIANGLES, XR_U32_COUNTOF__(quad_indices), gl::UNSIGNED_SHORT, nullptr);
+    gl::TRIANGLES, XR_U32_COUNTOF(quad_indices), gl::UNSIGNED_SHORT, nullptr);
 }
 
 void app::colored_circle_demo::update(const float /* delta_ms */) {}

@@ -2,7 +2,6 @@
 #include "xray/base/config_settings.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/math/constants.hpp"
-#include "xray/math/math_std.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/scene/camera.hpp"

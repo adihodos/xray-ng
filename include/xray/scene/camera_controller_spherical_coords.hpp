@@ -32,7 +32,6 @@
 #include "xray/base/maybe.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/scene/camera_controller.hpp"
-#include <cstdint>
 
 namespace xray {
 

@@ -30,11 +30,10 @@
 
 /// \file maybe.hpp
 
-#include <algorithm>
-#include <cassert>
-
 #include "xray/xray.hpp"
 #include "xray/base/nothing.hpp"
+#include <algorithm>
+#include <cassert>
 
 namespace xray {
 namespace base {
