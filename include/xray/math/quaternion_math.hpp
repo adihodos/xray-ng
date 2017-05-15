@@ -233,12 +233,12 @@ scalar4x4<real_type> rotation_matrix(const quaternion<real_type>& q) noexcept {
 
 template <typename real_type>
 inline bool is_zero_length(const quaternion<real_type>& q) noexcept {
-  return is_zero(squared_length(q));
+  return is_zero(length_squared(q));
 }
 
 template <typename real_type>
 inline bool is_unit_length(const quaternion<real_type>& q) noexcept {
-  return is_equal(real_type{1}, squared_length(q));
+  return is_equal(real_type{1}, length_squared(q));
 }
 
 template <typename real_type>

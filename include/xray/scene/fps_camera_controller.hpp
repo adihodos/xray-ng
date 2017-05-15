@@ -51,7 +51,7 @@ struct camera_lens_parameters {
   float fov{math::radians(65.0f)};
   float nearplane{0.1f};
   float farplane{500.0f};
-  float aspect_ratio{ 4.0f / 3.0f };
+  float aspect_ratio{4.0f / 3.0f};
 };
 
 class fps_camera_controller : public camera_controller {
@@ -95,6 +95,11 @@ public:
 
 private:
   void update_view_transform();
+
+  xray::math::vec3f _right{xray::math::vec3f::stdc::unit_x};
+  xray::math::vec3f _up{xray::math::vec3f::stdc::unit_y};
+  xray::math::vec3f _dir{xray::math::vec3f::stdc::unit_z};
+  xray::math::vec3f _posdelta{xray::math::vec3f::stdc::zero};
 
   xray::math::vec3f      _position{xray::math::vec3f::stdc::zero};
   xray::math::vec3f      _orientation{xray::math::vec3f::stdc::zero};

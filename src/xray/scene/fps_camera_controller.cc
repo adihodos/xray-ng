@@ -240,9 +240,11 @@ void xray::scene::fps_camera_controller::update_view_transform() {
   //
   // yaw/pitch/roll
   const auto qall = qy * qx * qz;
-  const auto rmtx = transpose(rotation_matrix(qall));
-  cam_->set_view_matrix(rmtx * R4::translate(-_position));
 
-  // cam_->set_view_matrix(view_frame::look_at(
-  //   _position, _position + vec3f::stdc::unit_z, vec3f::stdc::unit_y));
+  _right = normalize(rotate_vector(qall, _right));
+  _up    = normalize(cross(_dir, _right));
+  _dir   = cross(_right, _up);
+  _position += _posdelta.x * _right + _posdelta.y * _up + _posdelta.z * _dir;
+
+  cam_->set_view_matrix(view_frame::view_matrix(_right, _up, _dir, _position));
 }

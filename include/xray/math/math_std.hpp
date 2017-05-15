@@ -65,6 +65,40 @@ inline T mix(const T& a, const T& b, const U u) noexcept {
   return a * (U(1) - u) + b * u;
 }
 
+/// \brief  Returns 1 when x >= a, 0 otherwise.
+template <typename T>
+constexpr inline T step(const T x, const T a) noexcept {
+  return static_cast<T>(x >= a);
+}
+
+template <typename T>
+constexpr inline T pulse(const T a, const T b, const T x) noexcept {
+  return step(a, x) - step(b, x);
+}
+
+template <typename T>
+inline T smoothstep(const T a, const T b, const T x) noexcept {
+  if (x < a)
+    return T(0);
+
+  if (x >= b)
+    return T(1);
+
+  const auto nx = (x - a) / (b - a);
+  return nx * nx * (T(3) - T(2) * nx);
+}
+
+inline float bias(const float b, const float x) noexcept {
+  return pow(x, log(b) / log(0.5f));
+}
+
+inline float gain(const float g, const float x) noexcept {
+  if (x < 0.5f)
+    return bias(1.0f - g, 2.0f * x) / 2.0f;
+
+  return 1.0f - bias(1.0f - g, 2.0f - 2.0f * x) / 2.0f;
+}
+
 /// \brief Returns the sign of x :
 /// -1, if x < 0,
 /// +1, if x >= 0
