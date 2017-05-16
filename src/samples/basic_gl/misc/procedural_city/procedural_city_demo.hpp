@@ -39,11 +39,67 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/fps_camera_controller.hpp"
 #include <cstdint>
+#include <random>
 
 namespace app {
+
+class random_engine {
+public:
+  random_engine(const float rangemin = 0.0f, const float rangemax = 1.0f)
+    : _distribution{rangemin, rangemax} {}
+
+  void set_range(const float minval, const float maxval) noexcept {
+    _distribution = std::uniform_real_distribution<float>{minval, maxval};
+  }
+
+  float next() noexcept { return _distribution(_engine); }
+
+private:
+  std::random_device                    _device{};
+  std::mt19937                          _engine{_device()};
+  std::uniform_real_distribution<float> _distribution{0.0f, 1.0f};
+};
+
+class simple_fluid {
+public:
+  struct parameters {
+    float   cellwidth{0.8f};
+    float   delta{0.0f};
+    float   timefactor{0.03f};
+    float   wavespeed{3.25f};
+    float   dampingfactor{0.4f};
+    float   wavemagnitude{0.935f};
+    float   min_disturb_delta{2.5f};
+    float   disturb_delta{0.0f};
+    float   k1{};
+    float   k2{};
+    float   k3{};
+    int32_t xquads{255};
+    int32_t zquads{255};
+
+    void check_numerical_constraints() const noexcept;
+    void compute_coefficients() noexcept;
+  } _params{};
+
+  void update(const float delta_ms, random_engine& re);
+  void regen_surface(const parameters& p);
+  void disturb(const int32_t row_idx,
+               const int32_t col_idx,
+               const float   wave_magnitude);
+
+  void draw(const xray::rendering::draw_context_t&);
+
+private:
+  xray::rendering::basic_mesh              _mesh;
+  std::vector<xray::rendering::vertex_pnt> _vertexpool;
+  xray::rendering::vertex_pnt*             _current_sol{};
+  xray::rendering::vertex_pnt*             _prev_sol{};
+  xray::rendering::scoped_texture          _fluid_tex{};
+};
 
 class procedural_city_demo : public demo_base {
 public:

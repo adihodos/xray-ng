@@ -17,6 +17,7 @@
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
+#include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
 #include <algorithm>
@@ -48,22 +49,22 @@ static constexpr const char* const TEXTURES[] = {"uv_grids/ash_uvgrid01.jpg",
                                                  "uv_grids/ash_uvgrid07.jpg",
                                                  "uv_grids/ash_uvgrid08.jpg"};
 
-class random_engine {
-public:
-  random_engine(const float rangemin = 0.0f, const float rangemax = 1.0f)
-    : _distribution{rangemin, rangemax} {}
-
-  void set_range(const float minval, const float maxval) noexcept {
-    _distribution = std::uniform_real_distribution<float>{minval, maxval};
-  }
-
-  float next() noexcept { return _distribution(_engine); }
-
-private:
-  std::random_device                    _device{};
-  std::mt19937                          _engine{_device()};
-  std::uniform_real_distribution<float> _distribution{0.0f, 1.0f};
-};
+// class random_engine {
+// public:
+//  random_engine(const float rangemin = 0.0f, const float rangemax = 1.0f)
+//    : _distribution{rangemin, rangemax} {}
+//
+//  void set_range(const float minval, const float maxval) noexcept {
+//    _distribution = std::uniform_real_distribution<float>{minval, maxval};
+//  }
+//
+//  float next() noexcept { return _distribution(_engine); }
+//
+// private:
+//  std::random_device                    _device{};
+//  std::mt19937                          _engine{_device()};
+//  std::uniform_real_distribution<float> _distribution{0.0f, 1.0f};
+//};
 
 app::procedural_city_demo::procedural_city_demo(
   const app::init_context_t& initctx) {
@@ -219,12 +220,8 @@ void app::procedural_city_demo::init() {
 
   {
     gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, raw_handle_ptr(_objtex));
-    gl::TextureStorage3D(raw_handle(_objtex),
-                         1,
-                         gl::RGBA8,
-                         1024,
-                         1024,
-                         XR_U32_COUNTOF(TEXTURES));
+    gl::TextureStorage3D(
+      raw_handle(_objtex), 1, gl::RGBA8, 1024, 1024, XR_U32_COUNTOF(TEXTURES));
 
     uint32_t id{};
     for_each(begin(TEXTURES),
@@ -262,4 +259,235 @@ void app::procedural_city_demo::init() {
   gl::Enable(gl::CULL_FACE);
 
   _valid = true;
+}
+
+void app::simple_fluid::parameters::check_numerical_constraints() const
+  noexcept {
+  const float k_speedmax =
+    (cellwidth / 2.0f * timefactor) * sqrt(dampingfactor * timefactor + 2.0f);
+
+  if ((wavespeed < 0.0f) || (wavespeed > k_speedmax)) {
+    OUTPUT_DBG_MSG("Speed constraints not satisfied, waves will diverge "
+                   "to infinity");
+  }
+
+  const float k0 = wavespeed * wavespeed / cellwidth * cellwidth;
+  const float k_timefactormax =
+    (dampingfactor + sqrt(dampingfactor * dampingfactor + (32.0f * k0))) /
+    (8.0f * k0);
+
+  if ((timefactor < 0.0f) || (timefactor > k_timefactormax)) {
+    OUTPUT_DBG_MSG("Time step constraints not satified, waves will diverge "
+                   "to infinity");
+  }
+}
+
+void app::simple_fluid::parameters::compute_coefficients() noexcept {
+  const float d  = cellwidth;
+  const float t  = timefactor;
+  const float c  = wavespeed;
+  const float mu = dampingfactor;
+  const float f1 = c * c * t * t / (d * d);
+  const float f2 = 1.0f / (mu * t + 2.0f);
+
+  k1 = (4.0f - 8.0f * f1) * f2;
+  k2 = (mu * t - 2.0f) * f2;
+  k3 = 2.0f * f1 * f2;
+}
+
+void app::simple_fluid::update(const float delta, app::random_engine& re) {
+  _params.disturb_delta += delta;
+
+  if (_params.disturb_delta > _params.min_disturb_delta) {
+    //
+    // Disturb at random location;
+    const int32_t rmin{};
+    const int32_t rmax = std::min(_params.xquads, _params.zquads) - 2;
+
+    re.set_range(rmin, rmax);
+
+    const auto row_idx = re.next();
+    const auto col_idx = re.next();
+
+    disturb(row_idx, col_idx, _params.wavemagnitude);
+    _params.disturb_delta = 0.0f;
+  }
+
+  if (_params.delta < _params.timefactor) {
+    return;
+  }
+
+  _params.delta = 0.0f;
+
+  const auto k_num_rows = _params.zquads - 1;
+  const auto k_num_cols = _params.xquads - 1;
+
+  //
+  // Grid width
+  const auto gw = _params.xquads;
+  for (int32_t row_idx = 1; row_idx < k_num_rows; ++row_idx) {
+    //
+    // Solution at t1 (current solution)
+    const auto st1 = _current_sol + row_idx * gw;
+    //
+    // Solution at t0 (previous solution). This gets overwritten and becomes
+    // the solution at t1.
+    auto st0 = _prev_sol + row_idx * gw;
+
+    for (int32_t col_idx = 1; col_idx < k_num_cols; ++col_idx) {
+      //
+      // Index of computed element
+      const auto k_ec = col_idx;
+
+      //
+      // First term in the ecuation.
+      const float et0 = _params.k1 * st1[k_ec].position.y;
+      //
+      // Second termn of the ecuation
+      const float et1 = _params.k2 * st0[k_ec].position.y;
+
+      //
+      // Element at (row + 1, column) index
+      const auto ki0 = k_ec + gw;
+      //
+      // Element at (row - 1, column) index
+      const auto ki1 = k_ec - gw;
+      //
+      // Element at (row, column -1) index
+      const auto ki2 = k_ec - 1;
+      //
+      // Element at (row, column + 1) index
+      const auto ki3 = k_ec + 1;
+
+      //
+      // Third term in the ecuation.
+      const float et2 =
+        _params.k3 * (st1[ki0].position.y + st1[ki1].position.y +
+                      st1[ki2].position.y + st1[ki3].position.y);
+
+      st0[k_ec].position.y = et0 + et1 + et2;
+    }
+  }
+
+  //
+  // Current solution buffer.
+  const auto cs  = _current_sol;
+  auto       out = _prev_sol;
+
+  for (int32_t row_idx = 1; row_idx < k_num_rows; ++row_idx) {
+    for (int32_t col_idx = 1; col_idx < k_num_cols; ++col_idx) {
+      //
+      // Index of neighbour (row - 1, col)
+      const int32_t ki0 = (row_idx - 1) * gw + col_idx;
+      //
+      // Index of neighbour (row + 1, col)
+      const int32_t ki1 = (row_idx + 1) * gw + col_idx;
+      //
+      // Index of neighbour (row, col - 1)
+      const int32_t ki2 = row_idx * gw + col_idx - 1;
+      //
+      // Index of neightbour (row, col + 1)
+      const int32_t ki3 = row_idx * gw + col_idx + 1;
+
+      const float nx = cs[ki0].position.y - cs[ki1].position.y;
+      const float ny = 2 * _params.cellwidth;
+      const float nz = cs[ki2].position.y - cs[ki3].position.y;
+
+      //
+      // Index of the vertex for wich we need to compute the normal.
+      const int32_t idx = row_idx * gw + col_idx;
+      out[idx].normal.x = nx;
+      out[idx].normal.y = ny;
+      out[idx].normal.z = nz;
+      out[idx].normal   = normalize(out[idx].normal);
+    }
+  }
+
+  copy(out, out + _vertexpool.size() / 2, begin(_mesh.vertices()));
+  _mesh.update_vertices();
+
+  std::swap(_prev_sol, _current_sol);
+}
+
+void app::simple_fluid::regen_surface(const parameters& p) {
+  {
+    geometry_data_t blob;
+    geometry_factory::grid(p.cellwidth * (float) p.xquads,
+                           p.cellwidth * (float) p.zquads,
+                           (size_t) p.zquads,
+                           (size_t) p.xquads,
+                           &blob);
+
+    transform(raw_ptr(blob.geometry),
+              raw_ptr(blob.geometry) + blob.vertex_count,
+              back_inserter(_vertexpool),
+              [](const vertex_pntt& vin) {
+                return vertex_pnt{vin.position, vin.normal, vin.texcoords};
+              });
+
+    _mesh = basic_mesh{_vertexpool.data(),
+                       _vertexpool.size(),
+                       raw_ptr(blob.indices),
+                       blob.index_count,
+                       mesh_type::writable};
+
+    if (!_mesh) {
+      return;
+    }
+
+    _vertexpool.resize(_vertexpool.size() * 2u);
+    _current_sol = &_vertexpool[0];
+    _prev_sol    = &_vertexpool[1];
+  }
+
+  gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, raw_handle_ptr(_fluid_tex));
+  gl::TextureStorage3D(raw_handle(_fluid_tex), 1, gl::RGBA8, 32u, 32u, 1u);
+  const uint8_t FLUID_COLOR[] = {255u, 255u, 255u, 255u};
+  gl::ClearTexSubImage(raw_handle(_fluid_tex),
+                       0,
+                       0,
+                       0,
+                       0,
+                       32u,
+                       32u,
+                       1,
+                       gl::RGBA,
+                       gl::UNSIGNED_BYTE,
+                       FLUID_COLOR);
+}
+
+void app::simple_fluid::disturb(const int32_t row_idx,
+                                const int32_t col_idx,
+                                const float   wave_magnitude) {
+  assert((col_idx > 1) && (col_idx < (_params.xquads - 1)));
+  assert((row_idx > 1) && (row_idx < (_params.zquads - 1)));
+
+  const auto k_num_cols        = _params.xquads;
+  const auto kMainVertex       = col_idx * k_num_cols + row_idx;
+  const auto kVertexNeighbour1 = col_idx * k_num_cols + row_idx - 1;
+  const auto kVertexNeighbour2 = (col_idx + 1) * k_num_cols + row_idx - 1;
+  const auto kVertexNeighbour3 = (col_idx + 1) * k_num_cols + row_idx;
+  const auto kVertexNeighbour4 = (col_idx + 1) * k_num_cols + row_idx + 1;
+  const auto kVertexNeighbour5 = (col_idx) *k_num_cols + row_idx + 1;
+  const auto kVertexNeighbour6 = (col_idx - 1) * k_num_cols + row_idx + 1;
+  const auto kVertexNeighbour7 = (col_idx - 1) * k_num_cols + row_idx;
+  const auto kVertexNeighbour8 = (col_idx - 1) * k_num_cols + row_idx - 1;
+
+  const struct vertex_perturb_data {
+    int32_t vertex_idx;
+    float   magnitude;
+  } perturbed_vertices[] = {{kMainVertex, wave_magnitude},
+                            {kVertexNeighbour1, 0.5f * wave_magnitude},
+                            {kVertexNeighbour2, 0.5f * wave_magnitude},
+                            {kVertexNeighbour3, 0.5f * wave_magnitude},
+                            {kVertexNeighbour4, 0.5f * wave_magnitude},
+                            {kVertexNeighbour5, 0.5f * wave_magnitude},
+                            {kVertexNeighbour6, 0.5f * wave_magnitude},
+                            {kVertexNeighbour7, 0.5f * wave_magnitude},
+                            {kVertexNeighbour8, 0.5f * wave_magnitude}};
+
+  for (size_t idx = 0; idx < XR_COUNTOF(perturbed_vertices); ++idx) {
+    _current_sol[perturbed_vertices[idx].vertex_idx].position.y +=
+      perturbed_vertices[idx].magnitude;
+  }
 }
