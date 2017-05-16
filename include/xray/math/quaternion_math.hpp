@@ -163,9 +163,12 @@ inline real_type dot_product(const quaternion<real_type>& lhs,
   return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z + lhs.w * rhs.w;
 }
 
+///
+/// \brief Multiplication with vector. Returns another vector that is
+/// the original vector rotated by the quaternion.
 template <typename real_type>
-scalar3<real_type> rotate_vector(const quaternion<real_type>& q,
-                                 const scalar3<real_type>&    v) noexcept {
+scalar3<real_type> operator*(const quaternion<real_type>& q,
+                             const scalar3<real_type>&    v) noexcept {
 
   assert(is_unit_length(q) && "Quaternion must be unit length!");
 

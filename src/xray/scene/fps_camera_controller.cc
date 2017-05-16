@@ -50,81 +50,57 @@ xray::scene::fps_camera_controller::fps_camera_controller(
 }
 
 void xray::scene::fps_camera_controller::move_up() noexcept {
-  _position.y += MOVE_SPEED;
+  _position += MOVE_SPEED * _up;
   _syncstatus.view = 0;
 }
 
 void xray::scene::fps_camera_controller::move_down() noexcept {
-  _position.y -= MOVE_SPEED;
+  _position -= MOVE_SPEED * _up;
   _syncstatus.view = 0;
 }
 
 void xray::scene::fps_camera_controller::move_forward() noexcept {
-  _position.z += MOVE_SPEED;
+  _position += MOVE_SPEED * _dir;
   _syncstatus.view = 0;
 }
 
 void xray::scene::fps_camera_controller::move_backward() noexcept {
-  _position.z -= MOVE_SPEED;
+  _position -= MOVE_SPEED * _dir;
   _syncstatus.view = 0;
 }
 
 void xray::scene::fps_camera_controller::move_left() noexcept {
-  _position.x -= MOVE_SPEED;
+  _position -= MOVE_SPEED * _right;
   _syncstatus.view = 0;
 }
 
 void xray::scene::fps_camera_controller::move_right() noexcept {
-  _position.x += MOVE_SPEED;
+  _position += MOVE_SPEED * _right;
   _syncstatus.view = 0;
 }
 
 void xray::scene::fps_camera_controller::yaw_left() noexcept {
-  _orientation.y += ROTATE_SPEED;
-  if (_orientation.y > two_pi<float>) {
-    _orientation.y -= two_pi<float>;
-  }
-  _syncstatus.view = 0;
+  yaw(-_viewparams.yaw_speed);
 }
 
 void xray::scene::fps_camera_controller::yaw_right() noexcept {
-  _orientation.y -= ROTATE_SPEED;
-  if (_orientation.y < -two_pi<float>) {
-    _orientation.y += two_pi<float>;
-  }
-  _syncstatus.view = 0;
+  yaw(_viewparams.yaw_speed);
 }
 
 void xray::scene::fps_camera_controller::pitch_up() noexcept {
-  _orientation.x += ROTATE_SPEED;
-  if (_orientation.x > two_pi<float>) {
-    _orientation.x -= two_pi<float>;
-  }
-  _syncstatus.view = 0;
+  pitch(_viewparams.pitch_speed);
 }
 
 void xray::scene::fps_camera_controller::pitch_down() noexcept {
-  _orientation.x -= ROTATE_SPEED;
-  if (_orientation.x < -two_pi<float>) {
-    _orientation.x += two_pi<float>;
-  }
-  _syncstatus.view = 0;
+  pitch(-_viewparams.pitch_speed);
 }
 
 void xray::scene::fps_camera_controller::roll_left() noexcept {
-  _orientation.z += ROTATE_SPEED;
-  if (_orientation.z > two_pi<float>) {
-    _orientation.z -= two_pi<float>;
-  }
-  _syncstatus.view = 0;
+  roll(_viewparams.roll_speed);
 }
 
 void xray::scene::fps_camera_controller::roll_right() noexcept {
-  _orientation.z -= ROTATE_SPEED;
-  if (_orientation.z < two_pi<float>) {
-    _orientation.z += two_pi<float>;
-  }
-  _syncstatus.view = 0;
+  roll(-_viewparams.roll_speed);
 }
 
 void xray::scene::fps_camera_controller::zoom_in() noexcept {
@@ -146,8 +122,10 @@ void xray::scene::fps_camera_controller::zoom_out() noexcept {
 }
 
 void xray::scene::fps_camera_controller::reset_orientation() noexcept {
+  _right           = vec3f::stdc::unit_x;
+  _up              = vec3f::stdc::unit_y;
+  _dir             = vec3f::stdc::unit_z;
   _position        = vec3f::stdc::zero;
-  _orientation     = vec3f::stdc::zero;
   _syncstatus.view = 0;
 }
 
@@ -233,18 +211,31 @@ void xray::scene::fps_camera_controller::update() {
   }
 }
 
-void xray::scene::fps_camera_controller::update_view_transform() {
-  const auto qx = quaternionf{_orientation.x, vec3f::stdc::unit_x};
-  const auto qy = quaternionf{_orientation.y, vec3f::stdc::unit_y};
-  const auto qz = quaternionf{_orientation.z, vec3f::stdc::unit_z};
-  //
-  // yaw/pitch/roll
-  const auto qall = qy * qx * qz;
+void xray::scene::fps_camera_controller::pitch(const float delta) noexcept {
+  const auto qpitch = quaternionf{delta, _right};
+  _up               = normalize(qpitch * _up);
+  _dir              = normalize(qpitch * _dir);
+  _syncstatus.view  = 0;
+}
 
-  _right = normalize(rotate_vector(qall, _right));
+void xray::scene::fps_camera_controller::yaw(const float delta) noexcept {
+  const auto qyaw  = quaternionf{delta, _up};
+  _right           = normalize(qyaw * _right);
+  _dir             = normalize(qyaw * _dir);
+  _syncstatus.view = 0;
+}
+
+void xray::scene::fps_camera_controller::roll(const float delta) noexcept {
+  const auto qroll = quaternionf{delta, _dir};
+  _up              = normalize(qroll * _up);
+  _right           = normalize(qroll * _right);
+  _syncstatus.view = 0;
+}
+
+void xray::scene::fps_camera_controller::update_view_transform() {
+  _right = normalize(_right);
   _up    = normalize(cross(_dir, _right));
   _dir   = cross(_right, _up);
-  _position += _posdelta.x * _right + _posdelta.y * _up + _posdelta.z * _dir;
 
   cam_->set_view_matrix(view_frame::view_matrix(_right, _up, _dir, _position));
 }

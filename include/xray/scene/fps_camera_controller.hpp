@@ -94,16 +94,23 @@ public:
   virtual void update() override;
 
 private:
+  void pitch(const float delta) noexcept;
+  void yaw(const float delta) noexcept;
+  void roll(const float delta) noexcept;
   void update_view_transform();
 
-  xray::math::vec3f _right{xray::math::vec3f::stdc::unit_x};
-  xray::math::vec3f _up{xray::math::vec3f::stdc::unit_y};
-  xray::math::vec3f _dir{xray::math::vec3f::stdc::unit_z};
-  xray::math::vec3f _posdelta{xray::math::vec3f::stdc::zero};
-
+  xray::math::vec3f      _right{xray::math::vec3f::stdc::unit_x};
+  xray::math::vec3f      _up{xray::math::vec3f::stdc::unit_y};
+  xray::math::vec3f      _dir{xray::math::vec3f::stdc::unit_z};
   xray::math::vec3f      _position{xray::math::vec3f::stdc::zero};
-  xray::math::vec3f      _orientation{xray::math::vec3f::stdc::zero};
   camera_lens_parameters _lensparams{};
+  struct {
+    float move_speed{1.0f};
+    float roll_speed{0.2f};
+    float yaw_speed{0.05f};
+    float pitch_speed{0.05f};
+    float lens_speed{0.05f};
+  } _viewparams{};
   union {
     struct {
       uint8_t view : 1;
