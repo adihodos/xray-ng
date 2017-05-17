@@ -66,6 +66,8 @@ private:
 
 class simple_fluid {
 public:
+  simple_fluid() noexcept;
+
   struct parameters {
     float   cellwidth{0.8f};
     float   delta{0.0f};
@@ -85,13 +87,20 @@ public:
     void compute_coefficients() noexcept;
   } _params{};
 
+  explicit operator bool() const noexcept { return static_cast<bool>(_mesh); }
+
   void update(const float delta_ms, random_engine& re);
+
   void regen_surface(const parameters& p);
+
   void disturb(const int32_t row_idx,
                const int32_t col_idx,
                const float   wave_magnitude);
 
   void draw(const xray::rendering::draw_context_t&);
+
+  const xray::rendering::basic_mesh& mesh() const noexcept { return _mesh; }
+  GLuint texture() const noexcept { return xray::base::raw_handle(_fluid_tex); }
 
 private:
   xray::rendering::basic_mesh              _mesh;
@@ -126,6 +135,8 @@ private:
   xray::rendering::scoped_sampler            _sampler;
   xray::scene::camera                        _camera;
   xray::scene::fps_camera_controller         _camcontrol{&_camera};
+  random_engine                              _rand{};
+  simple_fluid                               _fluid{};
 
 private:
   XRAY_NO_COPY(procedural_city_demo);

@@ -49,23 +49,6 @@ static constexpr const char* const TEXTURES[] = {"uv_grids/ash_uvgrid01.jpg",
                                                  "uv_grids/ash_uvgrid07.jpg",
                                                  "uv_grids/ash_uvgrid08.jpg"};
 
-// class random_engine {
-// public:
-//  random_engine(const float rangemin = 0.0f, const float rangemax = 1.0f)
-//    : _distribution{rangemin, rangemax} {}
-//
-//  void set_range(const float minval, const float maxval) noexcept {
-//    _distribution = std::uniform_real_distribution<float>{minval, maxval};
-//  }
-//
-//  float next() noexcept { return _distribution(_engine); }
-//
-// private:
-//  std::random_device                    _device{};
-//  std::mt19937                          _engine{_device()};
-//  std::uniform_real_distribution<float> _distribution{0.0f, 1.0f};
-//};
-
 app::procedural_city_demo::procedural_city_demo(
   const app::init_context_t& initctx) {
 
@@ -94,25 +77,47 @@ void app::procedural_city_demo::draw(
   gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, CLEAR_COLOR);
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
 
-  gl::BindVertexArray(_mesh.vertex_array());
   gl::BindBufferBase(gl::SHADER_STORAGE_BUFFER, 0, raw_handle(_instancedata));
 
-  _vs.set_uniform_block("Transforms", _camera.projection_view());
-  _pipeline.use();
+  //
+  // draw fluid
+  {
+    gl::BindVertexArray(_fluid.mesh().vertex_array());
+    _vs.set_uniform("INSTANCE_OFFSET", (int32_t) INSTANCE_COUNT);
+    _vs.set_uniform_block("Transforms", _camera.projection_view());
+    _pipeline.use();
 
-  gl::BindTextureUnit(0, raw_handle(_objtex));
-  gl::BindSampler(0, raw_handle(_sampler));
+    gl::BindTextureUnit(0, _fluid.texture());
+    gl::BindSampler(0, raw_handle(_sampler));
 
-  scoped_winding_order_setting faces_cw{gl::CW};
-  gl::DrawElementsInstanced(gl::TRIANGLES,
-                            _mesh.index_count(),
-                            gl::UNSIGNED_INT,
-                            nullptr,
-                            INSTANCE_COUNT);
+    scoped_polygon_mode_setting setwf{gl::LINE};
+    gl::DrawElementsInstanced(
+      gl::TRIANGLES, _fluid.mesh().index_count(), gl::UNSIGNED_INT, nullptr, 1);
+  }
+
+  //
+  // draw buildings
+  if (true) {
+    gl::BindVertexArray(_mesh.vertex_array());
+
+    _vs.set_uniform("INSTANCE_OFFSET", 0);
+
+    gl::BindTextureUnit(0, raw_handle(_objtex));
+    gl::BindSampler(0, raw_handle(_sampler));
+
+    scoped_winding_order_setting faces_cw{gl::CW};
+    gl::DrawElementsInstanced(gl::TRIANGLES,
+                              _mesh.index_count(),
+                              gl::UNSIGNED_INT,
+                              nullptr,
+                              INSTANCE_COUNT);
+  }
 }
 
 void app::procedural_city_demo::update(const float delta_ms) {
   _camcontrol.update();
+  _fluid.update(delta_ms, _rand);
+  OUTPUT_DBG_MSG("Delts ms = %3.3f", delta_ms);
 }
 
 void app::procedural_city_demo::event_handler(
@@ -145,6 +150,11 @@ struct per_instance_data {
 void app::procedural_city_demo::init() {
   assert(!valid());
 
+  if (!_fluid)
+    return;
+
+  //
+  // basic cube mesh that will be instanced to produce our buildings
   {
     geometry_data_t blob;
     geometry_factory::box(1.0f, 1.0f, 1.0f, &blob);
@@ -163,29 +173,33 @@ void app::procedural_city_demo::init() {
   }
 
   {
-    random_engine             re{};
-    vector<per_instance_data> instances{INSTANCE_COUNT};
+    vector<per_instance_data> instances{INSTANCE_COUNT + 1};
 
-    int32_t invokeid{};
-    generate_n(begin(instances), INSTANCE_COUNT, [&invokeid, &re]() {
+    uint32_t invokeid{};
+    generate_n(begin(instances), INSTANCE_COUNT, [&invokeid, r = &_rand ]() {
 
-      const auto xpos = floor(re.next() * 200.0f - 100.0f) * 10.0f;
-      const auto zpos = floor(re.next() * 200.0f - 100.0f) * 10.0f;
-      const auto yrot = re.next() * two_pi<float>;
-      const auto sx   = re.next() * 50.0f + 10.0f;
-      const auto sy   = re.next() * sx * 8.0f + 8.0f;
+      const auto xpos = floor(r->next() * 200.0f - 100.0f) * 10.0f;
+      const auto zpos = floor(r->next() * 200.0f - 100.0f) * 10.0f;
+      const auto yrot = r->next() * two_pi<float>;
+      const auto sx   = r->next() * 50.0f + 10.0f;
+      const auto sy   = r->next() * sx * 8.0f + 8.0f;
       const auto sz   = sx;
 
       per_instance_data data;
       data.tfworld = R4::translate(xpos, 0.0f, zpos) *
                      mat4f{R3::rotate_y(yrot) * R3::scale_xyz(sx, sy, sz)} *
                      R4::translate(0.0f, 0.5f, 0.0f);
-      data.color = rgb_color{1.0f - re.next()};
+      data.color = rgb_color{1.0f - r->next()};
       data.texid = invokeid % XR_U32_COUNTOF(TEXTURES);
       ++invokeid;
 
       return data;
     });
+
+    auto& water_inst   = instances[instances.size() - 1];
+    water_inst.tfworld = mat4f::stdc::identity;
+    water_inst.texid   = 0;
+    water_inst.color   = color_palette::web::blue_violet;
 
     gl::CreateBuffers(1, raw_handle_ptr(_instancedata));
     gl::NamedBufferStorage(raw_handle(_instancedata),
@@ -260,6 +274,8 @@ void app::procedural_city_demo::init() {
 
   _valid = true;
 }
+
+app::simple_fluid::simple_fluid() noexcept { regen_surface(_params); }
 
 void app::simple_fluid::parameters::check_numerical_constraints() const
   noexcept {

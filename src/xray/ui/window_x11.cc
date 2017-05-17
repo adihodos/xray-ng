@@ -373,10 +373,10 @@ static xray::ui::key_sym::e map_x11_key_symbol(const KeySym x11_key) noexcept {
   const auto sym_idx = x11_key & 0xFF;
 
   if (byte2 == 0x00) {
-    assert(sym_idx < XR_COUNTOF__(X11_LATIN1_KEYS_MAPPING_TABLE));
+    assert(sym_idx < XR_COUNTOF(X11_LATIN1_KEYS_MAPPING_TABLE));
     return X11_LATIN1_KEYS_MAPPING_TABLE[sym_idx];
   } else if (byte2 == 0xFF) {
-    assert(sym_idx < XR_COUNTOF__(X11_MISC_KEYS_MAPPING_TABLE));
+    assert(sym_idx < XR_COUNTOF(X11_MISC_KEYS_MAPPING_TABLE));
     return X11_MISC_KEYS_MAPPING_TABLE[sym_idx];
   } else {
     return xray::ui::key_sym::e::unknown;

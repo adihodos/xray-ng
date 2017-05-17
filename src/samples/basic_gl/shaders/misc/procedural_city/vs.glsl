@@ -18,6 +18,8 @@ layout (std140, row_major, binding = 0) uniform Transforms {
   mat4 PROJ_VIEW;
 };
 
+uniform int INSTANCE_OFFSET;
+
 out VS_OUT_FS_IN {
   vec4 color;
   vec2 texcoord;
@@ -29,7 +31,7 @@ out gl_PerVertex {
 };
 
 void main() {
-  PerInstanceData id = instance_data[gl_InstanceID];
+  PerInstanceData id = instance_data[gl_InstanceID + INSTANCE_OFFSET];
   gl_Position = (PROJ_VIEW * id.world) * vec4(vs_in_pos, 1.0f);
   vs_out.color = id.color;
   vs_out.texcoord = vs_in_texcoord;
