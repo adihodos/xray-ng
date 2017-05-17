@@ -175,21 +175,22 @@ void app::procedural_city_demo::init() {
   {
     vector<per_instance_data> instances{INSTANCE_COUNT + 1};
 
+    _rand.set_float_range(0.0f, 1.0f);
     uint32_t invokeid{};
     generate_n(begin(instances), INSTANCE_COUNT, [&invokeid, r = &_rand ]() {
 
-      const auto xpos = floor(r->next() * 200.0f - 100.0f) * 10.0f;
-      const auto zpos = floor(r->next() * 200.0f - 100.0f) * 10.0f;
-      const auto yrot = r->next() * two_pi<float>;
-      const auto sx   = r->next() * 50.0f + 10.0f;
-      const auto sy   = r->next() * sx * 8.0f + 8.0f;
+      const auto xpos = floor(r->next_float() * 200.0f - 100.0f) * 10.0f;
+      const auto zpos = floor(r->next_float() * 200.0f - 100.0f) * 10.0f;
+      const auto yrot = r->next_float() * two_pi<float>;
+      const auto sx   = r->next_float() * 50.0f + 10.0f;
+      const auto sy   = r->next_float() * sx * 8.0f + 8.0f;
       const auto sz   = sx;
 
       per_instance_data data;
       data.tfworld = R4::translate(xpos, 0.0f, zpos) *
                      mat4f{R3::rotate_y(yrot) * R3::scale_xyz(sx, sy, sz)} *
                      R4::translate(0.0f, 0.5f, 0.0f);
-      data.color = rgb_color{1.0f - r->next()};
+      data.color = rgb_color{1.0f - r->next_float()};
       data.texid = invokeid % XR_U32_COUNTOF(TEXTURES);
       ++invokeid;
 
@@ -317,13 +318,13 @@ void app::simple_fluid::update(const float delta, app::random_engine& re) {
   if (_params.disturb_delta > _params.min_disturb_delta) {
     //
     // Disturb at random location;
-    const int32_t rmin{};
+    const int32_t rmin{1};
     const int32_t rmax = std::min(_params.xquads, _params.zquads) - 2;
 
-    re.set_range(rmin, rmax);
+    re.set_integer_range(rmin, rmax);
 
-    const auto row_idx = re.next();
-    const auto col_idx = re.next();
+    const auto row_idx = re.next_int();
+    const auto col_idx = re.next_int();
 
     disturb(row_idx, col_idx, _params.wavemagnitude);
     _params.disturb_delta = 0.0f;

@@ -49,19 +49,24 @@ namespace app {
 
 class random_engine {
 public:
-  random_engine(const float rangemin = 0.0f, const float rangemax = 1.0f)
-    : _distribution{rangemin, rangemax} {}
+  random_engine() {}
 
-  void set_range(const float minval, const float maxval) noexcept {
-    _distribution = std::uniform_real_distribution<float>{minval, maxval};
+  void set_float_range(const float minval, const float maxval) noexcept {
+    _f32distribution = std::uniform_real_distribution<float>{minval, maxval};
   }
 
-  float next() noexcept { return _distribution(_engine); }
+  void set_integer_range(const int32_t minval, const int32_t maxval) noexcept {
+    _i32distribution = std::uniform_int_distribution<int32_t>{minval, maxval};
+  }
+
+  float   next_float() noexcept { return _f32distribution(_engine); }
+  int32_t next_int() noexcept { return _i32distribution(_engine); }
 
 private:
-  std::random_device                    _device{};
-  std::mt19937                          _engine{_device()};
-  std::uniform_real_distribution<float> _distribution{0.0f, 1.0f};
+  std::random_device                     _device{};
+  std::mt19937                           _engine{_device()};
+  std::uniform_real_distribution<float>  _f32distribution{0.0f, 1.0f};
+  std::uniform_int_distribution<int32_t> _i32distribution{0, 1};
 };
 
 class simple_fluid {
