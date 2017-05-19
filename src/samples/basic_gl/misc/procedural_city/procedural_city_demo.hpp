@@ -76,7 +76,7 @@ public:
   struct parameters {
     float   cellwidth{0.8f};
     float   delta{0.0f};
-    float   timefactor{0.03f};
+    float   timefactor{0.05f};
     float   wavespeed{3.25f};
     float   dampingfactor{0.4f};
     float   wavemagnitude{0.935f};
@@ -142,6 +142,11 @@ private:
   xray::scene::fps_camera_controller         _camcontrol{&_camera};
   random_engine                              _rand{};
   simple_fluid                               _fluid{};
+  struct {
+    bool draw_fluid{true};
+    bool freeze_fluid{false};
+    bool draw_buildings{false};
+  } _demo_options;
 
 private:
   XRAY_NO_COPY(procedural_city_demo);

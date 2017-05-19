@@ -81,7 +81,7 @@ void app::procedural_city_demo::draw(
 
   //
   // draw fluid
-  {
+  if (_demo_options.draw_fluid) {
     gl::BindVertexArray(_fluid.mesh().vertex_array());
     _vs.set_uniform("INSTANCE_OFFSET", (int32_t) INSTANCE_COUNT);
     _vs.set_uniform_block("Transforms", _camera.projection_view());
@@ -97,7 +97,7 @@ void app::procedural_city_demo::draw(
 
   //
   // draw buildings
-  if (true) {
+  if (_demo_options.draw_buildings) {
     gl::BindVertexArray(_mesh.vertex_array());
 
     _vs.set_uniform("INSTANCE_OFFSET", 0);
@@ -138,7 +138,18 @@ void app::procedural_city_demo::event_handler(
   }
 }
 
-void app::procedural_city_demo::compose_ui() {}
+void app::procedural_city_demo::compose_ui() {
+  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
+  ImGui::Begin("Options");
+
+  ImGui::Checkbox("Draw fluid", &_demo_options.draw_fluid);
+  if (_demo_options.draw_fluid) {
+    ImGui::Checkbox("Freeze fluid state", &_demo_options.freeze_fluid);
+  }
+  ImGui::Checkbox("Draw buildings", &_demo_options.draw_buildings);
+
+  ImGui::End();
+}
 
 struct per_instance_data {
   mat4f     tfworld;
@@ -318,7 +329,7 @@ void app::simple_fluid::update(const float delta, app::random_engine& re) {
   if (_params.disturb_delta > _params.min_disturb_delta) {
     //
     // Disturb at random location;
-    const int32_t rmin{1};
+    const int32_t rmin{2};
     const int32_t rmax = std::min(_params.xquads, _params.zquads) - 2;
 
     re.set_integer_range(rmin, rmax);
@@ -330,6 +341,7 @@ void app::simple_fluid::update(const float delta, app::random_engine& re) {
     _params.disturb_delta = 0.0f;
   }
 
+  _params.delta += delta;
   if (_params.delta < _params.timefactor) {
     return;
   }
@@ -459,7 +471,7 @@ void app::simple_fluid::regen_surface(const parameters& p) {
 
   gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, raw_handle_ptr(_fluid_tex));
   gl::TextureStorage3D(raw_handle(_fluid_tex), 1, gl::RGBA8, 32u, 32u, 1u);
-  const uint8_t FLUID_COLOR[] = {255u, 255u, 255u, 255u};
+  const uint8_t FLUID_COLOR[] = {0u, 0u, 255u, 255u};
   gl::ClearTexSubImage(raw_handle(_fluid_tex),
                        0,
                        0,
