@@ -378,7 +378,7 @@ int main(int argc, char** argv) {
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;
 
-  const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, true};
+  const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false};
 
   window main_window{wnd_params};
   if (!main_window) {

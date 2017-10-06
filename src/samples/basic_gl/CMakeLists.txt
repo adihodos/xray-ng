@@ -22,6 +22,9 @@ set(project_sources
     ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
     ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
 
+    ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
+    ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc
+
     ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
     ${proj_src_dir}/misc/mesh/mesh_demo.cc
 
@@ -103,6 +106,9 @@ set(shader_files
     ${proj_src_dir}/shaders/misc/bufferless_draw/gs.glsl
     ${proj_src_dir}/shaders/misc/bufferless_draw/fs.glsl
 
+    ${proj_src_dir}/shaders/misc/instanced_draw/vs.glsl
+    ${proj_src_dir}/shaders/misc/instanced_draw/fs.glsl
+
     ${proj_src_dir}/shaders/misc/procedural_city/vs.glsl
     ${proj_src_dir}/shaders/misc/procedural_city/fs.glsl
 
@@ -143,6 +149,7 @@ set(shader_files
     ${proj_src_dir}/shaders/cap6/edge_detect/shader.frag
     )
 
+source_group(code FILES ${project_sources})
 source_group(shaders FILES ${shader_files})
 
 add_executable(basic-gl-app ${project_sources} ${shader_files})

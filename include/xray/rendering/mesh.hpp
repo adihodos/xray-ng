@@ -28,8 +28,7 @@
 
 #pragma once
 
-/// \file   geometry_factory.hpp    Helper classes/functions to create
-///         geometrical shapes.
+/// \file   mesh.hpp    Simple class to represent a mesh.
 
 #include "xray/xray.hpp"
 #include "xray/base/unique_pointer.hpp"
@@ -51,6 +50,24 @@ struct mesh_load_option {
 };
 
 enum class mesh_type { readonly, writable };
+
+struct instance_descriptor {
+  using buffer_handle_type = GLuint;
+
+  buffer_handle_type buffer_handle{};
+  uint32_t           element_stride{};
+  uint32_t           instance_divisor{};
+  uint32_t           buffer_offset{0};
+};
+
+struct vertex_attribute_descriptor {
+  int32_t                    component_count{};
+  int32_t                    component_type{};
+  ptrdiff_t                  component_offset{};
+  int32_t                    component_index{};
+  bool                       normalized{false};
+  const instance_descriptor* instance_desc{};
+};
 
 class basic_mesh {
 public:
@@ -114,6 +131,11 @@ public:
 
   void update_vertices() noexcept;
   void update_indices() noexcept;
+
+  void set_instance_data(const instance_descriptor*         instances,
+                         const size_t                       instance_count,
+                         const vertex_attribute_descriptor* vertex_attributes,
+                         const size_t vertex_attributes_count);
 
 private:
   void compute_aabb();

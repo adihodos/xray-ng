@@ -10,11 +10,14 @@
 #include "xray/math/scalar3_math.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <gsl.h>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <random>
+#include <stlsoft/memory/auto_buffer.hpp>
 #include <tbb/tbb.h>
 #include <unordered_map>
 #include <vector>
@@ -304,4 +307,66 @@ void xray::rendering::basic_mesh::update_indices() noexcept {
   }
 
   memcpy(ibmap.memory(), _indices.data(), container_bytes_size(_indices));
+}
+
+void xray::rendering::basic_mesh::set_instance_data(
+  const instance_descriptor*         instances,
+  const size_t                       instance_count,
+  const vertex_attribute_descriptor* vertex_attributes,
+  const size_t                       vertex_attributes_count) {
+
+  assert(valid());
+
+  stlsoft::auto_buffer<GLuint, 16>   buffers{instance_count};
+  stlsoft::auto_buffer<GLsizei, 16>  strides{instance_count};
+  stlsoft::auto_buffer<GLintptr, 16> offsets{instance_count};
+
+  for (size_t i = 0; i < instance_count; ++i) {
+    buffers.data()[i] = instances[i].buffer_handle;
+    strides.data()[i] = instances[i].element_stride;
+    offsets.data()[i] = instances[i].buffer_offset;
+  }
+
+  const auto vao = raw_handle(_vertexarray);
+
+  gl::VertexArrayVertexBuffers(vao,
+                               1,
+                               static_cast<GLsizei>(instance_count),
+                               buffers.data(),
+                               offsets.data(),
+                               strides.data());
+
+  unordered_map<GLuint, GLuint> buffer_bindpoints;
+
+  for (size_t i = 0; i < instance_count; ++i) {
+    gl::VertexArrayBindingDivisor(vao, i + 1, instances[i].instance_divisor);
+    buffer_bindpoints[instances[i].buffer_handle] =
+      static_cast<uint32_t>(i + 1);
+  }
+
+  gsl::span<const vertex_attribute_descriptor> attributes{
+    vertex_attributes,
+    vertex_attributes + static_cast<ptrdiff_t>(vertex_attributes_count)};
+
+  for_each(begin(attributes),
+           end(attributes),
+           [vao, &buffer_bindpoints](const vertex_attribute_descriptor& attr) {
+             gl::VertexArrayAttribFormat(vao,
+                                         attr.component_index + 3,
+                                         attr.component_count,
+                                         attr.component_type,
+                                         attr.normalized ? gl::TRUE_
+                                                         : gl::FALSE_,
+                                         attr.component_offset);
+
+             assert(buffer_bindpoints.find(attr.instance_desc->buffer_handle) !=
+                    end(buffer_bindpoints));
+
+             gl::VertexArrayAttribBinding(
+               vao,
+               attr.component_index,
+               buffer_bindpoints[attr.instance_desc->buffer_handle]);
+
+             gl::EnableVertexArrayAttrib(vao, attr.component_index);
+           });
 }
