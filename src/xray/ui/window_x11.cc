@@ -3,12 +3,16 @@
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/containers/fixed_vector.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/maybe.hpp"
 #include "xray/base/pod_zero.hpp"
+#include "xray/base/unique_pointer.hpp"
+#include "xray/math/scalar2.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/window_x11.hpp"
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/Xinerama.h>
 #include <X11/extensions/Xrender.h>
 #include <X11/keysym.h>
 #include <algorithm>
@@ -17,6 +21,30 @@ using namespace xray::base;
 using namespace xray::ui;
 using namespace xray::ui::detail;
 using namespace std;
+
+xray::base::maybe<XineramaScreenInfo> get_primary_screen_info(Display* dpy) {
+  int32_t num_screens{};
+
+  unique_pointer<XineramaScreenInfo, decltype(&XFree)> screens{
+    XineramaQueryScreens(dpy, &num_screens), &XFree};
+
+  if (!num_screens) {
+    return nothing{};
+  }
+
+  const auto root_screen = DefaultScreen(dpy);
+  auto       itr_def_scr = std::find_if(raw_ptr(screens),
+                                  raw_ptr(screens) + num_screens,
+                                  [root_screen](const XineramaScreenInfo& si) {
+                                    return root_screen == si.screen_number;
+                                  });
+
+  if (itr_def_scr == (raw_ptr(screens) + num_screens)) {
+    return nothing{};
+  }
+
+  return *itr_def_scr;
+}
 
 static constexpr const xray::ui::key_sym::e X11_MISC_KEYS_MAPPING_TABLE[] = {
   key_sym::e::unknown,
@@ -391,6 +419,12 @@ xray::ui::window::window(const window_params_t& wparam)
     return;
   }
 
+  const auto main_screen_info = get_primary_screen_info(raw_ptr(_display));
+  if (!main_screen_info) {
+    XR_LOG_ERR("Failed to get primary screen info!");
+    return;
+  }
+
   _default_screen = XDefaultScreen(raw_ptr(_display));
 
   if (glXQueryExtension(raw_ptr(_display), nullptr, nullptr) != True) {
@@ -441,7 +475,7 @@ xray::ui::window::window(const window_params_t& wparam)
 
   framebuffer_attributes.push_back(None);
 
-  int32_t supported_cfg_count{};
+  int32_t                                       supported_cfg_count{};
   unique_pointer<GLXFBConfig, decltype(&XFree)> supported_cfgs{
     glXChooseFBConfig(raw_ptr(_display),
                       _default_screen,
@@ -456,7 +490,7 @@ xray::ui::window::window(const window_params_t& wparam)
   }
 
   unique_pointer<XVisualInfo, decltype(&XFree)> visual_info{nullptr, &XFree};
-  int32_t cfg_idx{};
+  int32_t                                       cfg_idx{};
 
   do {
     visual_info = unique_pointer<XVisualInfo, decltype(&XFree)>{
@@ -471,29 +505,34 @@ xray::ui::window::window(const window_params_t& wparam)
   }
 
   auto root_window = RootWindow(raw_ptr(_display), _default_screen);
+
   pod_zero<XSetWindowAttributes> window_attribs;
+  window_attribs.override_redirect = wparam.grab_input ? True : False;
   window_attribs.background_pixel =
     WhitePixel(raw_ptr(_display), _default_screen);
   window_attribs.colormap = XCreateColormap(
     raw_ptr(_display), root_window, visual_info->visual, AllocNone);
-  window_attribs.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask |
-                              ButtonReleaseMask | PointerMotionMask |
-                              ExposureMask | StructureNotifyMask;
+  window_attribs.event_mask =
+    KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask |
+    PointerMotionMask | ExposureMask | StructureNotifyMask | LeaveWindowMask |
+    EnterWindowMask | SubstructureNotifyMask;
 
-  _window =
-    x11_unique_window{XCreateWindow(raw_ptr(_display),
-                                    root_window,
-                                    0,
-                                    0,
-                                    1024,
-                                    1024,
-                                    0,
-                                    visual_info->depth,
-                                    InputOutput,
-                                    visual_info->visual,
-                                    CWEventMask | CWColormap | CWBackPixel,
-                                    &window_attribs),
-                      x11_window_deleter{raw_ptr(_display)}};
+  const auto msi = main_screen_info.value();
+
+  _window = x11_unique_window{
+    XCreateWindow(raw_ptr(_display),
+                  root_window,
+                  msi.x_org,
+                  msi.y_org,
+                  static_cast<unsigned int>(msi.width),
+                  static_cast<unsigned int>(msi.height),
+                  0,
+                  visual_info->depth,
+                  InputOutput,
+                  visual_info->visual,
+                  CWEventMask | CWColormap | CWBackPixel | CWOverrideRedirect,
+                  &window_attribs),
+    x11_window_deleter{raw_ptr(_display)}};
 
   if (!_window) {
     XR_LOG_ERR("Failed to create window !");
@@ -508,8 +547,8 @@ xray::ui::window::window(const window_params_t& wparam)
     size_hints->flags       = PSize | PMinSize | PBaseSize;
     size_hints->min_width   = 1024;
     size_hints->min_height  = 1024;
-    size_hints->base_width  = 1024;
-    size_hints->base_height = 1024;
+    size_hints->base_width  = msi.width;
+    size_hints->base_height = msi.height;
 
     unique_pointer<XWMHints, decltype(&XFree)> wm_hints{XAllocWMHints(),
                                                         &XFree};
@@ -543,6 +582,30 @@ xray::ui::window::window(const window_params_t& wparam)
   _window_delete_atom =
     XInternAtom(raw_ptr(_display), "WM_DELETE_WINDOW", False);
   XSetWMProtocols(raw_ptr(_display), raw_ptr(_window), &_window_delete_atom, 1);
+
+  //
+  // remove window manager decorations
+  _motif_hints = XInternAtom(raw_ptr(_display), "_MOTIF_WM_HINTS", False);
+
+  struct {
+    unsigned long flags{};
+    unsigned long functions{};
+    unsigned long decorations{};
+    long          input_mode{};
+    unsigned long status{};
+  } motif_wm_hints{};
+
+  motif_wm_hints.flags       = 2;
+  motif_wm_hints.decorations = 0;
+
+  XChangeProperty(raw_ptr(_display),
+                  raw_ptr(_window),
+                  _motif_hints,
+                  _motif_hints,
+                  32,
+                  PropModeReplace,
+                  reinterpret_cast<unsigned char*>(&motif_wm_hints),
+                  5);
 
   //
   // load OpenGL
@@ -612,7 +675,39 @@ xray::ui::window::window(const window_params_t& wparam)
                 gl::sys::GetMinorVersion());
   }
 
+  XClearWindow(raw_ptr(_display), raw_ptr(_window));
   XMapRaised(raw_ptr(_display), raw_ptr(_window));
+  XMoveWindow(raw_ptr(_display), raw_ptr(_window), msi.x_org, msi.y_org);
+
+  if (wparam.grab_input) {
+    _kb_grabbed = XGrabKeyboard(raw_ptr(_display),
+                                raw_ptr(_window),
+                                False,
+                                GrabModeAsync,
+                                GrabModeAsync,
+                                CurrentTime) == GrabSuccess;
+
+    if (!_kb_grabbed) {
+      XR_LOG_WARN("Failed to grab keyboard!");
+    }
+
+    _pointer_grabbed =
+      XGrabPointer(raw_ptr(_display),
+                   raw_ptr(_window),
+                   False,
+                   ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
+                     FocusChangeMask | EnterWindowMask | LeaveWindowMask,
+                   GrabModeAsync,
+                   GrabModeAsync,
+                   raw_ptr(_window),
+                   None,
+                   CurrentTime) == GrabSuccess;
+
+    if (!_pointer_grabbed) {
+      XR_LOG_WARN("Failed to grab mouse pointer!");
+    }
+  }
+
   XFlush(raw_ptr(_display));
 
   Window   root_wnd{};
@@ -646,7 +741,15 @@ xray::ui::window::window(const window_params_t& wparam)
     y_location);
 }
 
-xray::ui::window::~window() {}
+xray::ui::window::~window() {
+  if (_kb_grabbed) {
+    XUngrabKeyboard(raw_ptr(_display), CurrentTime);
+  }
+
+  if (_pointer_grabbed) {
+    XUngrabPointer(raw_ptr(_display), CurrentTime);
+  }
+}
 
 void xray::ui::window::swap_buffers() noexcept {
   assert(valid());

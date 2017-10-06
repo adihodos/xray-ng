@@ -9,6 +9,8 @@ set(PROJECT_SOURCES_MAIN
 
 if (WIN32)
     set(platform_libs opengl32)
+elseif(UNIX)
+    set(platform_libs GL)    
 endif()
 
 #source_group("xray_ui" FILES ${PROJECT_SOURCES_MAIN})

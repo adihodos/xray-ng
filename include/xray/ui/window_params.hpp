@@ -45,6 +45,7 @@ struct window_params_t {
   int32_t     color_bits;
   int32_t     sample_count;
   uint32_t    debug_output_level;
+  bool        grab_input{false};
 };
 
 } // namespace ui

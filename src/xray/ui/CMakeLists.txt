@@ -37,7 +37,7 @@ if (WIN32)
         set(platform_libs gdi32 user32 kernel32)
     endif()
 else()
-    set(platform_libs X11 GLX)
+    set(platform_libs X11 GL)
 endif()
 
 add_library(xray-ui STATIC ${PROJECT_SOURCES_MAIN})

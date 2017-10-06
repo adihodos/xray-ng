@@ -332,10 +332,8 @@ void basic_scene::setup_ui() {
                              "Procedural city"};
 
   demo_type selected_demo{_demotype};
-  if (ImGui::Combo("",
-                   (int32_t*) &selected_demo,
-                   demo_list,
-                   XR_I32_COUNTOF(demo_list))) {
+  if (ImGui::Combo(
+        "", (int32_t*) &selected_demo, demo_list, XR_I32_COUNTOF(demo_list))) {
     if (selected_demo != _demotype) {
       auto new_demo = make_demo(selected_demo);
 
@@ -380,7 +378,7 @@ int main(int argc, char** argv) {
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;
 
-  const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 1};
+  const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, true};
 
   window main_window{wnd_params};
   if (!main_window) {

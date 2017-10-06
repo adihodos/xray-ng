@@ -115,7 +115,7 @@ public:
   /// @{
 public:
   explicit operator bool() const noexcept { return valid(); }
-  bool valid() const noexcept { return static_cast<bool>(_glx_context); }
+  bool     valid() const noexcept { return static_cast<bool>(_glx_context); }
 
   /// @}
 
@@ -138,10 +138,13 @@ private:
   detail::x11_unique_window  _window;
   detail::glx_unique_context _glx_context;
   Atom                       _window_delete_atom{None};
+  Atom                       _motif_hints{None};
   int32_t                    _default_screen{-1};
   int32_t                    _wnd_width{-1};
   int32_t                    _wnd_height{-1};
   std::atomic<int32_t>       _quit_flag{false};
+  bool                       _kb_grabbed{false};
+  bool                       _pointer_grabbed{false};
 
 private:
   XRAY_NO_COPY(window);
