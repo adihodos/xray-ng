@@ -32,12 +32,15 @@
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
+#include "init_context.hpp"
 #include "xray/base/random.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/scene/camera.hpp"
+#include "xray/scene/camera_controller_spherical_coords.hpp"
 #include <cstdint>
 #include <vector>
 
@@ -45,7 +48,7 @@ namespace app {
 
 class instanced_drawing_demo : public demo_base {
 public:
-  instanced_drawing_demo();
+  instanced_drawing_demo(const init_context_t* init_ctx);
 
   ~instanced_drawing_demo();
 
@@ -59,6 +62,8 @@ private:
 
 private:
   struct instance_info {
+    static constexpr auto rotation_speed = 0.01f;
+
     float             roll{};
     float             pitch{};
     float             yaw{};
@@ -75,12 +80,24 @@ private:
     xray::rendering::scoped_buffer buffer_texture_ids;
   } _obj_instances;
 
-  xray::rendering::basic_mesh         _mesh;
-  xray::rendering::vertex_program     _vs;
-  xray::rendering::geometry_program   _gs;
-  xray::rendering::fragment_program   _fs;
-  xray::rendering::program_pipeline   _pipeline;
-  xray::base::random_number_generator _rand;
+  xray::rendering::scoped_buffer       _vertices;
+  xray::rendering::scoped_buffer       _indices;
+  xray::rendering::scoped_buffer       _indirect_draw_cmd_buffer;
+  xray::rendering::scoped_buffer       _draw_ids;
+  xray::rendering::scoped_vertex_array _vertexarray;
+  xray::rendering::vertex_program      _vs;
+  xray::rendering::geometry_program    _gs;
+  xray::rendering::fragment_program    _fs;
+  xray::rendering::program_pipeline    _pipeline;
+  xray::rendering::scoped_texture      _textures;
+  xray::rendering::scoped_sampler      _sampler;
+  xray::base::random_number_generator  _rand;
+
+  struct {
+    xray::scene::camera                             camera;
+    xray::scene::camera_controller_spherical_coords cam_control{
+      &camera, "config/misc/instanced_demo/cam_controller_spherical.conf"};
+  } _scene;
 
 private:
   XRAY_NO_COPY(instanced_drawing_demo);

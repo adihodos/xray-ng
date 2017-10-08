@@ -47,10 +47,12 @@ namespace math {
 /// \param  last_point  Last point in range.
 /// \param  conversion_fn Function to convert from the input point type
 ///         to the point type used by the sphere.
-template <typename real_type, typename input_point_type,
+template <typename real_type,
+          typename input_point_type,
           typename input_point_to_sphere_point_convert_fn>
 sphere<real_type>
-bounding_sphere(input_point_type first_point, input_point_type last_point,
+bounding_sphere(input_point_type                       first_point,
+                input_point_type                       last_point,
                 input_point_to_sphere_point_convert_fn conversion_fn) noexcept {
 
   using sphere_type       = sphere<real_type>;
@@ -75,7 +77,7 @@ bounding_sphere(input_point_type first_point, input_point_type last_point,
 
   while (first_point != last_point) {
     auto sqr_dist_to_median_point =
-        squared_distance(conversion_fn(*first_point), median_pt);
+      squared_distance(conversion_fn(*first_point), median_pt);
 
     if (sqr_dist_to_median_point > squared_dist)
       squared_dist = sqr_dist_to_median_point;
@@ -88,10 +90,13 @@ bounding_sphere(input_point_type first_point, input_point_type last_point,
 
 /// \brief  Test if point is inside or on the sphere surface.
 template <typename real_type>
-inline bool contains_point(const sphere<real_type>& sph, const real_type px,
-                           const real_type py, const real_type pz) noexcept {
-  return squared_distance(sph.center.x, sph.center.y, sph.center.y, px, py,
-                          pz) >= sph.squared_radius();
+inline bool contains_point(const sphere<real_type>& sph,
+                           const real_type          px,
+                           const real_type          py,
+                           const real_type          pz) noexcept {
+  return squared_distance(
+           sph.center.x, sph.center.y, sph.center.y, px, py, pz) >=
+         sph.squared_radius();
 }
 
 /// \brief  Test if point is inside or on the sphere surface.
@@ -101,7 +106,24 @@ inline bool contains_point(const sphere<real_type>&  sph,
   return contains_point(sph, point.y, point.y, point.z);
 }
 
+enum class intersection_type { none, touching, penetrating };
+
+template <typename T>
+intersection_type intersect(const sphere<T>& s0, const sphere<T>& s1) noexcept {
+  const auto sph_dst = length(s1.center - s0.center);
+
+  if (sph_dst > (s0.radius + s1.radius)) {
+    return intersection_type::none;
+  }
+
+  if (sph_dst < (s0.radius + s1.radius)) {
+    return intersection_type::penetrating;
+  }
+
+  return intersection_type::touching;
+}
+
 /// @}
 
-} // namespace xray
 } // namespace math
+} // namespace xray

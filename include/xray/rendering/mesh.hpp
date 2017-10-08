@@ -137,6 +137,20 @@ public:
                          const vertex_attribute_descriptor* vertex_attributes,
                          const size_t vertex_attributes_count);
 
+  static bool load_mesh(
+    const std::string&                        file_path,
+    std::vector<xray::rendering::vertex_pnt>* vertices,
+    std::vector<uint32_t>*                    indices,
+    const uint32_t load_options = mesh_load_option::remove_points_lines) {
+    return load_mesh(file_path.c_str(), vertices, indices, load_options);
+  }
+
+  static bool load_mesh(
+    const char*                               file_path,
+    std::vector<xray::rendering::vertex_pnt>* vertices,
+    std::vector<uint32_t>*                    indices,
+    const uint32_t load_options = mesh_load_option::remove_points_lines);
+
 private:
   void compute_aabb();
   void setup_buffers();

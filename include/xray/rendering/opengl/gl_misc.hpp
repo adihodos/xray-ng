@@ -30,65 +30,47 @@
 
 #include "xray/xray.hpp"
 #include "xray/base/unique_handle.hpp"
+#include <cstring>
 #include <opengl/opengl.hpp>
 
 namespace xray {
 namespace rendering {
 
-struct gl_object_base {
-  using handle_type = GLuint;
+inline void mark_gl_object(const GLenum type,
+                           const GLuint obj,
+                           const char*  label) noexcept {
+  gl::ObjectLabel(type, obj, strlen(label), label);
+}
 
-  static bool is_null(const handle_type handle) noexcept { return handle == 0; }
+#define GL_MARK_BUFFER(obj, label)                                             \
+  do {                                                                         \
+    mark_gl_object(gl::BUFFER, obj, label);                                    \
+  } while (0)
 
-  static handle_type null() noexcept { return 0; }
-};
+#define GL_MARK_FRAMEBUFFER(obj, label)                                        \
+  do {                                                                         \
+    mark_gl_object(gl::FRAMEBUFFER, obj, label);                               \
+  } while (0)
 
-struct buffer_handle : public gl_object_base {
-  static void destroy(const handle_type handle) noexcept {
-    gl::DeleteBuffers(1, &handle);
-  }
-};
+#define GL_MARK_PROGRAM_PIPELINE(obj, label)                                   \
+  do {                                                                         \
+    mark_gl_object(gl::PROGRAM_PIPELINE, obj, label);                          \
+  } while (0)
 
-struct vertex_array_handle : public gl_object_base {
-  static void destroy(const handle_type handle) noexcept {
-    gl::DeleteVertexArrays(1, &handle);
-  }
-};
+#define GL_MARK_PROGRAM(obj, label)                                            \
+  do {                                                                         \
+    mark_gl_object(gl::PROGRAM, obj, label);                                   \
+  } while (0)
 
-struct texture_handle : public gl_object_base {
-  static void destroy(const handle_type tex_handle) noexcept {
-    if (tex_handle)
-      gl::DeleteTextures(1, &tex_handle);
-  }
-};
+#define GL_MARK_TEXTURE(obj, label)                                            \
+  do {                                                                         \
+    mark_gl_object(gl::TEXTURE, obj, label);                                   \
+  } while (0)
 
-struct sampler_handle : public gl_object_base {
-  static void destroy(const handle_type smp_handle) noexcept {
-    if (smp_handle)
-      gl::DeleteSamplers(1, &smp_handle);
-  }
-};
-
-struct framebuffer_handle : public gl_object_base {
-  static void destroy(const handle_type fbo) noexcept {
-    if (fbo)
-      gl::DeleteFramebuffers(1, &fbo);
-  }
-};
-
-struct renderbuffer_handle : public gl_object_base {
-  static void destroy(const handle_type rbo) noexcept {
-    if (rbo)
-      gl::DeleteRenderbuffers(1, &rbo);
-  }
-};
-
-using scoped_buffer       = base::unique_handle<buffer_handle>;
-using scoped_vertex_array = base::unique_handle<vertex_array_handle>;
-using scoped_texture      = base::unique_handle<texture_handle>;
-using scoped_sampler      = base::unique_handle<sampler_handle>;
-using scoped_framebuffer  = base::unique_handle<framebuffer_handle>;
-using scoped_renderbuffer = base::unique_handle<renderbuffer_handle>;
+#define GL_MARK_VERTEXARRAY(obj, label)                                        \
+  do {                                                                         \
+    mark_gl_object(gl::VERTEX_ARRAY, obj, label);                              \
+  } while (0)
 
 } // namespace rendering
 } // namespace xray

@@ -544,7 +544,7 @@ xray::ui::window::window(const window_params_t& wparam)
   {
     unique_pointer<XSizeHints, decltype(&XFree)> size_hints{XAllocSizeHints(),
                                                             &XFree};
-    size_hints->flags       = PSize | PMinSize | PBaseSize;
+    size_hints->flags       = PMinSize | PBaseSize;
     size_hints->min_width   = 1024;
     size_hints->min_height  = 1024;
     size_hints->base_width  = msi.width;

@@ -52,6 +52,7 @@
 #include "lighting/directional_light_demo.hpp"
 #include "misc/bufferless_draw/bufferless-draw-demo.hpp"
 #include "misc/fractals/fractal_demo.hpp"
+#include "misc/instanced_drawing/instanced_drawing_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
 #include "misc/procedural_city/procedural_city_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
@@ -118,7 +119,8 @@ enum class demo_type : int32_t {
   mesh,
   bufferless_draw,
   lighting_directional,
-  procedural_city
+  procedural_city,
+  instanced_drawing
 };
 
 class basic_scene {
@@ -307,6 +309,10 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     return xray::base::make_unique<procedural_city_demo>(init_context);
     break;
 
+  case demo_type::instanced_drawing:
+    return xray::base::make_unique<instanced_drawing_demo>(&init_context);
+    break;
+
   default:
     break;
   }
@@ -329,7 +335,8 @@ void basic_scene::setup_ui() {
                              "Mesh",
                              "Bufferless drawing",
                              "Directional lighting",
-                             "Procedural city"};
+                             "Procedural city",
+                             "Instanced drawing"};
 
   demo_type selected_demo{_demotype};
   if (ImGui::Combo(
@@ -353,14 +360,125 @@ void basic_scene::main_loop(const xray::ui::window_loop_event& loop_evt) {
   draw(loop_evt);
 }
 
-void APIENTRY debug_proc(GLenum        source,
-                         GLenum        type,
-                         GLuint        id,
-                         GLenum        severity,
-                         GLsizei       length,
-                         const GLchar* message,
-                         void*         userParam) {
-  OUTPUT_DBG_MSG("OpenGL message : \n%s", message);
+void debug_proc(GLenum source,
+                GLenum type,
+                GLuint id,
+                GLenum severity,
+                GLsizei /*length*/,
+                const GLchar* message,
+                const void* /*userParam*/) {
+
+  auto msg_source = [source]() {
+    switch (source) {
+    case gl::DEBUG_SOURCE_API:
+      return "API";
+      break;
+
+    case gl::DEBUG_SOURCE_APPLICATION:
+      return "APPLICATION";
+      break;
+
+    case gl::DEBUG_SOURCE_OTHER:
+      return "OTHER";
+      break;
+
+    case gl::DEBUG_SOURCE_SHADER_COMPILER:
+      return "SHADER COMPILER";
+      break;
+
+    case gl::DEBUG_SOURCE_THIRD_PARTY:
+      return "THIRD PARTY";
+      break;
+
+    case gl::DEBUG_SOURCE_WINDOW_SYSTEM:
+      return "WINDOW SYSTEM";
+      break;
+
+    default:
+      return "UNKNOWN";
+      break;
+    }
+  }();
+
+  const auto msg_type = [type]() {
+    switch (type) {
+    case gl::DEBUG_TYPE_ERROR:
+      return "ERROR";
+      break;
+
+    case gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+      return "DEPRECATED BEHAVIOUR";
+      break;
+
+    case gl::DEBUG_TYPE_MARKER:
+      return "MARKER";
+      break;
+
+    case gl::DEBUG_TYPE_OTHER:
+      return "OTHER";
+      break;
+
+    case gl::DEBUG_TYPE_PERFORMANCE:
+      return "PERFORMANCE";
+      break;
+
+    case gl::DEBUG_TYPE_POP_GROUP:
+      return "POP GROUP";
+      break;
+
+    case gl::DEBUG_TYPE_PORTABILITY:
+      return "PORTABILITY";
+      break;
+
+    case gl::DEBUG_TYPE_PUSH_GROUP:
+      return "PUSH GROUP";
+      break;
+
+    case gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+      return "UNDEFINED BEHAVIOUR";
+      break;
+
+    default:
+      return "UNKNOWN";
+      break;
+    }
+  }();
+
+  auto msg_severity = [severity]() {
+    switch (severity) {
+    case gl::DEBUG_SEVERITY_HIGH:
+      return "HIGH";
+      break;
+
+    case gl::DEBUG_SEVERITY_LOW:
+      return "LOW";
+      break;
+
+    case gl::DEBUG_SEVERITY_MEDIUM:
+      return "MEDIUM";
+      break;
+
+    case gl::DEBUG_SEVERITY_NOTIFICATION:
+      return "NOTIFICATION";
+      break;
+
+    default:
+      return "UNKNOWN";
+      break;
+    }
+  }();
+
+  const auto full_msg =
+    fmt::format("OpenGL debug message\n[MESSAGE] : {}\n[SOURCE] : {}\n[TYPE] : "
+                "{}\n[SEVERITY] "
+                ": {}\n[ID] : {}",
+                message,
+                msg_source,
+                msg_type,
+                msg_severity,
+                id);
+
+  XR_LOG_DEBUG(full_msg);
 }
 
 } // namespace app
@@ -385,6 +503,8 @@ int main(int argc, char** argv) {
     XR_LOG_ERR("Failed to initialize application window!");
     return EXIT_FAILURE;
   }
+
+  gl::DebugMessageCallback(app::debug_proc, nullptr);
 
   app::basic_scene scene{&main_window};
   main_window.events.loop = make_delegate(scene, &app::basic_scene::main_loop);

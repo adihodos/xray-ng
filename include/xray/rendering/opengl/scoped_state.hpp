@@ -84,6 +84,24 @@ private:
   XRAY_NO_COPY(scoped_element_array_binding);
 };
 
+struct scoped_indirect_draw_buffer_binding {
+public:
+  explicit scoped_indirect_draw_buffer_binding(const GLuint elem_arr) noexcept {
+    gl::GetIntegerv(gl::DRAW_INDIRECT_BUFFER_BINDING, &_old_binding);
+    gl::BindBuffer(gl::DRAW_INDIRECT_BUFFER, elem_arr);
+  }
+
+  ~scoped_indirect_draw_buffer_binding() {
+    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, _old_binding);
+  }
+
+private:
+  GLint _old_binding{};
+
+private:
+  XRAY_NO_COPY(scoped_indirect_draw_buffer_binding);
+};
+
 // struct scoped_
 
 } // namespace rendering

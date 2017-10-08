@@ -587,8 +587,8 @@
 /* ******************************** GCC ******************************** */
 #define STLSOFT_COMPILER_IS_GCC
 #define STLSOFT_COMPILER_LABEL_STRING "GNU C/C++"
-#if __GNUC__ != 2 && __GNUC__ != 3 && __GNUC__ != 4 && __GNUC__ != 5 && __GNUC__ != 6
-#error GNU C/C++ compilers whose major version is not 2, 3, 4, 5 or 6 are not currently supported by the STLSoft libraries
+#if __GNUC__ != 2 && __GNUC__ != 3 && __GNUC__ != 4 && __GNUC__ != 5 && __GNUC__ != 6 && __GNUC__ != 7
+#error GNU C/C++ compilers whose major version is not 2, 3, 4, 5, 6 or 7 are not currently supported by the STLSoft libraries
 #elif __GNUC__ == 2
 #if __GNUC_MINOR__ < 95
 #error Currently only version 2.95 and above of the GNU C/C++ compiler is supported by the STLSoft libraries

@@ -94,84 +94,12 @@ struct hash<tinyobj_opt::index_t> {
 
 xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
   : _mtype{type} {
+
   using namespace xray::rendering;
 
-  attrib_t           attrs;
-  vector<shape_t>    shapes;
-  vector<material_t> mtls;
-
-  platformstl::memory_mapped_file mmfile{path};
-
-  const auto res = parseObj(
-    &attrs, &shapes, &mtls, (const char*) mmfile.memory(), mmfile.size(), {});
-
-  if (!res) {
+  if (!load_mesh(
+        path, &_vertices, &_indices, mesh_load_option::remove_points_lines)) {
     return;
-  }
-
-  _vertices.reserve(attrs.vertices.size());
-  _indices.reserve(attrs.indices.size());
-
-  unordered_map<index_t, uint32_t> idxmap;
-
-  for_each(begin(attrs.indices), end(attrs.indices), [
-    has_normals   = !attrs.normals.empty(),
-    has_texcoords = !attrs.texcoords.empty(),
-    a             = &attrs,
-    &idxmap,
-    this
-  ](const index_t& idx) {
-
-    auto it = idxmap.find(idx);
-    if (it != end(idxmap)) {
-      _indices.push_back(it->second);
-    } else {
-      vertex_pnt v;
-
-      v.position = {a->vertices[idx.vertex_index * 3 + 0],
-                    a->vertices[idx.vertex_index * 3 + 1],
-                    a->vertices[idx.vertex_index * 3 + 2]};
-
-      if (has_texcoords) {
-        v.texcoord = {a->texcoords[idx.texcoord_index * 2 + 0],
-                      1.0f - a->texcoords[idx.texcoord_index * 2 + 1]};
-      } else {
-        v.texcoord = vec2f::stdc::zero;
-      }
-
-      if (has_normals) {
-        v.normal = {a->normals[idx.normal_index * 3 + 0],
-                    a->normals[idx.normal_index * 3 + 1],
-                    a->normals[idx.normal_index * 3 + 2]};
-      } else {
-        v.normal = vec3f::stdc::zero;
-      }
-
-      _vertices.push_back(v);
-      idxmap[idx] = (uint32_t) _vertices.size() - 1;
-      _indices.push_back((uint32_t) _vertices.size() - 1);
-    }
-  });
-
-  if (attrs.normals.empty()) {
-    assert((_indices.size() % 3) == 0);
-
-    for (size_t i = 0, cnt = _indices.size() / 3; i < cnt; ++i) {
-      auto& v0 = _vertices[_indices[i * 3 + 0]];
-      auto& v1 = _vertices[_indices[i * 3 + 1]];
-      auto& v2 = _vertices[_indices[i * 3 + 2]];
-
-      const auto n =
-        cross(v1.position - v0.position, v2.position - v0.position);
-
-      v0.normal += n;
-      v1.normal += n;
-      v2.normal += n;
-    }
-
-    for_each(begin(_vertices), end(_vertices), [](vertex_pnt& v) {
-      v.normal = normalize(v.normal);
-    });
   }
 
   compute_aabb();
@@ -348,11 +276,25 @@ void xray::rendering::basic_mesh::set_instance_data(
     vertex_attributes,
     vertex_attributes + static_cast<ptrdiff_t>(vertex_attributes_count)};
 
+  {
+    const auto msg = "Setting vertex attributes for instance buffers";
+    gl::DebugMessageInsert(gl::DEBUG_SOURCE_APPLICATION,
+                           gl::DEBUG_TYPE_MARKER,
+                           0,
+                           gl::DEBUG_SEVERITY_NOTIFICATION,
+                           strlen(msg),
+                           msg);
+  }
+
   for_each(begin(attributes),
            end(attributes),
            [vao, &buffer_bindpoints](const vertex_attribute_descriptor& attr) {
+             //
+             // 3 attributes already there by default : position, normal,
+             // texture coords.
+             const auto component_index = attr.component_index + 3;
              gl::VertexArrayAttribFormat(vao,
-                                         attr.component_index + 3,
+                                         component_index,
                                          attr.component_count,
                                          attr.component_type,
                                          attr.normalized ? gl::TRUE_
@@ -364,9 +306,99 @@ void xray::rendering::basic_mesh::set_instance_data(
 
              gl::VertexArrayAttribBinding(
                vao,
-               attr.component_index,
+               component_index,
                buffer_bindpoints[attr.instance_desc->buffer_handle]);
 
-             gl::EnableVertexArrayAttrib(vao, attr.component_index);
+             gl::EnableVertexArrayAttrib(vao, component_index);
            });
+}
+
+bool xray::rendering::basic_mesh::load_mesh(
+  const char*                               file_path,
+  std::vector<xray::rendering::vertex_pnt>* vertices,
+  std::vector<uint32_t>*                    indices,
+  const uint32_t load_options /*= mesh_load_option::remove_points_lines*/) {
+
+  using namespace xray::rendering;
+
+  attrib_t           attrs;
+  vector<shape_t>    shapes;
+  vector<material_t> mtls;
+
+  platformstl::memory_mapped_file mmfile{file_path};
+
+  const auto res = parseObj(
+    &attrs, &shapes, &mtls, (const char*) mmfile.memory(), mmfile.size(), {});
+
+  if (!res) {
+    return false;
+  }
+
+  vertices->reserve(attrs.vertices.size());
+  indices->reserve(attrs.indices.size());
+
+  unordered_map<index_t, uint32_t> idxmap;
+
+  for_each(begin(attrs.indices), end(attrs.indices), [
+    has_normals   = !attrs.normals.empty(),
+    has_texcoords = !attrs.texcoords.empty(),
+    a             = &attrs,
+    &idxmap,
+    vertices,
+    indices
+  ](const index_t& idx) {
+
+    auto it = idxmap.find(idx);
+    if (it != end(idxmap)) {
+      indices->push_back(it->second);
+    } else {
+      vertex_pnt v;
+
+      v.position = {a->vertices[idx.vertex_index * 3 + 0],
+                    a->vertices[idx.vertex_index * 3 + 1],
+                    a->vertices[idx.vertex_index * 3 + 2]};
+
+      if (has_texcoords) {
+        v.texcoord = {a->texcoords[idx.texcoord_index * 2 + 0],
+                      1.0f - a->texcoords[idx.texcoord_index * 2 + 1]};
+      } else {
+        v.texcoord = vec2f::stdc::zero;
+      }
+
+      if (has_normals) {
+        v.normal = {a->normals[idx.normal_index * 3 + 0],
+                    a->normals[idx.normal_index * 3 + 1],
+                    a->normals[idx.normal_index * 3 + 2]};
+      } else {
+        v.normal = vec3f::stdc::zero;
+      }
+
+      vertices->push_back(v);
+      idxmap[idx] = (uint32_t) vertices->size() - 1;
+      indices->push_back((uint32_t) vertices->size() - 1);
+    }
+  });
+
+  if (attrs.normals.empty()) {
+    assert((indices->size() % 3) == 0);
+
+    for (size_t i = 0, cnt = indices->size() / 3; i < cnt; ++i) {
+      auto& v0 = (*vertices)[(*indices)[i * 3 + 0]];
+      auto& v1 = (*vertices)[(*indices)[i * 3 + 1]];
+      auto& v2 = (*vertices)[(*indices)[i * 3 + 2]];
+
+      const auto n =
+        cross(v1.position - v0.position, v2.position - v0.position);
+
+      v0.normal += n;
+      v1.normal += n;
+      v2.normal += n;
+    }
+
+    for_each(begin(*vertices), end(*vertices), [](vertex_pnt& v) {
+      v.normal = normalize(v.normal);
+    });
+  }
+
+  return true;
 }
