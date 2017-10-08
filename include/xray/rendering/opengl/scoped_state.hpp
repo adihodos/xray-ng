@@ -92,7 +92,7 @@ public:
   }
 
   ~scoped_indirect_draw_buffer_binding() {
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, _old_binding);
+    gl::BindBuffer(gl::DRAW_INDIRECT_BUFFER, _old_binding);
   }
 
 private:

@@ -473,8 +473,9 @@ void app::instanced_drawing_demo::draw(
 
   _pipeline.use();
 
-  gl::BindBuffer(gl::DRAW_INDIRECT_BUFFER,
-                 raw_handle(_indirect_draw_cmd_buffer));
+  scoped_indirect_draw_buffer_binding draw_indirect_buffer_binding{
+    raw_handle(_indirect_draw_cmd_buffer)};
+
   gl::MultiDrawElementsIndirect(gl::TRIANGLES, gl::UNSIGNED_INT, nullptr, 2, 0);
 }
 
