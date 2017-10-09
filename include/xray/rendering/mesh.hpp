@@ -31,9 +31,12 @@
 /// \file   mesh.hpp    Simple class to represent a mesh.
 
 #include "xray/xray.hpp"
+#include "platformstl/filesystem/memory_mapped_file.hpp"
+#include "xray/base/maybe.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/objects/aabb3.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
+#include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include <cassert>
@@ -44,10 +47,6 @@
 
 namespace xray {
 namespace rendering {
-
-struct mesh_load_option {
-  enum { remove_points_lines = 1u << 1, convert_left_handed = 1u << 2 };
-};
 
 enum class mesh_type { readonly, writable };
 
@@ -166,8 +165,6 @@ private:
 private:
   XRAY_NO_COPY(basic_mesh);
 };
-
-/// @}
 
 } // namespace rendering
 } // namespace xray

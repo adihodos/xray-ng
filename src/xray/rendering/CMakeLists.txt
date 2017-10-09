@@ -44,6 +44,8 @@ set(project_sources
 
     ${proj_inc_dir}/mesh.hpp
     ${proj_src_dir}/mesh.cc
+    ${proj_inc_dir}/mesh_loader.hpp
+    ${proj_src_dir}/mesh_loader.cc
 )
 
 add_library(xray-rendering STATIC ${project_sources})

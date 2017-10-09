@@ -180,91 +180,89 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   //    0.1f,
   //    1000.0f));
 
-  struct {
-    vector<vertex_pnt> vertices;
-    vector<uint32_t>   indices;
-  } geometries[2];
+  const char* const files[] = {"f15/f15c.bin", "f4/f4phantom.bin"};
+  mesh_loader       mloaders[2];
+  for (size_t i = 0; i < XR_COUNTOF(files); ++i) {
+    mloaders[i].load(xr_app_config->model_path(files[i]).c_str());
+  }
 
-  static constexpr auto MODEL_FILE    = "f15/f15c.obj";
-  static constexpr auto MODEL_FILE_F4 = "f4/f4phantom.obj";
+  const auto any_failed = any_of(
+    begin(mloaders), end(mloaders), [](const mesh_loader& ml) { return !ml; });
+
+  if (any_failed) {
+    XR_LOG_ERR("Failed to load all models!");
+    return;
+  }
+
+  const auto vertex_bytes =
+    accumulate(begin(mloaders),
+               end(mloaders),
+               0u,
+               [](const size_t curr_bytes, const mesh_loader& ml) {
+                 return curr_bytes + ml.vertex_bytes();
+               });
+
+  const auto index_bytes =
+    accumulate(begin(mloaders),
+               end(mloaders),
+               0u,
+               [](const size_t curr_bytes, const mesh_loader& ml) {
+                 return curr_bytes + ml.index_bytes();
+               });
+
   {
+    gl::CreateBuffers(1, raw_handle_ptr(_vertices));
+    gl::NamedBufferStorage(
+      raw_handle(_vertices), vertex_bytes, 0, gl::MAP_WRITE_BIT);
 
-    const auto path = xr_app_config->model_path(MODEL_FILE);
+    scoped_resource_mapping bmap{
+      raw_handle(_vertices), gl::MAP_WRITE_BIT, vertex_bytes};
 
-    if (!basic_mesh::load_mesh(path.c_str(),
-                               &geometries[0].vertices,
-                               &geometries[0].indices,
-                               mesh_load_option::remove_points_lines)) {
-      XR_LOG_ERR("Failed to load model {}", path.c_str());
+    if (!bmap) {
+      XR_LOG_ERR("Failed to map vertex buffer for writing!");
       return;
     }
+
+    accumulate(
+      begin(mloaders),
+      end(mloaders),
+      0u,
+      [dst = bmap.memory()](const size_t offset, const mesh_loader& ml) {
+        memcpy(static_cast<uint8_t*>(dst) + offset,
+               ml.vertex_data(),
+               ml.vertex_bytes());
+        return offset + ml.vertex_bytes();
+      });
+
+    GL_MARK_BUFFER(raw_handle(_vertices), "Combined vertex buffer");
   }
-
-  {
-
-    const auto path = xr_app_config->model_path(MODEL_FILE_F4);
-
-    if (!basic_mesh::load_mesh(path.c_str(),
-                               &geometries[1].vertices,
-                               &geometries[1].indices,
-                               mesh_load_option::remove_points_lines)) {
-      XR_LOG_ERR("Failed to load model {}", path.c_str());
-      return;
-    }
-  }
-
-  _vertices = [g = &geometries[0]]() {
-    GLuint vb{};
-    gl::CreateBuffers(1, &vb);
-
-    const auto store_size =
-      static_cast<GLsizeiptr>(container_bytes_size(g[0].vertices) +
-                              container_bytes_size(g[1].vertices));
-
-    gl::NamedBufferStorage(vb, store_size, nullptr, gl::MAP_WRITE_BIT);
-
-    scoped_resource_mapping bmap{vb, gl::MAP_WRITE_BIT, (uint32_t) store_size};
-    if (bmap) {
-      memcpy(bmap.memory(),
-             g[0].vertices.data(),
-             container_bytes_size(g[0].vertices));
-
-      memcpy((uint8_t*) bmap.memory() + container_bytes_size(g[0].vertices),
-             g[1].vertices.data(),
-             container_bytes_size(g[1].vertices));
-    }
-
-    return scoped_buffer{vb};
-  }
-  ();
-
-  GL_MARK_BUFFER(raw_handle(_vertices), "Combined vertex buffer");
 
   {
     gl::CreateBuffers(1, raw_handle_ptr(_indices));
-    const auto store_size =
-      static_cast<GLsizeiptr>(container_bytes_size(geometries[0].indices) +
-                              container_bytes_size(geometries[1].indices));
     gl::NamedBufferStorage(
-      raw_handle(_indices), store_size, nullptr, gl::MAP_WRITE_BIT);
+      raw_handle(_indices), index_bytes, nullptr, gl::MAP_WRITE_BIT);
 
-    scoped_resource_mapping buffmap{raw_handle(_indices),
-                                    gl::MAP_WRITE_BIT,
-                                    static_cast<uint32_t>(store_size)};
+    scoped_resource_mapping imap{
+      raw_handle(_indices), gl::MAP_WRITE_BIT, index_bytes};
 
-    memcpy(buffmap.memory(),
-           geometries[0].indices.data(),
-           container_bytes_size(geometries[0].indices));
+    if (!imap) {
+      XR_LOG_ERR("Failed to map index buffer for writing!");
+      return;
+    }
 
-    auto dst = static_cast<uint8_t*>(buffmap.memory()) +
-               container_bytes_size(geometries[0].indices);
+    accumulate(
+      begin(mloaders),
+      end(mloaders),
+      0u,
+      [dst = imap.memory()](const size_t offset, const mesh_loader& ml) {
+        memcpy(static_cast<uint8_t*>(dst) + offset,
+               ml.index_data(),
+               ml.index_bytes());
+        return offset + ml.index_bytes();
+      });
 
-    memcpy(dst,
-           geometries[1].indices.data(),
-           container_bytes_size(geometries[1].indices));
+    GL_MARK_BUFFER(raw_handle(_indices), "Combined index buffer");
   }
-
-  GL_MARK_BUFFER(raw_handle(_indices), "Combined index buffer");
 
   {
     vector<uint32_t> draw_call_ids;
@@ -324,16 +322,16 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   {
     DrawElementsIndirectCommand draw_cmds[2];
 
-    draw_cmds[0].count         = geometries[0].indices.size();
+    draw_cmds[0].count         = mloaders[0].get_header().index_count;
     draw_cmds[0].instanceCount = 16;
     draw_cmds[0].firstIndex    = 0;
     draw_cmds[0].baseVertex    = 0;
     draw_cmds[0].baseInstance  = 0;
 
-    draw_cmds[1].count         = geometries[1].indices.size();
+    draw_cmds[1].count         = mloaders[1].get_header().index_count;
     draw_cmds[1].instanceCount = 16;
     draw_cmds[1].firstIndex    = draw_cmds[0].count;
-    draw_cmds[1].baseVertex    = geometries[0].vertices.size();
+    draw_cmds[1].baseVertex    = mloaders[0].get_header().vertex_count;
     draw_cmds[1].baseInstance  = draw_cmds[0].instanceCount;
 
     gl::CreateBuffers(1, raw_handle_ptr(_indirect_draw_cmd_buffer));

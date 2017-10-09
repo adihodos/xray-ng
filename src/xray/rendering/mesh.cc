@@ -17,6 +17,7 @@
 #include <gsl.h>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <random>
+#include <stlsoft/error/os_exception.hpp>
 #include <stlsoft/memory/auto_buffer.hpp>
 #include <tbb/tbb.h>
 #include <unordered_map>
@@ -155,7 +156,8 @@ void xray::rendering::basic_mesh::compute_aabb() {
     });
 
     //_aabb =
-    //  math::bounding_box3_axis_aligned((const math::vec3f*) _vertices.data(),
+    //  math::bounding_box3_axis_aligned((const math::vec3f*)
+    //  _vertices.data(),
     //                                   _vertices.size(),
     //                                   sizeof(_vertices[0]));
   }

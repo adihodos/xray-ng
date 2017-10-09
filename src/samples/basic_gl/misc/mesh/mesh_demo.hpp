@@ -58,17 +58,21 @@ private:
   void init();
 
 private:
-  xray::rendering::aabb_visualizer  _abbdraw;
-  xray::rendering::basic_mesh       _mesh;
-  xray::rendering::vertex_program   _vs;
-  xray::rendering::fragment_program _fs;
-  xray::rendering::program_pipeline _pipeline;
-  xray::rendering::scoped_texture   _objtex;
-  xray::rendering::scoped_texture   _greentexture;
-  xray::rendering::scoped_sampler   _sampler;
-  xray::rendering::vertex_program   _vsnormals;
-  xray::rendering::geometry_program _gsnormals;
-  xray::rendering::fragment_program _fsnormals;
+  xray::rendering::aabb_visualizer     _abbdraw;
+  xray::rendering::scoped_buffer       _vb;
+  xray::rendering::scoped_buffer       _ib;
+  xray::rendering::scoped_vertex_array _vao;
+  uint32_t                             _indexcount{};
+  xray::rendering::basic_mesh          _mesh;
+  xray::rendering::vertex_program      _vs;
+  xray::rendering::fragment_program    _fs;
+  xray::rendering::program_pipeline    _pipeline;
+  xray::rendering::scoped_texture      _objtex;
+  xray::rendering::scoped_texture      _greentexture;
+  xray::rendering::scoped_sampler      _sampler;
+  xray::rendering::vertex_program      _vsnormals;
+  xray::rendering::geometry_program    _gsnormals;
+  xray::rendering::fragment_program    _fsnormals;
 
   struct {
     bool                       drawnormals{false};

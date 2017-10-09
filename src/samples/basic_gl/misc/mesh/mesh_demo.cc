@@ -1,6 +1,7 @@
 #include "misc/mesh/mesh_demo.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
+#include "xray/base/basic_timer.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar2.hpp"
@@ -13,6 +14,7 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
+#include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
@@ -40,22 +42,33 @@ app::mesh_demo::~mesh_demo() {}
 void app::mesh_demo::init() {
   assert(!valid());
 
+  //
+  // turn off these so we don't get spammed
+  gl::DebugMessageControl(gl::DONT_CARE,
+                          gl::DONT_CARE,
+                          gl::DEBUG_SEVERITY_NOTIFICATION,
+                          0,
+                          nullptr,
+                          gl::FALSE_);
+
   if (!_abbdraw)
     return;
 
   static constexpr auto MODEL_FILE =
     //"SuperCobra.3ds";
-    "f4/f4phantom.obj";
-  //"sa23/sa23_aurora.obj";
-  //"cube_rounded.obj";
-  //"stanford/dragon/dragon.obj";
-  //"stanford/teapot/teapot.obj";
-  //"stanford/sportscar/sportsCar.obj";
-  //"stanford/sibenik/sibenik.obj";
-  //"stanford/rungholt/rungholt.obj";
-  //"stanford/lost-empire/lost_empire.obj";
-  //"stanford/cube/cube.obj";
-  //"stanford/head/head.OBJ";
+    //    "f4/f4phantom.obj";
+    "starfury/viper.obj"
+    //"sa23/sa23_aurora.obj";
+    //"cube_rounded.obj";
+    //"stanford/dragon/dragon.obj";
+    //"stanford/teapot/teapot.obj";
+    //"stanford/sportscar/sportsCar.obj";
+    //"stanford/sibenik/sibenik.obj";
+    //"stanford/rungholt/rungholt.obj";
+    //"stanford/lost-empire/lost_empire.obj";
+    //"stanford/cube/cube.obj";
+    //"stanford/head/head.OBJ";
+    ;
 
   // geometry_data_t blob;
   // geometry_factory::grid(16.0f, 16.0f, 128, 128, &blob);
@@ -85,10 +98,86 @@ void app::mesh_demo::init() {
   //                   blob.index_count,
   //                   mesh_type::writable};
 
-  _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
+  const char* const BIN_MDL =
+    //          "f4/f4phantom.bin"
+    "starfury/viper.bin";
 
-  if (!_mesh) {
-    return;
+  const auto mesh_hdr =
+    mesh_loader::read_header(xr_app_config->model_path(BIN_MDL).c_str());
+
+  if (mesh_hdr) {
+    auto h = &mesh_hdr.value();
+    XR_LOG_INFO(
+      "Vertex count {}, index count {}, vertex offset {}, index offset {}",
+      h->vertex_count,
+      h->index_count,
+      h->vertex_offset,
+      h->index_offset);
+  }
+
+  timer_highp tmr;
+
+  {
+    scoped_timing_object<timer_highp> stmr{&tmr};
+
+    mesh_loader ldr{xr_app_config->model_path(BIN_MDL).c_str()};
+    if (!ldr) {
+      XR_LOG_ERR("Failed to load model!");
+      return;
+    }
+
+    _indexcount = ldr.get_header().index_count;
+
+    gl::CreateBuffers(1, raw_handle_ptr(_vb));
+    gl::NamedBufferStorage(
+      raw_handle(_vb), ldr.vertex_bytes(), ldr.vertex_data(), 0);
+
+    gl::CreateBuffers(1, raw_handle_ptr(_ib));
+    gl::NamedBufferStorage(
+      raw_handle(_ib), ldr.index_bytes(), ldr.index_data(), 0);
+  }
+
+  XR_LOG_INFO("Mesh creation millis {}", tmr.elapsed_millis());
+
+  //  {
+  //    scoped_timing_object<timer_highp> stmr{&tmr};
+  //    _mesh = basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
+  //  }
+
+  //  XR_LOG_INFO("Mesh creation (obj) millis {}", tmr.elapsed_millis());
+
+  {
+    gl::CreateVertexArrays(1, raw_handle_ptr(_vao));
+    gl::VertexArrayVertexBuffer(
+      raw_handle(_vao), 0, raw_handle(_vb), 0, sizeof(vertex_pnt));
+    gl::VertexArrayElementBuffer(raw_handle(_vao), raw_handle(_ib));
+
+    gl::VertexArrayAttribFormat(raw_handle(_vao),
+                                0,
+                                3,
+                                gl::FLOAT,
+                                gl::FALSE_,
+                                offsetof(vertex_pnt, position));
+    gl::VertexArrayAttribFormat(raw_handle(_vao),
+                                1,
+                                3,
+                                gl::FLOAT,
+                                gl::FALSE_,
+                                offsetof(vertex_pnt, normal));
+    gl::VertexArrayAttribFormat(raw_handle(_vao),
+                                2,
+                                2,
+                                gl::FLOAT,
+                                gl::FALSE_,
+                                offsetof(vertex_pnt, texcoord));
+
+    gl::VertexArrayAttribBinding(raw_handle(_vao), 0, 0);
+    gl::VertexArrayAttribBinding(raw_handle(_vao), 1, 0);
+    gl::VertexArrayAttribBinding(raw_handle(_vao), 2, 0);
+
+    gl::EnableVertexArrayAttrib(raw_handle(_vao), 0);
+    gl::EnableVertexArrayAttrib(raw_handle(_vao), 1);
+    gl::EnableVertexArrayAttrib(raw_handle(_vao), 2);
   }
 
   _vs = gpu_program_builder{}
@@ -188,7 +277,7 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
                        (float) draw_ctx.window_width,
                        (float) draw_ctx.window_height);
 
-  gl::BindVertexArray(_mesh.vertex_array());
+  gl::BindVertexArray(raw_handle(_vao));
 
   struct transform_matrices {
     mat4f world_view_proj;
@@ -220,8 +309,7 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
 
     scoped_winding_order_setting set_cw{gl::CW};
 
-    gl::DrawElements(
-      gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+    gl::DrawElements(gl::TRIANGLES, _indexcount, gl::UNSIGNED_INT, nullptr);
   }
 
   if (_drawparams.drawnormals) {
