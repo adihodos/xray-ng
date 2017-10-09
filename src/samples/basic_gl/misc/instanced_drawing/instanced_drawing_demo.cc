@@ -16,6 +16,7 @@
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/opengl/gl_misc.hpp"
+#include "xray/rendering/opengl/indirect_draw_command.hpp"
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/opengl/scoped_state.hpp"
@@ -39,14 +40,6 @@ using namespace xray::ui;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
-
-struct DrawElementsIndirectCommand {
-  uint count;
-  uint instanceCount;
-  uint firstIndex;
-  uint baseVertex;
-  uint baseInstance;
-};
 
 struct rgba {
   uint8_t r;
@@ -92,20 +85,6 @@ app::simple_world::simple_world() {
   XR_LOG_INFO(
     "Vertices {}, indices {}", geometry.vertex_count, geometry.index_count);
 
-  //  const auto elevation_map = reinterpret_cast<const rgba*>(tl.data());
-
-  //  auto vtx = raw_ptr(geometry.geometry);
-  //  for (uint32_t y = 0; y < _worldsize.y; ++y) {
-  //    for (uint32_t x = 0; x < _worldsize.x; ++x) {
-  //      const auto elevation               = elevation_map[y * _worldsize.x +
-  //      x]; vtx[y * _worldsize.x + x].position = vec3f{(float) elevation.r /
-  //      255.0f,
-  //                                                 (float) elevation.g /
-  //                                                 255.0f, (float) elevation.b
-  //                                                 / 255.0f};
-  //    }
-  //  }
-
   vector<vertex_pnt> vertices{};
   transform(raw_ptr(geometry.geometry),
             raw_ptr(geometry.geometry) + geometry.vertex_count,
@@ -141,8 +120,6 @@ void app::simple_world::update(const float) {}
 void app::simple_world::draw(const xray::scene::camera* cam) {
 
   _vs.set_uniform("WORLD_VIEW_PROJ", cam->projection_view());
-
-  //  scoped_polygon_mode_setting set_wireframe{gl::LINE};
 
   gl::BindVertexArray(_world.vertex_array());
   _pp.use();
@@ -180,7 +157,11 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   //    0.1f,
   //    1000.0f));
 
-  const char* const files[] = {"f15/f15c.bin", "f4/f4phantom.bin"};
+  const char* const files[] = {"f15/f15c.bin",
+                               //      "f4/f4phantom.bin",
+                               // "leo2/leo2a6.bin"
+                               //                               "a10/a10.bin"
+                               "typhoon/typhoon.bin"};
   mesh_loader       mloaders[2];
   for (size_t i = 0; i < XR_COUNTOF(files); ++i) {
     mloaders[i].load(xr_app_config->model_path(files[i]).c_str());
@@ -320,19 +301,19 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   ();
 
   {
-    DrawElementsIndirectCommand draw_cmds[2];
+    draw_elements_indirect_command draw_cmds[2];
 
-    draw_cmds[0].count         = mloaders[0].get_header().index_count;
-    draw_cmds[0].instanceCount = 16;
-    draw_cmds[0].firstIndex    = 0;
-    draw_cmds[0].baseVertex    = 0;
-    draw_cmds[0].baseInstance  = 0;
+    draw_cmds[0].count          = mloaders[0].get_header().index_count;
+    draw_cmds[0].instance_count = 16;
+    draw_cmds[0].first_index    = 0;
+    draw_cmds[0].base_vertex    = 0;
+    draw_cmds[0].base_instance  = 0;
 
-    draw_cmds[1].count         = mloaders[1].get_header().index_count;
-    draw_cmds[1].instanceCount = 16;
-    draw_cmds[1].firstIndex    = draw_cmds[0].count;
-    draw_cmds[1].baseVertex    = mloaders[0].get_header().vertex_count;
-    draw_cmds[1].baseInstance  = draw_cmds[0].instanceCount;
+    draw_cmds[1].count          = mloaders[1].get_header().index_count;
+    draw_cmds[1].instance_count = 16;
+    draw_cmds[1].first_index    = draw_cmds[0].count;
+    draw_cmds[1].base_vertex    = mloaders[0].get_header().vertex_count;
+    draw_cmds[1].base_instance  = draw_cmds[0].instance_count;
 
     gl::CreateBuffers(1, raw_handle_ptr(_indirect_draw_cmd_buffer));
     gl::NamedBufferStorage(
@@ -445,7 +426,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                new_inst.pitch      = r->next_float(0.0f, two_pi<float>);
                new_inst.roll       = r->next_float(0.0f, two_pi<float>);
                new_inst.yaw        = r->next_float(0.0f, two_pi<float>);
-               new_inst.scale      = idx < 16 ? 1.0f : 2.5f;
+               new_inst.scale      = idx < 16 ? 1.0f : 1.0f;
                new_inst.texture_id = r->next_uint(0, 10);
                new_inst.position =
                  vec3f{r->next_float(-OBJ_DST, +OBJ_DST),
