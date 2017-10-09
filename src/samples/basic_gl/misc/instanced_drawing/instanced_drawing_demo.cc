@@ -13,6 +13,8 @@
 #include "xray/math/transforms_r4.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/draw_context.hpp"
+#include "xray/rendering/geometry/geometry_data.hpp"
+#include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/opengl/gl_misc.hpp"
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
@@ -46,18 +48,108 @@ struct DrawElementsIndirectCommand {
   uint baseInstance;
 };
 
-template <typename InputIterator, typename OutputIterator, typename Accumulator>
-void exclusive_scan(InputIterator  first,
-                    InputIterator  last,
-                    OutputIterator out,
-                    Accumulator    accum) {
+struct rgba {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t a;
+};
 
-  *out = decltype(*first){};
+app::simple_world::simple_world() {
+  texture_loader tl{
+    xr_app_config->texture_path("worlds/world1/seed_7677_elevation.png")
+      .c_str()};
 
-  while (first != last) {
-    auto v = accum(*out++, *first++);
-    *out   = v;
+  if (!tl) {
+    XR_LOG_ERR("Failed to open world file!");
+    return;
   }
+
+  XR_LOG_INFO("World image {} {} {}", tl.width(), tl.height(), tl.depth());
+
+  gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_heightmap));
+  gl::TextureStorage2D(
+    raw_handle(_heightmap), 1, tl.internal_format(), tl.width(), tl.height());
+  gl::TextureSubImage2D(raw_handle(_heightmap),
+                        0,
+                        0,
+                        0,
+                        tl.width(),
+                        tl.height(),
+                        tl.format(),
+                        tl.pixel_size(),
+                        tl.data());
+
+  gl::CreateSamplers(1, raw_handle_ptr(_sampler));
+  gl::SamplerParameteri(
+    raw_handle(_sampler), gl::TEXTURE_MIN_FILTER, gl::LINEAR);
+  gl::SamplerParameteri(
+    raw_handle(_sampler), gl::TEXTURE_MAG_FILTER, gl::LINEAR);
+
+  geometry_data_t geometry;
+  geometry_factory::grid(_worldsize.x, _worldsize.y, 1024, 1024, &geometry);
+
+  XR_LOG_INFO(
+    "Vertices {}, indices {}", geometry.vertex_count, geometry.index_count);
+
+  //  const auto elevation_map = reinterpret_cast<const rgba*>(tl.data());
+
+  //  auto vtx = raw_ptr(geometry.geometry);
+  //  for (uint32_t y = 0; y < _worldsize.y; ++y) {
+  //    for (uint32_t x = 0; x < _worldsize.x; ++x) {
+  //      const auto elevation               = elevation_map[y * _worldsize.x +
+  //      x]; vtx[y * _worldsize.x + x].position = vec3f{(float) elevation.r /
+  //      255.0f,
+  //                                                 (float) elevation.g /
+  //                                                 255.0f, (float) elevation.b
+  //                                                 / 255.0f};
+  //    }
+  //  }
+
+  vector<vertex_pnt> vertices{};
+  transform(raw_ptr(geometry.geometry),
+            raw_ptr(geometry.geometry) + geometry.vertex_count,
+            back_inserter(vertices),
+            [](const vertex_pntt& vtx) {
+              return vertex_pnt{vtx.position, vtx.normal, vtx.texcoords};
+            });
+
+  _world = basic_mesh{vertices.data(),
+                      vertices.size(),
+                      raw_ptr(geometry.indices),
+                      geometry.index_count};
+
+  _vs = gpu_program_builder{}
+          .add_file("shaders/misc/instanced_draw/vs.world.glsl")
+          .build<render_stage::e::vertex>();
+
+  _fs = gpu_program_builder{}
+          .add_file("shaders/misc/instanced_draw/fs.world.glsl")
+          .build<render_stage::e::fragment>();
+
+  _pp = program_pipeline{[]() {
+    GLuint pp{};
+    gl::CreateProgramPipelines(1, &pp);
+    return pp;
+  }()};
+
+  _pp.use_vertex_program(_vs).use_fragment_program(_fs);
+}
+
+void app::simple_world::update(const float) {}
+
+void app::simple_world::draw(const xray::scene::camera* cam) {
+
+  _vs.set_uniform("WORLD_VIEW_PROJ", cam->projection_view());
+
+  //  scoped_polygon_mode_setting set_wireframe{gl::LINE};
+
+  gl::BindVertexArray(_world.vertex_array());
+  _pp.use();
+  gl::BindTextureUnit(0, raw_handle(_heightmap));
+  gl::BindSampler(0, raw_handle(_sampler));
+  gl::DrawElements(
+    gl::TRIANGLES, _world.index_count(), gl::UNSIGNED_INT, nullptr);
 }
 
 app::instanced_drawing_demo::instanced_drawing_demo(
@@ -72,13 +164,21 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                           nullptr,
                           gl::FALSE_);
 
+  xray::scene::camera_lens_parameters lens_param;
+  lens_param.aspect_ratio = static_cast<float>(init_ctx->surface_width) /
+                            static_cast<float>(init_ctx->surface_height);
+  lens_param.nearplane = 0.1f;
+  lens_param.farplane  = 1000.0f;
+  lens_param.fov       = radians(70.0f);
+  _scene.cam_control.set_lens_parameters(lens_param);
   _scene.cam_control.update();
-  _scene.camera.set_projection(projection::perspective_symmetric(
-    static_cast<float>(init_ctx->surface_width),
-    static_cast<float>(init_ctx->surface_height),
-    radians(70.0f),
-    0.1f,
-    1000.0f));
+
+  //  _scene.camera.set_projection(projection::perspective_symmetric(
+  //    static_cast<float>(init_ctx->surface_width),
+  //    static_cast<float>(init_ctx->surface_height),
+  //    radians(70.0f),
+  //    0.1f,
+  //    1000.0f));
 
   struct {
     vector<vertex_pnt> vertices;
@@ -349,9 +449,10 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                new_inst.yaw        = r->next_float(0.0f, two_pi<float>);
                new_inst.scale      = idx < 16 ? 1.0f : 2.5f;
                new_inst.texture_id = r->next_uint(0, 10);
-               new_inst.position   = vec3f{r->next_float(-OBJ_DST, +OBJ_DST),
-                                         r->next_float(0.0f, +OBJ_DST),
-                                         r->next_float(-OBJ_DST, +OBJ_DST)};
+               new_inst.position =
+                 vec3f{r->next_float(-OBJ_DST, +OBJ_DST),
+                       r->next_float(OBJ_DST, +2.0f * OBJ_DST),
+                       r->next_float(-OBJ_DST, +OBJ_DST)};
 
                ++idx;
                return new_inst;
@@ -401,6 +502,13 @@ app::instanced_drawing_demo::~instanced_drawing_demo() {}
 
 void app::instanced_drawing_demo::draw(
   const xray::rendering::draw_context_t& ctx) {
+
+  gl::ClearNamedFramebufferfv(
+    0, gl::COLOR, 0, color_palette::web::black.components);
+  gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
+
+  _world.draw(&_scene.camera);
+  //  return;
 
   {
     for_each(begin(_obj_instances.instances),
@@ -461,10 +569,6 @@ void app::instanced_drawing_demo::draw(
 
   gl::BindBuffersBase(gl::SHADER_STORAGE_BUFFER, 0, 2, ssbos);
 
-  gl::ClearNamedFramebufferfv(
-    0, gl::COLOR, 0, color_palette::web::white.components);
-  gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
-
   scoped_winding_order_setting set_cw_winding{gl::CW};
 
   gl::BindVertexArray(raw_handle(_vertexarray));
@@ -487,12 +591,19 @@ void app::instanced_drawing_demo::event_handler(
   const xray::ui::window_event& evt) {
 
   if (evt.type == event_type::configure) {
-    _scene.camera.set_projection(projection::perspective_symmetric(
-      static_cast<float>(evt.event.configure.width),
-      static_cast<float>(evt.event.configure.height),
-      radians(70.0f),
-      0.1f,
-      1000.0f));
+    xray::scene::camera_lens_parameters lp;
+    lp.aspect_ratio = static_cast<float>(evt.event.configure.width) /
+                      static_cast<float>(evt.event.configure.height);
+    lp.farplane  = 1000.0f;
+    lp.nearplane = 0.1f;
+    lp.fov       = radians(70.0f);
+
+    //    _scene.camera.set_projection(projection::perspective_symmetric(
+    //      static_cast<float>(evt.event.configure.width),
+    //      static_cast<float>(evt.event.configure.height),
+    //      radians(70.0f),
+    //      0.1f,
+    //      1000.0f));
 
     gl::ViewportIndexedf(0,
                          0.0f,

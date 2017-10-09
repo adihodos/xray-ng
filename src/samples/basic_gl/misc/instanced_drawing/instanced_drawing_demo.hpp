@@ -41,10 +41,30 @@
 #include "xray/rendering/opengl/program_pipeline.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
+#include "xray/scene/fps_camera_controller.hpp"
 #include <cstdint>
 #include <vector>
 
 namespace app {
+
+class simple_world {
+public:
+  simple_world();
+
+  void draw(const xray::scene::camera* cam);
+  void update(const float delta_ms);
+
+private:
+  xray::rendering::basic_mesh       _world;
+  xray::rendering::vertex_program   _vs;
+  xray::rendering::fragment_program _fs;
+  xray::rendering::program_pipeline _pp;
+  xray::rendering::scoped_texture   _heightmap;
+  xray::rendering::scoped_sampler   _sampler;
+  xray::math::vec2ui32              _worldsize{1024, 1024};
+
+  XRAY_NO_COPY(simple_world);
+};
 
 class instanced_drawing_demo : public demo_base {
 public:
@@ -92,11 +112,15 @@ private:
   xray::rendering::scoped_texture      _textures;
   xray::rendering::scoped_sampler      _sampler;
   xray::base::random_number_generator  _rand;
+  simple_world                         _world;
 
   struct {
-    xray::scene::camera                             camera;
-    xray::scene::camera_controller_spherical_coords cam_control{
-      &camera, "config/misc/instanced_demo/cam_controller_spherical.conf"};
+    xray::scene::camera camera;
+    //    xray::scene::camera_controller_spherical_coords cam_control{
+    //      &camera,
+    //      "config/misc/instanced_demo/cam_controller_spherical.conf"};
+    xray::scene::fps_camera_controller cam_control{&camera};
+
   } _scene;
 
 private:
