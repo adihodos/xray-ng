@@ -115,6 +115,9 @@ set(shader_files
     ${proj_src_dir}/shaders/misc/procedural_city/vs.glsl
     ${proj_src_dir}/shaders/misc/procedural_city/fs.glsl
 
+    ${proj_src_dir}/shaders/misc/geometric_shapes/vs.glsl
+    ${proj_src_dir}/shaders/misc/geometric_shapes/fs.glsl
+
     ${proj_src_dir}/shaders/less4/phong_lighting.glsl
     ${proj_src_dir}/shaders/less4/frag_passthrough.glsl
     ${proj_src_dir}/shaders/cap3/soubroutines/vert_shader.glsl

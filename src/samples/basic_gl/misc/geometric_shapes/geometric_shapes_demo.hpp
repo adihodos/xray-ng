@@ -39,6 +39,7 @@
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
 #include "xray/scene/camera.hpp"
+#include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/scene/fps_camera_controller.hpp"
 #include <cstdint>
 #include <vector>
@@ -80,6 +81,10 @@ private:
   } _obj_instances;
 
   struct render_state {
+    uint32_t                             index_count{};
+    uint32_t                             index_count_sphere{};
+    xray::rendering::scoped_buffer       vertices_sphere;
+    xray::rendering::scoped_buffer       indices_sphere;
     xray::rendering::scoped_buffer       vertices;
     xray::rendering::scoped_buffer       indices;
     xray::rendering::scoped_buffer       indirect_draw_cmd_buffer;
@@ -94,8 +99,10 @@ private:
   } _render;
 
   struct {
-    xray::scene::camera                camera;
-    xray::scene::fps_camera_controller cam_control{&camera};
+    xray::scene::camera camera;
+    //    xray::scene::fps_camera_controller cam_control{&camera};
+    xray::scene::camera_controller_spherical_coords cam_control{
+      &camera, "config/cam_controller_spherical.conf"};
   } _scene;
 
 private:

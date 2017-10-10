@@ -52,6 +52,7 @@
 #include "lighting/directional_light_demo.hpp"
 #include "misc/bufferless_draw/bufferless-draw-demo.hpp"
 #include "misc/fractals/fractal_demo.hpp"
+#include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 #include "misc/instanced_drawing/instanced_drawing_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
 #include "misc/procedural_city/procedural_city_demo.hpp"
@@ -120,7 +121,8 @@ enum class demo_type : int32_t {
   bufferless_draw,
   lighting_directional,
   procedural_city,
-  instanced_drawing
+  instanced_drawing,
+  geometric_shapes
 };
 
 class basic_scene {
@@ -313,6 +315,10 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     return xray::base::make_unique<instanced_drawing_demo>(&init_context);
     break;
 
+  case demo_type::geometric_shapes:
+    return xray::base::make_unique<geometric_shapes_demo>(&init_context);
+    break;
+
   default:
     break;
   }
@@ -336,7 +342,8 @@ void basic_scene::setup_ui() {
                              "Bufferless drawing",
                              "Directional lighting",
                              "Procedural city",
-                             "Instanced drawing"};
+                             "Instanced drawing",
+                             "Geometric shapes generation"};
 
   demo_type selected_demo{_demotype};
   if (ImGui::Combo(
@@ -505,6 +512,14 @@ int main(int argc, char** argv) {
   }
 
   gl::DebugMessageCallback(app::debug_proc, nullptr);
+  //
+  // turn off these so we don't get spammed
+  gl::DebugMessageControl(gl::DONT_CARE,
+                          gl::DONT_CARE,
+                          gl::DEBUG_SEVERITY_NOTIFICATION,
+                          0,
+                          nullptr,
+                          gl::FALSE_);
 
   app::basic_scene scene{&main_window};
   main_window.events.loop = make_delegate(scene, &app::basic_scene::main_loop);
