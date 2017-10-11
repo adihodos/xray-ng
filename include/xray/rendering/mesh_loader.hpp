@@ -33,6 +33,8 @@
 #include "xray/xray.hpp"
 #include "platformstl/filesystem/memory_mapped_file.hpp"
 #include "xray/base/maybe.hpp"
+#include "xray/math/objects/aabb3.hpp"
+#include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include <cassert>
 #include <cstddef>
@@ -58,6 +60,11 @@ struct mesh_header {
   uint32_t vertex_offset;
   ///< Offset in bytes, from the start of file, where index data begins.
   uint32_t index_offset;
+};
+
+struct mesh_bounding {
+  xray::math::aabb3f   axis_aligned_bbox;
+  xray::math::sphere3f bounding_sphere;
 };
 
 /// \brief  Loading options for binary meshes. These can be OR'ed together.
@@ -87,7 +94,16 @@ public:
             const uint32_t load_opts = mesh_load_option::remove_points_lines);
 
   ///   \brief  Returns the header data of the mesh file.
-  const mesh_header& get_header() const noexcept { return _mheader; }
+  const mesh_header& header() const noexcept {
+    assert(valid());
+    return *reinterpret_cast<const mesh_header*>(_mfile.memory());
+  }
+
+  const mesh_bounding& bounding() const noexcept {
+    assert(valid());
+    return *reinterpret_cast<const mesh_bounding*>(
+      reinterpret_cast<const uint8_t*>(_mfile.memory()) + sizeof(mesh_header));
+  }
 
   ///   \brief  Returns a pointer to the mesh data.
   const void* get_data() const noexcept { return _mfile.memory(); }
@@ -107,13 +123,13 @@ public:
   ///   \brief  Returns the number of bytes with vertex data.
   size_t vertex_bytes() const noexcept {
     assert(valid());
-    return _mheader.vertex_count * _mheader.vertex_size;
+    return header().vertex_count * header().vertex_size;
   }
 
   ///   \brief  Returns the number of bytes with indices data.
   size_t index_bytes() const noexcept {
     assert(valid());
-    return _mheader.index_count * _mheader.index_size;
+    return header().index_count * header().index_size;
   }
 
   ///   \brief  Reads the header information from a binary mesh file.
@@ -126,7 +142,6 @@ private:
   bool valid() const noexcept { return _mfile.memory() != nullptr; }
 
   platformstl::memory_mapped_file _mfile;
-  mesh_header                     _mheader;
 
   XRAY_NO_COPY(mesh_loader);
 };

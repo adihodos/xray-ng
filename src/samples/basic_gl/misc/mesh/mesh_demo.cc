@@ -126,7 +126,7 @@ void app::mesh_demo::init() {
       return;
     }
 
-    _indexcount = ldr.get_header().index_count;
+    _indexcount = ldr.header().index_count;
 
     gl::CreateBuffers(1, raw_handle_ptr(_vb));
     gl::NamedBufferStorage(

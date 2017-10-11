@@ -303,16 +303,16 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   {
     draw_elements_indirect_command draw_cmds[2];
 
-    draw_cmds[0].count          = mloaders[0].get_header().index_count;
+    draw_cmds[0].count          = mloaders[0].header().index_count;
     draw_cmds[0].instance_count = 16;
     draw_cmds[0].first_index    = 0;
     draw_cmds[0].base_vertex    = 0;
     draw_cmds[0].base_instance  = 0;
 
-    draw_cmds[1].count          = mloaders[1].get_header().index_count;
+    draw_cmds[1].count          = mloaders[1].header().index_count;
     draw_cmds[1].instance_count = 16;
     draw_cmds[1].first_index    = draw_cmds[0].count;
-    draw_cmds[1].base_vertex    = mloaders[0].get_header().vertex_count;
+    draw_cmds[1].base_vertex    = mloaders[0].header().vertex_count;
     draw_cmds[1].base_instance  = draw_cmds[0].instance_count;
 
     gl::CreateBuffers(1, raw_handle_ptr(_indirect_draw_cmd_buffer));

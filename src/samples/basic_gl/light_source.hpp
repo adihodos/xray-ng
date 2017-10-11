@@ -72,13 +72,13 @@ struct light_source2 {
   xray::rendering::rgb_color ks;
 };
 
-struct directional_light {
-  xray::math::vec3f          direction;
-  float                      pad1;
-  xray::rendering::rgb_color ka;
-  xray::rendering::rgb_color kd;
-  xray::rendering::rgb_color ks;
-};
+// struct directional_light {
+//  xray::math::vec3f          direction;
+//  float                      pad1;
+//  xray::rendering::rgb_color ka;
+//  xray::rendering::rgb_color kd;
+//  xray::rendering::rgb_color ks;
+//};
 
 struct light_source3 {
   xray::math::vec3f position;

@@ -1,6 +1,10 @@
 #include "xray/xray.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/dbg/debug_ext.hpp"
+#include "xray/math/objects/aabb3.hpp"
+#include "xray/math/objects/aabb3_math.hpp"
+#include "xray/math/objects/sphere.hpp"
+#include "xray/math/objects/sphere_math.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/mesh.hpp"
@@ -189,6 +193,17 @@ int main(int argc, char** argv) {
         return;
       }
 
+      //
+      // aabb + bounding sphere
+      mesh_bounding mbounds;
+      mbounds.axis_aligned_bbox = bounding_box3_axis_aligned(
+        (const vec3f*) vertices.data(), vertices.size(), sizeof(vertex_pnt));
+
+      mbounds.bounding_sphere =
+        bounding_sphere<float>(vertices.begin(),
+                               vertices.end(),
+                               [](const vertex_pnt& v) { return v.position; });
+
       path.pop_ext();
       path.push_ext("bin");
 
@@ -207,11 +222,18 @@ int main(int argc, char** argv) {
       mhdr.vertex_count  = (uint32_t) vertices.size();
       mhdr.index_size    = sizeof(uint32_t);
       mhdr.vertex_size   = sizeof(vertex_pnt);
-      mhdr.vertex_offset = sizeof(mhdr);
+      mhdr.vertex_offset = sizeof(mhdr) + sizeof(mbounds);
       mhdr.index_offset =
         mhdr.vertex_offset + mhdr.vertex_count * mhdr.vertex_size;
 
+      //
+      // header
       fwrite(&mhdr, sizeof(mhdr), 1, outfile.get());
+      //
+      // bounding info
+      fwrite(&mbounds, sizeof(mbounds), 1, outfile.get());
+      //
+      // geometry data
       fwrite(vertices.data(), vertices.size(), mhdr.vertex_size, outfile.get());
       fwrite(indices.data(), indices.size(), mhdr.index_size, outfile.get());
 

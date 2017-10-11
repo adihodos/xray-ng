@@ -33,8 +33,9 @@
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "init_context.hpp"
+#include "light_source.hpp"
 #include "xray/math/scalar3.hpp"
-#include "xray/rendering/mesh.hpp"
+#include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
@@ -74,7 +75,7 @@ private:
   };
 
   struct object_instances {
-    static constexpr uint32_t      instance_count{32u};
+    static constexpr uint32_t      instance_count{64u};
     std::vector<instance_info>     instances;
     xray::rendering::scoped_buffer buffer_transforms;
     xray::rendering::scoped_buffer buffer_texture_ids;
@@ -103,6 +104,7 @@ private:
     //    xray::scene::fps_camera_controller cam_control{&camera};
     xray::scene::camera_controller_spherical_coords cam_control{
       &camera, "config/cam_controller_spherical.conf"};
+    light_source lights[4];
   } _scene;
 
 private:

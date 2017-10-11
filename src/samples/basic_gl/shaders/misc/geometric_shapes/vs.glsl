@@ -6,6 +6,8 @@ layout (location = 2) in vec4 vs_in_color;
 
 layout (binding = 0, row_major) uniform Transforms {
   mat4 WORLD_VIEW_PROJ;
+  mat4 VIEW_MATRIX;
+  mat4 NORMAL_MATRIX;
 };
 
 out VS_OUT_FS_IN {
@@ -20,7 +22,7 @@ out gl_PerVertex {
 
 void main() {
   gl_Position = WORLD_VIEW_PROJ * vec4(vs_in_pos, 1.0f);
-  vs_out.pos = vs_in_pos;
-  vs_out.normal = vs_in_norm;
+  vs_out.pos = (VIEW_MATRIX * vec4(vs_in_pos, 1.0f)).xyz;
+  vs_out.normal = (NORMAL_MATRIX * vec4(vs_in_norm, 0.0f)).xyz;
   vs_out.color = vs_in_color;
 }

@@ -16,7 +16,6 @@ bool xray::rendering::mesh_loader::load(
     return false;
   }
 
-  _mheader = *reinterpret_cast<const mesh_header*>(_mfile.memory());
   return true;
 }
 
@@ -24,20 +23,20 @@ gsl::span<const xray::rendering::vertex_pnt>
 xray::rendering::mesh_loader::vertex_span() const noexcept {
 
   return {vertex_data(),
-          vertex_data() + static_cast<ptrdiff_t>(_mheader.vertex_count)};
+          vertex_data() + static_cast<ptrdiff_t>(header().vertex_count)};
 }
 
 gsl::span<const uint32_t> xray::rendering::mesh_loader::index_span() const
   noexcept {
   return {index_data(),
-          index_data() + static_cast<ptrdiff_t>(_mheader.index_count)};
+          index_data() + static_cast<ptrdiff_t>(header().index_count)};
 }
 
 const xray::rendering::vertex_pnt*
 xray::rendering::mesh_loader::vertex_data() const noexcept {
   assert(valid());
   const auto vstart = reinterpret_cast<const vertex_pnt*>(
-    reinterpret_cast<const uint8_t*>(_mfile.memory()) + _mheader.vertex_offset);
+    reinterpret_cast<const uint8_t*>(_mfile.memory()) + header().vertex_offset);
 
   return vstart;
 }
@@ -46,7 +45,7 @@ const uint32_t* xray::rendering::mesh_loader::index_data() const noexcept {
   assert(valid());
 
   const auto istart = reinterpret_cast<const uint32_t*>(
-    reinterpret_cast<const uint8_t*>(_mfile.memory()) + _mheader.index_offset);
+    reinterpret_cast<const uint8_t*>(_mfile.memory()) + header().index_offset);
 
   return istart;
 }
