@@ -65,13 +65,23 @@ private:
   struct instance_info {
     static constexpr auto rotation_speed = 0.01f;
 
-    float             roll{};
-    float             pitch{};
-    float             yaw{};
-    float             scale{};
-    float             speed{};
-    xray::math::vec3f position;
-    uint32_t          texture_id{};
+    float                      roll{};
+    float                      pitch{};
+    float                      yaw{};
+    float                      scale{};
+    float                      speed{};
+    xray::math::vec3f          position;
+    xray::rendering::rgb_color color;
+    uint32_t                   texture_id{};
+  };
+
+  struct gpu_instance_info {
+    xray::math::mat4f          world_view_proj;
+    xray::math::mat4f          view;
+    xray::math::mat4f          normals;
+    xray::rendering::rgb_color color;
+    uint32_t                   tex_id;
+    uint32_t                   _pad[3];
   };
 
   struct object_instances {
@@ -89,9 +99,11 @@ private:
     xray::rendering::scoped_buffer       vertices;
     xray::rendering::scoped_buffer       indices;
     xray::rendering::scoped_buffer       indirect_draw_cmd_buffer;
+    xray::rendering::scoped_buffer       instances_ssbo;
     xray::rendering::scoped_buffer       draw_ids;
     xray::rendering::scoped_vertex_array vertexarray;
     xray::rendering::vertex_program      vs;
+    xray::rendering::vertex_program      vs_instancing;
     xray::rendering::geometry_program    gs;
     xray::rendering::fragment_program    fs;
     xray::rendering::program_pipeline    pipeline;
