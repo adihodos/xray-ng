@@ -1,9 +1,12 @@
 #include "geometric_shapes_demo.hpp"
 #include "xray/base/app_config.hpp"
+#include "xray/base/random.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_string_cast.hpp"
+#include "xray/math/scalar3x3.hpp"
 #include "xray/math/scalar4x4_math.hpp"
+#include "xray/math/transforms_r3.hpp"
 #include "xray/math/transforms_r4.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
@@ -107,6 +110,8 @@ app::geometric_shapes_demo::geometric_shapes_demo(
       float      x = -64.0f;
       float      z = 64.0f;
 
+      random_number_generator rnd{};
+
       for (;;) {
         if (x > 64.0f) {
           x = -64.0f;
@@ -119,6 +124,9 @@ app::geometric_shapes_demo::geometric_shapes_demo(
 
         instance_info ii;
         ii.position = vec3f{x, 10.0f, z};
+        ii.pitch    = rnd.next_float(0.0f, two_pi<float>);
+        ii.roll     = rnd.next_float(0.0f, two_pi<float>);
+        ii.yaw      = rnd.next_float(0.0f, two_pi<float>);
         _obj_instances.instances.push_back(ii);
 
         x += w;
@@ -300,7 +308,9 @@ void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
               begin(gpu_inst_span),
               [ s = &_scene, &instance_id ](const instance_info& ii) {
 
-                const auto world_tf = R4::translate(ii.position);
+                const auto world_tf =
+                  R4::translate(ii.position) * mat4f{R3::rotate_y(ii.yaw)} *
+                  mat4f{R3::rotate_x(ii.pitch)} * mat4f{R3::rotate_z(ii.roll)};
 
                 gpu_instance_info gi;
 
@@ -308,7 +318,7 @@ void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
                   transpose(s->camera.projection_view() * world_tf);
                 gi.tex_id  = 0;
                 gi.view    = transpose(s->camera.view() * world_tf);
-                gi.normals = transpose(s->camera.view());
+                gi.normals = transpose(s->camera.view() * world_tf);
                 gi.color =
                   INSTANCE_COLORS[instance_id % XR_COUNTOF(INSTANCE_COLORS)];
 
@@ -379,7 +389,29 @@ void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
     gl::TRIANGLES, _render.index_count, gl::UNSIGNED_INT, nullptr);
 }
 
-void app::geometric_shapes_demo::update(const float delta_ms) {}
+void app::geometric_shapes_demo::update(const float delta_ms) {
+  for_each(begin(_obj_instances.instances),
+           end(_obj_instances.instances),
+           [](instance_info& ii) {
+             static constexpr auto ROTATION_SPEED = 0.1f;
+
+             ii.roll += ROTATION_SPEED;
+             ii.pitch += ROTATION_SPEED;
+             ii.yaw += ROTATION_SPEED;
+
+             if (ii.roll > two_pi<float>) {
+               ii.roll -= two_pi<float>;
+             }
+
+             if (ii.yaw > two_pi<float>) {
+               ii.yaw -= two_pi<float>;
+             }
+
+             if (ii.pitch > two_pi<float>) {
+               ii.pitch -= two_pi<float>;
+             }
+           });
+}
 
 void app::geometric_shapes_demo::event_handler(
   const xray::ui::window_event& evt) {

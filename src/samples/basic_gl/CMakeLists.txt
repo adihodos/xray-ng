@@ -155,10 +155,24 @@ set(shader_files
     ${proj_src_dir}/shaders/cap6/edge_detect/shader.frag
     )
 
+set(proj_cfg_dir "${proj_src_dir}/config")
+
+set(config_files
+    ${proj_cfg_dir}/app_config.conf
+    ${proj_cfg_dir}/cap5/render_texture/demo.conf
+    ${proj_cfg_dir}/misc/instanced_demo/cam_controller_spherical.conf
+    ${proj_cfg_dir}/logging.conf
+    ${proj_cfg_dir}/cap6/edge_detect/app.new.conf
+    ${proj_cfg_dir}/cap6/edge_detect/app.conf
+    ${proj_cfg_dir}/cap6/hdr_tonemapping/app.conf
+    ${proj_cfg_dir}/cam_controller_spherical.conf
+)    
+
 source_group(code FILES ${project_sources})
 source_group(shaders FILES ${shader_files})
+source_group(configuration FILES ${config_files})
 
-add_executable(basic-gl-app ${project_sources} ${shader_files})
+add_executable(basic-gl-app ${project_sources} ${shader_files} ${config_files})
 
 message("Platform libs ${SYS_DEP_LIBS}")
 
