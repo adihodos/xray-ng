@@ -1,13 +1,16 @@
 #include "geometric_shapes_demo.hpp"
 #include "xray/base/app_config.hpp"
+#include "xray/base/debug_output.hpp"
 #include "xray/base/random.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_string_cast.hpp"
 #include "xray/math/scalar3x3.hpp"
 #include "xray/math/scalar4x4_math.hpp"
+#include "xray/math/scalar4x4_string_cast.hpp"
 #include "xray/math/transforms_r3.hpp"
 #include "xray/math/transforms_r4.hpp"
+#include "xray/physics/particle.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
@@ -22,10 +25,23 @@
 using namespace xray::base;
 using namespace xray::rendering;
 using namespace xray::math;
+using namespace xray::physics;
 using namespace xray::ui;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
+
+static const rgb_color INSTANCE_COLORS[] = {
+  color_palette::flat::alizarin300,   color_palette::flat::amethyst100,
+  color_palette::flat::asbestos800,   color_palette::flat::belizehole400,
+  color_palette::flat::carrot300,     color_palette::flat::clouds500,
+  color_palette::flat::concrete900,   color_palette::flat::emerald400,
+  color_palette::flat::greensea200,   color_palette::flat::midnightblue200,
+  color_palette::flat::nephritis400,  color_palette::flat::orange400,
+  color_palette::flat::peterriver100, color_palette::flat::pomegranate400,
+  color_palette::flat::pumpkin600,    color_palette::flat::silver800,
+  color_palette::flat::sunflower200,  color_palette::flat::turquoise300,
+  color_palette::flat::wetasphalt500, color_palette::flat::wisteria900};
 
 struct vertex_pnc {
   vec3f     pos;
@@ -55,114 +71,76 @@ app::geometric_shapes_demo::geometric_shapes_demo(
   }
 
   {
-    //    geometry_data_t sphere;
-    //    geometry_factory::geosphere(16.0f, 32u, &sphere);
+    geometry_data_t sphere;
+    geometry_factory::geosphere(4.0f, 32u, &sphere);
 
-    //    vector<vertex_pnc> sphere_vertices{};
-    //    transform(raw_ptr(sphere.geometry),
-    //              raw_ptr(sphere.geometry) + sphere.vertex_count,
-    //              back_inserter(sphere_vertices),
-    //              [](const vertex_pntt& vx) {
-    //                vertex_pnc vsout;
-    //                vsout.pos    = vx.position;
-    //                vsout.normal = vx.normal;
-    //                vsout.color  = color_palette::web::white_smoke;
+    vector<vertex_pnc> sphere_vertices{};
+    transform(raw_ptr(sphere.geometry),
+              raw_ptr(sphere.geometry) + sphere.vertex_count,
+              back_inserter(sphere_vertices),
+              [](const vertex_pntt& vx) {
+                vertex_pnc vsout;
+                vsout.pos    = vx.position;
+                vsout.normal = vx.normal;
+                vsout.color  = color_palette::web::white_smoke;
 
-    //                return vsout;
-    //              });
-
-    //    gl::CreateBuffers(1, raw_handle_ptr(_render.vertices_sphere));
-    //    gl::NamedBufferStorage(raw_handle(_render.vertices_sphere),
-    //                           container_bytes_size(sphere_vertices),
-    //                           sphere_vertices.data(),
-    //                           0);
-
-    //    gl::CreateBuffers(1, raw_handle_ptr(_render.indices_sphere));
-    //    gl::NamedBufferStorage(raw_handle(_render.indices_sphere),
-    //                           sphere.index_count * sizeof(uint32_t),
-    //                           raw_ptr(sphere.indices),
-    //                           0);
-
-    //    _render.index_count_sphere = sphere.index_count;
-  }
-
-  {
-    const char* model_file =
-      //"leo2/leo2a6.bin";
-      //      "typhoon/typhoon.bin";
-      //      "a4/a4.bin";
-      "a10/a10.bin";
-
-    mesh_loader mloader{init_ctx->cfg->model_path(model_file).c_str()};
-    if (!mloader) {
-      return;
-    }
-
-    XR_LOG_INFO("Mesh bbox {} <-> {}, sphere {} : {}",
-                string_cast(mloader.bounding().axis_aligned_bbox.min),
-                string_cast(mloader.bounding().axis_aligned_bbox.max),
-                string_cast(mloader.bounding().bounding_sphere.center),
-                mloader.bounding().bounding_sphere.radius);
-
-    {
-      const auto w = mloader.bounding().axis_aligned_bbox.width();
-      const auto d = mloader.bounding().axis_aligned_bbox.depth();
-      float      x = -64.0f;
-      float      z = 64.0f;
-
-      random_number_generator rnd{};
-
-      for (;;) {
-        if (x > 64.0f) {
-          x = -64.0f;
-          z -= d;
-        }
-
-        if (z < -64.0f) {
-          break;
-        }
-
-        instance_info ii;
-        ii.position = vec3f{x, 10.0f, z};
-        ii.pitch    = rnd.next_float(0.0f, two_pi<float>);
-        ii.roll     = rnd.next_float(0.0f, two_pi<float>);
-        ii.yaw      = rnd.next_float(0.0f, two_pi<float>);
-        _obj_instances.instances.push_back(ii);
-
-        x += w;
-      }
-
-      gl::CreateBuffers(1, raw_handle_ptr(_render.instances_ssbo));
-      gl::NamedBufferStorage(raw_handle(_render.instances_ssbo),
-                             _obj_instances.instances.size() *
-                               sizeof(gpu_instance_info),
-                             nullptr,
-                             gl::MAP_WRITE_BIT);
-    }
-
-    vector<vertex_pnc> vertices;
-    const auto         vspan = mloader.vertex_span();
-    transform(begin(vspan),
-              end(vspan),
-              back_inserter(vertices),
-              [](const vertex_pnt& v) {
-                return vertex_pnc{
-                  v.position, v.normal, color_palette::material::grey200};
+                return vsout;
               });
 
     gl::CreateBuffers(1, raw_handle_ptr(_render.vertices_sphere));
     gl::NamedBufferStorage(raw_handle(_render.vertices_sphere),
-                           container_bytes_size(vertices),
-                           vertices.data(),
+                           container_bytes_size(sphere_vertices),
+                           sphere_vertices.data(),
                            0);
 
     gl::CreateBuffers(1, raw_handle_ptr(_render.indices_sphere));
     gl::NamedBufferStorage(raw_handle(_render.indices_sphere),
-                           mloader.index_bytes(),
-                           mloader.index_data(),
+                           sphere.index_count * sizeof(uint32_t),
+                           raw_ptr(sphere.indices),
                            0);
 
-    _render.index_count_sphere = mloader.header().index_count;
+    _render.index_count_sphere = sphere.index_count;
+  }
+
+  {
+    const auto w = 16.0f;
+    const auto d = 16.0f;
+    float      x = -64.0f;
+    float      z = 64.0f;
+
+    random_number_generator rnd{};
+
+    for (;;) {
+      if (x > 64.0f) {
+        x = -64.0f;
+        z -= d;
+      }
+
+      if (z < -64.0f) {
+        break;
+      }
+
+      particle_graphics pg;
+      pg.starting_pos = vec3f{x, rnd.next_float(100.0f, 150.0f), z};
+      pg.color =
+        INSTANCE_COLORS[rnd.next_uint(0, XR_U32_COUNTOF(INSTANCE_COLORS))];
+      _obj_instances.pgraphics.push_back(pg);
+
+      particle p;
+      p.position = pg.starting_pos;
+      p.radius   = 4.0f;
+      //      p.mass = r
+      _obj_instances.instances.push_back(p);
+
+      x += w;
+    }
+
+    gl::CreateBuffers(1, raw_handle_ptr(_render.instances_ssbo));
+    gl::NamedBufferStorage(raw_handle(_render.instances_ssbo),
+                           _obj_instances.instances.size() *
+                             sizeof(gpu_instance_info),
+                           nullptr,
+                           gl::MAP_WRITE_BIT);
   }
 
   //
@@ -267,18 +245,6 @@ app::geometric_shapes_demo::geometric_shapes_demo(
 
 app::geometric_shapes_demo::~geometric_shapes_demo() {}
 
-static const rgb_color INSTANCE_COLORS[] = {
-  color_palette::flat::alizarin300,   color_palette::flat::amethyst100,
-  color_palette::flat::asbestos800,   color_palette::flat::belizehole400,
-  color_palette::flat::carrot300,     color_palette::flat::clouds500,
-  color_palette::flat::concrete900,   color_palette::flat::emerald400,
-  color_palette::flat::greensea200,   color_palette::flat::midnightblue200,
-  color_palette::flat::nephritis400,  color_palette::flat::orange400,
-  color_palette::flat::peterriver100, color_palette::flat::pomegranate400,
-  color_palette::flat::pumpkin600,    color_palette::flat::silver800,
-  color_palette::flat::sunflower200,  color_palette::flat::turquoise300,
-  color_palette::flat::wetasphalt500, color_palette::flat::wisteria900};
-
 void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
   gl::ClearNamedFramebufferfv(
     0, gl::COLOR, 0, color_palette::web::black.components);
@@ -302,30 +268,16 @@ void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
       static_cast<gpu_instance_info*>(instbuff.memory()) +
         (ptrdiff_t) _obj_instances.instances.size()};
 
-    uint32_t instance_id{};
-    transform(begin(_obj_instances.instances),
-              end(_obj_instances.instances),
-              begin(gpu_inst_span),
-              [ s = &_scene, &instance_id ](const instance_info& ii) {
+    for (size_t i = 0, cnt = _obj_instances.instances.size(); i < cnt; ++i) {
+      const auto world_tf = R4::translate(_obj_instances.instances[i].position);
 
-                const auto world_tf =
-                  R4::translate(ii.position) * mat4f{R3::rotate_y(ii.yaw)} *
-                  mat4f{R3::rotate_x(ii.pitch)} * mat4f{R3::rotate_z(ii.roll)};
-
-                gpu_instance_info gi;
-
-                gi.world_view_proj =
-                  transpose(s->camera.projection_view() * world_tf);
-                gi.tex_id  = 0;
-                gi.view    = transpose(s->camera.view() * world_tf);
-                gi.normals = transpose(s->camera.view() * world_tf);
-                gi.color =
-                  INSTANCE_COLORS[instance_id % XR_COUNTOF(INSTANCE_COLORS)];
-
-                ++instance_id;
-
-                return gi;
-              });
+      gpu_inst_span[i].world_view_proj =
+        transpose(_scene.camera.projection_view() * world_tf);
+      gpu_inst_span[i].tex_id  = 0;
+      gpu_inst_span[i].view    = transpose(_scene.camera.view() * world_tf);
+      gpu_inst_span[i].normals = transpose(_scene.camera.view() * world_tf);
+      gpu_inst_span[i].color   = _obj_instances.pgraphics[i].color;
+    }
   }
 
   gl::BindVertexArray(raw_handle(_render.vertexarray));
@@ -390,25 +342,26 @@ void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
 }
 
 void app::geometric_shapes_demo::update(const float delta_ms) {
+  const auto wind_direction = normalize(vec3f{-1.0f, -1.0f, -1.0f});
+
+  uint32_t idx{};
   for_each(begin(_obj_instances.instances),
            end(_obj_instances.instances),
-           [](instance_info& ii) {
-             static constexpr auto ROTATION_SPEED = 0.1f;
+           [ inst = &_obj_instances, &wind_direction, &idx ](particle & p) {
 
-             ii.roll += ROTATION_SPEED;
-             ii.pitch += ROTATION_SPEED;
-             ii.yaw += ROTATION_SPEED;
+             p.compute_loads(object_instances::drag_coefficient,
+                             wind_direction,
+                             object_instances::wind_speed);
 
-             if (ii.roll > two_pi<float>) {
-               ii.roll -= two_pi<float>;
-             }
+             p.update_body_euler(object_instances::time_step);
 
-             if (ii.yaw > two_pi<float>) {
-               ii.yaw -= two_pi<float>;
-             }
+             const auto is_out_of_bounds =
+               (p.position.x < -512.0f) || (p.position.x > 512.0f) ||
+               (p.position.z < -512.0f) || (p.position.z > 512.0f) ||
+               ((p.position.y - p.radius) <= 0.0f);
 
-             if (ii.pitch > two_pi<float>) {
-               ii.pitch -= two_pi<float>;
+             if (is_out_of_bounds) {
+               p.position = inst->pgraphics[idx++].starting_pos;
              }
            });
 }

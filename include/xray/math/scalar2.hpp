@@ -72,7 +72,7 @@ struct scalar2 {
 
   constexpr scalar2(const T xval, const T yval) noexcept : x{xval}, y{yval} {}
 
-  constexpr scalar2(const T val) noexcept : scalar2<T>{val, val} {}
+  explicit constexpr scalar2(const T val) noexcept : scalar2<T>{val, val} {}
 
   /// \name Member operators
   /// @{

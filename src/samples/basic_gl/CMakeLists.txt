@@ -161,6 +161,7 @@ set(config_files
     ${proj_cfg_dir}/app_config.conf
     ${proj_cfg_dir}/cap5/render_texture/demo.conf
     ${proj_cfg_dir}/misc/instanced_demo/cam_controller_spherical.conf
+    ${proj_cfg_dir}/misc/geometric_shapes/cam_controller_spherical.conf
     ${proj_cfg_dir}/logging.conf
     ${proj_cfg_dir}/cap6/edge_detect/app.new.conf
     ${proj_cfg_dir}/cap6/edge_detect/app.conf
@@ -179,6 +180,7 @@ message("Platform libs ${SYS_DEP_LIBS}")
 target_link_libraries(basic-gl-app
     xray-base
     xray-opengl-renderer
+    xray-physics
     xray-rendering
     xray-scene
     xray-ui

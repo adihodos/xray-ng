@@ -35,6 +35,7 @@
 #include "init_context.hpp"
 #include "light_source.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/physics/particle.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
@@ -62,19 +63,6 @@ private:
   void init();
 
 private:
-  struct instance_info {
-    static constexpr auto rotation_speed = 0.01f;
-
-    float                      roll{};
-    float                      pitch{};
-    float                      yaw{};
-    float                      scale{};
-    float                      speed{};
-    xray::math::vec3f          position;
-    xray::rendering::rgb_color color;
-    uint32_t                   texture_id{};
-  };
-
   struct gpu_instance_info {
     xray::math::mat4f          world_view_proj;
     xray::math::mat4f          view;
@@ -84,11 +72,21 @@ private:
     uint32_t                   _pad[3];
   };
 
+  struct particle_graphics {
+    xray::math::vec3f          starting_pos;
+    xray::rendering::rgb_color color;
+  };
+
   struct object_instances {
-    static constexpr uint32_t      instance_count{64u};
-    std::vector<instance_info>     instances;
-    xray::rendering::scoped_buffer buffer_transforms;
-    xray::rendering::scoped_buffer buffer_texture_ids;
+    static constexpr uint32_t instance_count{64u};
+    static constexpr auto     time_step        = 0.005f;
+    static constexpr auto     wind_speed       = 10.0f;
+    static constexpr auto     drag_coefficient = 0.6f;
+
+    std::vector<xray::physics::particle> instances;
+    std::vector<particle_graphics>       pgraphics;
+    xray::rendering::scoped_buffer       buffer_transforms;
+    xray::rendering::scoped_buffer       buffer_texture_ids;
   } _obj_instances;
 
   struct render_state {
@@ -115,7 +113,7 @@ private:
     xray::scene::camera camera;
     //    xray::scene::fps_camera_controller cam_control{&camera};
     xray::scene::camera_controller_spherical_coords cam_control{
-      &camera, "config/cam_controller_spherical.conf"};
+      &camera, "config/misc/geometric_shapes/cam_controller_spherical.conf"};
     light_source lights[4];
   } _scene;
 

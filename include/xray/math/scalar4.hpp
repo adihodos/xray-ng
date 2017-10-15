@@ -100,7 +100,8 @@ public:
   /// Default constructor. Leaves components uninitialized.
   scalar4() noexcept = default;
 
-  constexpr scalar4(const T val) noexcept : scalar4<T>{val, val, val, val} {}
+  explicit constexpr scalar4(const T val) noexcept
+    : scalar4<T>{val, val, val, val} {}
 
   constexpr scalar4(const T x_val,
                     const T y_val,
