@@ -115,25 +115,26 @@ inline scalar3<T> operator/(const scalar3<T>& v, const T k) noexcept {
 
 /// \brief Returns the dot product of two vectors.
 template <typename T>
-inline T dot(const scalar3<T>& a, const scalar3<T>& b) noexcept {
+inline constexpr T dot(const scalar3<T>& a, const scalar3<T>& b) noexcept {
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
 /// \brief Returns a vector that is orthogonal to the input vectors.
 template <typename T>
-inline scalar3<T> cross(const scalar3<T>& a, const scalar3<T>& b) noexcept {
+inline constexpr scalar3<T> cross(const scalar3<T>& a,
+                                  const scalar3<T>& b) noexcept {
   return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
 
 /// \brief Returns the square of the vector's length.
 template <typename T>
-inline T length_squared(const scalar3<T>& a) noexcept {
+inline constexpr T length_squared(const scalar3<T>& a) noexcept {
   return a.x * a.x + a.y * a.y + a.z * a.z;
 }
 
 /// \brief Returns the square of the vector's length.
 template <typename T>
-inline T length_squared(const T x, const T y, const T z) noexcept {
+inline constexpr T length_squared(const T x, const T y, const T z) noexcept {
   return x * x + y * y + z * z;
 }
 
@@ -203,14 +204,16 @@ inline bool are_parallel(const scalar3<T>& a, const scalar3<T>& b) noexcept {
 
 /// \brief Tests if three points are collinear.
 template <typename T>
-inline bool are_collinear(const scalar3<T>& a, const scalar3<T>& b,
+inline bool are_collinear(const scalar3<T>& a,
+                          const scalar3<T>& b,
                           const scalar3<T>& c) noexcept {
   return are_parallel(b - a, c - a);
 }
 
 /// \brief Returns the value of the triple scalar product.
 template <typename T>
-inline T triple_scalar_product(const scalar3<T>& a, const scalar3<T>& b,
+inline T triple_scalar_product(const scalar3<T>& a,
+                               const scalar3<T>& b,
                                const scalar3<T>& c) noexcept {
   return dot(a, cross(b, c));
 }
@@ -231,8 +234,12 @@ inline T squared_distance(const scalar3<T>& a, const scalar3<T>& b) noexcept {
 
 /// \brief Returns the square of the distance between two points.
 template <typename T>
-inline T squared_distance(const T ax, const T ay, const T az, const T bx,
-                          const T by, const T bz) noexcept {
+inline T squared_distance(const T ax,
+                          const T ay,
+                          const T az,
+                          const T bx,
+                          const T by,
+                          const T bz) noexcept {
   return length_squared(bx - ax, by - ay, bz - az);
 }
 
@@ -244,14 +251,19 @@ inline T distance(const scalar3<T>& a, const scalar3<T>& b) noexcept {
 
 /// \brief Returns the square of the distance between two points.
 template <typename T>
-inline T distance(const T ax, const T ay, const T az, const T bx, const T by,
+inline T distance(const T ax,
+                  const T ay,
+                  const T az,
+                  const T bx,
+                  const T by,
                   const T bz) noexcept {
   return length(bx - ax, by - ay, bz - az);
 }
 
 /// Returns the signed area of the triangle spanned by three points.
 template <typename T>
-inline T triangle_signed_area(scalar3<T> const& p0, scalar3<T> const& p1,
+inline T triangle_signed_area(scalar3<T> const& p0,
+                              scalar3<T> const& p1,
                               scalar3<T> const& p2) noexcept {
   const T parallelogram_area = p0.x * (p1.y * p2.z - p1.z * p2.y) +
                                p0.y * (p1.x * p2.z - p2.x * p1.z) +
@@ -262,7 +274,8 @@ inline T triangle_signed_area(scalar3<T> const& p0, scalar3<T> const& p1,
 
 /// Test if the points spanning a triangle are ordered counter clockwise.
 template <typename T>
-inline bool ccw_winded_triangle(scalar3<T> const& p0, scalar3<T> const& p1,
+inline bool ccw_winded_triangle(scalar3<T> const& p0,
+                                scalar3<T> const& p1,
                                 scalar3<T> const& p2) noexcept {
   return triangle_signed_area(p0, p1, p2) > T{0};
 }
@@ -290,8 +303,8 @@ scalar3<T> min(const scalar3<T>& a, const scalar3<T>& b) noexcept {
 ///       y = r * cos(phi)
 ///       z = r * sin(phi) * cos(theta)
 template <typename T>
-scalar3<T> point_from_spherical_coords(const T r, const T theta,
-                                       const T phi) noexcept {
+scalar3<T>
+point_from_spherical_coords(const T r, const T theta, const T phi) noexcept {
   const auto st = std::sin(theta);
   const auto ct = std::cos(theta);
   const auto sp = std::sin(phi);

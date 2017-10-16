@@ -40,6 +40,9 @@ set(project_sources
     ${proj_inc_dir}/lighting/directional_light_demo.hpp
     ${proj_src_dir}/lighting/directional_light_demo.cc
 
+    ${proj_inc_dir}/lighting/point_light_demo.hpp
+    ${proj_src_dir}/lighting/point_light_demo.cc
+
     ${proj_inc_dir}/fwd_app.hpp
     ${proj_inc_dir}/helpers.hpp
     # ${proj_inc_dir}/init_context.hpp

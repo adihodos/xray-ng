@@ -58,7 +58,7 @@ void xray::rendering::surface_normal_visualizer::draw(
   const xray::rendering::rgb_color&      draw_color_start,
   const xray::rendering::rgb_color&      draw_color_end,
   const float                            line_length,
-  const float                            line_width) {
+  const float /*line_width*/) {
 
   assert(valid());
 
@@ -76,8 +76,8 @@ void xray::rendering::surface_normal_visualizer::draw(
 
   _gs.set_uniform_block("TransformMatrices", gs_ublock);
 
-  scoped_line_width_setting lwidth{line_width};
   gl::BindVertexArray(mesh.vertex_array());
+
   _pipeline.use();
   gl::DrawArrays(gl::TRIANGLES, 0, mesh.index_count());
 }

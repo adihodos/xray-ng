@@ -40,6 +40,8 @@ set(project_sources
     ${proj_inc_dir}/objects/rectangle.hpp
     ${proj_inc_dir}/objects/sphere.hpp
     ${proj_inc_dir}/objects/sphere_math.hpp
+
+    ${proj_inc_dir}/objects/plane.hpp
 )
 
 source_group(math FILES ${project_sources})

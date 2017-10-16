@@ -35,12 +35,12 @@ void main() {
 
     clr += diff_intensity * SceneLights[i].kd * texture(DIFFUSE_MAP, fs_in.texcoord);
 
-    const vec3 refvec = reflect(SceneLights[i].direction, surface_normal);
-    const vec3 eyevec = normalize(-fs_in.pos_view);
-    const float spec_intensity = pow(
-      max(dot(refvec, eyevec), 0.0f), SpecularIntensity);
+    // const vec3 refvec = reflect(SceneLights[i].direction, surface_normal);
+    // const vec3 eyevec = normalize(-fs_in.pos_view);
+    // const float spec_intensity = pow(
+    //   max(dot(refvec, eyevec), 0.0f), SpecularIntensity);
 
-    clr += spec_intensity * SceneLights[i].ks * texture(DIFFUSE_MAP, fs_in.texcoord);
+    // clr += spec_intensity * SceneLights[i].ks * texture(DIFFUSE_MAP, fs_in.texcoord);
   }
 
   FinalFragColor = clr;

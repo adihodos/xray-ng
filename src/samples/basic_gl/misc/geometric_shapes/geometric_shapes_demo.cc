@@ -2,6 +2,7 @@
 #include "xray/base/app_config.hpp"
 #include "xray/base/debug_output.hpp"
 #include "xray/base/random.hpp"
+#include "xray/math/objects/plane.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_string_cast.hpp"
@@ -355,14 +356,19 @@ void app::geometric_shapes_demo::update(const float delta_ms) {
 
              p.update_body_euler(object_instances::time_step);
 
-             const auto is_out_of_bounds =
-               (p.position.x < -512.0f) || (p.position.x > 512.0f) ||
-               (p.position.z < -512.0f) || (p.position.z > 512.0f) ||
-               ((p.position.y - p.radius) <= 0.0f);
-
-             if (is_out_of_bounds) {
-               p.position = inst->pgraphics[idx++].starting_pos;
+             if ((p.position.y - 4.0f) <= 0.0f) {
+               p.position.y = 150.0f;
              }
+
+             //             const auto is_out_of_bounds =
+             //               (p.position.x < -512.0f) || (p.position.x >
+             //               512.0f) || (p.position.z < -512.0f) ||
+             //               (p.position.z > 512.0f) ||
+             //               ((p.position.y - p.radius) <= 0.0f);
+
+             //             if (is_out_of_bounds) {
+             //               p.position = inst->pgraphics[idx++].starting_pos;
+             //             }
            });
 }
 

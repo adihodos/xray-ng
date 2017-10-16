@@ -26,43 +26,61 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "xray/physics/particle.hpp"
-#include "xray/math/constants.hpp"
-#include "xray/math/scalar3_math.hpp"
+/// \file point_light_demo.hpp
 
-using namespace xray::math;
-using namespace xray::physics;
+#pragma once
 
-void xray::physics::particle::compute_loads(const float drag_coefficient,
-                                            const vec3f wind_dir,
-                                            const float wind_speed) {
-  forces = vec3f::stdc::zero;
+#include "xray/xray.hpp"
+#include "demo_base.hpp"
+#include "light_source.hpp"
+#include "xray/math/scalar3.hpp"
+#include "xray/rendering/opengl/gl_handles.hpp"
+#include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/rendering/opengl/program_pipeline.hpp"
+#include <cstdint>
 
-  if (collided) {
-    forces += impact_forces;
-    return;
-  }
+namespace app {
 
-  forces += gravity;
+class point_light_demo : public demo_base {
+public:
+  point_light_demo();
 
-  const vec3f vdrag{-normalize(velocity)};
-  const auto  fdrag = 0.5f * air_density<float> * speed * speed *
-                     (pi<float> * radius * radius) * drag_coefficient;
-  forces += vdrag * fdrag;
+  ~point_light_demo();
 
-  const auto fwind = 0.5f * air_density<float> * wind_speed * wind_speed *
-                     (pi<float> * radius * radius) * drag_coefficient;
+  virtual void draw(const xray::rendering::draw_context_t&) override;
+  virtual void update(const float delta_ms) override;
+  virtual void event_handler(const xray::ui::window_event& evt) override;
+  virtual void compose_ui() override;
 
-  forces += fwind * wind_dir;
-}
+private:
+  void init();
 
-void xray::physics::particle::update_body_euler(const float dt) {
-  const auto a  = forces / mass;
-  const auto dv = a * dt;
-  velocity += dv;
+private:
+  xray::rendering::scoped_buffer       _vertices;
+  xray::rendering::scoped_buffer       _indices;
+  xray::rendering::scoped_buffer       _instance_data_ssbo;
+  xray::rendering::scoped_vertex_array _vao;
+  xray::rendering::vertex_program      _vs;
+  xray::rendering::fragment_program    _fs;
+  xray::rendering::program_pipeline    _pipeline;
+  xray::rendering::scoped_sampler      _sampler;
 
-  const auto ds = velocity * dt;
-  position += ds;
+  struct {
+    point_light_source light;
+  } _scene;
 
-  speed = length(velocity);
-}
+  struct {
+    xray::math::vec3f lightpos{0.0f, 10.0f, 0.0f};
+    float             specular_intensity{10.0f};
+    bool              rotate_x{false};
+    bool              rotate_y{true};
+    bool              rotate_z{false};
+    bool              drawnormals{false};
+    float             rotate_speed{0.01f};
+  } _demo_opts;
+
+private:
+  XRAY_NO_COPY(point_light_demo);
+};
+
+} // namespace app

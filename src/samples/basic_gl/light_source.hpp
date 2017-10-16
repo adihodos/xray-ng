@@ -51,6 +51,19 @@ struct light_source {
   xray::rendering::rgb_color ke;
 };
 
+struct point_light_source {
+  xray::math::vec3f position;
+  float             range;
+  ///< Ambient component.
+  xray::rendering::rgb_color ka;
+
+  ///< Diffuse component.
+  xray::rendering::rgb_color kd;
+
+  ///< Specular component.
+  xray::rendering::rgb_color ks;
+};
+
 struct light_source2 {
   xray::math::vec3f position;
 

@@ -34,6 +34,14 @@
 #include <cstdint>
 
 namespace xray {
+
+namespace math {
+
+template <typename T>
+class plane;
+
+} // namespace math
+
 namespace physics {
 
 /// \addtogroup __GroupXrayPhysics
@@ -48,6 +56,9 @@ public:
   xray::math::vec3f velocity{xray::math::vec3f::stdc::zero};
   xray::math::vec3f forces{xray::math::vec3f::stdc::zero};
   xray::math::vec3f gravity{0.0f, mass* gravity_acceleration<float>, 0.0f};
+  xray::math::vec3f previous_pos{xray::math::vec3f::stdc::zero};
+  xray::math::vec3f impact_forces;
+  bool              collided{false};
 
   void set_mass(const float m) noexcept {
     mass      = m;
@@ -57,6 +68,7 @@ public:
   void compute_loads(const float             drag_coefficient,
                      const xray::math::vec3f wind_dir,
                      const float             wind_speed);
+
   void update_body_euler(const float dt);
 };
 
