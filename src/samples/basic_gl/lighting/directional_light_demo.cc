@@ -2,6 +2,7 @@
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/math/constants.hpp"
+#include "xray/math/objects/ray3.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/quaternion.hpp"
 #include "xray/math/quaternion_math.hpp"
@@ -43,6 +44,12 @@ void app::directional_light_demo::init() {
   if (!_drawnormals) {
     return;
   }
+
+  const auto r0 = ray3f32{{0.0f, 0.0f, 0.0f}, vec3f::stdc::unit_y};
+  const auto r1 = ray3f32::construct::from_points({10.0f, 0.0f, 5.0f},
+                                                  {100.0f, -10.0f, 2.0f});
+
+  const auto p = r0.eval(20.0f);
 
   _lights[0].direction = normalize(_demo_opts.lightdir);
   _lights[0].ka        = color_palette::web::black;
