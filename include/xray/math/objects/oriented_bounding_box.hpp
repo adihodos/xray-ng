@@ -29,6 +29,8 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#include "xray/math/scalar3.hpp"
+#include "xray/math/scalar3_math.hpp"
 #include "xray/math/space_traits.hpp"
 #include <cstdint>
 #include <type_traits>
@@ -39,43 +41,60 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-/// \brief  A ray in 2D/3D space. The equation for a point on the ray is
-///         P = O + t * D, where t is in the [0, inf) range.
-template <typename T, size_t space_dimension>
-class ray
-  : public std::enable_if<(space_dimension == 2) || (space_dimension == 3),
-                          space_traits<space_dimension, T>>::type {
-
+template <typename T>
+class oriented_bounding_box {
 public:
-  using space_traits_type = space_traits<space_dimension, T>;
+  using point_type  = scalar3<T>;
+  using vector_type = scalar3<T>;
 
-  using point_type  = typename space_traits_type::point_type;
-  using vector_type = typename space_traits_type::vector_type;
+  ///<  Origin (centre) point of the OOBB.
+  point_type origin;
 
-  point_type origin;    ///< Origin point of the ray
-  point_type direction; ///< Unit length direction vector.
+  union {
+    struct {
+      point_type right;
+      point_type up;
+      point_type dir;
+    };
 
-  ray() noexcept = default;
+    point_type components[3];
+  } axis; ///< A set of orthonormal vectors representing the axis of the oobb.
 
-  /// \brief Construct from and origin point and a unit length direction vector.
-  constexpr ray(const point_type& org, const vector_type& dir) noexcept
-    : origin{org}, direction{dir} {}
+  union {
+    struct {
+      T right;
+      T up;
+      T dir;
+    };
+    T components[3];
+  } extents ///< Positive and negative extents along each axis.
 
-  /// \brief  Return a point on the ray, given a value in the [0, inf) range.
-  constexpr point_type eval(const T t) const noexcept {
-    return origin + t * direction;
+  oriented_bounding_box() noexcept = default;
+
+  oriented_bounding_box(const point_type&  org,
+                        const vector_type& right,
+                        const vector_type& up,
+                        const vector_type& dir,
+                        const T            extent_right,
+                        const T            extent_up,
+                        const T            extent_dir) noexcept
+    : origin{org} {
+    axis.right    = right;
+    axis.up       = up;
+    axis.dir      = dir;
+    extents.right = extent_right;
+    extents.up    = extent_up;
+    extents.dir   = extent_dir;
   }
 
-  struct construct;
-};
+  const point_type min() const noexcept {
+    return origin - axis.right * extents.right - axis.up * extents.up -
+           axis.dir * extents.dir;
+  }
 
-template <typename T, size_t dim>
-struct ray<T, dim>::construct {
-  /// \brief  Construct a ray originating from p0 and passing through p1.
-  static ray<T, dim>
-  from_points(const typename ray<T, dim>::point_type& p0,
-              const typename ray<T, dim>::point_type& p1) noexcept {
-    return {p0, normalize(p1 - p0)};
+  const point_type max() const noexcept {
+    return origin + axis.right * extents.right + axis.up * extents.up +
+           axis.dir * extents.dir;
   }
 };
 

@@ -39,10 +39,10 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-/// \brief  A ray in 2D/3D space. The equation for a point on the ray is
-///         P = O + t * D, where t is in the [0, inf) range.
+/// \brief  A line in 2D/3D space. The equation for a point on the ray is
+///         P = O + t * D, where t is in the (-inf, +inf) range.
 template <typename T, size_t space_dimension>
-class ray
+class line
   : public std::enable_if<(space_dimension == 2) || (space_dimension == 3),
                           space_traits<space_dimension, T>>::type {
 
@@ -52,16 +52,17 @@ public:
   using point_type  = typename space_traits_type::point_type;
   using vector_type = typename space_traits_type::vector_type;
 
-  point_type origin;    ///< Origin point of the ray
+  point_type origin;    ///< Origin point of the line
   point_type direction; ///< Unit length direction vector.
 
-  ray() noexcept = default;
+  line() noexcept = default;
 
   /// \brief Construct from and origin point and a unit length direction vector.
-  constexpr ray(const point_type& org, const vector_type& dir) noexcept
+  constexpr line(const point_type& org, const vector_type& dir) noexcept
     : origin{org}, direction{dir} {}
 
-  /// \brief  Return a point on the ray, given a value in the [0, inf) range.
+  /// \brief  Return a point on the line, given a value in the (-inf, +inf)
+  /// range.
   constexpr point_type eval(const T t) const noexcept {
     return origin + t * direction;
   }
@@ -70,11 +71,11 @@ public:
 };
 
 template <typename T, size_t dim>
-struct ray<T, dim>::construct {
-  /// \brief  Construct a ray originating from p0 and passing through p1.
-  static ray<T, dim>
-  from_points(const typename ray<T, dim>::point_type& p0,
-              const typename ray<T, dim>::point_type& p1) noexcept {
+struct line<T, dim>::construct {
+  /// \brief  Construct a line originating from p0 and passing through p1.
+  static line<T, dim>
+  from_points(const typename line<T, dim>::point_type& p0,
+              const typename line<T, dim>::point_type& p1) noexcept {
     return {p0, normalize(p1 - p0)};
   }
 };

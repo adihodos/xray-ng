@@ -29,9 +29,11 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/math/space_traits.hpp"
+#include "xray/math/bidimensional_space_traits.hpp"
+#include "xray/math/scalar2_math.hpp"
 #include <cstdint>
-#include <type_traits>
+
+#include "xray/math/objects/ray.hpp"
 
 namespace xray {
 namespace math {
@@ -39,45 +41,8 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-/// \brief  A ray in 2D/3D space. The equation for a point on the ray is
-///         P = O + t * D, where t is in the [0, inf) range.
-template <typename T, size_t space_dimension>
-class ray
-  : public std::enable_if<(space_dimension == 2) || (space_dimension == 3),
-                          space_traits<space_dimension, T>>::type {
-
-public:
-  using space_traits_type = space_traits<space_dimension, T>;
-
-  using point_type  = typename space_traits_type::point_type;
-  using vector_type = typename space_traits_type::vector_type;
-
-  point_type origin;    ///< Origin point of the ray
-  point_type direction; ///< Unit length direction vector.
-
-  ray() noexcept = default;
-
-  /// \brief Construct from and origin point and a unit length direction vector.
-  constexpr ray(const point_type& org, const vector_type& dir) noexcept
-    : origin{org}, direction{dir} {}
-
-  /// \brief  Return a point on the ray, given a value in the [0, inf) range.
-  constexpr point_type eval(const T t) const noexcept {
-    return origin + t * direction;
-  }
-
-  struct construct;
-};
-
-template <typename T, size_t dim>
-struct ray<T, dim>::construct {
-  /// \brief  Construct a ray originating from p0 and passing through p1.
-  static ray<T, dim>
-  from_points(const typename ray<T, dim>::point_type& p0,
-              const typename ray<T, dim>::point_type& p1) noexcept {
-    return {p0, normalize(p1 - p0)};
-  }
-};
+using ray2f32 = ray<float, 2>;
+using ray2f64 = ray<double, 2>;
 
 /// @}
 

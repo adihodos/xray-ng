@@ -41,7 +41,18 @@ set(project_sources
     ${proj_inc_dir}/objects/sphere.hpp
     ${proj_inc_dir}/objects/sphere_math.hpp
 
+    ${proj_inc_dir}/objects/aabb3.hpp
+    ${proj_inc_dir}/objects/ray3.hpp
+    ${proj_inc_dir}/objects/ray.hpp
     ${proj_inc_dir}/objects/plane.hpp
+    ${proj_inc_dir}/objects/aabb3_math.hpp
+    ${proj_inc_dir}/objects/sphere_math.hpp
+    ${proj_inc_dir}/objects/line3.hpp
+    ${proj_inc_dir}/objects/line.hpp
+    ${proj_inc_dir}/objects/rectangle.hpp
+    ${proj_inc_dir}/objects/line2.hpp
+    ${proj_inc_dir}/objects/sphere.hpp
+    ${proj_inc_dir}/objects/ray2.hpp    
 )
 
 source_group(math FILES ${project_sources})
