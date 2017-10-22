@@ -30,7 +30,6 @@
 
 #include "xray/xray.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/enum_cast.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_handle.hpp"
@@ -558,7 +557,7 @@ public:
   }
 
   template <render_stage::e stage>
-  gpu_program_t<stage>      build() const {
+  gpu_program_t<stage> build() const {
     return gpu_program_t<stage>{
       build_program(xray_to_opengl<stage>::shader_type)};
   }

@@ -1,6 +1,6 @@
 #include "xray/base/perf_stats_collector.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/dbg/debug_ext.hpp"
+#include "xray/base/debug_output.hpp"
 #include <fmt/format.h>
 #include <platformstl/filesystem/path.hpp>
 #include <platformstl/filesystem/path_functions.hpp>
@@ -58,7 +58,7 @@ void xray::base::stats_thread::run() {
                                         &_proc_stats.counters[i]);
 
       if (result != ERROR_SUCCESS)
-        OUTPUT_DBG_MSG("Failed to add counter %s", counter_path_buff);
+        XR_DBG_MSG("Failed to add counter %s", counter_path_buff);
     }
   }
 
@@ -101,7 +101,7 @@ void xray::base::stats_thread::run() {
     break;
   }
 
-  OUTPUT_DBG_MSG("Stats collect thread shutting down.");
+  XR_DBG_MSG("Stats collect thread shutting down.");
 #endif
 }
 

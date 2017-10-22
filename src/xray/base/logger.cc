@@ -29,4 +29,4 @@
 #include "xray/base/logger.hpp"
 #include <cassert>
 
-INITIALIZE_EASYLOGGINGPP
+// INITIALIZE_EASYLOGGINGPP

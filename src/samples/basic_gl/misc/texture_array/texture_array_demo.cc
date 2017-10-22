@@ -1,6 +1,7 @@
 #include "misc/texture_array/texture_array_demo.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
+#include "xray/base/debug_output.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
@@ -67,7 +68,7 @@ void app::texture_array_demo::init() {
     return index_buff;
   }();
 
-  _quad_layout = [ vb = raw_handle(_quad_vb), ib = raw_handle(_quad_ib) ]() {
+  _quad_layout = [vb = raw_handle(_quad_vb), ib = raw_handle(_quad_ib)]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
     gl::VertexArrayVertexBuffer(vao, 0, vb, 0, (GLsizei) sizeof(vertex2pt));
@@ -85,8 +86,7 @@ void app::texture_array_demo::init() {
     gl::VertexArrayAttribBinding(vao, 1, 0);
 
     return vao;
-  }
-  ();
+  }();
 
   _vs = gpu_program_builder{}
           .add_file("shaders/misc/texture_array/shader.vert.glsl")

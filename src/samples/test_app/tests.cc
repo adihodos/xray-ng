@@ -1,7 +1,6 @@
 #include "xray/xray.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/containers/fixed_vector.hpp"
-#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/delegate_list.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/maybe.hpp"
@@ -64,7 +63,7 @@ TEST_CASE("fixed vector is correctly initialized", "[fixed_vector]") {
   }
 
   SECTION("construct from range") {
-    const char tmp[] = {'x', 'y', 'z', 'w'};
+    const char              tmp[] = {'x', 'y', 'z', 'w'};
     fixed_vector<char, 16u> v{begin(tmp), end(tmp)};
     REQUIRE(v.size() == 4);
     REQUIRE(v[0] == 'x');

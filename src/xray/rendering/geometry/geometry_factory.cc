@@ -1,6 +1,5 @@
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/constants.hpp"

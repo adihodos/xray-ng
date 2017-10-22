@@ -65,7 +65,6 @@
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/config_settings.hpp"
-#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/perf_stats_collector.hpp"
@@ -494,8 +493,8 @@ int main(int argc, char** argv) {
   using namespace xray::ui;
   using namespace xray::base;
 
-  XR_LOGGER_START(argc, argv);
-  XR_LOGGER_CONFIG_FILE("config/logging.conf");
+  //  XR_LOGGER_START(argc, argv);
+  //  XR_LOGGER_CONFIG_FILE("config/logging.conf");
   XR_LOG_INFO("Starting up ...");
 
   tbb::task_scheduler_init tbb_initializer{};

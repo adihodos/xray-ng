@@ -67,7 +67,7 @@ public:
       T dir;
     };
     T components[3];
-  } extents ///< Positive and negative extents along each axis.
+  } extents; ///< Positive and negative extents along each axis.
 
   oriented_bounding_box() noexcept = default;
 

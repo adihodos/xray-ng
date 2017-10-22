@@ -1,6 +1,6 @@
 #include "xray/xray.hpp"
 #include "xray/base/app_config.hpp"
-#include "xray/base/dbg/debug_ext.hpp"
+#include "xray/base/debug_output.hpp"
 #include "xray/math/objects/aabb3.hpp"
 #include "xray/math/objects/aabb3_math.hpp"
 #include "xray/math/objects/sphere.hpp"
@@ -95,45 +95,45 @@ load_mesh_obj_format(const char*                               file_path,
 
   unordered_map<index_t, uint32_t> idxmap;
 
-  for_each(begin(attrs.indices), end(attrs.indices), [
-    has_normals   = !attrs.normals.empty(),
-    has_texcoords = !attrs.texcoords.empty(),
-    a             = &attrs,
-    &idxmap,
-    vertices,
-    indices
-  ](const index_t& idx) {
+  for_each(begin(attrs.indices),
+           end(attrs.indices),
+           [has_normals   = !attrs.normals.empty(),
+            has_texcoords = !attrs.texcoords.empty(),
+            a             = &attrs,
+            &idxmap,
+            vertices,
+            indices](const index_t& idx) {
 
-    auto it = idxmap.find(idx);
-    if (it != end(idxmap)) {
-      indices->push_back(it->second);
-    } else {
-      vertex_pnt v;
+             auto it = idxmap.find(idx);
+             if (it != end(idxmap)) {
+               indices->push_back(it->second);
+             } else {
+               vertex_pnt v;
 
-      v.position = {a->vertices[idx.vertex_index * 3 + 0],
-                    a->vertices[idx.vertex_index * 3 + 1],
-                    a->vertices[idx.vertex_index * 3 + 2]};
+               v.position = {a->vertices[idx.vertex_index * 3 + 0],
+                             a->vertices[idx.vertex_index * 3 + 1],
+                             a->vertices[idx.vertex_index * 3 + 2]};
 
-      if (has_texcoords) {
-        v.texcoord = {a->texcoords[idx.texcoord_index * 2 + 0],
-                      1.0f - a->texcoords[idx.texcoord_index * 2 + 1]};
-      } else {
-        v.texcoord = vec2f::stdc::zero;
-      }
+               if (has_texcoords) {
+                 v.texcoord = {a->texcoords[idx.texcoord_index * 2 + 0],
+                               1.0f - a->texcoords[idx.texcoord_index * 2 + 1]};
+               } else {
+                 v.texcoord = vec2f::stdc::zero;
+               }
 
-      if (has_normals) {
-        v.normal = {a->normals[idx.normal_index * 3 + 0],
-                    a->normals[idx.normal_index * 3 + 1],
-                    a->normals[idx.normal_index * 3 + 2]};
-      } else {
-        v.normal = vec3f::stdc::zero;
-      }
+               if (has_normals) {
+                 v.normal = {a->normals[idx.normal_index * 3 + 0],
+                             a->normals[idx.normal_index * 3 + 1],
+                             a->normals[idx.normal_index * 3 + 2]};
+               } else {
+                 v.normal = vec3f::stdc::zero;
+               }
 
-      vertices->push_back(v);
-      idxmap[idx] = (uint32_t) vertices->size() - 1;
-      indices->push_back((uint32_t) vertices->size() - 1);
-    }
-  });
+               vertices->push_back(v);
+               idxmap[idx] = (uint32_t) vertices->size() - 1;
+               indices->push_back((uint32_t) vertices->size() - 1);
+             }
+           });
 
   if (attrs.normals.empty()) {
     assert((indices->size() % 3) == 0);
@@ -182,14 +182,14 @@ int main(int argc, char** argv) {
         return;
       }
 
-      OUTPUT_DBG_MSG("Processing file %s", file);
+      XR_DBG_MSG("Processing file %s", file);
 
       vertices.clear();
       indices.clear();
 
       if (!load_mesh_obj_format(
             file, &vertices, &indices, mesh_load_option::remove_points_lines)) {
-        OUTPUT_DBG_MSG("Failed to load mesh!");
+        XR_DBG_MSG("Failed to load mesh!");
         return;
       }
 
@@ -207,11 +207,11 @@ int main(int argc, char** argv) {
       path.pop_ext();
       path.push_ext("bin");
 
-      OUTPUT_DBG_MSG("Processing to file %s", path.c_str());
+      XR_DBG_MSG("Processing to file %s", path.c_str());
 
       unique_file outfile{fopen(path.c_str(), "wb"), &fclose};
       if (!outfile) {
-        OUTPUT_DBG_MSG("Failed to open output file!");
+        XR_DBG_MSG("Failed to open output file!");
         return;
       }
 

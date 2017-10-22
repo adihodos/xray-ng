@@ -29,51 +29,41 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#define ELPP_PERFORMANCE_MICROSECONDS
-#include <easyloggingpp/easylogging++.h>
+#include "xray/base/debug_output.hpp"
 #include <fmt/format.h>
-
-#define XR_LOGGER_START(argc, argv)                                            \
-  do {                                                                         \
-    START_EASYLOGGINGPP(argc, argv);                                           \
-  } while (0)
-
-#define XR_LOGGER_CONFIG_FILE(path)                                            \
-  do {                                                                         \
-    el::Loggers::reconfigureAllLoggers(el::Configurations{path});              \
-  } while (0)
 
 #define XR_LOG_ERR(msg, ...)                                                   \
   do {                                                                         \
-    LOG(ERROR) << fmt::format(msg, ##__VA_ARGS__);                             \
+    xray::base::output_debug_string("[%s : %d]", __FILE__, __LINE__);          \
+    xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());  \
   } while (0)
 
 #define XR_LOG_INFO(msg, ...)                                                  \
   do {                                                                         \
-    LOG(INFO) << fmt::format(msg, ##__VA_ARGS__);                              \
+    xray::base::output_debug_string("[%s : %d]", __FILE__, __LINE__);          \
+    xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());  \
   } while (0)
 
 #define XR_LOG_TRACE(msg, ...)                                                 \
   do {                                                                         \
-    LOG(TRACE) << fmt::format(msg, ##__VA_ARGS__);                             \
+    xray::base::output_debug_string("[%s : %d]", __FILE__, __LINE__);          \
+    xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());  \
   } while (0)
 
 #define XR_LOG_DEBUG(msg, ...)                                                 \
   do {                                                                         \
-    LOG(DEBUG) << fmt::format(msg, ##__VA_ARGS__);                             \
+    xray::base::output_debug_string("[%s : %d]", __FILE__, __LINE__);          \
+    xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());  \
   } while (0)
 
 #define XR_LOG_WARN(msg, ...)                                                  \
   do {                                                                         \
-    LOG(WARNING) << fmt::format(msg, ##__VA_ARGS__);                           \
+    xray::base::output_debug_string("[%s : %d]", __FILE__, __LINE__);          \
+    xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());  \
   } while (0)
 
 #define XR_LOG_CRITICAL(msg, ...)                                              \
   do {                                                                         \
-    LOG(FATAL) << fmt::format(msg, ##__VA_ARGS__);                             \
+    xray::base::output_debug_string("[%s : %d]", __FILE__, __LINE__);          \
+    xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());  \
   } while (0)
-
-#define XRAY_TIMED_FUNC() TIMED_FUNC(XRAY_CONCATENATE(__FUNCTION__, __LINE__))
-
-#define XRAY_TIMED_SCOPE(scope_name)                                           \
-  TIMED_SCOPE(XRAY_CONCATENATE(__FUNCTION__, __LINE__), scope_name)

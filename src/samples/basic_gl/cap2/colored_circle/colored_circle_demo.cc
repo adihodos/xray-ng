@@ -1,7 +1,6 @@
 #include "cap2/colored_circle/colored_circle_demo.hpp"
 #include "xray/xray.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/dbg/debug_ext.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
@@ -50,8 +49,8 @@ void app::colored_circle_demo::init() noexcept {
     return ibh;
   }();
 
-  layout_desc_ =
-    [ vb = raw_handle(vertex_buff_), ib = raw_handle(index_buff_) ]() {
+  layout_desc_ = [vb = raw_handle(vertex_buff_),
+                  ib = raw_handle(index_buff_)]() {
 
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
@@ -67,8 +66,7 @@ void app::colored_circle_demo::init() noexcept {
     gl::VertexArrayAttribBinding(vao, 0, 0);
     gl::VertexArrayAttribBinding(vao, 1, 0);
     return vao;
-  }
-  ();
+  }();
 
   {
     _vs = gpu_program_builder{}
