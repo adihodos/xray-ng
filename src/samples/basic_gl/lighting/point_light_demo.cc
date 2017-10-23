@@ -48,6 +48,15 @@
 #include <cstdint>
 #include <imgui/imgui.h>
 
+#define NK_INCLUDE_FIXED_TYPES
+#define NK_INCLUDE_STANDARD_IO
+#define NK_INCLUDE_DEFAULT_ALLOCATOR
+#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
+#define NK_INCLUDE_FONT_BAKING
+#define NK_INCLUDE_DEFAULT_FONT
+#define NK_IMPLEMENTATION
+#include <nuklear/nuklear.h>
+
 using namespace xray::base;
 using namespace xray::rendering;
 using namespace xray::math;
@@ -55,6 +64,59 @@ using namespace xray::ui;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
+
+class user_interface {
+public:
+  user_interface();
+
+private:
+  void upload_font_atlas(const void* pixels, const xray::math::vec2i32& size);
+
+  struct render_state {
+    nk_buffer                            cmds;
+    nk_draw_null_texture                 null;
+    nk_font*                             font;
+    nk_font_atlas                        font_atlas;
+    nk_context                           ctx;
+    xray::rendering::scoped_buffer       vb;
+    xray::rendering::scoped_buffer       ib;
+    xray::rendering::scoped_vertex_array vao;
+    xray::rendering::vertex_program      vs;
+    xray::rendering::fragment_program    fs;
+    xray::rendering::program_pipeline    pp;
+    xray::rendering::scoped_texture      font_tex;
+    xray::rendering::scoped_sampler      sampler;
+  } _renderer;
+};
+
+user_interface::user_interface() {
+  nk_buffer_init_default(&_renderer.cmds);
+  nk_font_atlas_init_default(&_renderer.font_atlas);
+
+  nk_font_atlas_begin(&_renderer.font_atlas);
+  _renderer.font =
+    nk_font_atlas_add_default(&_renderer.font_atlas, 14.0f, nullptr);
+
+  vec2i32 atlas_size{};
+  auto    image = nk_font_atlas_bake(
+    &_renderer.font_atlas, &atlas_size.x, &atlas_size.y, NK_FONT_ATLAS_RGBA32);
+
+  upload_font_atlas(image, atlas_size);
+  nk_font_atlas_end(
+    &_renderer.font_atlas,
+    nk_handle_id(static_cast<int32_t>(raw_handle(_renderer.font_tex))),
+    &_renderer.null);
+
+  nk_init_default(&_renderer.ctx, &_renderer.font->handle);
+}
+
+void user_interface::upload_font_atlas(const void*                pixels,
+                                       const xray::math::vec2i32& size) {
+  gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_renderer.font_tex));
+  gl::TextureStorage2D(
+    raw_handle(_renderer.font_tex), 1, gl::RGBA8, size.x, size.y);
+  //  gl::TextureSubImage2D(raw_handle(_renderer.font_tex), )
+}
 
 app::point_light_demo::point_light_demo() { init(); }
 

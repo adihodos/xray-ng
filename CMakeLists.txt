@@ -138,6 +138,7 @@ include_directories(third_party/stb/include)
 include_directories(third_party/imgui/include)
 include_directories(third_party/easyloggingpp/include)
 include_directories(third_party/catch/include)
+include_directories(third_party/nuklear/include)
 
 add_subdirectory(third_party/tbb)
 include_directories(third_party/tbb/include)
