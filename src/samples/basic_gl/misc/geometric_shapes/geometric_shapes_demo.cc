@@ -257,7 +257,8 @@ void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
     scoped_resource_mapping instbuff{
       raw_handle(_render.instances_ssbo),
       gl::MAP_WRITE_BIT | gl::MAP_INVALIDATE_BUFFER_BIT,
-      _obj_instances.instances.size() * sizeof(gpu_instance_info)};
+      static_cast<uint32_t>(_obj_instances.instances.size() *
+                            sizeof(gpu_instance_info))};
 
     if (!instbuff) {
       XR_LOG_ERR("Failed to map instances buffer for update");
@@ -348,7 +349,7 @@ void app::geometric_shapes_demo::update(const float delta_ms) {
   uint32_t idx{};
   for_each(begin(_obj_instances.instances),
            end(_obj_instances.instances),
-           [ inst = &_obj_instances, &wind_direction, &idx ](particle & p) {
+           [inst = &_obj_instances, &wind_direction, &idx](particle& p) {
 
              p.compute_loads(object_instances::drag_coefficient,
                              wind_direction,

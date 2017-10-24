@@ -162,6 +162,8 @@ struct key_event {
       uint32_t control : 1;
     };
   };
+
+  char name[32];
 };
 
 struct window_configure_event {

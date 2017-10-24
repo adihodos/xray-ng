@@ -32,6 +32,7 @@
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
+#include "init_context.hpp"
 #include "light_source.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
@@ -43,7 +44,7 @@ namespace app {
 
 class point_light_demo : public demo_base {
 public:
-  point_light_demo();
+  point_light_demo(const init_context_t* init_ctx);
 
   ~point_light_demo();
 

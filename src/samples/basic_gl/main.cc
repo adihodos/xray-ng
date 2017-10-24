@@ -62,6 +62,7 @@
 // #include "lit_torus.hpp"
 #include "resize_context.hpp"
 // #include "subroutine_test.hpp"
+#include "lighting/point_light_demo.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/config_settings.hpp"
@@ -119,6 +120,7 @@ enum class demo_type : int32_t {
   mesh,
   bufferless_draw,
   lighting_directional,
+  lighting_point,
   procedural_city,
   instanced_drawing,
   geometric_shapes
@@ -318,6 +320,10 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     return xray::base::make_unique<geometric_shapes_demo>(&init_context);
     break;
 
+  case demo_type::lighting_point:
+    return xray::base::make_unique<point_light_demo>(&init_context);
+    break;
+
   default:
     break;
   }
@@ -340,6 +346,7 @@ void basic_scene::setup_ui() {
                              "Mesh",
                              "Bufferless drawing",
                              "Directional lighting",
+                             "Point lighting",
                              "Procedural city",
                              "Instanced drawing",
                              "Geometric shapes generation"};
@@ -501,6 +508,13 @@ int main(int argc, char** argv) {
 
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;
+
+  XR_LOG_INFO("Configured paths");
+  XR_LOG_INFO("Root {}", xr_app_config->root_directory().c_str());
+  XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").c_str());
+  XR_LOG_INFO("Models {}", xr_app_config->model_path("").c_str());
+  XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").c_str());
+  XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").c_str());
 
   const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false};
 

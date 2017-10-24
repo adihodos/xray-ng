@@ -53,12 +53,12 @@ void xray::base::stats_thread::run() {
       awr.write("\\Process({})\\{}", process_name, PERF_COUNTER_NAMES[i]);
 
       const auto result = PdhAddCounter(raw_handle(_proc_stats.query),
-                                        counter_path_buff,
+                                        awr.c_str(),
                                         0,
                                         &_proc_stats.counters[i]);
 
       if (result != ERROR_SUCCESS)
-        XR_DBG_MSG("Failed to add counter %s", counter_path_buff);
+        XR_DBG_MSG("Failed to add counter {}", awr.c_str());
     }
   }
 

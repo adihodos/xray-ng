@@ -188,9 +188,7 @@ PFNWGLCHOOSEPIXELFORMATARBPROC    wgl::ChoosePixelFormatARB;
 PFNWGLCREATECONTEXTATTRIBSARBPROC wgl::CreateContextAttribsARB;
 PFNWGLSWAPINTERVALEXTPROC         wgl::SwapIntervalEXT;
 
-xray::ui::window::window(const window_params_t& wparam) {
-  initialize(&wparam);
-}
+xray::ui::window::window(const window_params_t& wparam) { initialize(&wparam); }
 
 xray::ui::window::~window() {}
 
@@ -639,14 +637,14 @@ void xray::ui::window::event_key(const uint32_t type,
   ke.wnd  = this;
   ke.type = (type == WM_KEYDOWN ? event_action_type::press
                                 : event_action_type::release);
+  memset(ke.name, 0, sizeof(ke.name));
 
   const auto cursor_pos = [w = _window]() {
     POINT pt;
     GetCursorPos(&pt);
     ScreenToClient(w, &pt);
     return pt;
-  }
-  ();
+  }();
 
   ke.keycode   = map_key(wp);
   ke.pointer_x = cursor_pos.x;
@@ -658,6 +656,8 @@ void xray::ui::window::event_key(const uint32_t type,
   ke.button5   = (GetAsyncKeyState(VK_XBUTTON2) & (1 << 15)) != 0;
   ke.shift     = (GetAsyncKeyState(VK_SHIFT) & (1 << 15)) != 0;
   ke.control   = (GetAsyncKeyState(VK_CONTROL) & (1 << 15)) != 0;
+
+  GetKeyNameText(lp, ke.name, XR_I32_COUNTOF(ke.name));
 
   window_event we;
   we.type      = event_type::key;
