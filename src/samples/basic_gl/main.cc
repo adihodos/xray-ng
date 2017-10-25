@@ -135,6 +135,9 @@ public:
 
   void window_event_handler(const xray::ui::window_event& wnd_evt);
 
+  void poll_start(const xray::ui::poll_start_event&);
+  void poll_end(const xray::ui::poll_end_event&);
+
   void tick(const float delta);
 
   void draw(const xray::ui::window_loop_event& loop_evt);
@@ -276,6 +279,16 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
   if (_demo) {
     _demo->event_handler(event);
   }
+}
+
+void basic_scene::poll_start(const xray::ui::poll_start_event& ps) {
+  if (_demo)
+    _demo->poll_start(ps);
+}
+
+void basic_scene::poll_end(const xray::ui::poll_end_event& pe) {
+  if (_demo)
+    _demo->poll_end(pe);
 }
 
 unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
@@ -538,6 +551,10 @@ int main(int argc, char** argv) {
   main_window.events.loop = make_delegate(scene, &app::basic_scene::main_loop);
   main_window.events.window =
     make_delegate(scene, &app::basic_scene::window_event_handler);
+  main_window.events.poll_start =
+    make_delegate(scene, &app::basic_scene::poll_start);
+  main_window.events.poll_end =
+    make_delegate(scene, &app::basic_scene::poll_end);
 
   main_window.message_loop();
 

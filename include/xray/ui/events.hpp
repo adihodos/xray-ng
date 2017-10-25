@@ -196,8 +196,15 @@ inline bool is_input_event(const window_event& we) noexcept {
          we.type == event_type::mouse_wheel;
 }
 
+struct poll_start_event {};
+struct poll_end_event {};
+
 using loop_event_delegate = base::fast_delegate<void(const window_loop_event&)>;
 using window_event_delegate = base::fast_delegate<void(const window_event&)>;
+using poll_start_event_delegate =
+  base::fast_delegate<void(const poll_start_event&)>;
+using poll_end_event_delegate =
+  base::fast_delegate<void(const poll_end_event&)>;
 
 } // namespace ui
 } // namespace xray

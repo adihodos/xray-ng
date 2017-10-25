@@ -271,9 +271,13 @@ void user_interface::ui_event(const xray::ui::window_event& evt) {
       //  nk_input_button(
       //    ctx, NK_BUTTON_DOUBLE, me->pointer_x, me->pointer_y, nk_false);
       //}
-      XR_DBG_MSG("Mouse1 {}!", pressed ? "down" : "up");
+      XR_DBG_MSG("Mouse1 {} {}", me->pointer_x, me->pointer_y);
       nk_input_button(
         ctx, NK_BUTTON_LEFT, me->pointer_x, me->pointer_y, pressed);
+
+      nk_input_button(
+        ctx, NK_BUTTON_DOUBLE, me->pointer_x, me->pointer_y, nk_false);
+
     } else if (me->button == mouse_button::button2) {
       XR_DBG_MSG("Button 2");
       nk_input_button(
@@ -303,7 +307,9 @@ void user_interface::ui_event(const xray::ui::window_event& evt) {
   //
   // mouse movement
   if (evt.type == event_type::mouse_motion) {
+
     const auto mm = &evt.event.motion;
+    // XR_DBG_MSG("Mouse motion {} {}", mm->pointer_x, mm->pointer_y);
     nk_input_motion(ctx, mm->pointer_x, mm->pointer_y);
     return;
   }
@@ -394,11 +400,11 @@ void user_interface::setup_render_data() {
 
 void user_interface::render(const int32_t surface_width,
                             const int32_t surface_height) {
-  gl::ViewportIndexedf(0,
-                       0.0f,
-                       0.0f,
-                       static_cast<float>(surface_width),
-                       static_cast<float>(surface_height));
+  // gl::ViewportIndexedf(0,
+  //                     0.0f,
+  //                     0.0f,
+  //                     static_cast<float>(surface_width),
+  //                     static_cast<float>(surface_height));
 
   //
   // fill vertex and index buffers
@@ -505,43 +511,21 @@ void user_interface::render(const int32_t surface_width,
 
   gl::BindVertexArray(raw_handle(_renderer.vao));
 
-  auto mk_proj = [](const float left,
-                    const float right,
-                    const float top,
-                    const float bottom,
-                    const float znear,
-                    const float zfar) {
-    mat4f result{mat4f::stdc::identity};
-
-    result.a00 = 2.0f / (right - left);
-    result.a03 = -(right + left) / (right - left);
-
-    result.a11 = 2.0f / (top - bottom);
-    result.a13 = -(top + bottom) / (top - bottom);
-
-    result.a22 = -2.0f / (zfar - znear);
-    result.a23 = -(zfar + znear) / (zfar - znear);
-
-    return result;
-  };
-
-  auto mkproj =
-    [&](const float w, const float h, const float zn, const float zf) {
-      return mk_proj(-w * 0.5f, +w * 0.5f, -h * 0.5f, +h * 0.5f, zn, zf);
-    };
-
   struct {
     mat4f projection_mtx;
-  } const transforms = {mk_proj(0.0f,
-                                static_cast<float>(surface_width),
-                                0.0f,
-                                static_cast<float>(surface_height),
-                                -1.0f,
-                                +1.0f)};
+  } const transforms = {
+    projections_rh::orthographic(0.0f,
+                                 static_cast<float>(surface_width),
+                                 0.0f,
+                                 static_cast<float>(surface_height),
+                                 -1.0f,
+                                 +1.0f)};
 
   _renderer.vs.set_uniform_block("Transforms", transforms);
 
   _renderer.pp.use();
+
+  gl::Viewport(0.0f, 0.0f, (float) surface_width, (float) surface_height);
 
   const nk_draw_command* cmd{};
   const nk_draw_index*   offset{};
@@ -665,6 +649,9 @@ void app::point_light_demo::draw(
   const xray::rendering::draw_context_t& draw_ctx) {
   assert(valid());
 
+  // XR_DBG_MSG(
+  //  "{} {}", ui->ctx()->input.mouse.delta.x, ui->ctx()->input.mouse.delta.y);
+
   gl::ClearNamedFramebufferfv(
     0, gl::COLOR, 0, color_palette::web::black.components);
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
@@ -734,3 +721,11 @@ void app::point_light_demo::event_handler(const xray::ui::window_event& evt) {
 }
 
 void app::point_light_demo::compose_ui() {}
+
+void app::point_light_demo::poll_start(const xray::ui::poll_start_event& ps) {
+  nk_input_begin(ui->ctx());
+}
+
+void app::point_light_demo::poll_end(const xray::ui::poll_end_event& pe) {
+  nk_input_end(ui->ctx());
+}

@@ -85,5 +85,7 @@ void xray::scene::camera::look_at(const math::vec3f& eye_pos,
                                   const math::vec3f& target,
                                   const math::vec3f& world_up) noexcept {
   origin_ = eye_pos;
-  set_view_matrix(math::view_frame::look_at(eye_pos, target, world_up));
+  set_view_matrix(
+    // math::view_frame::look_at(eye_pos, target, world_up));
+    math::view_frame_rh::look_at(eye_pos, target, world_up));
 }

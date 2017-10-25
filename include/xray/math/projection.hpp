@@ -43,6 +43,41 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
+struct view_frame_rh {
+  template <typename T>
+  static scalar4x4<T> look_at(const scalar3<T>& eye_pos,
+                              const scalar3<T>& target,
+                              const scalar3<T>& up) noexcept;
+};
+
+template <typename T>
+scalar4x4<T> view_frame_rh::look_at(const scalar3<T>& eye_pos,
+                                    const scalar3<T>& target,
+                                    const scalar3<T>& ref_up) noexcept {
+  const auto dir   = normalize(target - eye_pos);
+  const auto right = normalize(cross(dir, ref_up));
+  const auto up    = cross(right, dir);
+
+  scalar4x4<T> view{scalar4x4<T>::stdc::identity};
+
+  view.a00 = right.x;
+  view.a01 = right.y;
+  view.a02 = right.z;
+  view.a03 = -dot(eye_pos, right);
+
+  view.a10 = up.x;
+  view.a11 = up.y;
+  view.a12 = up.z;
+  view.a13 = -dot(eye_pos, up);
+
+  view.a20 = -dir.x;
+  view.a21 = -dir.y;
+  view.a22 = -dir.z;
+  view.a23 = -dot(eye_pos, -dir);
+
+  return view;
+}
+
 struct view_frame {
   template <typename T>
   static scalar4x4<T> view_matrix(const scalar3<T> right,
@@ -100,6 +135,106 @@ scalar4x4<T> view_frame::view_matrix(const scalar3<T> right,
           T{},
           T{},
           T{1}};
+}
+
+struct projections_rh {
+
+  template <typename T>
+  inline static scalar4x4<T> perspective_symmetric(const T width,
+                                                   const T height,
+                                                   const T fov,
+                                                   const T near_plane,
+                                                   const T far_plane) noexcept {
+    return perspective_symmetric(width / height, fov, near_plane, far_plane);
+  }
+
+  template <typename T>
+  static scalar4x4<T> perspective_symmetric(const T aspect_ratio,
+                                            const T fov,
+                                            const T near_plane,
+                                            const T far_plane) noexcept;
+
+  template <typename T>
+  static scalar4x4<T> perspective(const T left,
+                                  const T right,
+                                  const T top,
+                                  const T bottom,
+                                  const T near_plane,
+                                  const T far_plane) noexcept;
+
+  template <typename T>
+  static scalar4x4<T> orthographic(const T left,
+                                   const T right,
+                                   const T top,
+                                   const T bottom,
+                                   const T near_plane,
+                                   const T far_plane) noexcept;
+};
+
+template <typename T>
+scalar4x4<T> projections_rh::perspective_symmetric(const T aspect_ratio,
+                                                   const T fov,
+                                                   const T near_plane,
+                                                   const T far_plane) noexcept {
+  const auto d = T(1.0) / std::tan(fov * T(0.5));
+
+  scalar4x4<T> result{scalar4x4<T>::stdc::identity};
+  result.a00 = d / aspect_ratio;
+  result.a11 = d;
+
+  result.a22 = (near_plane + far_plane) / (near_plane - far_plane);
+  result.a23 = (T(2) * near_plane * far_plane) / (near_plane - far_plane);
+
+  result.a32 = T(-1);
+  result.a33 = T(0);
+
+  return result;
+}
+
+template <typename T>
+scalar4x4<T> projections_rh::perspective(const T left,
+                                         const T right,
+                                         const T top,
+                                         const T bottom,
+                                         const T near_plane,
+                                         const T far_plane) noexcept {
+
+  scalar4x4<T> result{scalar4x4<T>::stdc::identity};
+
+  result.a00 = (T(2) * near_plane) / (right - left);
+  result.a02 = (right + left) / (right - left);
+
+  result.a11 = (T(2) * near_plane) / (top - bottom);
+  result.a12 = (top + bottom) / (top - bottom);
+
+  result.a22 = (near_plane + far_plane) / (near_plane - far_plane);
+  result.a23 = (T(2) * near_plane * far_plane) / (near_plane - far_plane);
+
+  result.a32 = T(-1);
+  result.a33 = T(0);
+
+  return result;
+}
+
+template <typename T>
+scalar4x4<T> projections_rh::orthographic(const T left,
+                                          const T right,
+                                          const T top,
+                                          const T bottom,
+                                          const T near_plane,
+                                          const T far_plane) noexcept {
+  scalar4x4<T> result{scalar4x4<T>::stdc::identity};
+
+  result.a00 = T(2) / (right - left);
+  result.a03 = -(right + left) / (right - left);
+
+  result.a11 = T(2) / (top - bottom);
+  result.a13 = -(top + bottom) / (top - bottom);
+
+  result.a22 = T(-2) / (far_plane - near_plane);
+  result.a23 = -(far_plane + near_plane) / (far_plane - near_plane);
+
+  return result;
 }
 
 /// \brief  Builds projection matrices assuming a left handed coordinate

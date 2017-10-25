@@ -52,6 +52,8 @@ public:
   virtual void update(const float delta_ms) override;
   virtual void event_handler(const xray::ui::window_event& evt) override;
   virtual void compose_ui() override;
+  virtual void poll_start(const xray::ui::poll_start_event& ps) override;
+  virtual void poll_end(const xray::ui::poll_end_event& pe) override;
 
 private:
   void init();

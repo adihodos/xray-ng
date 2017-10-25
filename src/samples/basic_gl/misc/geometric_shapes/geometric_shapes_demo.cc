@@ -230,7 +230,7 @@ app::geometric_shapes_demo::geometric_shapes_demo(
   _render.pipeline.use_vertex_program(_render.vs)
     .use_fragment_program(_render.fs);
 
-  _scene.camera.set_projection(projection::perspective_symmetric(
+  _scene.camera.set_projection(projections_rh::perspective_symmetric(
     static_cast<float>(init_ctx->surface_width),
     static_cast<float>(init_ctx->surface_height),
     radians(70.0f),
@@ -339,8 +339,11 @@ void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
   _render.vs.set_uniform_block("Transforms", transform_matrices);
   _render.pipeline.use();
 
-  gl::DrawElements(
-    gl::TRIANGLES, _render.index_count, gl::UNSIGNED_INT, nullptr);
+  {
+    scoped_winding_order_setting set_cw{gl::CW};
+    gl::DrawElements(
+      gl::TRIANGLES, _render.index_count, gl::UNSIGNED_INT, nullptr);
+  }
 }
 
 void app::geometric_shapes_demo::update(const float delta_ms) {
@@ -377,7 +380,7 @@ void app::geometric_shapes_demo::event_handler(
   const xray::ui::window_event& evt) {
 
   if (evt.type == event_type::configure) {
-    _scene.camera.set_projection(projection::perspective_symmetric(
+    _scene.camera.set_projection(projections_rh::perspective_symmetric(
       static_cast<float>(evt.event.configure.width),
       static_cast<float>(evt.event.configure.height),
       radians(70.0f),

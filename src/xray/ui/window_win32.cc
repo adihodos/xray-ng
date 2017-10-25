@@ -560,6 +560,7 @@ void xray::ui::window::message_loop() {
       SwapBuffers(raw_ptr(_window_dc));
     }
 
+    events.poll_start({});
     do {
       //
       // get message
@@ -572,6 +573,7 @@ void xray::ui::window::message_loop() {
       TranslateMessage(&wnd_msg);
       DispatchMessage(&wnd_msg);
     } while (PeekMessage(&wnd_msg, nullptr, 0, 0, PM_NOREMOVE));
+    events.poll_end({});
   }
 }
 

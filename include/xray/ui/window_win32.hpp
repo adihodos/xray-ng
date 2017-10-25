@@ -77,8 +77,10 @@ using scoped_opengl_context =
 class window {
 public:
   struct {
-    loop_event_delegate   loop;
-    window_event_delegate window;
+    loop_event_delegate       loop;
+    window_event_delegate     window;
+    poll_start_event_delegate poll_start;
+    poll_end_event_delegate   poll_end;
   } events;
 
   /// \name Construction and destruction.
