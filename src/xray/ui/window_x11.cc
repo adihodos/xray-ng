@@ -762,6 +762,8 @@ void xray::ui::window::message_loop() {
 
   while (_quit_flag == 0) {
 
+    events.poll_start({});
+
     while ((_quit_flag == 0) &&
            XEventsQueued(raw_ptr(_display), QueuedAfterFlush)) {
 
@@ -795,6 +797,8 @@ void xray::ui::window::message_loop() {
         continue;
       }
     }
+
+    events.poll_end({});
 
     //
     // user loop
@@ -924,6 +928,11 @@ void xray::ui::window::event_key(const XKeyEvent* x11evt) {
   ke.button5   = (x11evt->state & Button5Mask) != 0;
   ke.shift     = (x11evt->state & ShiftMask) != 0;
   ke.control   = (x11evt->state & ControlMask) != 0;
+  memset(ke.name, 0, sizeof(ke.name));
+  memcpy(
+    ke.name,
+    tmp,
+    std::min(static_cast<uint32_t>(strlen(tmp)), XR_U32_COUNTOF(ke.name) - 1));
 
   window_event we;
   we.type      = event_type::key;
