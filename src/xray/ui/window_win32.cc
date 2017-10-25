@@ -553,17 +553,10 @@ void xray::ui::window::message_loop() {
   pod_zero<MSG> wnd_msg;
 
   for (; _quit_flag == false;) {
-    while (!PeekMessage(&wnd_msg, nullptr, 0, 0, PM_NOREMOVE)) {
-      //
-      // user loop event
-      events.loop({_wnd_width, _wnd_height, this});
-      SwapBuffers(raw_ptr(_window_dc));
-    }
 
     events.poll_start({});
-    do {
-      //
-      // get message
+
+    while (PeekMessage(&wnd_msg, nullptr, 0, 0, PM_NOREMOVE) && !_quit_flag) {
       const auto res = GetMessage(&wnd_msg, nullptr, 0, 0);
       if (res <= 0) {
         _quit_flag = true;
@@ -572,8 +565,14 @@ void xray::ui::window::message_loop() {
 
       TranslateMessage(&wnd_msg);
       DispatchMessage(&wnd_msg);
-    } while (PeekMessage(&wnd_msg, nullptr, 0, 0, PM_NOREMOVE));
+    }
+
     events.poll_end({});
+
+    //
+    // user loop event
+    events.loop({_wnd_width, _wnd_height, this});
+    SwapBuffers(raw_ptr(_window_dc));
   }
 }
 
