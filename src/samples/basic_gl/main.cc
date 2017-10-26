@@ -100,6 +100,7 @@
 #include <opengl/opengl.hpp>
 #include <tbb/tbb.h>
 #include <thread>
+#include <xray/ui/ui.hpp>
 
 using namespace xray;
 using namespace xray::base;
@@ -161,11 +162,14 @@ private:
   unique_pointer<demo_base> make_demo(const demo_type dtype);
 
 private:
+  bool demo_active() const noexcept { return _demo != nullptr; }
+
   xray::ui::window*                               _wnd;
   xray::scene::camera                             _cam;
   xray::scene::camera_controller_spherical_coords _cam_control{
     &_cam, controller_cfg_file_path};
   xray::ui::imgui_backend                      _ui;
+  xray::ui::user_interface                     _app_ui;
   xray::base::stats_thread                     _stats_collector;
   xray::base::stats_thread::process_stats_info _proc_stats;
   xray::base::timer_highp                      _timer;
@@ -183,54 +187,39 @@ private:
 basic_scene::~basic_scene() noexcept { _stats_collector.signal_stop(); }
 
 basic_scene::basic_scene(xray::ui::window* wnd) : _wnd{wnd} {
-  _cam_control.update();
-  _cam.set_projection(
-    projection::perspective_symmetric(static_cast<float>(_wnd->width()),
-                                      static_cast<float>(_wnd->height()),
-                                      radians(70.0f),
-                                      0.3f,
-                                      1000.0f));
-
   _initialized = true;
 }
 
 void basic_scene::tick(const float delta) {
-  _cam_control.update();
   _proc_stats = _stats_collector.process_stats();
 
-  _ui.new_frame(_wnd->width(), _wnd->height());
-  _ui.tick(delta);
+  if (!demo_active()) {
+  }
 
-  if (_demo)
-    _demo->compose_ui();
-  else
-    setup_ui();
+  //_ui.new_frame(_wnd->width(), _wnd->height());
+  //_ui.tick(delta);
 
-  if (_demo)
-    _demo->update(delta);
+  // if (_demo)
+  //  _demo->compose_ui();
+  // else
+  //  setup_ui();
+
+  // if (_demo)
+  //  _demo->update(delta);
 }
 
 void basic_scene::draw(const xray::ui::window_loop_event& levt) {
-  if (_demo) {
-    const draw_context_t draw_ctx{(uint32_t) levt.wnd_width,
-                                  (uint32_t) levt.wnd_height,
-                                  _cam.view(),
-                                  _cam.projection(),
-                                  _cam.projection_view(),
-                                  &_cam,
-                                  nullptr};
-    _demo->draw(draw_ctx);
-  } else {
-    const xray::math::vec4f viewport{0.0f,
-                                     0.0f,
-                                     static_cast<float>(levt.wnd_width),
-                                     static_cast<float>(levt.wnd_height)};
-    gl::ViewportIndexedfv(0, viewport.components);
-    gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
-    gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
-  }
+  if (demo_active())
+    return;
 
-  _ui.draw();
+  const xray::math::vec4f viewport{0.0f,
+                                   0.0f,
+                                   static_cast<float>(levt.wnd_width),
+                                   static_cast<float>(levt.wnd_height)};
+  gl::ViewportIndexedfv(0, viewport.components);
+  gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
+  gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
+  _app_ui.render(levt.wnd_width, levt.wnd_height);
 }
 
 void basic_scene::window_event_handler(const xray::ui::window_event& event) {
@@ -239,45 +228,19 @@ void basic_scene::window_event_handler(const xray::ui::window_event& event) {
   if (is_input_event(event)) {
     if (event.type == event_type::key) {
       const auto key_evt = event.event.key;
-      if (key_evt.type == event_action_type::press) {
-        const auto key_code = key_evt.keycode;
+      if (key_evt.type == event_action_type::press &&
+          key_evt.keycode == key_sym::e::escape) {
 
-        switch (key_code) {
-        case key_sym::e::escape: {
-          if (!_demo) {
-            _wnd->quit();
-          } else {
-            _demo     = nullptr;
-            _demotype = demo_type::none;
-          }
-          return;
-        } break;
-
-        default:
-          break;
+        if (!demo_active()) {
+          _wnd->quit();
+        } else {
+          _demo     = nullptr;
+          _demotype = demo_type::none;
         }
+        return;
+      } else {
       }
     }
-
-    _ui.input_event(event);
-    if (_ui.wants_input())
-      return;
-
-    _cam_control.input_event(event);
-  }
-
-  if (event.type == event_type::configure) {
-    const auto cfg_evt = event.event.configure;
-    _cam.set_projection(
-      projection::perspective_symmetric(static_cast<float>(cfg_evt.width),
-                                        static_cast<float>(cfg_evt.height),
-                                        radians(70.0f),
-                                        0.3f,
-                                        1000.0f));
-  }
-
-  if (_demo) {
-    _demo->event_handler(event);
   }
 }
 
@@ -310,7 +273,7 @@ unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
     break;
 
   case demo_type::mesh:
-    return xray::base::make_unique<mesh_demo>();
+    return xray::base::make_unique<mesh_demo>(&init_context);
     break;
 
   case demo_type::bufferless_draw:

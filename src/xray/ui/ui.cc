@@ -65,36 +65,38 @@ void xray::ui::user_interface::init(const char** fonts,
   _renderer.fonts["default"] =
     nk_font_atlas_add_default(&_renderer.font_atlas, 13.0f, nullptr);
 
-  const auto font_span =
-    gsl::span<const char*>{fonts, fonts + static_cast<ptrdiff_t>(num_fonts)};
+  if (fonts) {
+    const auto font_span =
+      gsl::span<const char*>{fonts, fonts + static_cast<ptrdiff_t>(num_fonts)};
 
-  for_each(begin(font_span),
-           end(font_span),
-           [this, pixel_size](const char* font_file) {
-             try {
-               platformstl::memory_mapped_file mapped_font_file{font_file};
-               const auto font_cfg = nk_font_config(pixel_size);
-               auto       font     = nk_font_atlas_add_from_memory(
-                 &_renderer.font_atlas,
-                 const_cast<void*>(mapped_font_file.memory()),
-                 mapped_font_file.size(),
-                 pixel_size,
-                 &font_cfg);
+    for_each(begin(font_span),
+             end(font_span),
+             [this, pixel_size](const char* font_file) {
+               try {
+                 platformstl::memory_mapped_file mapped_font_file{font_file};
+                 const auto font_cfg = nk_font_config(pixel_size);
+                 auto       font     = nk_font_atlas_add_from_memory(
+                   &_renderer.font_atlas,
+                   const_cast<void*>(mapped_font_file.memory()),
+                   mapped_font_file.size(),
+                   pixel_size,
+                   &font_cfg);
 
-               if (!font) {
-                 XR_DBG_MSG("NK failed to parse font {}", font_file);
+                 if (!font) {
+                   XR_DBG_MSG("NK failed to parse font {}", font_file);
+                   return;
+                 }
+
+                 platformstl::path_a fpath{font_file};
+                 fpath.pop_ext();
+                 XR_DBG_MSG("Loaded font {}", fpath.get_file());
+
+                 _renderer.fonts[fpath.get_file()] = font;
+               } catch (const std::exception&) {
                  return;
                }
-
-               platformstl::path_a fpath{font_file};
-               fpath.pop_ext();
-               XR_DBG_MSG("Loaded font {}", fpath.get_file());
-
-               _renderer.fonts[fpath.get_file()] = font;
-             } catch (const std::exception&) {
-               return;
-             }
-           });
+             });
+  }
 
   vec2i32 atlas_size{};
   auto    image = nk_font_atlas_bake(
@@ -260,9 +262,7 @@ void xray::ui::user_interface::ui_event(const xray::ui::window_event& evt) {
   //
   // mouse movement
   if (evt.type == event_type::mouse_motion) {
-
     const auto mm = &evt.event.motion;
-    // XR_DBG_MSG("Mouse motion {} {}", mm->pointer_x, mm->pointer_y);
     nk_input_motion(ctx, mm->pointer_x, mm->pointer_y);
     return;
   }
@@ -365,6 +365,7 @@ void xray::ui::user_interface::render(const int32_t surface_width,
   };
 
   scoped_clear_ctx clear_nk_context_on_exit{&_renderer.ctx};
+
   gl::ViewportIndexedf(0,
                        0.0f,
                        0.0f,

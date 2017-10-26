@@ -84,6 +84,10 @@ public:
 
   void set_font(const char* name) noexcept;
 
+  bool wants_input() noexcept {
+    return nk_item_is_any_active(&_renderer.ctx) == nk_true;
+  }
+
 private:
   void init(const char** fonts, const size_t num_fonts, const float pixel_size);
 

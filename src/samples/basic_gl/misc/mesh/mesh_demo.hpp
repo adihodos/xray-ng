@@ -32,6 +32,7 @@
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
+#include "xray/math/objects/aabb3.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/geometry/aabb_visualizer.hpp"
@@ -39,13 +40,16 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/scene/camera.hpp"
+#include "xray/scene/camera_controller_spherical_coords.hpp"
+#include "xray/ui/ui.hpp"
 #include <cstdint>
 
 namespace app {
 
 class mesh_demo : public demo_base {
 public:
-  mesh_demo();
+  mesh_demo(const init_context_t* init_ctx);
 
   ~mesh_demo();
 
@@ -53,36 +57,43 @@ public:
   virtual void update(const float delta_ms) override;
   virtual void event_handler(const xray::ui::window_event& evt) override;
   virtual void compose_ui() override;
+  virtual void poll_start(const xray::ui::poll_start_event&) override;
+  virtual void poll_end(const xray::ui::poll_end_event&) override;
 
 private:
   void init();
 
 private:
-  xray::rendering::aabb_visualizer     _abbdraw;
-  xray::rendering::scoped_buffer       _vb;
-  xray::rendering::scoped_buffer       _ib;
-  xray::rendering::scoped_vertex_array _vao;
-  uint32_t                             _indexcount{};
-  xray::rendering::basic_mesh          _mesh;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
-  xray::rendering::scoped_texture      _objtex;
-  xray::rendering::scoped_texture      _greentexture;
-  xray::rendering::scoped_sampler      _sampler;
-  xray::rendering::vertex_program      _vsnormals;
-  xray::rendering::geometry_program    _gsnormals;
-  xray::rendering::fragment_program    _fsnormals;
+  xray::ui::user_interface                        _ui;
+  xray::rendering::aabb_visualizer                _abbdraw;
+  xray::rendering::scoped_buffer                  _vb;
+  xray::rendering::scoped_buffer                  _ib;
+  xray::rendering::scoped_vertex_array            _vao;
+  uint32_t                                        _indexcount{};
+  xray::rendering::basic_mesh                     _mesh;
+  xray::rendering::vertex_program                 _vs;
+  xray::rendering::fragment_program               _fs;
+  xray::rendering::program_pipeline               _pipeline;
+  xray::rendering::scoped_texture                 _objtex;
+  xray::rendering::scoped_texture                 _greentexture;
+  xray::rendering::scoped_sampler                 _sampler;
+  xray::rendering::vertex_program                 _vsnormals;
+  xray::rendering::geometry_program               _gsnormals;
+  xray::rendering::fragment_program               _fsnormals;
+  xray::math::aabb3f                              _bbox;
+  xray::scene::camera                             _camera;
+  xray::scene::camera_controller_spherical_coords _camcontrol{
+    &_camera, "config/misc/mesh_demo/cam_controller_spherical.conf"};
 
   struct {
-    bool                       drawnormals{false};
-    bool                       draw_boundingbox{false};
-    bool                       draw_wireframe{false};
+    int32_t                    drawnormals{false};
+    int32_t                    draw_boundingbox{false};
+    int32_t                    draw_wireframe{false};
     xray::rendering::rgb_color start_color{
       xray::rendering::color_palette::web::red};
     xray::rendering::rgb_color end_color{
       xray::rendering::color_palette::web::medium_spring_green};
-    float normal_len{1.0f};
+    float normal_len{0.1f};
   } _drawparams{};
 
   xray::rendering::vertex_ripple_parameters _rippledata{

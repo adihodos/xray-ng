@@ -1,10 +1,12 @@
 #include "misc/mesh/mesh_demo.hpp"
+#include "init_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar2.hpp"
+#include "xray/math/scalar3_string_cast.hpp"
 #include "xray/math/scalar4.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
@@ -18,10 +20,10 @@
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
+#include "xray/ui/ui.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <imgui/imgui.h>
 #include <iterator>
 #include <opengl/opengl.hpp>
 #include <span.h>
@@ -35,7 +37,17 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-app::mesh_demo::mesh_demo() { init(); }
+app::mesh_demo::mesh_demo(const init_context_t* init_ctx) {
+  _camera.set_projection(projections_rh::perspective_symmetric(
+    static_cast<float>(init_ctx->surface_width) /
+      static_cast<float>(init_ctx->surface_height),
+    radians(70.0f),
+    0.1f,
+    100.0f));
+
+  _camcontrol.update();
+  init();
+}
 
 app::mesh_demo::~mesh_demo() {}
 
@@ -56,19 +68,19 @@ void app::mesh_demo::init() {
 
   static constexpr auto MODEL_FILE =
     //"SuperCobra.3ds";
-    //    "f4/f4phantom.obj";
-    "starfury/viper.obj"
-    //"sa23/sa23_aurora.obj";
-    //"cube_rounded.obj";
-    //"stanford/dragon/dragon.obj";
-    //"stanford/teapot/teapot.obj";
-    //"stanford/sportscar/sportsCar.obj";
-    //"stanford/sibenik/sibenik.obj";
-    //"stanford/rungholt/rungholt.obj";
-    //"stanford/lost-empire/lost_empire.obj";
-    //"stanford/cube/cube.obj";
-    //"stanford/head/head.OBJ";
-    ;
+    "f4/f4phantom.obj";
+  //"starfury/viper.obj"
+  //"sa23/sa23_aurora.obj";
+  //"cube_rounded.obj";
+  //"stanford/dragon/dragon.obj";
+  //"stanford/teapot/teapot.obj";
+  //"stanford/sportscar/sportsCar.obj";
+  //"stanford/sibenik/sibenik.obj";
+  //"stanford/rungholt/rungholt.obj";
+  //"stanford/lost-empire/lost_empire.obj";
+  //"stanford/cube/cube.obj";
+  //"stanford/head/head.OBJ";
+  ;
 
   // geometry_data_t blob;
   // geometry_factory::grid(16.0f, 16.0f, 128, 128, &blob);
@@ -98,9 +110,8 @@ void app::mesh_demo::init() {
   //                   blob.index_count,
   //                   mesh_type::writable};
 
-  const char* const BIN_MDL =
-    //          "f4/f4phantom.bin"
-    "starfury/viper.bin";
+  const char* const BIN_MDL = "f4/f4phantom.bin";
+  //"starfury/viper.bin";
 
   const auto mesh_hdr =
     mesh_loader::read_header(xr_app_config->model_path(BIN_MDL).c_str());
@@ -125,6 +136,10 @@ void app::mesh_demo::init() {
       XR_LOG_ERR("Failed to load model!");
       return;
     }
+
+    _bbox = ldr.bounding().axis_aligned_bbox;
+    XR_DBG_MSG(
+      "Bounding box {} x {}", string_cast(_bbox.min), string_cast(_bbox.max));
 
     _indexcount = ldr.header().index_count;
 
@@ -285,8 +300,8 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
     mat4f view;
   } tfmat;
 
-  tfmat.view            = draw_ctx.view_matrix;
-  tfmat.world_view_proj = draw_ctx.projection_matrix * tfmat.view;
+  tfmat.view            = _camera.view();
+  tfmat.world_view_proj = _camera.projection_view();
   tfmat.normals         = tfmat.view;
 
   _vs.set_uniform_block("TransformMatrices", tfmat);
@@ -307,13 +322,11 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
     scoped_polygon_mode_setting set_wireframe{
       _drawparams.draw_wireframe ? gl::LINE : gl::FILL};
 
-    scoped_winding_order_setting set_cw{gl::CW};
-
+    // scoped_winding_order_setting set_cw{gl::CW};
     gl::DrawElements(gl::TRIANGLES, _indexcount, gl::UNSIGNED_INT, nullptr);
   }
 
   if (_drawparams.drawnormals) {
-
     struct {
       mat4f     WORLD_VIEW_PROJECTION;
       rgb_color COLOR_START;
@@ -333,41 +346,98 @@ void app::mesh_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
       .use_fragment_program(_fsnormals)
       .use();
 
-    gl::DrawElements(
-      gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+    gl::DrawElements(gl::TRIANGLES, _indexcount, gl::UNSIGNED_INT, nullptr);
   }
 
   if (_drawparams.draw_boundingbox) {
-    _abbdraw.draw(draw_ctx, _mesh.aabb(), color_palette::web::sea_green, 4.0f);
+    draw_context_t dc;
+    dc.window_width     = draw_ctx.window_width;
+    dc.window_height    = draw_ctx.window_height;
+    dc.view_matrix      = _camera.view();
+    dc.proj_view_matrix = _camera.projection_view();
+    dc.active_camera    = &_camera;
+    _abbdraw.draw(dc, _bbox, color_palette::web::sea_green, 4.0f);
   }
+
+  _ui.render(static_cast<int32_t>(draw_ctx.window_width),
+             static_cast<int32_t>(draw_ctx.window_height));
 }
 
-void app::mesh_demo::update(const float /* delta_ms */) {}
+nk_color
+xray_color_to_nk_color(const xray::rendering::rgb_color& clr) noexcept {
+  return {static_cast<uint8_t>(clr.r * 255.0f),
+          static_cast<uint8_t>(clr.g * 255.0f),
+          static_cast<uint8_t>(clr.b * 255.0f),
+          static_cast<uint8_t>(clr.a * 255.0f)};
+}
 
-void app::mesh_demo::event_handler(const xray::ui::window_event& /*evt*/) {
-  // if (evt.type == event_type::mouse_wheel) {
-  //   auto mwe = &evt.event.wheel;
-  // }
+void app::mesh_demo::update(const float /* delta_ms */) {
+  auto ctx = _ui.ctx();
+  if (nk_begin(ctx,
+               "Demo options",
+               nk_rect(0.0f, 0.0f, 300.0f, 400.0f),
+               NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE |
+                 NK_WINDOW_TITLE | NK_WINDOW_MOVABLE)) {
+
+    nk_layout_row_static(ctx, 32, 200, 1);
+    nk_checkbox_label(ctx, "Draw wireframe", &_drawparams.draw_wireframe);
+    nk_checkbox_label(ctx, "Draw bounding box", &_drawparams.draw_boundingbox);
+    nk_checkbox_label(ctx, "Draw normals", &_drawparams.drawnormals);
+    if (_drawparams.drawnormals) {
+      const auto cs = nk_color_picker(
+        ctx, xray_color_to_nk_color(_drawparams.start_color), NK_RGBA);
+      const auto ce = nk_color_picker(
+        ctx, xray_color_to_nk_color(_drawparams.end_color), NK_RGBA);
+
+      nk_label(ctx,
+               fmt::format("Normal length {}", _drawparams.normal_len).c_str(),
+               NK_TEXT_ALIGN_LEFT);
+      _drawparams.normal_len = nk_propertyf(
+        ctx, "Normal length", 0.1f, _drawparams.normal_len, 1.0f, 0.05f, 0.05f);
+    }
+  }
+
+  nk_end(ctx);
+  _camcontrol.update();
+}
+
+void app::mesh_demo::event_handler(const xray::ui::window_event& evt) {
+  if (evt.type == event_type::configure) {
+    const auto cfg = &evt.event.configure;
+    _camera.set_projection(projections_rh::perspective_symmetric(
+      static_cast<float>(cfg->width) / static_cast<float>(cfg->height),
+      radians(70.0f),
+      0.1f,
+      100.0f));
+
+    return;
+  }
+
+  _ui.ui_event(evt);
+  if (!_ui.wants_input()) {
+    _camcontrol.input_event(evt);
+  }
 }
 
 void app::mesh_demo::compose_ui() {
-  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
-  ImGui::Begin("Options");
 
-  ImGui::Checkbox("Draw wireframe", &_drawparams.draw_wireframe);
-  ImGui::Checkbox("Draw normals", &_drawparams.drawnormals);
+  // ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
+  // ImGui::Begin("Options");
 
-  if (_drawparams.drawnormals) {
-    ImGui::SliderFloat("Normal length", &_drawparams.normal_len, 0.1f, 3.0f);
-    ImGui::SliderFloat3(
-      "Start color", _drawparams.start_color.components, 0.0f, 1.0f);
-    ImGui::SliderFloat3(
-      "End color", _drawparams.end_color.components, 0.0f, 1.0f);
-  }
+  // ImGui::Checkbox("Draw wireframe", &_drawparams.draw_wireframe);
+  // ImGui::Checkbox("Draw normals", &_drawparams.drawnormals);
 
-  ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
+  // if (_drawparams.drawnormals) {
+  //  ImGui::SliderFloat("Normal length", &_drawparams.normal_len, 0.1f, 3.0f);
+  //  ImGui::SliderFloat3(
+  //    "Start color", _drawparams.start_color.components, 0.0f, 1.0f);
+  //  ImGui::SliderFloat3(
+  //    "End color", _drawparams.end_color.components, 0.0f, 1.0f);
+  //}
 
-  ImGui::End();
+  // ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
+
+  // ImGui::End();
 
   // ImGui::Begin("Mesh parameters");
   // bool update_mesh =
@@ -390,4 +460,12 @@ void app::mesh_demo::compose_ui() {
 
   // vertex_effect::ripple(_mesh.vertices(), _mesh.indices(), rparams);
   //_mesh.update_vertices();
+}
+
+void app::mesh_demo::poll_start(const xray::ui::poll_start_event&) {
+  _ui.input_begin();
+}
+
+void app::mesh_demo::poll_end(const xray::ui::poll_end_event&) {
+  _ui.input_end();
 }
