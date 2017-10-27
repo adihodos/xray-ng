@@ -111,6 +111,6 @@ void xray::rendering::aabb_visualizer::draw(
   _gs.set_uniform_block("DrawParams", box_params);
   _pipeline.use();
 
-  scoped_line_width_setting lw{line_width};
+  //  scoped_line_width_setting lw{line_width};
   gl::DrawArrays(gl::POINTS, 0, 1);
 }

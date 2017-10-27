@@ -29,20 +29,22 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#include "xray/base/fast_delegate.hpp"
 #include <cstdint>
 
 namespace xray {
 namespace base {
 class app_config;
 }
-}
+} // namespace xray
 
 namespace app {
 
 struct init_context_t {
-  uint32_t                surface_width;
-  uint32_t                surface_height;
-  xray::base::app_config* cfg;
+  uint32_t                          surface_width;
+  uint32_t                          surface_height;
+  xray::base::app_config*           cfg;
+  xray::base::fast_delegate<void()> quit_receiver;
 };
 
 } // namespace app

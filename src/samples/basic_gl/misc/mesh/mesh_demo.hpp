@@ -32,7 +32,10 @@
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
+#include "init_context.hpp"
+#include "xray/base/maybe.hpp"
 #include "xray/math/objects/aabb3.hpp"
+#include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/geometry/aabb_visualizer.hpp"
@@ -53,15 +56,25 @@ public:
 
   ~mesh_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
   virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
   virtual void poll_start(const xray::ui::poll_start_event&) override;
   virtual void poll_end(const xray::ui::poll_end_event&) override;
+  virtual void loop_event(const xray::ui::window_loop_event&) override;
 
 private:
+  struct mesh_info {
+    uint32_t             vertices;
+    uint32_t             indices;
+    size_t               vertex_bytes;
+    size_t               index_bytes;
+    xray::math::aabb3f   bbox;
+    xray::math::sphere3f bsphere;
+  };
+
   void init();
+  void draw(const float surface_width, const float surface_height);
+  void compose_ui();
+  xray::base::maybe<mesh_info> load_mesh(const char* model_path);
 
 private:
   xray::ui::user_interface                        _ui;
@@ -69,6 +82,7 @@ private:
   xray::rendering::scoped_buffer                  _vb;
   xray::rendering::scoped_buffer                  _ib;
   xray::rendering::scoped_vertex_array            _vao;
+  uint32_t                                        _vertexcount{};
   uint32_t                                        _indexcount{};
   xray::rendering::basic_mesh                     _mesh;
   xray::rendering::vertex_program                 _vs;
@@ -84,6 +98,9 @@ private:
   xray::scene::camera                             _camera;
   xray::scene::camera_controller_spherical_coords _camcontrol{
     &_camera, "config/misc/mesh_demo/cam_controller_spherical.conf"};
+  xray::base::maybe<mesh_info> _mesh_info{xray::base::nothing{}};
+  bool                         _mesh_loaded{false};
+  int32_t                      _sel_id{-1};
 
   struct {
     int32_t                    drawnormals{false};

@@ -27,5 +27,13 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "demo_base.hpp"
+#include "init_context.hpp"
+
+app::demo_base::demo_base(const init_context_t* init_ctx)
+  : _quit_receiver{init_ctx->quit_receiver} {}
 
 app::demo_base::~demo_base() {}
+
+void app::demo_base::poll_start(const xray::ui::poll_start_event&) {}
+
+void app::demo_base::poll_end(const xray::ui::poll_end_event&) {}

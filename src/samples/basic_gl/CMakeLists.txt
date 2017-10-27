@@ -10,38 +10,38 @@ set(project_sources
     # ${proj_inc_dir}/animated_plane.hpp
     # ${proj_src_dir}/animated_plane.cc
     # ${proj_inc_dir}/animated_plane_model.hpp
-    ${proj_inc_dir}/cap2/colored_circle/colored_circle_demo.hpp
-    ${proj_src_dir}/cap2/colored_circle/colored_circle_demo.cc
+#    ${proj_inc_dir}/cap2/colored_circle/colored_circle_demo.hpp
+#    ${proj_src_dir}/cap2/colored_circle/colored_circle_demo.cc
     ${proj_inc_dir}/demo_base.hpp
     ${proj_src_dir}/demo_base.cc
-    ${proj_inc_dir}/debug_record.hpp
-    ${proj_src_dir}/debug_record.cc
+#    ${proj_inc_dir}/debug_record.hpp
+#    ${proj_src_dir}/debug_record.cc
 
-    ${proj_src_dir}/misc/fractals/fractal_demo.cc
-    ${proj_inc_dir}/misc/fractals/fractal_demo.hpp
-    ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
-    ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
+#    ${proj_src_dir}/misc/fractals/fractal_demo.cc
+#    ${proj_inc_dir}/misc/fractals/fractal_demo.hpp
+#    ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
+#    ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
 
-    ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
-    ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc
+#    ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
+#    ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc
 
     ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
     ${proj_src_dir}/misc/mesh/mesh_demo.cc
 
-    ${proj_inc_dir}/misc/bufferless_draw/bufferless-draw-demo.hpp
-    ${proj_src_dir}/misc/bufferless_draw/bufferless-draw-demo.cc
+#    ${proj_inc_dir}/misc/bufferless_draw/bufferless-draw-demo.hpp
+#    ${proj_src_dir}/misc/bufferless_draw/bufferless-draw-demo.cc
 
-    ${proj_inc_dir}/misc/geometric_shapes/geometric_shapes_demo.hpp
-    ${proj_src_dir}/misc/geometric_shapes/geometric_shapes_demo.cc
+#    ${proj_inc_dir}/misc/geometric_shapes/geometric_shapes_demo.hpp
+#    ${proj_src_dir}/misc/geometric_shapes/geometric_shapes_demo.cc
 
-    ${proj_inc_dir}/misc/procedural_city/procedural_city_demo.hpp
-    ${proj_src_dir}/misc/procedural_city/procedural_city_demo.cc
+#    ${proj_inc_dir}/misc/procedural_city/procedural_city_demo.hpp
+#    ${proj_src_dir}/misc/procedural_city/procedural_city_demo.cc
 
-    ${proj_inc_dir}/lighting/directional_light_demo.hpp
-    ${proj_src_dir}/lighting/directional_light_demo.cc
+#    ${proj_inc_dir}/lighting/directional_light_demo.hpp
+#    ${proj_src_dir}/lighting/directional_light_demo.cc
 
-    ${proj_inc_dir}/lighting/point_light_demo.hpp
-    ${proj_src_dir}/lighting/point_light_demo.cc
+#    ${proj_inc_dir}/lighting/point_light_demo.hpp
+#    ${proj_src_dir}/lighting/point_light_demo.cc
 
     ${proj_inc_dir}/fwd_app.hpp
     ${proj_inc_dir}/helpers.hpp

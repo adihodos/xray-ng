@@ -28,70 +28,21 @@
 
 /// \file main.cc
 
-// #include "animated_plane.hpp"
-// #include "cap3/frag_discard/frag_discard_demo.hpp"
-// #include "cap3/soubroutines/soubroutines_demo.hpp"
-// #include "cap4/directional_lights/directional_lights_demo.hpp"
-// #include "cap4/fog/fog_demo.hpp"
-// #include "cap4/multiple_lights/multiple_lights_demo.hpp"
-// #include "cap4/per_fragment_lighting/per_fragment_lighting_demo.hpp"
-// #include "cap4/spotlight/spotlight_demo.hpp"
-// #include "cap4/toon_shading/toon_shading_demo.hpp"
-// #include "cap5/discard_alphamap/discard_alphamap_demo.hpp"
-// #include "cap5/multiple_textures/multiple_textures_demo.hpp"
-// #include "cap5/normal_map/normal_map_demo.hpp"
-// #include "cap5/reflection/reflection_demo.hpp"
-// #include "cap5/refraction/refraction_demo.hpp"
-// #include "cap5/render_texture/render_texture_demo.hpp"
-// #include "cap5/textures/textures_demo.hpp"
-// #include "cap6/edge_detect/edge_detect_demo.hpp"
-// #include "cap6/hdr_tonemapping/hdr_tonemapping_demo.hpp"
-// #include "colored_circle.hpp"
-#include "cap2/colored_circle/colored_circle_demo.hpp"
+#include "xray/xray.hpp"
 #include "debug_record.hpp"
-#include "lighting/directional_light_demo.hpp"
-#include "misc/bufferless_draw/bufferless-draw-demo.hpp"
-#include "misc/fractals/fractal_demo.hpp"
-#include "misc/geometric_shapes/geometric_shapes_demo.hpp"
-#include "misc/instanced_drawing/instanced_drawing_demo.hpp"
-#include "misc/mesh/mesh_demo.hpp"
-#include "misc/procedural_city/procedural_city_demo.hpp"
-#include "misc/texture_array/texture_array_demo.hpp"
-// #include "fractal.hpp"
+#include "demo_base.hpp"
 #include "init_context.hpp"
-// #include "lit_torus.hpp"
-#include "resize_context.hpp"
-// #include "subroutine_test.hpp"
-#include "lighting/point_light_demo.hpp"
 #include "xray/base/app_config.hpp"
-#include "xray/base/basic_timer.hpp"
-#include "xray/base/config_settings.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/logger.hpp"
-#include "xray/base/perf_stats_collector.hpp"
 #include "xray/base/scoped_guard.hpp"
-#include "xray/base/shims/string.hpp"
 #include "xray/base/unique_pointer.hpp"
-#include "xray/math/math_std.hpp"
-#include "xray/math/projection.hpp"
-#include "xray/math/scalar2.hpp"
-#include "xray/math/scalar3x3_math.hpp"
-#include "xray/math/scalar3x3_string_cast.hpp"
 #include "xray/math/scalar4.hpp"
-#include "xray/math/scalar4x4.hpp"
-#include "xray/math/scalar4x4_math.hpp"
-#include "xray/math/scalar4x4_string_cast.hpp"
-#include "xray/math/transforms_r3.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
-#include "xray/rendering/draw_context.hpp"
-#include "xray/scene/camera.hpp"
-#include "xray/scene/camera_controller.hpp"
-#include "xray/scene/camera_controller_spherical_coords.hpp"
-#include "xray/scene/point_light.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
-#include "xray/ui/user_interface.hpp"
+#include "xray/ui/ui.hpp"
 #include "xray/ui/window.hpp"
 #include <algorithm>
 #include <chrono>
@@ -100,12 +51,12 @@
 #include <opengl/opengl.hpp>
 #include <tbb/tbb.h>
 #include <thread>
-#include <xray/ui/ui.hpp>
+
+#include "misc/mesh/mesh_demo.hpp"
 
 using namespace xray;
 using namespace xray::base;
 using namespace xray::math;
-using namespace xray::scene;
 using namespace xray::ui;
 using namespace xray::rendering;
 
@@ -127,226 +78,191 @@ enum class demo_type : int32_t {
   geometric_shapes
 };
 
-class basic_scene {
+class main_app {
 public:
-  basic_scene(xray::ui::window* wnd);
-  ~basic_scene() noexcept;
-
-  void main_loop(const xray::ui::window_loop_event& loop_evt);
-
-  void window_event_handler(const xray::ui::window_event& wnd_evt);
-
-  void poll_start(const xray::ui::poll_start_event&);
-  void poll_end(const xray::ui::poll_end_event&);
-
-  void tick(const float delta);
-
-  void draw(const xray::ui::window_loop_event& loop_evt);
+  explicit main_app(xray::ui::window* wnd);
 
   bool valid() const noexcept { return _initialized; }
 
   explicit operator bool() const noexcept { return valid(); }
 
 private:
-  static constexpr const char* controller_cfg_file_path =
-    "config/cam_controller_spherical.conf";
+  bool demo_running() const noexcept { return _demo != nullptr; }
+  void run_demo(const demo_type type);
+  void hookup_event_delegates();
+  void demo_quit();
 
-  using compose_ui_event = xray::base::fast_delegate<void(void)>;
+  /// \group Event handlers
+  /// @{
 
-  struct {
-    compose_ui_event compose_ui;
-  } events;
+  void main_loop(const xray::ui::window_loop_event& loop_evt);
 
-  void setup_ui();
+  void window_event_handler(const xray::ui::window_event& wnd_evt);
 
-  unique_pointer<demo_base> make_demo(const demo_type dtype);
+  void poll_start(const xray::ui::poll_start_event&);
+
+  void poll_end(const xray::ui::poll_end_event&);
+
+  /// @}
+
+  void draw(const xray::ui::window_loop_event& loop_evt);
 
 private:
-  bool demo_active() const noexcept { return _demo != nullptr; }
-
-  xray::ui::window*                               _wnd;
-  xray::scene::camera                             _cam;
-  xray::scene::camera_controller_spherical_coords _cam_control{
-    &_cam, controller_cfg_file_path};
-  xray::ui::imgui_backend                      _ui;
-  xray::ui::user_interface                     _app_ui;
-  xray::base::stats_thread                     _stats_collector;
-  xray::base::stats_thread::process_stats_info _proc_stats;
-  xray::base::timer_highp                      _timer;
-  xray::rendering::rgb_color                   _clear_color{
+  xray::ui::window*                     _window;
+  xray::base::unique_pointer<demo_base> _demo;
+  xray::ui::user_interface              _app_ui;
+  xray::rendering::rgb_color            _clear_color{
     xray::rendering::color_palette::material::orange700};
 
-  xray::base::unique_pointer<demo_base> _demo;
-  demo_type                             _demotype{demo_type::none};
-  bool                                  _initialized{false};
+  bool _initialized{false};
 
-private:
-  XRAY_NO_COPY(basic_scene);
+  XRAY_NO_COPY(main_app);
 };
 
-basic_scene::~basic_scene() noexcept { _stats_collector.signal_stop(); }
-
-basic_scene::basic_scene(xray::ui::window* wnd) : _wnd{wnd} {
-  _initialized = true;
+main_app::main_app(xray::ui::window* wnd) : _window{wnd} {
+  hookup_event_delegates();
 }
 
-void basic_scene::tick(const float delta) {
-  _proc_stats = _stats_collector.process_stats();
+void main_app::demo_quit() {
+  assert(demo_running());
+  hookup_event_delegates();
+}
 
-  if (!demo_active()) {
+void main_app::hookup_event_delegates() {
+  _window->events.loop       = make_delegate(*this, &main_app::main_loop);
+  _window->events.poll_start = make_delegate(*this, &main_app::poll_start);
+  _window->events.poll_end   = make_delegate(*this, &main_app::poll_end);
+  _window->events.window =
+    make_delegate(*this, &main_app::window_event_handler);
+}
+
+void main_app::poll_start(const xray::ui::poll_start_event&) {
+  _app_ui.input_begin();
+}
+
+void main_app::poll_end(const xray::ui::poll_end_event&) {
+  _app_ui.input_end();
+}
+
+void main_app::window_event_handler(const xray::ui::window_event& wnd_evt) {
+  if (is_input_event(wnd_evt)) {
+    _app_ui.ui_event(wnd_evt);
   }
-
-  //_ui.new_frame(_wnd->width(), _wnd->height());
-  //_ui.tick(delta);
-
-  // if (_demo)
-  //  _demo->compose_ui();
-  // else
-  //  setup_ui();
-
-  // if (_demo)
-  //  _demo->update(delta);
 }
 
-void basic_scene::draw(const xray::ui::window_loop_event& levt) {
-  if (demo_active())
-    return;
+void main_app::main_loop(const xray::ui::window_loop_event& levt) {
+  {
+    auto ctx = _app_ui.ctx();
+
+    XRAY_SCOPE_EXIT { nk_end(ctx); };
+
+    const char* demo_list[] = {"None",
+                               "Colored Circle",
+                               "Julia fractal",
+                               "Texture array",
+                               "Mesh",
+                               "Bufferless drawing",
+                               "Directional lighting",
+                               "Point lighting",
+                               "Procedural city",
+                               "Instanced drawing",
+                               "Geometric shapes generation"};
+
+    if (nk_begin(ctx,
+                 "Select a demo to run",
+                 nk_rect(0.0f, 0.0f, 300.0f, 300.0f),
+                 NK_WINDOW_BORDER | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE |
+                   NK_WINDOW_MOVABLE)) {
+      nk_layout_row_static(ctx, 25, 200, 1);
+      const auto selected_demo = nk_combo(
+        ctx, demo_list, XR_I32_COUNTOF(demo_list), 0, 25, nk_vec2(200, 200));
+
+      run_demo(static_cast<demo_type>(selected_demo));
+    }
+  }
 
   const xray::math::vec4f viewport{0.0f,
                                    0.0f,
                                    static_cast<float>(levt.wnd_width),
                                    static_cast<float>(levt.wnd_height)};
+
   gl::ViewportIndexedfv(0, viewport.components);
   gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
   _app_ui.render(levt.wnd_width, levt.wnd_height);
 }
 
-void basic_scene::window_event_handler(const xray::ui::window_event& event) {
-  using namespace xray::ui;
+void main_app::run_demo(const demo_type type) {
+  auto make_demo_fn =
+    [ this, w = _window ](const demo_type dtype)->unique_pointer<demo_base> {
 
-  if (is_input_event(event)) {
-    if (event.type == event_type::key) {
-      const auto key_evt = event.event.key;
-      if (key_evt.type == event_action_type::press &&
-          key_evt.keycode == key_sym::e::escape) {
+    const init_context_t init_context{
+      (uint32_t) w->width(),
+      (uint32_t) w->height(),
+      xr_app_config,
+      make_delegate(*this, &main_app::demo_quit)};
 
-        if (!demo_active()) {
-          _wnd->quit();
-        } else {
-          _demo     = nullptr;
-          _demotype = demo_type::none;
-        }
-        return;
-      } else {
-      }
+    switch (dtype) {
+
+      //    case demo_type::colored_circle:
+      //      return xray::base::make_unique<colored_circle_demo>();
+      //      break;
+
+      //    case demo_type::fractal:
+      //      return xray::base::make_unique<fractal_demo>();
+      //      break;
+
+      //    case demo_type::texture_array:
+      //      return xray::base::make_unique<texture_array_demo>();
+      //      break;
+
+    case demo_type::mesh:
+      return xray::base::make_unique<mesh_demo>(&init_context);
+      break;
+
+      //    case demo_type::bufferless_draw:
+      //      return xray::base::make_unique<bufferless_draw_demo>();
+      //      break;
+
+      //    case demo_type::lighting_directional:
+      //      return xray::base::make_unique<directional_light_demo>();
+      //      break;
+
+      //    case demo_type::procedural_city:
+      //      return
+      //      xray::base::make_unique<procedural_city_demo>(init_context);
+      //      break;
+
+      //    case demo_type::instanced_drawing:
+      //      return
+      //      xray::base::make_unique<instanced_drawing_demo>(&init_context);
+      //      break;
+
+      //    case demo_type::geometric_shapes:
+      //      return
+      //      xray::base::make_unique<geometric_shapes_demo>(&init_context);
+      //      break;
+
+      //    case demo_type::lighting_point:
+      //      return xray::base::make_unique<point_light_demo>(&init_context);
+      //      break;
+
+    default:
+      break;
     }
-  }
-}
 
-void basic_scene::poll_start(const xray::ui::poll_start_event& ps) {
-  if (_demo)
-    _demo->poll_start(ps);
-}
+    return nullptr;
+  };
 
-void basic_scene::poll_end(const xray::ui::poll_end_event& pe) {
-  if (_demo)
-    _demo->poll_end(pe);
-}
-
-unique_pointer<app::demo_base> basic_scene::make_demo(const demo_type dtype) {
-
-  const init_context_t init_context{
-    (uint32_t) _wnd->width(), (uint32_t) _wnd->height(), xr_app_config};
-
-  switch (dtype) {
-  case demo_type::colored_circle:
-    return xray::base::make_unique<colored_circle_demo>();
-    break;
-
-  case demo_type::fractal:
-    return xray::base::make_unique<fractal_demo>();
-    break;
-
-  case demo_type::texture_array:
-    return xray::base::make_unique<texture_array_demo>();
-    break;
-
-  case demo_type::mesh:
-    return xray::base::make_unique<mesh_demo>(&init_context);
-    break;
-
-  case demo_type::bufferless_draw:
-    return xray::base::make_unique<bufferless_draw_demo>();
-    break;
-
-  case demo_type::lighting_directional:
-    return xray::base::make_unique<directional_light_demo>();
-    break;
-
-  case demo_type::procedural_city:
-    return xray::base::make_unique<procedural_city_demo>(init_context);
-    break;
-
-  case demo_type::instanced_drawing:
-    return xray::base::make_unique<instanced_drawing_demo>(&init_context);
-    break;
-
-  case demo_type::geometric_shapes:
-    return xray::base::make_unique<geometric_shapes_demo>(&init_context);
-    break;
-
-  case demo_type::lighting_point:
-    return xray::base::make_unique<point_light_demo>(&init_context);
-    break;
-
-  default:
-    break;
+  _demo = make_demo_fn(type);
+  if (!_demo) {
+    return;
   }
 
-  return nullptr;
-}
-
-void basic_scene::setup_ui() {
-
-  ImGui::SetNextWindowPosCenter(ImGuiSetCond_Always);
-  ImGui::SetNextWindowSize({300, 100}, ImGuiSetCond_Always);
-  ImGui::Begin("Select a demo to run");
-
-  XRAY_SCOPE_EXIT { ImGui::End(); };
-
-  const char* demo_list[] = {"None",
-                             "Colored Circle",
-                             "Julia fractal",
-                             "Texture array",
-                             "Mesh",
-                             "Bufferless drawing",
-                             "Directional lighting",
-                             "Point lighting",
-                             "Procedural city",
-                             "Instanced drawing",
-                             "Geometric shapes generation"};
-
-  demo_type selected_demo{_demotype};
-  if (ImGui::Combo(
-        "", (int32_t*) &selected_demo, demo_list, XR_I32_COUNTOF(demo_list))) {
-    if (selected_demo != _demotype) {
-      auto new_demo = make_demo(selected_demo);
-
-      if (!new_demo || !new_demo->valid())
-        return;
-
-      _demo     = std::move(new_demo);
-      _demotype = selected_demo;
-      XR_LOG_INFO("Selection index {}", (int32_t) selected_demo);
-    }
-  }
-}
-
-void basic_scene::main_loop(const xray::ui::window_loop_event& loop_evt) {
-  _timer.update_and_reset();
-  tick(_timer.elapsed_millis());
-  draw(loop_evt);
+  _window->events.loop       = make_delegate(*_demo, &demo_base::loop_event);
+  _window->events.poll_start = make_delegate(*_demo, &demo_base::poll_start);
+  _window->events.poll_end   = make_delegate(*_demo, &demo_base::poll_end);
+  _window->events.window     = make_delegate(*_demo, &demo_base::event_handler);
 }
 
 void debug_proc(GLenum source,
@@ -510,15 +426,7 @@ int main(int argc, char** argv) {
                           nullptr,
                           gl::FALSE_);
 
-  app::basic_scene scene{&main_window};
-  main_window.events.loop = make_delegate(scene, &app::basic_scene::main_loop);
-  main_window.events.window =
-    make_delegate(scene, &app::basic_scene::window_event_handler);
-  main_window.events.poll_start =
-    make_delegate(scene, &app::basic_scene::poll_start);
-  main_window.events.poll_end =
-    make_delegate(scene, &app::basic_scene::poll_end);
-
+  app::main_app app{&main_window};
   main_window.message_loop();
 
   XR_LOG_INFO("Shutting down ...");
