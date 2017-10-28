@@ -29,9 +29,6 @@
 /// \file main.cc
 
 #include "xray/xray.hpp"
-#include "debug_record.hpp"
-#include "demo_base.hpp"
-#include "init_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/logger.hpp"
@@ -47,11 +44,13 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
-#include <imgui/imgui.h>
 #include <opengl/opengl.hpp>
 #include <tbb/tbb.h>
 #include <thread>
 
+#include "demo_base.hpp"
+#include "init_context.hpp"
+#include "misc/instanced_drawing/instanced_drawing_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
 
 using namespace xray;
@@ -194,7 +193,7 @@ void main_app::main_loop(const xray::ui::window_loop_event& levt) {
 
 void main_app::run_demo(const demo_type type) {
   auto make_demo_fn =
-    [ this, w = _window ](const demo_type dtype)->unique_pointer<demo_base> {
+    [this, w = _window](const demo_type dtype) -> unique_pointer<demo_base> {
 
     const init_context_t init_context{
       (uint32_t) w->width(),
@@ -233,10 +232,9 @@ void main_app::run_demo(const demo_type type) {
       //      xray::base::make_unique<procedural_city_demo>(init_context);
       //      break;
 
-      //    case demo_type::instanced_drawing:
-      //      return
-      //      xray::base::make_unique<instanced_drawing_demo>(&init_context);
-      //      break;
+    case demo_type::instanced_drawing:
+      return xray::base::make_unique<instanced_drawing_demo>(&init_context);
+      break;
 
       //    case demo_type::geometric_shapes:
       //      return

@@ -22,6 +22,7 @@
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/ui.hpp"
+#include "xray/ui/user_interface.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -363,9 +364,11 @@ void app::mesh_demo::compose_ui() {
                          "Mesh info",
                          NK_WINDOW_BORDER | NK_WINDOW_NO_SCROLLBAR |
                            NK_WINDOW_TITLE)) {
+
+        const auto mi = _mesh_info.value();
         nk_layout_row_static(ctx, 18, 100, 1);
-        nk_label(ctx, "item #1", NK_TEXT_ALIGN_LEFT);
-        nk_label(ctx, "item #2", NK_TEXT_ALIGN_LEFT);
+        nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Vertices %u", mi.vertices);
+        nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Indices %u", mi.indices);
         nk_group_end(ctx);
       }
 

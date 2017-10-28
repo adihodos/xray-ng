@@ -33,7 +33,9 @@
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "init_context.hpp"
+#include "xray/base/basic_timer.hpp"
 #include "xray/base/random.hpp"
+#include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
@@ -42,6 +44,7 @@
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/scene/fps_camera_controller.hpp"
+#include "xray/ui/user_interface.hpp"
 #include <cstdint>
 #include <vector>
 
@@ -72,13 +75,13 @@ public:
 
   ~instanced_drawing_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
   virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
+  virtual void poll_start(const xray::ui::poll_start_event&) override;
+  virtual void poll_end(const xray::ui::poll_end_event&) override;
+  virtual void loop_event(const xray::ui::window_loop_event&) override;
 
 private:
-  void init();
+  void compose_ui();
 
 private:
   struct instance_info {
@@ -113,15 +116,15 @@ private:
   xray::rendering::scoped_sampler      _sampler;
   xray::base::random_number_generator  _rand;
   simple_world                         _world;
+  xray::ui::imgui_backend              _app_ui;
+  xray::math::vec2i32                  _window_size;
 
   struct {
-    xray::scene::camera camera;
-    //    xray::scene::camera_controller_spherical_coords cam_control{
-    //      &camera,
-    //      "config/misc/instanced_demo/cam_controller_spherical.conf"};
+    xray::scene::camera                camera;
     xray::scene::fps_camera_controller cam_control{&camera};
-
   } _scene;
+
+  xray::base::timer_highp _timer;
 
 private:
   XRAY_NO_COPY(instanced_drawing_demo);

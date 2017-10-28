@@ -30,6 +30,7 @@
 
 #include "xray/xray.hpp"
 #include "xray/base/logger.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <opengl/opengl.hpp>
 #include <utility>
@@ -39,11 +40,16 @@ namespace rendering {
 
 class scoped_resource_mapping {
 public:
-  scoped_resource_mapping(const uint32_t resource, const uint32_t access,
-                          const uint32_t length, const uint32_t offset = 0)
-      : _gl_resource{resource} {
+  scoped_resource_mapping(const uint32_t resource,
+                          const uint32_t access,
+                          const size_t   length,
+                          const uint32_t offset = 0)
+    : _gl_resource{resource} {
 
-    _mapping_ptr = gl::MapNamedBufferRange(resource, offset, length, access);
+    _mapping_ptr = gl::MapNamedBufferRange(resource,
+                                           static_cast<GLintptr>(offset),
+                                           static_cast<GLsizeiptr>(length),
+                                           access);
 
     if (!_mapping_ptr) {
       XR_LOG_ERR("Failed to map buffer into client memory!");

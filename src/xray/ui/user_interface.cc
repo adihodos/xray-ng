@@ -327,10 +327,9 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
   if (!_rendercontext._index_buffer)
     return;
 
-  _rendercontext._vertex_arr = [
-    vbh = raw_handle(_rendercontext._vertex_buffer),
-    ibh = raw_handle(_rendercontext._index_buffer)
-  ]() {
+  _rendercontext._vertex_arr = [vbh = raw_handle(_rendercontext._vertex_buffer),
+                                ibh =
+                                  raw_handle(_rendercontext._index_buffer)]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
 
@@ -357,8 +356,7 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
     gl::VertexArrayAttribBinding(vao, 2, 0);
 
     return vao;
-  }
-  ();
+  }();
 
   _rendercontext._vs = gpu_program_builder{}
                          .add_string(IMGUI_VERTEX_SHADER)
@@ -422,8 +420,7 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
                           font_img.pixels);
 
     return texh;
-  }
-  ();
+  }();
 
   _gui->Fonts->TexID =
     reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));

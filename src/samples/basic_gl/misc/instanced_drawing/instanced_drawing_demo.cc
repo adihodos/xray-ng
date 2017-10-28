@@ -130,7 +130,11 @@ void app::simple_world::draw(const xray::scene::camera* cam) {
 }
 
 app::instanced_drawing_demo::instanced_drawing_demo(
-  const app::init_context_t* init_ctx) {
+  const app::init_context_t* init_ctx)
+  : app::demo_base{init_ctx} {
+
+  _window_size = vec2i32{static_cast<int32_t>(init_ctx->surface_width),
+                         static_cast<int32_t>(init_ctx->surface_height)};
 
   //
   // turn off these so we don't get spammed
@@ -149,13 +153,6 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   lens_param.fov       = radians(70.0f);
   _scene.cam_control.set_lens_parameters(lens_param);
   _scene.cam_control.update();
-
-  //  _scene.camera.set_projection(projection::perspective_symmetric(
-  //    static_cast<float>(init_ctx->surface_width),
-  //    static_cast<float>(init_ctx->surface_height),
-  //    radians(70.0f),
-  //    0.1f,
-  //    1000.0f));
 
   const char* const files[] = {"f15/f15c.bin",
                                //      "f4/f4phantom.bin",
@@ -264,11 +261,9 @@ app::instanced_drawing_demo::instanced_drawing_demo(
     GL_MARK_BUFFER(raw_handle(_draw_ids), "Instance id buffer");
   }
 
-  _vertexarray = [
-    vb = raw_handle(_vertices),
-    ib = raw_handle(_indices),
-    di = raw_handle(_draw_ids)
-  ]() {
+  _vertexarray = [vb = raw_handle(_vertices),
+                  ib = raw_handle(_indices),
+                  di = raw_handle(_draw_ids)]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
 
@@ -297,8 +292,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
     gl::VertexArrayBindingDivisor(vao, 1, 1);
 
     return scoped_vertex_array{vao};
-  }
-  ();
+  }();
 
   {
     draw_elements_indirect_command draw_cmds[2];
@@ -418,7 +412,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   uint32_t idx{};
   generate_n(back_inserter(_obj_instances.instances),
              object_instances::instance_count,
-             [ r = &_rand, &idx ]() {
+             [r = &_rand, &idx]() {
 
                static constexpr auto OBJ_DST = 50.0f;
 
@@ -446,8 +440,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                            gl::MAP_WRITE_BIT);
 
     return scoped_buffer{buff};
-  }
-  ();
+  }();
 
   _obj_instances.buffer_texture_ids = [objs = &_obj_instances]() {
     GLuint buff{};
@@ -463,8 +456,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
       buff, texid_buff.size() * sizeof(uint32_t), texid_buff.data(), 0);
 
     return scoped_buffer{buff};
-  }
-  ();
+  }();
 
   gl::Enable(gl::DEPTH_TEST);
   gl::Enable(gl::CULL_FACE);
@@ -475,19 +467,27 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                        static_cast<float>(init_ctx->surface_height));
 
   _valid = true;
+  _timer.start();
 }
 
 app::instanced_drawing_demo::~instanced_drawing_demo() {}
 
-void app::instanced_drawing_demo::draw(
-  const xray::rendering::draw_context_t& ctx) {
+void app::instanced_drawing_demo::loop_event(
+  const xray::ui::window_loop_event& wle) {
+
+  _timer.update_and_reset();
+  const auto delta_tm = _timer.elapsed_millis();
+
+  _app_ui.tick(delta_tm);
+  compose_ui();
+
+  _scene.cam_control.update();
 
   gl::ClearNamedFramebufferfv(
     0, gl::COLOR, 0, color_palette::web::black.components);
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
 
   _world.draw(&_scene.camera);
-  //  return;
 
   {
     for_each(begin(_obj_instances.instances),
@@ -540,8 +540,11 @@ void app::instanced_drawing_demo::draw(
            container_bytes_size(instance_transforms));
   }
 
-  gl::ViewportIndexedf(
-    0, 0.0f, 0.0f, (float) ctx.window_width, (float) ctx.window_height);
+  gl::ViewportIndexedf(0,
+                       0.0f,
+                       0.0f,
+                       static_cast<float>(wle.wnd_width),
+                       static_cast<float>(wle.wnd_height));
 
   const GLuint ssbos[] = {raw_handle(_obj_instances.buffer_transforms),
                           raw_handle(_obj_instances.buffer_texture_ids)};
@@ -560,16 +563,28 @@ void app::instanced_drawing_demo::draw(
     raw_handle(_indirect_draw_cmd_buffer)};
 
   gl::MultiDrawElementsIndirect(gl::TRIANGLES, gl::UNSIGNED_INT, nullptr, 2, 0);
+
+  _app_ui.draw();
 }
 
-void app::instanced_drawing_demo::update(const float /*delta_ms*/) {
-  _scene.cam_control.update();
+void app::instanced_drawing_demo::compose_ui() {
+  ImGui::SetNextWindowPos(vec2f::stdc::zero, ImGuiCond_Appearing);
+
+  if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::Button("button #1");
+    ImGui::Button("button #2");
+  }
+
+  ImGui::End();
 }
 
 void app::instanced_drawing_demo::event_handler(
   const xray::ui::window_event& evt) {
 
   if (evt.type == event_type::configure) {
+    _window_size.x = evt.event.configure.width;
+    _window_size.y = evt.event.configure.height;
+
     xray::scene::camera_lens_parameters lp;
     lp.aspect_ratio = static_cast<float>(evt.event.configure.width) /
                       static_cast<float>(evt.event.configure.height);
@@ -577,12 +592,7 @@ void app::instanced_drawing_demo::event_handler(
     lp.nearplane = 0.1f;
     lp.fov       = radians(70.0f);
 
-    //    _scene.camera.set_projection(projection::perspective_symmetric(
-    //      static_cast<float>(evt.event.configure.width),
-    //      static_cast<float>(evt.event.configure.height),
-    //      radians(70.0f),
-    //      0.1f,
-    //      1000.0f));
+    _scene.cam_control.set_lens_parameters(lp);
 
     gl::ViewportIndexedf(0,
                          0.0f,
@@ -594,9 +604,24 @@ void app::instanced_drawing_demo::event_handler(
   }
 
   if (is_input_event(evt)) {
-    _scene.cam_control.input_event(evt);
+    _app_ui.input_event(evt);
+    if (!_app_ui.wants_input()) {
+      //
+      //  Quit on escape
+      if (evt.type == event_type::key &&
+          evt.event.key.keycode == key_sym::e::escape) {
+        _quit_receiver();
+        return;
+      }
+      _scene.cam_control.input_event(evt);
+    }
     return;
   }
 }
 
-void app::instanced_drawing_demo::compose_ui() {}
+void app::instanced_drawing_demo::poll_start(
+  const xray::ui::poll_start_event&) {
+  _app_ui.new_frame(_window_size.x, _window_size.y);
+}
+
+void app::instanced_drawing_demo::poll_end(const xray::ui::poll_end_event&) {}

@@ -22,8 +22,8 @@ set(project_sources
 #    ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
 #    ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
 
-#    ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
-#    ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc
+    ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
+    ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc
 
     ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
     ${proj_src_dir}/misc/mesh/mesh_demo.cc
