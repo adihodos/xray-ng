@@ -50,6 +50,7 @@
 
 #include "demo_base.hpp"
 #include "init_context.hpp"
+#include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 #include "misc/instanced_drawing/instanced_drawing_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
 
@@ -172,9 +173,15 @@ void main_app::main_loop(const xray::ui::window_loop_event& levt) {
                  nk_rect(0.0f, 0.0f, 300.0f, 300.0f),
                  NK_WINDOW_BORDER | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE |
                    NK_WINDOW_MOVABLE)) {
-      nk_layout_row_static(ctx, 25, 200, 1);
-      const auto selected_demo = nk_combo(
-        ctx, demo_list, XR_I32_COUNTOF(demo_list), 0, 25, nk_vec2(200, 200));
+
+      nk_layout_row_dynamic(ctx, 25.0f, 1);
+
+      const auto selected_demo =
+        _app_ui.combo.combo(demo_list,
+                            XR_COUNTOF(demo_list),
+                            0,
+                            25,
+                            {_app_ui.widget_width(), 200.0f});
 
       run_demo(static_cast<demo_type>(selected_demo));
     }
@@ -193,7 +200,7 @@ void main_app::main_loop(const xray::ui::window_loop_event& levt) {
 
 void main_app::run_demo(const demo_type type) {
   auto make_demo_fn =
-    [this, w = _window](const demo_type dtype) -> unique_pointer<demo_base> {
+    [ this, w = _window ](const demo_type dtype)->unique_pointer<demo_base> {
 
     const init_context_t init_context{
       (uint32_t) w->width(),
@@ -236,10 +243,9 @@ void main_app::run_demo(const demo_type type) {
       return xray::base::make_unique<instanced_drawing_demo>(&init_context);
       break;
 
-      //    case demo_type::geometric_shapes:
-      //      return
-      //      xray::base::make_unique<geometric_shapes_demo>(&init_context);
-      //      break;
+    case demo_type::geometric_shapes:
+      return xray::base::make_unique<geometric_shapes_demo>(&init_context);
+      break;
 
       //    case demo_type::lighting_point:
       //      return xray::base::make_unique<point_light_demo>(&init_context);

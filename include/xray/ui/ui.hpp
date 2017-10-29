@@ -39,6 +39,9 @@
 
 #include "xray/base/fast_delegate.hpp"
 #include "xray/math/scalar2.hpp"
+#include "xray/math/scalar3.hpp"
+#include "xray/math/scalar4.hpp"
+#include "xray/rendering/colors/rgb_color.hpp"
 #if defined(XRAY_RENDERER_DIRECTX)
 #include "xray/base/windows/com_ptr.hpp"
 #include "xray/rendering/directx/pixel_shader.hpp"
@@ -87,6 +90,235 @@ public:
   bool wants_input() noexcept {
     return nk_item_is_any_active(&_renderer.ctx) == nk_true;
   }
+
+  struct _combobox {
+  private:
+    friend class user_interface;
+    user_interface* _owner;
+    _combobox(user_interface* owner) : _owner{owner} {}
+
+  public:
+    int32_t combo(const char**             items,
+                  size_t                   count,
+                  int32_t                  selected,
+                  int32_t                  item_height,
+                  const xray::math::vec2f& size) {
+      return nk_combo(_owner->ctx(),
+                      items,
+                      static_cast<int32_t>(count),
+                      selected,
+                      item_height,
+                      nk_vec2v(size.components));
+    }
+
+    int32_t combo_separator(const char* items_separated_by_separator,
+                            int32_t     separator,
+                            int32_t     selected,
+                            size_t      count,
+                            int32_t     item_height,
+                            const xray::math::vec2f& size) {
+      return nk_combo_separator(_owner->ctx(),
+                                items_separated_by_separator,
+                                separator,
+                                selected,
+                                static_cast<int32_t>(count),
+                                item_height,
+                                nk_vec2v(size.components));
+    }
+
+    int32_t combo_string(const char*              items_separated_by_zeros,
+                         int32_t                  selected,
+                         size_t                   count,
+                         int                      item_height,
+                         const xray::math::vec2f& size) {
+      return nk_combo_string(_owner->ctx(),
+                             items_separated_by_zeros,
+                             selected,
+                             static_cast<int32_t>(count),
+                             item_height,
+                             nk_vec2v(size.components));
+    }
+
+    int32_t combo_callback(void (*item_getter)(void*, int32_t, const char**),
+                           void*                    userdata,
+                           int32_t                  selected,
+                           size_t                   count,
+                           int32_t                  item_height,
+                           const xray::math::vec2f& size) {
+      return nk_combo_callback(_owner->ctx(),
+                               item_getter,
+                               userdata,
+                               selected,
+                               static_cast<int32_t>(count),
+                               item_height,
+                               nk_vec2v(size.components));
+    }
+
+    void combobox(const char**             items,
+                  size_t                   count,
+                  int32_t*                 selected,
+                  int32_t                  item_height,
+                  const xray::math::vec2f& size) {
+      return nk_combobox(_owner->ctx(),
+                         items,
+                         static_cast<int32_t>(count),
+                         selected,
+                         item_height,
+                         nk_vec2v(size.components));
+    }
+
+    void combobox_string(const char*              items_separated_by_zeros,
+                         int32_t*                 selected,
+                         size_t                   count,
+                         int32_t                  item_height,
+                         const xray::math::vec2f& size) {
+      return nk_combobox_string(_owner->ctx(),
+                                items_separated_by_zeros,
+                                selected,
+                                static_cast<int32_t>(count),
+                                item_height,
+                                nk_vec2v(size.components));
+    }
+
+    void combobox_separator(struct nk_context*,
+                            const char* items_separated_by_separator,
+                            int32_t     separator,
+                            int32_t*    selected,
+                            size_t      count,
+                            int32_t     item_height,
+                            const xray::math::vec2f& size) {
+      return nk_combobox_separator(_owner->ctx(),
+                                   items_separated_by_separator,
+                                   separator,
+                                   selected,
+                                   static_cast<int32_t>(count),
+                                   item_height,
+                                   nk_vec2v(size.components));
+    }
+
+    void combobox_callback(void (*item_getter)(void*, int32_t, const char**),
+                           void*                    userdata,
+                           int32_t*                 selected,
+                           int32_t                  count,
+                           int32_t                  item_height,
+                           const xray::math::vec2f& size) {
+      return nk_combobox_callback(_owner->ctx(),
+                                  item_getter,
+                                  userdata,
+                                  selected,
+                                  static_cast<int32_t>(count),
+                                  item_height,
+                                  nk_vec2v(size.components));
+    }
+  } combo{this};
+
+  struct _abstract_combo {
+  private:
+    friend class user_interface;
+    _abstract_combo(user_interface* owner) : _owner{owner} {}
+
+  public:
+    int begin_text(const char* selected, const xray::math::vec2f& size) {
+      return nk_combo_begin_text(
+        _owner->ctx(), selected, strlen(selected), nk_vec2v(size.components));
+    }
+
+    int begin_label(const char* selected, const xray::math::vec2f& size) {
+      return nk_combo_begin_label(
+        _owner->ctx(), selected, nk_vec2v(size.components));
+    }
+
+    int begin_color(const xray::rendering::rgb_color& clr,
+                    const xray::math::vec2f           size) {
+      return nk_combo_begin_color(
+        _owner->ctx(), nk_rgba_fv(clr.components), nk_vec2v(size.components));
+    }
+
+    int begin_symbol(enum nk_symbol_type stype, const xray::math::vec2f& size) {
+      return nk_combo_begin_symbol(
+        _owner->ctx(), stype, nk_vec2v(size.components));
+    }
+
+    int begin_symbol_label(const char*              selected,
+                           enum nk_symbol_type      stype,
+                           const xray::math::vec2f& size) {
+      return nk_combo_begin_symbol_label(
+        _owner->ctx(), selected, stype, nk_vec2v(size.components));
+    }
+
+    int begin_symbol_text(const char*              selected,
+                          enum nk_symbol_type      stype,
+                          const xray::math::vec2f& size) {
+      return nk_combo_begin_symbol_text(_owner->ctx(),
+                                        selected,
+                                        strlen(selected),
+                                        stype,
+                                        nk_vec2v(size.components));
+    }
+
+    int begin_image(struct nk_image img, const xray::math::vec2f& size) {
+      return nk_combo_begin_image(
+        _owner->ctx(), img, nk_vec2v(size.components));
+    }
+
+    int begin_image_label(const char*              selected,
+                          struct nk_image          img,
+                          const xray::math::vec2f& size) {
+      return nk_combo_begin_image_label(
+        _owner->ctx(), selected, img, nk_vec2v(size.components));
+    }
+
+    int begin_image_text(const char*              selected,
+                         struct nk_image          img,
+                         const xray::math::vec2f& size) {
+      return nk_combo_begin_image_text(_owner->ctx(),
+                                       selected,
+                                       strlen(selected),
+                                       img,
+                                       nk_vec2v(size.components));
+    }
+
+    int item_label(const char* txt, nk_flags alignment) {
+      return nk_combo_item_label(_owner->ctx(), txt, alignment);
+    }
+
+    int item_text(const char* txt, nk_flags alignment) {
+      return nk_combo_item_text(_owner->ctx(), txt, strlen(txt), alignment);
+    }
+
+    int
+    item_image_label(struct nk_image img, const char* txt, nk_flags alignment) {
+      return nk_combo_item_image_label(_owner->ctx(), img, txt, alignment);
+    }
+
+    int
+    item_image_text(struct nk_image img, const char* txt, nk_flags alignment) {
+      return nk_combo_item_image_text(
+        _owner->ctx(), img, txt, strlen(txt), alignment);
+    }
+
+    int item_symbol_label(enum nk_symbol_type stype,
+                          const char*         txt,
+                          nk_flags            alignment) {
+      return nk_combo_item_symbol_label(_owner->ctx(), stype, txt, alignment);
+    }
+
+    int item_symbol_text(enum nk_symbol_type stype,
+                         const char*         txt,
+                         nk_flags            alignment) {
+      return nk_combo_item_symbol_text(
+        _owner->ctx(), stype, txt, strlen(txt), alignment);
+    }
+
+    void combo_close() { nk_combo_close(_owner->ctx()); }
+
+    void end() { nk_combo_end(_owner->ctx()); }
+
+  private:
+    user_interface* _owner;
+  } abstract_combo{this};
+
+  float widget_width() noexcept { return nk_widget_width(ctx()); }
 
 private:
   void init(const char** fonts, const size_t num_fonts, const float pixel_size);

@@ -261,9 +261,11 @@ app::instanced_drawing_demo::instanced_drawing_demo(
     GL_MARK_BUFFER(raw_handle(_draw_ids), "Instance id buffer");
   }
 
-  _vertexarray = [vb = raw_handle(_vertices),
-                  ib = raw_handle(_indices),
-                  di = raw_handle(_draw_ids)]() {
+  _vertexarray = [
+    vb = raw_handle(_vertices),
+    ib = raw_handle(_indices),
+    di = raw_handle(_draw_ids)
+  ]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
 
@@ -292,7 +294,8 @@ app::instanced_drawing_demo::instanced_drawing_demo(
     gl::VertexArrayBindingDivisor(vao, 1, 1);
 
     return scoped_vertex_array{vao};
-  }();
+  }
+  ();
 
   {
     draw_elements_indirect_command draw_cmds[2];
@@ -412,7 +415,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   uint32_t idx{};
   generate_n(back_inserter(_obj_instances.instances),
              object_instances::instance_count,
-             [r = &_rand, &idx]() {
+             [ r = &_rand, &idx ]() {
 
                static constexpr auto OBJ_DST = 50.0f;
 
@@ -440,7 +443,8 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                            gl::MAP_WRITE_BIT);
 
     return scoped_buffer{buff};
-  }();
+  }
+  ();
 
   _obj_instances.buffer_texture_ids = [objs = &_obj_instances]() {
     GLuint buff{};
@@ -456,7 +460,8 @@ app::instanced_drawing_demo::instanced_drawing_demo(
       buff, texid_buff.size() * sizeof(uint32_t), texid_buff.data(), 0);
 
     return scoped_buffer{buff};
-  }();
+  }
+  ();
 
   gl::Enable(gl::DEPTH_TEST);
   gl::Enable(gl::CULL_FACE);
@@ -620,8 +625,9 @@ void app::instanced_drawing_demo::event_handler(
 }
 
 void app::instanced_drawing_demo::poll_start(
-  const xray::ui::poll_start_event&) {
+  const xray::ui::poll_start_event&) {}
+
+void app::instanced_drawing_demo::poll_end(const xray::ui::poll_end_event&) {
+  ImGui::GetStyle().Alpha = 1.0f;
   _app_ui.new_frame(_window_size.x, _window_size.y);
 }
-
-void app::instanced_drawing_demo::poll_end(const xray::ui::poll_end_event&) {}

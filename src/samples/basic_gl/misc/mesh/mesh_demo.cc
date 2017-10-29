@@ -84,34 +84,6 @@ void app::mesh_demo::init() {
   if (!_abbdraw)
     return;
 
-  // geometry_data_t blob;
-  // geometry_factory::grid(16.0f, 16.0f, 128, 128, &blob);
-
-  // vector<vertex_pnt> verts;
-  // transform(raw_ptr(blob.geometry),
-  //          raw_ptr(blob.geometry) + blob.vertex_count,
-  //          back_inserter(verts),
-  //          [](const vertex_pntt& vsin) {
-  //            return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
-  //          });
-
-  // const vertex_ripple_parameters rparams{_rippledata.amplitude,
-  //                                       _rippledata.period * two_pi<float>,
-  //                                       _rippledata.width,
-  //                                       _rippledata.height};
-
-  // vertex_effect::ripple(
-  //  gsl::span<vertex_pnt>{verts},
-  //  gsl::span<uint32_t>{raw_ptr(blob.indices),
-  //                      raw_ptr(blob.indices) + blob.index_count},
-  //  rparams);
-
-  //_mesh = basic_mesh{verts.data(),
-  //                   verts.size(),
-  //                   raw_ptr(blob.indices),
-  //                   blob.index_count,
-  //                   mesh_type::writable};
-
   gl::CreateBuffers(1, raw_handle_ptr(_vb));
   gl::CreateBuffers(1, raw_handle_ptr(_ib));
 
@@ -332,7 +304,7 @@ void app::mesh_demo::compose_ui() {
   auto ctx = _ui.ctx();
   if (nk_begin(ctx,
                "Options",
-               nk_rect(0.0f, 0.0f, 300.0f, 400.0f),
+               nk_rect(0.0f, 0.0f, 360.0f, 512.0f),
                NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE |
                  NK_WINDOW_TITLE | NK_WINDOW_MOVABLE)) {
 
@@ -359,50 +331,68 @@ void app::mesh_demo::compose_ui() {
     }
 
     if (_mesh_info) {
-      nk_layout_row_static(ctx, 320, 200, 1);
+      nk_layout_row_dynamic(ctx, 240, 1);
       if (nk_group_begin(ctx,
                          "Mesh info",
                          NK_WINDOW_BORDER | NK_WINDOW_NO_SCROLLBAR |
                            NK_WINDOW_TITLE)) {
 
         const auto mi = _mesh_info.value();
-        nk_layout_row_static(ctx, 18, 100, 1);
+        nk_layout_row_dynamic(ctx, 18, 1);
         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Vertices %u", mi.vertices);
         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Indices %u", mi.indices);
+        nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Bytes vertex %u", mi.vertex_bytes);
+        nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Index bytes %u", mi.index_bytes);
+        nk_labelf(ctx,
+                  NK_TEXT_ALIGN_LEFT,
+                  "AABB [%s : %s]",
+                  string_cast(mi.bbox.min).c_str(),
+                  string_cast(mi.bbox.max).c_str());
+        nk_labelf(ctx,
+                  NK_TEXT_ALIGN_LEFT,
+                  "Bounding sphere [%s x %3.3f]",
+                  string_cast(mi.bsphere.center).c_str(),
+                  mi.bsphere.radius);
         nk_group_end(ctx);
       }
 
-      nk_layout_row_dynamic(ctx, 25.0f, 1);
-      nk_checkbox_label(ctx, "Draw wireframe", &_drawparams.draw_wireframe);
-      nk_checkbox_label(
-        ctx, "Draw bounding box", &_drawparams.draw_boundingbox);
-      nk_checkbox_label(ctx, "Draw normals", &_drawparams.drawnormals);
+      nk_layout_row_dynamic(ctx, 320, 1);
 
-      if (_drawparams.drawnormals) {
-        nk_label(ctx, "Normal color start", NK_TEXT_ALIGN_LEFT);
-        const auto cs = nk_color_picker(
-          ctx, xray_color_to_nk_color(_drawparams.start_color), NK_RGBA);
+      if (nk_group_begin(
+            ctx, "Drawing options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+        nk_layout_row_dynamic(ctx, 25.0f, 1);
+        nk_checkbox_label(ctx, "Draw wireframe", &_drawparams.draw_wireframe);
+        nk_checkbox_label(
+          ctx, "Draw bounding box", &_drawparams.draw_boundingbox);
+        nk_checkbox_label(ctx, "Draw normals", &_drawparams.drawnormals);
 
-        _drawparams.start_color = nk_color_to_xray_color(cs);
+        if (_drawparams.drawnormals) {
+          nk_label(ctx, "Normal color start", NK_TEXT_ALIGN_LEFT);
+          const auto cs = nk_color_picker(
+            ctx, xray_color_to_nk_color(_drawparams.start_color), NK_RGBA);
 
-        nk_label(ctx, "Normal color end", NK_TEXT_ALIGN_LEFT);
-        const auto ce = nk_color_picker(
-          ctx, xray_color_to_nk_color(_drawparams.end_color), NK_RGBA);
+          _drawparams.start_color = nk_color_to_xray_color(cs);
 
-        _drawparams.end_color = nk_color_to_xray_color(ce);
+          nk_label(ctx, "Normal color end", NK_TEXT_ALIGN_LEFT);
+          const auto ce = nk_color_picker(
+            ctx, xray_color_to_nk_color(_drawparams.end_color), NK_RGBA);
 
-        nk_label(
-          ctx,
-          fmt::format("Normal length {}", _drawparams.normal_len).c_str(),
-          NK_TEXT_ALIGN_LEFT);
+          _drawparams.end_color = nk_color_to_xray_color(ce);
 
-        _drawparams.normal_len = nk_propertyf(ctx,
-                                              "Normal length",
-                                              0.1f,
-                                              _drawparams.normal_len,
-                                              1.0f,
-                                              0.05f,
-                                              0.05f);
+          nk_label(
+            ctx,
+            fmt::format("Normal length {}", _drawparams.normal_len).c_str(),
+            NK_TEXT_ALIGN_LEFT);
+
+          _drawparams.normal_len = nk_propertyf(ctx,
+                                                "Normal length",
+                                                0.1f,
+                                                _drawparams.normal_len,
+                                                1.0f,
+                                                0.05f,
+                                                0.05f);
+        }
+        nk_group_end(ctx);
       }
     }
   }

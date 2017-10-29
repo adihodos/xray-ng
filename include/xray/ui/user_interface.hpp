@@ -46,6 +46,9 @@
 
 #include <cassert>
 #include <cstdint>
+#include <imgui/IconsFontAwesome.h>
+#include <string>
+#include <vector>
 
 struct ImGuiIO;
 struct ImFont;
@@ -58,10 +61,15 @@ namespace ui {
 
 struct window_event;
 
+struct font_info {
+  std::string path;
+  float       pixel_size;
+};
+
 class imgui_backend {
 public:
-  static constexpr uint32_t VERTEX_BUFFER_SIZE = 1024 * 256;
-  static constexpr uint32_t INDEX_BUFFER_SIZE  = 1024 * 64;
+  static constexpr uint32_t VERTEX_BUFFER_SIZE = 1024 * 512;
+  static constexpr uint32_t INDEX_BUFFER_SIZE  = 1024 * 128;
 
 #if defined(XRAY_RENDERER_DIRECTX)
 
@@ -71,25 +79,35 @@ public:
   imgui_backend() noexcept;
 #endif
 
+  imgui_backend(const font_info* fonts, const size_t num_fonts);
+
   ~imgui_backend() noexcept;
 
+  bool input_event(const window_event& evt);
+  bool wants_input() const noexcept;
+
+  void new_frame(const int32_t wnd_width, const int32_t wnd_height);
+  void tick(const float delta);
   void draw();
 
-  bool input_event(const window_event& evt);
-
-  void tick(const float delta);
-  bool wants_input() const noexcept;
-  void new_frame(const int32_t wnd_width, const int32_t wnd_height);
-
-  ImFont* small_font() const noexcept { return _small_font; }
-  ImFont* medium_font() const noexcept { return _medium_font; }
+  void set_global_font(const char* name);
+  void push_font(const char* name);
+  void pop_font();
 
 private:
-  void setup_key_mappings();
+  struct loaded_font {
+    std::string name;
+    float       pixel_size;
+    ImFont*     font;
+  };
 
-private:
-#if defined(XRAY_RENDERER_DIRECTX)
+  loaded_font* find_font(const char* name = nullptr);
+  void         init(const font_info* fonts, const size_t num_fonts);
+  void         setup_key_mappings();
+
   struct render_context {
+    std::vector<loaded_font> fonts;
+#if defined(XRAY_RENDERER_DIRECTX)
     ID3D11Device*                                 device;
     ID3D11DeviceContext*                          context;
     xray::base::com_ptr<ID3D11Buffer>             vertex_buffer;
@@ -102,11 +120,7 @@ private:
     xray::base::com_ptr<ID3D11BlendState>         blend_state;
     xray::base::com_ptr<ID3D11RasterizerState>    raster_state;
     xray::base::com_ptr<ID3D11DepthStencilState>  depth_stencil_state;
-    bool                                          valid{false};
-  } _rcon;
-
 #else
-  struct render_context_gl {
     xray::rendering::scoped_buffer       _vertex_buffer;
     xray::rendering::scoped_buffer       _index_buffer;
     xray::rendering::scoped_vertex_array _vertex_arr;
@@ -115,13 +129,14 @@ private:
     xray::rendering::program_pipeline    _pipeline;
     xray::rendering::scoped_texture      _font_texture;
     xray::rendering::scoped_sampler      _font_sampler;
-    bool                                 _valid{false};
+#endif
+    bool _valid{false};
   } _rendercontext;
 
-#endif
   ImGuiIO* _gui;
-  ImFont*  _small_font;
-  ImFont*  _medium_font;
+
+  //  ImFont*  _small_font;
+  //  ImFont*  _medium_font;
 
 private:
   XRAY_NO_COPY(imgui_backend);

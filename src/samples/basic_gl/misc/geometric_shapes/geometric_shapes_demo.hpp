@@ -34,6 +34,8 @@
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "light_source.hpp"
+#include "xray/base/basic_timer.hpp"
+#include "xray/base/unique_pointer.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/physics/particle.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
@@ -43,6 +45,7 @@
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/scene/fps_camera_controller.hpp"
+#include "xray/ui/user_interface.hpp"
 #include <cstdint>
 #include <vector>
 
@@ -54,13 +57,16 @@ public:
 
   ~geometric_shapes_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
   virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
+  virtual void poll_start(const xray::ui::poll_start_event&) override;
+  virtual void poll_end(const xray::ui::poll_end_event&) override;
+  virtual void loop_event(const xray::ui::window_loop_event&) override;
 
 private:
   void init();
+  void update(const float delta);
+  void draw();
+  void draw_ui(const int32_t wnd_width, const int32_t wnd_height);
 
 private:
   struct gpu_instance_info {
@@ -116,6 +122,9 @@ private:
       &camera, "config/misc/geometric_shapes/cam_controller_spherical.conf"};
     light_source lights[4];
   } _scene;
+
+  xray::base::unique_pointer<xray::ui::imgui_backend> _ui;
+  xray::base::timer_highp                             _timer;
 
 private:
   XRAY_NO_COPY(geometric_shapes_demo);

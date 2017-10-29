@@ -20,7 +20,10 @@
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include <algorithm>
 #include <gsl.h>
+#include <imgui/imgui.h>
 #include <opengl/opengl.hpp>
+#include <platformstl/filesystem/path.hpp>
+#include <platformstl/filesystem/readdir_sequence.hpp>
 #include <vector>
 
 using namespace xray::base;
@@ -51,7 +54,8 @@ struct vertex_pnc {
 };
 
 app::geometric_shapes_demo::geometric_shapes_demo(
-  const init_context_t* init_ctx) {
+  const init_context_t* init_ctx)
+  : app::demo_base{init_ctx} {
 
   {
     _scene.lights[0].position = vec3f{0.0f, -1.0f, 0.0f};
@@ -241,12 +245,28 @@ app::geometric_shapes_demo::geometric_shapes_demo(
   gl::Enable(gl::DEPTH_TEST);
   gl::Enable(gl::CULL_FACE);
 
+  {
+    platformstl::readdir_sequence rs{xr_app_config->font_root().c_str(),
+                                     platformstl::readdir_sequence::files |
+                                       platformstl::readdir_sequence::fullPath};
+
+    vector<font_info> fonts_to_load;
+    transform(
+      begin(rs), end(rs), back_inserter(fonts_to_load), [](const char* ffile) {
+        return font_info{ffile, 14.0f};
+      });
+
+    _ui = xray::base::make_unique<imgui_backend>(fonts_to_load.data(),
+                                                 fonts_to_load.size());
+    _ui->set_global_font("Babylon5");
+  }
+
   _valid = true;
 }
 
 app::geometric_shapes_demo::~geometric_shapes_demo() {}
 
-void app::geometric_shapes_demo::draw(const xray::rendering::draw_context_t&) {
+void app::geometric_shapes_demo::draw() {
   gl::ClearNamedFramebufferfv(
     0, gl::COLOR, 0, color_palette::web::black.components);
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
@@ -352,7 +372,7 @@ void app::geometric_shapes_demo::update(const float delta_ms) {
   uint32_t idx{};
   for_each(begin(_obj_instances.instances),
            end(_obj_instances.instances),
-           [inst = &_obj_instances, &wind_direction, &idx](particle& p) {
+           [ inst = &_obj_instances, &wind_direction, &idx ](particle & p) {
 
              p.compute_loads(object_instances::drag_coefficient,
                              wind_direction,
@@ -374,6 +394,9 @@ void app::geometric_shapes_demo::update(const float delta_ms) {
              //               p.position = inst->pgraphics[idx++].starting_pos;
              //             }
            });
+
+  _ui->tick(delta_ms);
+  _scene.cam_control.update();
 }
 
 void app::geometric_shapes_demo::event_handler(
@@ -391,10 +414,77 @@ void app::geometric_shapes_demo::event_handler(
   }
 
   if (is_input_event(evt)) {
-    _scene.cam_control.input_event(evt);
-    _scene.cam_control.update();
+    if (evt.type == event_type::key &&
+        evt.event.key.keycode == key_sym::e::escape) {
+      _quit_receiver();
+      return;
+    }
+
+    _ui->input_event(evt);
+    if (!_ui->wants_input()) {
+      _scene.cam_control.input_event(evt);
+    }
     return;
   }
 }
 
-void app::geometric_shapes_demo::compose_ui() {}
+void app::geometric_shapes_demo::poll_start(const xray::ui::poll_start_event&) {
+}
+
+void app::geometric_shapes_demo::poll_end(const xray::ui::poll_end_event&) {}
+
+void app::geometric_shapes_demo::loop_event(
+  const xray::ui::window_loop_event& wle) {
+  _timer.update_and_reset();
+  update(_timer.elapsed_millis());
+  draw();
+  draw_ui(wle.wnd_width, wle.wnd_height);
+}
+
+void app::geometric_shapes_demo::draw_ui(const int32_t wnd_width,
+                                         const int32_t wnd_height) {
+  _ui->new_frame(wnd_width, wnd_height);
+
+  ImGui::SetNextWindowPos({0.0f, 0.0f}, ImGuiCond_Appearing);
+  //  ImGui::ShowTestWindow();
+
+  if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_ShowBorders)) {
+    _ui->push_font("kenvector_future");
+    if (ImGui::CollapsingHeader("Lights setup",
+                                ImGuiTreeNodeFlags_DefaultOpen |
+                                  ImGuiTreeNodeFlags_Framed)) {
+      for (size_t i = 0; i < XR_COUNTOF(_scene.lights); ++i) {
+        ImGui::PushID(static_cast<int32_t>(i));
+        ImGui::DragFloat3("Direction",
+                          _scene.lights[i].position.components,
+                          1.0f,
+                          -100.0f,
+                          +100.0f,
+                          "%3.3f",
+                          1.0f);
+        ImGui::DragFloat3("Diffuse color",
+                          _scene.lights[i].kd.components,
+                          0.1f,
+                          0.0f,
+                          1.0f,
+                          "%3.3f");
+
+        ImGui::Text("Tra la la in pusca mea");
+        ImGui::Separator();
+        ImGui::PopID();
+      }
+    }
+
+    if (ImGui::CollapsingHeader("Particle setup",
+                                ImGuiTreeNodeFlags_DefaultOpen |
+                                  ImGuiTreeNodeFlags_Framed)) {
+      ImGui::Button("Tra lala ", {64.0f, 24.0f});
+      ImGui::Button("Tra lala #1 ", {64.0f, 24.0f});
+      ImGui::Button("Tra lala #2 ", {64.0f, 24.0f});
+    }
+    _ui->pop_font();
+  }
+
+  ImGui::End();
+  _ui->draw();
+}

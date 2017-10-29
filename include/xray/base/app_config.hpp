@@ -80,6 +80,8 @@ public:
     return paths_.engine_ini_file;
   }
 
+  const path_type& font_root() const noexcept { return paths_.fonts_path; }
+
   static app_config* instance() noexcept { return _unique_instance; }
 
 private:

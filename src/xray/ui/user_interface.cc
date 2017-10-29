@@ -1,4 +1,5 @@
 #include "xray/ui/user_interface.hpp"
+#include "xray/base/app_config.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/pod_zero.hpp"
 #include "xray/math/objects/rectangle.hpp"
@@ -12,17 +13,18 @@
 #include "xray/rendering/opengl/shader_base.hpp"
 #include <opengl/opengl.hpp>
 #endif
-#include "xray/base/app_config.hpp"
-#include "xray/base/shims/attribute/basic_path.hpp"
 #include "xray/rendering/draw_context.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
+#include <algorithm>
 #include <imgui/imgui.h>
+#include <platformstl/filesystem/path.hpp>
 
 using namespace xray::base;
 using namespace xray::rendering;
 using namespace xray::ui;
 using namespace xray::math;
+using namespace std;
 
 struct font_img_data {
   uint8_t* pixels{};
@@ -30,6 +32,16 @@ struct font_img_data {
   int32_t  height{};
   int32_t  bpp{};
 };
+
+xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
+  init(nullptr, 0);
+}
+
+xray::ui::imgui_backend::imgui_backend(const font_info* fonts,
+                                       const size_t     num_fonts)
+  : _gui{&ImGui::GetIO()} {
+  init(fonts, num_fonts);
+}
 
 #if defined(XRAY_RENDERER_OPENGL)
 static constexpr const char* IMGUI_VERTEX_SHADER =
@@ -301,7 +313,8 @@ xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
 }
 #else
 
-xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
+void xray::ui::imgui_backend::init(const font_info* fonts,
+                                   const size_t     num_fonts) {
   _rendercontext._vertex_buffer = []() {
     GLuint vbuff{};
     gl::CreateBuffers(1, &vbuff);
@@ -327,9 +340,10 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
   if (!_rendercontext._index_buffer)
     return;
 
-  _rendercontext._vertex_arr = [vbh = raw_handle(_rendercontext._vertex_buffer),
-                                ibh =
-                                  raw_handle(_rendercontext._index_buffer)]() {
+  _rendercontext._vertex_arr = [
+    vbh = raw_handle(_rendercontext._vertex_buffer),
+    ibh = raw_handle(_rendercontext._index_buffer)
+  ]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
 
@@ -356,7 +370,8 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
     gl::VertexArrayAttribBinding(vao, 2, 0);
 
     return vao;
-  }();
+  }
+  ();
 
   _rendercontext._vs = gpu_program_builder{}
                          .add_string(IMGUI_VERTEX_SHADER)
@@ -386,18 +401,66 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
     .use_fragment_program(_rendercontext._fs);
 
   {
-    _small_font = _gui->Fonts->AddFontDefault();
+    //
+    // Default fonts that always get loaded (Proggy and FontAwesome)
+    auto default_font = _gui->Fonts->AddFontDefault();
+    _rendercontext.fonts.push_back({"Default", 13.0f, default_font});
 
     ImFontConfig config;
-    config.OversampleH         = 3;
-    config.OversampleV         = 1;
-    config.GlyphExtraSpacing.x = 1.0f;
+    config.MergeMode                   = true;
+    static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
+    auto                 font_awesome  = _gui->Fonts->AddFontFromFileTTF(
+      app_config::instance()
+        ->font_path("fontawesome/fontawesome-webfont.ttf")
+        .c_str(),
+      13.0f,
+      &config,
+      icon_ranges);
+    assert(font_awesome != nullptr);
+    _rendercontext.fonts.push_back({"fontawesome", 13.0f, font_awesome});
 
-    const auto font_path =
-      app_config::instance()->font_path("PxPlus_VGA_SquarePx.ttf");
-    _medium_font =
-      _gui->Fonts->AddFontFromFileTTF(c_str_ptr(font_path), 18, &config);
-    assert(_medium_font != nullptr);
+    for_each(fonts, fonts + num_fonts, [this](const font_info& fi) {
+      ImFontConfig config;
+      config.OversampleH         = 3;
+      config.OversampleV         = 1;
+      config.GlyphExtraSpacing.x = 1.0f;
+
+      auto fnt =
+        _gui->Fonts->AddFontFromFileTTF(fi.path.c_str(),
+                                        fi.pixel_size,
+                                        &config,
+                                        _gui->Fonts->GetGlyphRangesDefault());
+
+      if (!fnt) {
+        XR_DBG_MSG("Failed to load font {}", fi.path);
+        return;
+      }
+
+      platformstl::path_a fpath{fi.path};
+
+      _rendercontext.fonts.push_back(
+        {fpath.pop_ext().get_file(), fi.pixel_size, fnt});
+    });
+
+    sort(begin(_rendercontext.fonts),
+         end(_rendercontext.fonts),
+         [](const loaded_font& f0, const loaded_font& f1) {
+           if (f0.name < f1.name) {
+             return true;
+           }
+
+           if (f0.name > f1.name) {
+             return false;
+           }
+
+           return f0.pixel_size <= f1.pixel_size;
+         });
+
+    for_each(begin(_rendercontext.fonts),
+             end(_rendercontext.fonts),
+             [](const loaded_font& fi) {
+               XR_DBG_MSG("Loaded font {}, size {}", fi.name, fi.pixel_size);
+             });
   }
 
   _rendercontext._font_texture = [g = _gui]() {
@@ -420,7 +483,8 @@ xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
                           font_img.pixels);
 
     return texh;
-  }();
+  }
+  ();
 
   _gui->Fonts->TexID =
     reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
@@ -759,3 +823,38 @@ void xray::ui::imgui_backend::setup_key_mappings() {
   _gui->KeyMap[ImGuiKey_Z]         = 'Z';
   _gui->RenderDrawListsFn          = nullptr;
 }
+
+xray::ui::imgui_backend::loaded_font*
+xray::ui::imgui_backend::find_font(const char* name) {
+  if (name == nullptr) {
+    name = "Default";
+  }
+
+  auto fentry =
+    find_if(begin(_rendercontext.fonts),
+            end(_rendercontext.fonts),
+            [name](const loaded_font& fi) { return fi.name == name; });
+
+  if (fentry == end(_rendercontext.fonts)) {
+    XR_DBG_MSG("Trying to set non existent font {}", name);
+    return nullptr;
+  }
+
+  return &*fentry;
+}
+
+void xray::ui::imgui_backend::set_global_font(const char* name) {
+  auto fnt_entry = find_font(name);
+  if (fnt_entry) {
+    _gui->FontDefault = fnt_entry->font;
+  }
+}
+
+void xray::ui::imgui_backend::push_font(const char* name) {
+  auto fnt_entry = find_font(name);
+  if (fnt_entry) {
+    ImGui::PushFont(fnt_entry->font);
+  }
+}
+
+void xray::ui::imgui_backend::pop_font() { ImGui::PopFont(); }
