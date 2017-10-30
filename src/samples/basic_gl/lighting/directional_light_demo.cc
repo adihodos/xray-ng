@@ -1,4 +1,5 @@
 #include "lighting/directional_light_demo.hpp"
+#include "init_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/math/constants.hpp"
@@ -34,7 +35,21 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-app::directional_light_demo::directional_light_demo() { init(); }
+app::directional_light_demo::directional_light_demo(
+  const app::init_context_t& init_ctx)
+  : app::demo_base{init_ctx} {
+
+  init();
+
+  _scene.cam.set_projection(projections_rh::perspective_symmetric(
+    static_cast<float>(init_ctx.surface_width) /
+      static_cast<float>(init_ctx.surface_height),
+    radians(70.0f),
+    0.1f,
+    100.0f));
+
+  _ui->style.set_font("Roboto-Regular");
+}
 
 app::directional_light_demo::~directional_light_demo() {}
 
@@ -191,11 +206,19 @@ void app::directional_light_demo::init() {
 
   gl::Enable(gl::DEPTH_TEST);
 
+  _timer.start();
   _valid = true;
 }
 
-void app::directional_light_demo::draw(
-  const xray::rendering::draw_context_t& draw_ctx) {
+void app::directional_light_demo::loop_event(
+  const xray::ui::window_loop_event& wle) {
+  _timer.update_and_reset();
+  update(_timer.elapsed_millis());
+  draw();
+  draw_ui(wle.wnd_width, wle.wnd_height);
+}
+
+void app::directional_light_demo::draw() {
   assert(valid());
 
   gl::ClearNamedFramebufferfv(
@@ -216,9 +239,9 @@ void app::directional_light_demo::draw(
   gl::BindVertexArray(ripple->mesh->vertex_array());
 
   vs_ubo.world_view_proj =
-    draw_ctx.proj_view_matrix * R4::translate(ripple->pos);
-  vs_ubo.view    = draw_ctx.view_matrix;
-  vs_ubo.normals = draw_ctx.view_matrix;
+    _scene.cam.projection_view() * R4::translate(ripple->pos);
+  vs_ubo.view    = _scene.cam.projection_view();
+  vs_ubo.normals = _scene.cam.projection_view();
 
   _vs.set_uniform_block("TransformMatrices", vs_ubo);
   _fs.set_uniform("DIFFUSE_MAP", 0);
@@ -232,7 +255,7 @@ void app::directional_light_demo::draw(
   scene_lights.lightscount = 1;
   scene_lights.lights[0]   = _lights[0];
   scene_lights.lights[0].direction =
-    normalize(mul_vec(draw_ctx.view_matrix, _demo_opts.lightdir));
+    normalize(mul_vec(_scene.cam.view(), _demo_opts.lightdir));
   scene_lights.specular_intensity = _demo_opts.specular_intensity;
 
   _fs.set_uniform_block("LightData", scene_lights);
@@ -256,24 +279,39 @@ void app::directional_light_demo::draw(
   const auto teapot_world =
     R4::translate(teapot->pos) * teapot_rot * mat4f{R3::scale(teapot->scale)};
 
-  vs_ubo.world_view_proj = draw_ctx.proj_view_matrix * teapot_world;
-  vs_ubo.normals         = draw_ctx.view_matrix * teapot_rot;
+  vs_ubo.world_view_proj = _scene.cam.projection_view() * teapot_world;
+  vs_ubo.normals         = _scene.cam.view() * teapot_rot;
 
   _vs.set_uniform_block("TransformMatrices", vs_ubo);
   _vs.flush_uniforms();
 
   gl::Enable(gl::CULL_FACE);
-  scoped_winding_order_setting faces_cw{gl::CW};
 
   gl::DrawElements(
     gl::TRIANGLES, teapot->mesh->index_count(), gl::UNSIGNED_INT, nullptr);
 
   if (_demo_opts.drawnormals) {
-    _drawnormals.draw(draw_ctx,
+    const draw_context_t dc{0u,
+                            0u,
+                            _scene.cam.view(),
+                            _scene.cam.projection(),
+                            _scene.cam.projection_view(),
+                            &_scene.cam,
+                            nullptr};
+
+    _drawnormals.draw(dc,
                       *teapot->mesh,
                       teapot_world,
                       color_palette::web::green,
-                      color_palette::web::green);
+                      color_palette::web::green,
+                      2.0f);
+
+    _drawnormals.draw(dc,
+                      *ripple->mesh,
+                      R4::translate(ripple->pos),
+                      color_palette::web::cadet_blue,
+                      color_palette::web::cadet_blue,
+                      2.0f);
   }
 }
 
@@ -302,33 +340,104 @@ void app::directional_light_demo::update(const float /* delta_ms */) {
       teapot->rotation.z -= two_pi<float>;
     }
   }
+
+  _scene.cam_control.update();
 }
 
 void app::directional_light_demo::event_handler(
   const xray::ui::window_event& evt) {
-  if (evt.type == event_type::key) {
-    if (evt.event.key.keycode == key_sym::e::backspace) {
-      _demo_opts = decltype(_demo_opts){};
+
+  if (is_input_event(evt)) {
+    _ui->ui_event(evt);
+    if (_ui->input.wants()) {
       return;
     }
+
+    if (evt.type == event_type::key) {
+      if (evt.event.key.keycode == key_sym::e::backspace) {
+        _demo_opts = decltype(_demo_opts){};
+        return;
+      }
+
+      if (evt.event.key.keycode == key_sym::e::escape) {
+        _quit_receiver();
+        return;
+      }
+    }
+
+    _scene.cam_control.input_event(evt);
+  }
+
+  if (evt.type == event_type::configure) {
+    _scene.cam.set_projection(projections_rh::perspective_symmetric(
+      static_cast<float>(evt.event.configure.width) /
+        static_cast<float>(evt.event.configure.height),
+      radians(70.0f),
+      0.1f,
+      100.0f));
   }
 }
 
-void app::directional_light_demo::compose_ui() {
-  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
-  ImGui::Begin("Options");
+void app::directional_light_demo::draw_ui(const int32_t surface_w,
+                                          const int32_t surface_h) {
+  if (_ui->window.begin("Options",
+                        0.0f,
+                        0.0f,
+                        400.0f,
+                        300.0f,
+                        NK_WINDOW_SCALABLE | NK_WINDOW_BORDER |
+                          NK_WINDOW_MINIMIZABLE)) {
 
-  ImGui::Checkbox("Rotate X", &_demo_opts.rotate_x);
-  ImGui::Checkbox("Rotate Y", &_demo_opts.rotate_y);
-  ImGui::Checkbox("Rotate Z", &_demo_opts.rotate_z);
+    _ui->layout.row_dynamic(25.0f, 1);
+    _demo_opts.rotate_x =
+      _ui->checkbox.text("Rotate X", _demo_opts.rotate_x) != 0;
+    _demo_opts.rotate_y =
+      _ui->checkbox.text("Rotate Y", _demo_opts.rotate_y) != 0;
+    _demo_opts.rotate_z =
+      _ui->checkbox.text("Rotate Z", _demo_opts.rotate_z) != 0;
 
-  ImGui::SliderFloat("Rotation speed", &_demo_opts.rotate_speed, 0.001f, 0.5f);
-  ImGui::SliderFloat3(
-    "Light direction", _demo_opts.lightdir.components, -1.0f, +1.0f);
-  ImGui::SliderFloat(
-    "Specular intensity", &_demo_opts.specular_intensity, 1.0f, 256.0f);
+    _ui->text.labelf(NK_TEXT_ALIGN_LEFT,
+                     "Rotation speed : {} rad/sec",
+                     _demo_opts.rotate_speed);
+    _ui->slider.float_(0.001f, &_demo_opts.rotate_speed, 0.5f, 0.01f);
 
-  ImGui::Checkbox("Draw surface normals", &_demo_opts.drawnormals);
+    _ui->text.labelf(NK_TEXT_ALIGN_LEFT,
+                     "Specular intensity : {}",
+                     _demo_opts.specular_intensity);
 
-  ImGui::End();
+    _ui->slider.float_(1.0f, &_demo_opts.specular_intensity, 256.0f, 1.0f);
+
+    _demo_opts.drawnormals =
+      _ui->checkbox.label("Draw surface normals", _demo_opts.drawnormals) != 0;
+
+    _ui->text.label("Light direction", NK_TEXT_ALIGN_LEFT);
+    _ui->layout.row_dynamic(25.0f, 3);
+    _ui->text.label("X", NK_TEXT_ALIGN_CENTERED);
+    _ui->text.label("Y", NK_TEXT_ALIGN_CENTERED);
+    _ui->text.label("Z", NK_TEXT_ALIGN_CENTERED);
+    _ui->slider.float_(0.0f, &_demo_opts.lightdir.x, 10.0f, 0.1f);
+    _ui->slider.float_(0.0f, &_demo_opts.lightdir.y, 10.0f, 0.1f);
+    _ui->slider.float_(0.0f, &_demo_opts.lightdir.z, 10.0f, 0.1f);
+  }
+
+  _ui->window.end();
+
+  //  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
+  //  ImGui::Begin("Options");
+
+  //  ImGui::Checkbox("Rotate X", &_demo_opts.rotate_x);
+  //  ImGui::Checkbox("Rotate Y", &_demo_opts.rotate_y);
+  //  ImGui::Checkbox("Rotate Z", &_demo_opts.rotate_z);
+
+  //  ImGui::SliderFloat("Rotation speed", &_demo_opts.rotate_speed, 0.001f,
+  //  0.5f); ImGui::SliderFloat3(
+  //    "Light direction", _demo_opts.lightdir.components, -1.0f, +1.0f);
+  //  ImGui::SliderFloat(
+  //    "Specular intensity", &_demo_opts.specular_intensity, 1.0f, 256.0f);
+
+  //  ImGui::Checkbox("Draw surface normals", &_demo_opts.drawnormals);
+
+  //  ImGui::End();
+
+  _ui->render(surface_w, surface_h);
 }

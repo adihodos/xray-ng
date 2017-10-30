@@ -52,9 +52,8 @@ struct nk_vertex {
   nk_byte col[4];
 };
 
-void xray::ui::user_interface::init(const char** fonts,
-                                    const size_t num_fonts,
-                                    const float  pixel_size) {
+void xray::ui::user_interface::init(
+  const xray::ui::font_load_info* fonts_to_load, const size_t num_fonts) {
   _renderer.last_left_click = std::chrono::high_resolution_clock::now();
 
   nk_buffer_init_default(&_renderer.cmds);
@@ -65,37 +64,38 @@ void xray::ui::user_interface::init(const char** fonts,
   _renderer.fonts["default"] =
     nk_font_atlas_add_default(&_renderer.font_atlas, 13.0f, nullptr);
 
-  if (fonts) {
-    const auto font_span =
-      gsl::span<const char*>{fonts, fonts + static_cast<ptrdiff_t>(num_fonts)};
+  if (fonts_to_load) {
+    const auto font_span = gsl::span<const font_load_info>{
+      fonts_to_load, fonts_to_load + static_cast<ptrdiff_t>(num_fonts)};
 
-    for_each(begin(font_span),
-             end(font_span),
-             [this, pixel_size](const char* font_file) {
-               try {
-                 platformstl::memory_mapped_file mapped_font_file{font_file};
-                 const auto font_cfg = nk_font_config(pixel_size);
-                 auto       font     = nk_font_atlas_add_from_memory(
-                   &_renderer.font_atlas,
-                   const_cast<void*>(mapped_font_file.memory()),
-                   mapped_font_file.size(),
-                   pixel_size,
-                   &font_cfg);
+    for_each(
+      begin(font_span), end(font_span), [this](const font_load_info& fli) {
+        try {
+          platformstl::memory_mapped_file mapped_font_file{
+            fli.font_file_path.c_str()};
 
-                 if (!font) {
-                   XR_DBG_MSG("NK failed to parse font {}", font_file);
-                   return;
-                 }
+          const auto font_cfg = nk_font_config(fli.pixel_size);
+          auto       font     = nk_font_atlas_add_from_memory(
+            &_renderer.font_atlas,
+            const_cast<void*>(mapped_font_file.memory()),
+            mapped_font_file.size(),
+            fli.pixel_size,
+            &font_cfg);
 
-                 platformstl::path_a fpath{font_file};
-                 fpath.pop_ext();
-                 XR_DBG_MSG("Loaded font {}", fpath.get_file());
+          if (!font) {
+            XR_DBG_MSG("NK failed to parse font {}", fli.font_file_path);
+            return;
+          }
 
-                 _renderer.fonts[fpath.get_file()] = font;
-               } catch (const std::exception&) {
-                 return;
-               }
-             });
+          platformstl::path_a fpath{fli.font_file_path};
+          fpath.pop_ext();
+          XR_DBG_MSG("Loaded font {}", fpath.get_file());
+
+          _renderer.fonts[fpath.get_file()] = font;
+        } catch (const std::exception&) {
+          return;
+        }
+      });
   }
 
   vec2i32 atlas_size{};
@@ -510,12 +510,11 @@ void xray::ui::user_interface::render(const int32_t surface_width,
   }
 }
 
-void xray::ui::user_interface::set_font(const char* name) noexcept {
+nk_font* xray::ui::user_interface::find_font(const char* name) noexcept {
   auto font_entry = _renderer.fonts.find(name);
   if (font_entry == std::end(_renderer.fonts)) {
     XR_DBG_MSG("Trying to set non existent font {}", name);
-    return;
   }
 
-  nk_style_set_font(&_renderer.ctx, &font_entry->second->handle);
+  return font_entry->second;
 }

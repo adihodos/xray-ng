@@ -32,6 +32,7 @@
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
+#include "xray/base/basic_timer.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/geometry/surface_normal_visualizer.hpp"
@@ -39,6 +40,8 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/scene/camera.hpp"
+#include "xray/scene/camera_controller_spherical_coords.hpp"
 #include <cstdint>
 
 namespace app {
@@ -64,19 +67,22 @@ struct graphics_object {
 
 class directional_light_demo : public demo_base {
 public:
-  directional_light_demo();
+  directional_light_demo(const init_context_t& init_ctx);
 
   ~directional_light_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
   virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
+
+  virtual void loop_event(const xray::ui::window_loop_event&) override;
 
 private:
   void init();
+  void draw();
+  void draw_ui(const int32_t surface_w, const int32_t surface_h);
+  void update(const float delta_ms);
 
 private:
+  xray::base::timer_highp                    _timer;
   xray::rendering::surface_normal_visualizer _drawnormals{};
   xray::rendering::basic_mesh                _meshes[2];
   graphics_object                            _objects[2];
@@ -96,6 +102,11 @@ private:
     bool              drawnormals{false};
     float             rotate_speed{0.01f};
   } _demo_opts;
+
+  struct {
+    xray::scene::camera                             cam;
+    xray::scene::camera_controller_spherical_coords cam_control{&cam};
+  } _scene;
 
 private:
   XRAY_NO_COPY(directional_light_demo);

@@ -41,8 +41,8 @@ class app_config;
 namespace app {
 
 struct init_context_t {
-  uint32_t                          surface_width;
-  uint32_t                          surface_height;
+  int32_t                           surface_width;
+  int32_t                           surface_height;
   xray::base::app_config*           cfg;
   xray::base::fast_delegate<void()> quit_receiver;
 };

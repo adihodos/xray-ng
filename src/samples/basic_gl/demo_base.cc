@@ -28,12 +28,47 @@
 
 #include "demo_base.hpp"
 #include "init_context.hpp"
+#include "xray/base/app_config.hpp"
+#include "xray/base/debug_output.hpp"
+#include <algorithm>
+#include <platformstl/filesystem/filesystem_traits.hpp>
+#include <platformstl/filesystem/readdir_sequence.hpp>
+#include <vector>
 
-app::demo_base::demo_base(const init_context_t* init_ctx)
-  : _quit_receiver{init_ctx->quit_receiver} {}
+using namespace std;
+
+void build_fonts_list(const char*                            root_path,
+                      std::vector<xray::ui::font_load_info>* fli) {
+  platformstl::readdir_sequence rddir{
+    root_path,
+    platformstl::readdir_sequence::fullPath |
+      platformstl::readdir_sequence::directories |
+      platformstl::readdir_sequence::files};
+
+  for_each(begin(rddir), end(rddir), [fli](const char* dir_entry) {
+    if (platformstl::filesystem_traits<char>::is_directory(dir_entry)) {
+      build_fonts_list(dir_entry, fli);
+      return;
+    }
+
+    fli->push_back({dir_entry, 18.0f});
+  });
+}
+
+app::demo_base::demo_base(const init_context_t& init_ctx)
+  : _quit_receiver{init_ctx.quit_receiver} {
+  vector<xray::ui::font_load_info> fli;
+  build_fonts_list(init_ctx.cfg->font_root().c_str(), &fli);
+  _ui =
+    xray::base::make_unique<xray::ui::user_interface>(fli.data(), fli.size());
+}
 
 app::demo_base::~demo_base() {}
 
-void app::demo_base::poll_start(const xray::ui::poll_start_event&) {}
+void app::demo_base::poll_start(const xray::ui::poll_start_event&) {
+  _ui->input.begin();
+}
 
-void app::demo_base::poll_end(const xray::ui::poll_end_event&) {}
+void app::demo_base::poll_end(const xray::ui::poll_end_event&) {
+  _ui->input.end();
+}

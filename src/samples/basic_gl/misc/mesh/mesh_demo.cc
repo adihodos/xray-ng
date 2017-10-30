@@ -54,11 +54,11 @@ struct mesh_load_info {
 
 };
 
-app::mesh_demo::mesh_demo(const init_context_t* init_ctx)
+app::mesh_demo::mesh_demo(const init_context_t& init_ctx)
   : demo_base{init_ctx} {
   _camera.set_projection(projections_rh::perspective_symmetric(
-    static_cast<float>(init_ctx->surface_width) /
-      static_cast<float>(init_ctx->surface_height),
+    static_cast<float>(init_ctx.surface_width) /
+      static_cast<float>(init_ctx.surface_height),
     radians(70.0f),
     0.1f,
     100.0f));
@@ -420,17 +420,17 @@ void app::mesh_demo::event_handler(const xray::ui::window_event& evt) {
   }
 
   _ui.ui_event(evt);
-  if (!_ui.wants_input()) {
+  if (!_ui.input.wants()) {
     _camcontrol.input_event(evt);
   }
 }
 
 void app::mesh_demo::poll_start(const xray::ui::poll_start_event&) {
-  _ui.input_begin();
+  _ui.input.begin();
 }
 
 void app::mesh_demo::poll_end(const xray::ui::poll_end_event&) {
-  _ui.input_end();
+  _ui.input.end();
 }
 
 void app::mesh_demo::loop_event(const xray::ui::window_loop_event& wle) {

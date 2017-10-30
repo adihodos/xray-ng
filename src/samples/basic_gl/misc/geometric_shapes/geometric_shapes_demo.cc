@@ -54,7 +54,7 @@ struct vertex_pnc {
 };
 
 app::geometric_shapes_demo::geometric_shapes_demo(
-  const init_context_t* init_ctx)
+  const init_context_t& init_ctx)
   : app::demo_base{init_ctx} {
 
   {
@@ -235,8 +235,8 @@ app::geometric_shapes_demo::geometric_shapes_demo(
     .use_fragment_program(_render.fs);
 
   _scene.camera.set_projection(projections_rh::perspective_symmetric(
-    static_cast<float>(init_ctx->surface_width),
-    static_cast<float>(init_ctx->surface_height),
+    static_cast<float>(init_ctx.surface_width),
+    static_cast<float>(init_ctx.surface_height),
     radians(70.0f),
     0.1f,
     1000.0f));

@@ -71,7 +71,7 @@ private:
 
 class instanced_drawing_demo : public demo_base {
 public:
-  instanced_drawing_demo(const init_context_t* init_ctx);
+  instanced_drawing_demo(const init_context_t& init_ctx);
 
   ~instanced_drawing_demo();
 

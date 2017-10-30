@@ -130,11 +130,10 @@ void app::simple_world::draw(const xray::scene::camera* cam) {
 }
 
 app::instanced_drawing_demo::instanced_drawing_demo(
-  const app::init_context_t* init_ctx)
+  const app::init_context_t& init_ctx)
   : app::demo_base{init_ctx} {
 
-  _window_size = vec2i32{static_cast<int32_t>(init_ctx->surface_width),
-                         static_cast<int32_t>(init_ctx->surface_height)};
+  _window_size = vec2i32{init_ctx.surface_width, init_ctx.surface_height};
 
   //
   // turn off these so we don't get spammed
@@ -146,8 +145,8 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                           gl::FALSE_);
 
   xray::scene::camera_lens_parameters lens_param;
-  lens_param.aspect_ratio = static_cast<float>(init_ctx->surface_width) /
-                            static_cast<float>(init_ctx->surface_height);
+  lens_param.aspect_ratio = static_cast<float>(init_ctx.surface_width) /
+                            static_cast<float>(init_ctx.surface_height);
   lens_param.nearplane = 0.1f;
   lens_param.farplane  = 1000.0f;
   lens_param.fov       = radians(70.0f);
@@ -468,8 +467,8 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   gl::ViewportIndexedf(0,
                        0.0f,
                        0.0f,
-                       static_cast<float>(init_ctx->surface_width),
-                       static_cast<float>(init_ctx->surface_height));
+                       static_cast<float>(init_ctx.surface_width),
+                       static_cast<float>(init_ctx.surface_height));
 
   _valid = true;
   _timer.start();

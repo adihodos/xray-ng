@@ -52,7 +52,7 @@ namespace app {
 
 class mesh_demo : public demo_base {
 public:
-  mesh_demo(const init_context_t* init_ctx);
+  mesh_demo(const init_context_t& init_ctx);
 
   ~mesh_demo();
 

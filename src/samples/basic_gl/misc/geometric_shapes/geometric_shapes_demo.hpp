@@ -53,7 +53,7 @@ namespace app {
 
 class geometric_shapes_demo : public demo_base {
 public:
-  geometric_shapes_demo(const init_context_t* init_ctx);
+  geometric_shapes_demo(const init_context_t& init_ctx);
 
   ~geometric_shapes_demo();
 

@@ -50,6 +50,7 @@
 
 #include "demo_base.hpp"
 #include "init_context.hpp"
+#include "lighting/directional_light_demo.hpp"
 #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 #include "misc/instanced_drawing/instanced_drawing_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
@@ -78,7 +79,7 @@ enum class demo_type : int32_t {
   geometric_shapes
 };
 
-class main_app {
+class main_app : public demo_base {
 public:
   explicit main_app(xray::ui::window* wnd);
 
@@ -95,13 +96,9 @@ private:
   /// \group Event handlers
   /// @{
 
-  void main_loop(const xray::ui::window_loop_event& loop_evt);
+  virtual void loop_event(const xray::ui::window_loop_event& loop_evt) override;
 
-  void window_event_handler(const xray::ui::window_event& wnd_evt);
-
-  void poll_start(const xray::ui::poll_start_event&);
-
-  void poll_end(const xray::ui::poll_end_event&);
+  virtual void event_handler(const xray::ui::window_event& wnd_evt) override;
 
   /// @}
 
@@ -110,7 +107,6 @@ private:
 private:
   xray::ui::window*                     _window;
   xray::base::unique_pointer<demo_base> _demo;
-  xray::ui::user_interface              _app_ui;
   xray::rendering::rgb_color            _clear_color{
     xray::rendering::color_palette::material::orange700};
 
@@ -119,8 +115,14 @@ private:
   XRAY_NO_COPY(main_app);
 };
 
-main_app::main_app(xray::ui::window* wnd) : _window{wnd} {
+main_app::main_app(xray::ui::window* wnd)
+  : demo_base{{wnd->width(),
+               wnd->height(),
+               xr_app_config,
+               make_delegate(*this, &main_app::demo_quit)}}
+  , _window{wnd} {
   hookup_event_delegates();
+  _ui->style.set_font("UbuntuMono-Regular");
 }
 
 void main_app::demo_quit() {
@@ -129,33 +131,20 @@ void main_app::demo_quit() {
 }
 
 void main_app::hookup_event_delegates() {
-  _window->events.loop       = make_delegate(*this, &main_app::main_loop);
+  _window->events.loop       = make_delegate(*this, &main_app::loop_event);
   _window->events.poll_start = make_delegate(*this, &main_app::poll_start);
   _window->events.poll_end   = make_delegate(*this, &main_app::poll_end);
-  _window->events.window =
-    make_delegate(*this, &main_app::window_event_handler);
+  _window->events.window     = make_delegate(*this, &main_app::event_handler);
 }
 
-void main_app::poll_start(const xray::ui::poll_start_event&) {
-  _app_ui.input_begin();
-}
-
-void main_app::poll_end(const xray::ui::poll_end_event&) {
-  _app_ui.input_end();
-}
-
-void main_app::window_event_handler(const xray::ui::window_event& wnd_evt) {
+void main_app::event_handler(const xray::ui::window_event& wnd_evt) {
   if (is_input_event(wnd_evt)) {
-    _app_ui.ui_event(wnd_evt);
+    _ui->ui_event(wnd_evt);
   }
 }
 
-void main_app::main_loop(const xray::ui::window_loop_event& levt) {
+void main_app::loop_event(const xray::ui::window_loop_event& levt) {
   {
-    auto ctx = _app_ui.ctx();
-
-    XRAY_SCOPE_EXIT { nk_end(ctx); };
-
     const char* demo_list[] = {"None",
                                "Colored Circle",
                                "Julia fractal",
@@ -168,23 +157,23 @@ void main_app::main_loop(const xray::ui::window_loop_event& levt) {
                                "Instanced drawing",
                                "Geometric shapes generation"};
 
-    if (nk_begin(ctx,
-                 "Select a demo to run",
-                 nk_rect(0.0f, 0.0f, 300.0f, 300.0f),
-                 NK_WINDOW_BORDER | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE |
-                   NK_WINDOW_MOVABLE)) {
+    if (_ui->window.begin("Select a demo to run",
+                          0.0f,
+                          0.0f,
+                          300.0f,
+                          300.0f,
+                          NK_WINDOW_BORDER | NK_WINDOW_MINIMIZABLE |
+                            NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE)) {
 
-      nk_layout_row_dynamic(ctx, 25.0f, 1);
+      _ui->layout.row_dynamic(25.0f, 1);
 
-      const auto selected_demo =
-        _app_ui.combo.combo(demo_list,
-                            XR_COUNTOF(demo_list),
-                            0,
-                            25,
-                            {_app_ui.widget_width(), 200.0f});
+      const auto selected_demo = _ui->combo.combo(
+        demo_list, XR_COUNTOF(demo_list), 0, 25, {_ui->widget.width(), 200.0f});
 
       run_demo(static_cast<demo_type>(selected_demo));
     }
+
+    _ui->window.end();
   }
 
   const xray::math::vec4f viewport{0.0f,
@@ -195,7 +184,7 @@ void main_app::main_loop(const xray::ui::window_loop_event& levt) {
   gl::ViewportIndexedfv(0, viewport.components);
   gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
-  _app_ui.render(levt.wnd_width, levt.wnd_height);
+  _ui->render(levt.wnd_width, levt.wnd_height);
 }
 
 void main_app::run_demo(const demo_type type) {
@@ -203,8 +192,8 @@ void main_app::run_demo(const demo_type type) {
     [ this, w = _window ](const demo_type dtype)->unique_pointer<demo_base> {
 
     const init_context_t init_context{
-      (uint32_t) w->width(),
-      (uint32_t) w->height(),
+      w->width(),
+      w->height(),
       xr_app_config,
       make_delegate(*this, &main_app::demo_quit)};
 
@@ -223,16 +212,16 @@ void main_app::run_demo(const demo_type type) {
       //      break;
 
     case demo_type::mesh:
-      return xray::base::make_unique<mesh_demo>(&init_context);
+      return xray::base::make_unique<mesh_demo>(init_context);
       break;
 
       //    case demo_type::bufferless_draw:
       //      return xray::base::make_unique<bufferless_draw_demo>();
       //      break;
 
-      //    case demo_type::lighting_directional:
-      //      return xray::base::make_unique<directional_light_demo>();
-      //      break;
+    case demo_type::lighting_directional:
+      return xray::base::make_unique<directional_light_demo>(init_context);
+      break;
 
       //    case demo_type::procedural_city:
       //      return
@@ -240,11 +229,11 @@ void main_app::run_demo(const demo_type type) {
       //      break;
 
     case demo_type::instanced_drawing:
-      return xray::base::make_unique<instanced_drawing_demo>(&init_context);
+      return xray::base::make_unique<instanced_drawing_demo>(init_context);
       break;
 
     case demo_type::geometric_shapes:
-      return xray::base::make_unique<geometric_shapes_demo>(&init_context);
+      return xray::base::make_unique<geometric_shapes_demo>(init_context);
       break;
 
       //    case demo_type::lighting_point:
@@ -396,8 +385,6 @@ int main(int argc, char** argv) {
   using namespace xray::ui;
   using namespace xray::base;
 
-  //  XR_LOGGER_START(argc, argv);
-  //  XR_LOGGER_CONFIG_FILE("config/logging.conf");
   XR_LOG_INFO("Starting up ...");
 
   tbb::task_scheduler_init tbb_initializer{};
