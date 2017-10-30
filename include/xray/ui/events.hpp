@@ -197,7 +197,10 @@ inline bool is_input_event(const window_event& we) noexcept {
 }
 
 struct poll_start_event {};
-struct poll_end_event {};
+struct poll_end_event {
+  int32_t surface_width;
+  int32_t surface_height;
+};
 
 using loop_event_delegate = base::fast_delegate<void(const window_loop_event&)>;
 using window_event_delegate = base::fast_delegate<void(const window_event&)>;

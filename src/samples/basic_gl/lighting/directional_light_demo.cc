@@ -3,7 +3,6 @@
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/math/constants.hpp"
-#include "xray/math/objects/ray3.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/quaternion.hpp"
 #include "xray/math/quaternion_math.hpp"
@@ -18,12 +17,16 @@
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
+#include "xray/ui/user_interface.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <imgui/imgui.h>
 #include <iterator>
 #include <opengl/opengl.hpp>
+#include <platformstl/filesystem/filesystem_traits.hpp>
+#include <platformstl/filesystem/path.hpp>
+#include <platformstl/filesystem/readdir_sequence.hpp>
 #include <span.h>
 #include <vector>
 
@@ -34,6 +37,35 @@ using namespace xray::ui;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
+
+struct model_load_info {
+  std::string name;
+  std::string path;
+};
+
+int32_t sel_idx{};
+
+std::vector<model_load_info> meshes;
+
+void get_mesh_list(const char* root_path, std::vector<model_load_info>* ml) {
+  platformstl::readdir_sequence rddir{
+    root_path,
+    platformstl::readdir_sequence::files |
+      platformstl::readdir_sequence::directories |
+      platformstl::readdir_sequence::fullPath};
+
+  for_each(begin(rddir), end(rddir), [ml](const char* dir_entry) {
+    if (platformstl::filesystem_traits<char>::is_directory(dir_entry)) {
+      get_mesh_list(dir_entry, ml);
+      return;
+    }
+
+    platformstl::path_a p{dir_entry};
+    if (strcmp(p.get_ext(), "bin") == 0) {
+      ml->push_back({p.pop_ext().get_file(), dir_entry});
+    }
+  });
+}
 
 app::directional_light_demo::directional_light_demo(
   const app::init_context_t& init_ctx)
@@ -48,68 +80,52 @@ app::directional_light_demo::directional_light_demo(
     0.1f,
     100.0f));
 
-  _ui->style.set_font("Roboto-Regular");
+  _ui->set_global_font("Roboto-Regular");
 }
 
 app::directional_light_demo::~directional_light_demo() {}
 
 void app::directional_light_demo::init() {
   assert(!valid());
+  get_mesh_list(xr_app_config->model_root().c_str(), &meshes);
+  if (meshes.empty()) {
+    return;
+  }
 
   if (!_drawnormals) {
     return;
   }
-
-  const auto r0 = ray3f32{{0.0f, 0.0f, 0.0f}, vec3f::stdc::unit_y};
-  const auto r1 = ray3f32::construct::from_points({10.0f, 0.0f, 5.0f},
-                                                  {100.0f, -10.0f, 2.0f});
-
-  const auto p = r0.eval(20.0f);
 
   _lights[0].direction = normalize(_demo_opts.lightdir);
   _lights[0].ka        = color_palette::web::black;
   _lights[0].kd        = color_palette::web::white;
   _lights[0].ks        = color_palette::web::orange_red;
 
-  static constexpr auto MODEL_FILE =
-    //"SuperCobra.3ds";
-    //"f4/f4phantom.obj";
-    //"sa23/sa23_aurora.obj";
-    //"cube_rounded.obj";
-    //"stanford/dragon/dragon.obj";
-    "stanford/teapot/teapot.obj";
-  //"stanford/sportscar/sportsCar.obj";
-  //"stanford/sibenik/sibenik.obj";
-  //"stanford/rungholt/rungholt.obj";
-  //"stanford/lost-empire/lost_empire.obj";
-  //"stanford/cube/cube.obj";
-  //"stanford/head/head.OBJ";
+  //  {
+  //    geometry_data_t blob;
+  //    geometry_factory::torus(16.0f, 8.0f, 32u, 64u, &blob);
+  //    vector<vertex_pnt> vertices;
+  //    transform(raw_ptr(blob.geometry),
+  //              raw_ptr(blob.geometry) + blob.vertex_count,
+  //              back_inserter(vertices),
+  //              [](const vertex_pntt& vsin) {
+  //                return vertex_pnt{vsin.position, vsin.normal,
+  //                vsin.texcoords};
+  //              });
 
-  //_meshes[obj_type::teapot] =
-  //  basic_mesh{xr_app_config->model_path(MODEL_FILE).c_str()};
+  //    _meshes[obj_type::teapot] = basic_mesh{vertices.data(),
+  //                                           vertices.size(),
+  //                                           raw_ptr(blob.indices),
+  //                                           blob.index_count};
+  //  }
 
-  {
-    geometry_data_t blob;
-    geometry_factory::torus(16.0f, 8.0f, 32u, 64u, &blob);
-    vector<vertex_pnt> vertices;
-    transform(raw_ptr(blob.geometry),
-              raw_ptr(blob.geometry) + blob.vertex_count,
-              back_inserter(vertices),
-              [](const vertex_pntt& vsin) {
-                return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
-              });
+  //  if (!_meshes[obj_type::teapot]) {
+  //    return;
+  //  }
 
-    _meshes[obj_type::teapot] = basic_mesh{vertices.data(),
-                                           vertices.size(),
-                                           raw_ptr(blob.indices),
-                                           blob.index_count};
-  }
+  //  _objects[obj_type::teapot].scale = 0.085f;
 
-  if (!_meshes[obj_type::teapot]) {
-    return;
-  }
-
-  _objects[obj_type::teapot].scale = 0.085f;
+  switch_mesh(meshes[0].path.c_str());
 
   geometry_data_t blob;
   geometry_factory::grid(16.0f, 16.0f, 128, 128, &blob);
@@ -161,30 +177,16 @@ void app::directional_light_demo::init() {
   _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
 
   {
-    texture_loader tldr{
-      xr_app_config->texture_path("stanford/teapot/default.png").c_str()};
-
-    if (!tldr) {
-      return;
-    }
-
     gl::CreateTextures(
       gl::TEXTURE_2D, 1, raw_handle_ptr(_objtex[obj_type::teapot]));
 
-    gl::TextureStorage2D(raw_handle(_objtex[obj_type::teapot]),
-                         1,
-                         tldr.internal_format(),
-                         tldr.width(),
-                         tldr.height());
-    gl::TextureSubImage2D(raw_handle(_objtex[obj_type::teapot]),
-                          0,
-                          0,
-                          0,
-                          tldr.width(),
-                          tldr.height(),
-                          tldr.format(),
-                          gl::UNSIGNED_BYTE,
-                          tldr.data());
+    gl::TextureStorage2D(
+      raw_handle(_objtex[obj_type::teapot]), 1, gl::RGBA8, 256, 256);
+    gl::ClearTexImage(raw_handle(_objtex[obj_type::teapot]),
+                      0,
+                      gl::RGBA,
+                      gl::FLOAT,
+                      _demo_opts.kd_main.components);
   }
 
   {
@@ -267,28 +269,30 @@ void app::directional_light_demo::draw() {
     gl::TRIANGLES, ripple->mesh->index_count(), gl::UNSIGNED_INT, nullptr);
 
   auto teapot = &_objects[obj_type::teapot];
-  gl::BindVertexArray(teapot->mesh->vertex_array());
-  gl::BindTextureUnit(0, raw_handle(_objtex[obj_type::teapot]));
+  if (teapot->mesh) {
+    gl::BindVertexArray(teapot->mesh->vertex_array());
+    gl::BindTextureUnit(0, raw_handle(_objtex[obj_type::teapot]));
 
-  const auto pitch      = quaternionf{teapot->rotation.x, vec3f::stdc::unit_x};
-  const auto roll       = quaternionf{teapot->rotation.z, vec3f::stdc::unit_z};
-  const auto yaw        = quaternionf{teapot->rotation.y, vec3f::stdc::unit_y};
-  const auto qrot       = yaw * pitch * roll;
-  const auto teapot_rot = rotation_matrix(qrot);
+    const auto pitch = quaternionf{teapot->rotation.x, vec3f::stdc::unit_x};
+    const auto roll  = quaternionf{teapot->rotation.z, vec3f::stdc::unit_z};
+    const auto yaw   = quaternionf{teapot->rotation.y, vec3f::stdc::unit_y};
+    const auto qrot  = yaw * pitch * roll;
+    const auto teapot_rot = rotation_matrix(qrot);
 
-  const auto teapot_world =
-    R4::translate(teapot->pos) * teapot_rot * mat4f{R3::scale(teapot->scale)};
+    const auto teapot_world =
+      R4::translate(teapot->pos) * teapot_rot * mat4f{R3::scale(teapot->scale)};
 
-  vs_ubo.world_view_proj = _scene.cam.projection_view() * teapot_world;
-  vs_ubo.normals         = _scene.cam.view() * teapot_rot;
+    vs_ubo.world_view_proj = _scene.cam.projection_view() * teapot_world;
+    vs_ubo.normals         = _scene.cam.view() * teapot_rot;
 
-  _vs.set_uniform_block("TransformMatrices", vs_ubo);
-  _vs.flush_uniforms();
+    _vs.set_uniform_block("TransformMatrices", vs_ubo);
+    _vs.flush_uniforms();
 
-  gl::Enable(gl::CULL_FACE);
+    gl::Enable(gl::CULL_FACE);
 
-  gl::DrawElements(
-    gl::TRIANGLES, teapot->mesh->index_count(), gl::UNSIGNED_INT, nullptr);
+    gl::DrawElements(
+      gl::TRIANGLES, teapot->mesh->index_count(), gl::UNSIGNED_INT, nullptr);
+  }
 
   if (_demo_opts.drawnormals) {
     const draw_context_t dc{0u,
@@ -299,12 +303,12 @@ void app::directional_light_demo::draw() {
                             &_scene.cam,
                             nullptr};
 
-    _drawnormals.draw(dc,
-                      *teapot->mesh,
-                      teapot_world,
-                      color_palette::web::green,
-                      color_palette::web::green,
-                      2.0f);
+    //    _drawnormals.draw(dc,
+    //                      *teapot->mesh,
+    //                      teapot_world,
+    //                      color_palette::web::green,
+    //                      color_palette::web::green,
+    //                      2.0f);
 
     _drawnormals.draw(dc,
                       *ripple->mesh,
@@ -315,7 +319,7 @@ void app::directional_light_demo::draw() {
   }
 }
 
-void app::directional_light_demo::update(const float /* delta_ms */) {
+void app::directional_light_demo::update(const float delta_ms) {
   auto teapot = &_objects[obj_type::teapot];
 
   if (_demo_opts.rotate_x) {
@@ -342,14 +346,16 @@ void app::directional_light_demo::update(const float /* delta_ms */) {
   }
 
   _scene.cam_control.update();
+  _ui->tick(delta_ms);
 }
 
 void app::directional_light_demo::event_handler(
   const xray::ui::window_event& evt) {
 
   if (is_input_event(evt)) {
-    _ui->ui_event(evt);
-    if (_ui->input.wants()) {
+
+    _ui->input_event(evt);
+    if (_ui->wants_input()) {
       return;
     }
 
@@ -380,64 +386,101 @@ void app::directional_light_demo::event_handler(
 
 void app::directional_light_demo::draw_ui(const int32_t surface_w,
                                           const int32_t surface_h) {
-  if (_ui->window.begin("Options",
-                        0.0f,
-                        0.0f,
-                        400.0f,
-                        300.0f,
-                        NK_WINDOW_SCALABLE | NK_WINDOW_BORDER |
-                          NK_WINDOW_MINIMIZABLE)) {
 
-    _ui->layout.row_dynamic(25.0f, 1);
-    _demo_opts.rotate_x =
-      _ui->checkbox.text("Rotate X", _demo_opts.rotate_x) != 0;
-    _demo_opts.rotate_y =
-      _ui->checkbox.text("Rotate Y", _demo_opts.rotate_y) != 0;
-    _demo_opts.rotate_z =
-      _ui->checkbox.text("Rotate Z", _demo_opts.rotate_z) != 0;
+  _ui->new_frame(surface_w, surface_h);
 
-    _ui->text.labelf(NK_TEXT_ALIGN_LEFT,
-                     "Rotation speed : {} rad/sec",
-                     _demo_opts.rotate_speed);
-    _ui->slider.float_(0.001f, &_demo_opts.rotate_speed, 0.5f, 0.01f);
+  ImGui::SetNextWindowPos({0, 0}, ImGuiCond_Appearing);
 
-    _ui->text.labelf(NK_TEXT_ALIGN_LEFT,
-                     "Specular intensity : {}",
-                     _demo_opts.specular_intensity);
+  if (ImGui::Begin("Options",
+                   nullptr,
+                   ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_ShowBorders | ImGuiWindowFlags_NoMove)) {
 
-    _ui->slider.float_(1.0f, &_demo_opts.specular_intensity, 256.0f, 1.0f);
+    if (ImGui::CollapsingHeader("Model",
+                                ImGuiTreeNodeFlags_DefaultOpen |
+                                  ImGuiTreeNodeFlags_Framed)) {
+      if (ImGui::Combo("Select a model",
+                       &sel_idx,
+                       [](void*, int32_t idx, const char** out) {
+                         *out = meshes[idx].name.c_str();
+                         return true;
+                       },
+                       nullptr,
+                       static_cast<int32_t>(meshes.size()),
+                       5)) {
+        switch_mesh(meshes[sel_idx].path.c_str());
+      }
 
-    _demo_opts.drawnormals =
-      _ui->checkbox.label("Draw surface normals", _demo_opts.drawnormals) != 0;
+      ImGui::Separator();
 
-    _ui->text.label("Light direction", NK_TEXT_ALIGN_LEFT);
-    _ui->layout.row_dynamic(25.0f, 3);
-    _ui->text.label("X", NK_TEXT_ALIGN_CENTERED);
-    _ui->text.label("Y", NK_TEXT_ALIGN_CENTERED);
-    _ui->text.label("Z", NK_TEXT_ALIGN_CENTERED);
-    _ui->slider.float_(0.0f, &_demo_opts.lightdir.x, 10.0f, 0.1f);
-    _ui->slider.float_(0.0f, &_demo_opts.lightdir.y, 10.0f, 0.1f);
-    _ui->slider.float_(0.0f, &_demo_opts.lightdir.z, 10.0f, 0.1f);
+      if (ImGui::ColorPicker3("Diffuse",
+                              _demo_opts.kd_main.components,
+                              ImGuiColorEditFlags_NoAlpha)) {
+        gl::ClearTexImage(raw_handle(_objtex[obj_type::teapot]),
+                          0,
+                          gl::RGBA,
+                          gl::FLOAT,
+                          _demo_opts.kd_main.components);
+      }
+    }
+
+    if (ImGui::CollapsingHeader("Rotation",
+                                ImGuiTreeNodeFlags_DefaultOpen |
+                                  ImGuiTreeNodeFlags_Framed)) {
+      ImGui::Checkbox("X", &_demo_opts.rotate_x);
+      ImGui::Checkbox("Y", &_demo_opts.rotate_y);
+      ImGui::Checkbox("Z", &_demo_opts.rotate_z);
+      ImGui::SliderFloat("Speed", &_demo_opts.rotate_speed, 0.001f, 0.5f);
+    }
+
+    if (ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_Framed)) {
+
+      ImGui::SliderFloat3(
+        "Direction", _demo_opts.lightdir.components, -1.0f, +1.0f);
+      ImGui::Separator();
+
+      ImGui::ColorPicker3(
+        "Diffuse", _lights[0].kd.components, ImGuiColorEditFlags_NoAlpha);
+      ImGui::Separator();
+
+      ImGui::ColorPicker3(
+        "Specular", _lights[0].ks.components, ImGuiColorEditFlags_NoAlpha);
+      ImGui::Separator();
+
+      ImGui::SliderFloat(
+        "Specular intensity", &_demo_opts.specular_intensity, 1.0f, 256.0f);
+    }
+
+    if (ImGui::CollapsingHeader("Debug", ImGuiTreeNodeFlags_Framed)) {
+      ImGui::Checkbox("Draw surface normals", &_demo_opts.drawnormals);
+    }
   }
 
-  _ui->window.end();
+  ImGui::End();
 
-  //  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
-  //  ImGui::Begin("Options");
+  _ui->draw();
+}
 
-  //  ImGui::Checkbox("Rotate X", &_demo_opts.rotate_x);
-  //  ImGui::Checkbox("Rotate Y", &_demo_opts.rotate_y);
-  //  ImGui::Checkbox("Rotate Z", &_demo_opts.rotate_z);
+void app::directional_light_demo::poll_start(
+  const xray::ui::poll_start_event&) {}
 
-  //  ImGui::SliderFloat("Rotation speed", &_demo_opts.rotate_speed, 0.001f,
-  //  0.5f); ImGui::SliderFloat3(
-  //    "Light direction", _demo_opts.lightdir.components, -1.0f, +1.0f);
-  //  ImGui::SliderFloat(
-  //    "Specular intensity", &_demo_opts.specular_intensity, 1.0f, 256.0f);
+void app::directional_light_demo::poll_end(const xray::ui::poll_end_event& p) {}
 
-  //  ImGui::Checkbox("Draw surface normals", &_demo_opts.drawnormals);
+void app::directional_light_demo::switch_mesh(const char* mesh_path) {
+  mesh_loader mldr{mesh_path};
+  if (!mldr) {
+    XR_DBG_MSG("Failed to load mesh {}", mesh_path);
+  }
 
-  //  ImGui::End();
+  auto loaded_mesh = basic_mesh{mldr.vertex_data(),
+                                mldr.header().vertex_count,
+                                mldr.index_data(),
+                                mldr.header().index_count};
 
-  _ui->render(surface_w, surface_h);
+  if (!loaded_mesh) {
+    XR_DBG_MSG("Failed to create mesh!");
+    return;
+  }
+
+  _meshes[obj_type::teapot] = std::move(loaded_mesh);
 }

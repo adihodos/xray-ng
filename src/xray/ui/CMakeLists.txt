@@ -26,8 +26,8 @@ set(PROJECT_SOURCES_MAIN
     ${proj_src_dir}/key_sym.cc
     ${proj_inc_dir}/user_interface.hpp
     ${proj_src_dir}/user_interface.cc
-    ${proj_inc_dir}/ui.hpp
-    ${proj_src_dir}/ui.cc
+#    ${proj_inc_dir}/ui.hpp
+#    ${proj_src_dir}/ui.cc
     ${platform_sources})
 
 #source_group("xray_ui" FILES ${PROJECT_SOURCES_MAIN})

@@ -33,7 +33,9 @@
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "xray/base/basic_timer.hpp"
+#include "xray/base/unique_pointer.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/geometry/surface_normal_visualizer.hpp"
 #include "xray/rendering/mesh.hpp"
@@ -72,14 +74,16 @@ public:
   ~directional_light_demo();
 
   virtual void event_handler(const xray::ui::window_event& evt) override;
-
   virtual void loop_event(const xray::ui::window_loop_event&) override;
+  virtual void poll_start(const xray::ui::poll_start_event&) override;
+  virtual void poll_end(const xray::ui::poll_end_event&) override;
 
 private:
   void init();
   void draw();
   void draw_ui(const int32_t surface_w, const int32_t surface_h);
   void update(const float delta_ms);
+  void switch_mesh(const char* mesh_path);
 
 private:
   xray::base::timer_highp                    _timer;
@@ -94,13 +98,17 @@ private:
   directional_light                          _lights[1];
 
   struct {
-    xray::math::vec3f lightdir{0.0f, -1.0f, 0.0f};
-    float             specular_intensity{10.0f};
-    bool              rotate_x{false};
-    bool              rotate_y{true};
-    bool              rotate_z{false};
-    bool              drawnormals{false};
-    float             rotate_speed{0.01f};
+    xray::math::vec3f          lightdir{0.0f, -1.0f, 0.0f};
+    xray::math::vec3f          kd{};
+    xray::math::vec3f          ks{};
+    xray::rendering::rgb_color kd_main{
+      xray::rendering::color_palette::material::blue300};
+    float specular_intensity{10.0f};
+    bool  rotate_x{false};
+    bool  rotate_y{true};
+    bool  rotate_z{false};
+    bool  drawnormals{false};
+    float rotate_speed{0.01f};
   } _demo_opts;
 
   struct {

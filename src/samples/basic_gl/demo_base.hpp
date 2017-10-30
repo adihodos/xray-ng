@@ -33,7 +33,7 @@
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
-#include "xray/ui/ui.hpp"
+#include "xray/ui/user_interface.hpp"
 #include <cstdint>
 
 namespace xray {

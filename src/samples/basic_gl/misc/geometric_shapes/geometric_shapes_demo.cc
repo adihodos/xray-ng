@@ -448,7 +448,10 @@ void app::geometric_shapes_demo::draw_ui(const int32_t wnd_width,
   ImGui::SetNextWindowPos({0.0f, 0.0f}, ImGuiCond_Appearing);
   //  ImGui::ShowTestWindow();
 
-  if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_ShowBorders)) {
+  if (ImGui::Begin("Options",
+                   nullptr,
+                   ImGuiWindowFlags_ShowBorders |
+                     ImGuiWindowFlags_AlwaysAutoResize)) {
     _ui->push_font("kenvector_future");
     if (ImGui::CollapsingHeader("Lights setup",
                                 ImGuiTreeNodeFlags_DefaultOpen |

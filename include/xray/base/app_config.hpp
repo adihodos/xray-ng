@@ -81,6 +81,7 @@ public:
   }
 
   const path_type& font_root() const noexcept { return paths_.fonts_path; }
+  const path_type& model_root() const noexcept { return paths_.model_path; }
 
   static app_config* instance() noexcept { return _unique_instance; }
 

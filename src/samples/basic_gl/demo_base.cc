@@ -37,8 +37,8 @@
 
 using namespace std;
 
-void build_fonts_list(const char*                            root_path,
-                      std::vector<xray::ui::font_load_info>* fli) {
+void build_fonts_list(const char*                       root_path,
+                      std::vector<xray::ui::font_info>* fli) {
   platformstl::readdir_sequence rddir{
     root_path,
     platformstl::readdir_sequence::fullPath |
@@ -57,7 +57,9 @@ void build_fonts_list(const char*                            root_path,
 
 app::demo_base::demo_base(const init_context_t& init_ctx)
   : _quit_receiver{init_ctx.quit_receiver} {
-  vector<xray::ui::font_load_info> fli;
+  //
+  // load default fonts
+  vector<xray::ui::font_info> fli;
   build_fonts_list(init_ctx.cfg->font_root().c_str(), &fli);
   _ui =
     xray::base::make_unique<xray::ui::user_interface>(fli.data(), fli.size());
@@ -65,10 +67,6 @@ app::demo_base::demo_base(const init_context_t& init_ctx)
 
 app::demo_base::~demo_base() {}
 
-void app::demo_base::poll_start(const xray::ui::poll_start_event&) {
-  _ui->input.begin();
-}
+void app::demo_base::poll_start(const xray::ui::poll_start_event&) {}
 
-void app::demo_base::poll_end(const xray::ui::poll_end_event&) {
-  _ui->input.end();
-}
+void app::demo_base::poll_end(const xray::ui::poll_end_event&) {}

@@ -5,6 +5,7 @@
 #include "xray/math/objects/rectangle.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/math/scalar4x4_math.hpp"
 #if defined(XRAY_RENDERER_DIRECTX)
 #include "xray/rendering/directx/scoped_mapping.hpp"
 #include "xray/rendering/directx/scoped_state.hpp"
@@ -13,6 +14,7 @@
 #include "xray/rendering/opengl/shader_base.hpp"
 #include <opengl/opengl.hpp>
 #endif
+#include "xray/math/transforms_r4.hpp"
 #include "xray/rendering/draw_context.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
@@ -33,12 +35,12 @@ struct font_img_data {
   int32_t  bpp{};
 };
 
-xray::ui::imgui_backend::imgui_backend() noexcept : _gui{&ImGui::GetIO()} {
+xray::ui::user_interface::user_interface() noexcept : _gui{&ImGui::GetIO()} {
   init(nullptr, 0);
 }
 
-xray::ui::imgui_backend::imgui_backend(const font_info* fonts,
-                                       const size_t     num_fonts)
+xray::ui::user_interface::user_interface(const font_info* fonts,
+                                         const size_t     num_fonts)
   : _gui{&ImGui::GetIO()} {
   init(fonts, num_fonts);
 }
@@ -128,8 +130,8 @@ static constexpr auto IMGUI_SHADER_LEN =
 #endif
 
 #if defined(XRAY_RENDERER_DIRECTX)
-xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
-                                       ID3D11DeviceContext* context) noexcept
+xray::ui::user_interface::user_interface(ID3D11Device*        device,
+                                         ID3D11DeviceContext* context) noexcept
   : _gui{&ImGui::GetIO()} {
   _rcon.device  = device;
   _rcon.context = context;
@@ -313,13 +315,13 @@ xray::ui::imgui_backend::imgui_backend(ID3D11Device*        device,
 }
 #else
 
-void xray::ui::imgui_backend::init(const font_info* fonts,
-                                   const size_t     num_fonts) {
+void xray::ui::user_interface::init(const font_info* fonts,
+                                    const size_t     num_fonts) {
   _rendercontext._vertex_buffer = []() {
     GLuint vbuff{};
     gl::CreateBuffers(1, &vbuff);
     gl::NamedBufferStorage(
-      vbuff, imgui_backend::VERTEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
+      vbuff, user_interface::VERTEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
 
     return vbuff;
   }();
@@ -333,7 +335,7 @@ void xray::ui::imgui_backend::init(const font_info* fonts,
     GLuint ibuff{};
     gl::CreateBuffers(1, &ibuff);
     gl::NamedBufferStorage(
-      ibuff, imgui_backend::INDEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
+      ibuff, user_interface::INDEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
     return ibuff;
   }();
 
@@ -504,9 +506,9 @@ void xray::ui::imgui_backend::init(const font_info* fonts,
 
 #endif
 
-xray::ui::imgui_backend::~imgui_backend() noexcept { ImGui::Shutdown(); }
+xray::ui::user_interface::~user_interface() noexcept { ImGui::Shutdown(); }
 
-void xray::ui::imgui_backend::draw() {
+void xray::ui::user_interface::draw() {
   ImGui::Render();
   auto draw_data = ImGui::GetDrawData();
 
@@ -661,6 +663,7 @@ void xray::ui::imgui_backend::draw() {
   gl::Enable(gl::SCISSOR_TEST);
 
   gl::Viewport(0, 0, fb_width, fb_height);
+
   const auto projection_mtx =
     projection::ortho_off_center(0.0f,
                                  static_cast<float>(fb_width),
@@ -686,28 +689,28 @@ void xray::ui::imgui_backend::draw() {
     {
       scoped_resource_mapping vb_map{raw_handle(_rendercontext._vertex_buffer),
                                      gl::MAP_WRITE_BIT,
-                                     imgui_backend::VERTEX_BUFFER_SIZE};
+                                     user_interface::VERTEX_BUFFER_SIZE};
 
       if (!vb_map)
         return;
 
       const auto vertex_bytes =
         cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]);
-      assert(vertex_bytes <= imgui_backend::VERTEX_BUFFER_SIZE);
+      assert(vertex_bytes <= user_interface::VERTEX_BUFFER_SIZE);
       memcpy(vb_map.memory(), &cmd_lst->VtxBuffer[0], vertex_bytes);
     }
 
     {
       scoped_resource_mapping ib_map{raw_handle(_rendercontext._index_buffer),
                                      gl::MAP_WRITE_BIT,
-                                     imgui_backend::INDEX_BUFFER_SIZE};
+                                     user_interface::INDEX_BUFFER_SIZE};
 
       if (!ib_map)
         return;
 
       const auto index_bytes =
         cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]);
-      assert(index_bytes <= imgui_backend::INDEX_BUFFER_SIZE);
+      assert(index_bytes <= user_interface::INDEX_BUFFER_SIZE);
       memcpy(ib_map.memory(), &cmd_lst->IdxBuffer[0], index_bytes);
     }
 
@@ -738,14 +741,14 @@ void xray::ui::imgui_backend::draw() {
 #endif
 }
 
-void xray::ui::imgui_backend::new_frame(const int32_t wnd_width,
-                                        const int32_t wnd_height) {
+void xray::ui::user_interface::new_frame(const int32_t wnd_width,
+                                         const int32_t wnd_height) {
   _gui->DisplaySize =
     ImVec2{static_cast<float>(wnd_width), static_cast<float>(wnd_height)};
   ImGui::NewFrame();
 }
 
-bool xray::ui::imgui_backend::input_event(
+bool xray::ui::user_interface::input_event(
   const xray::ui::window_event& in_evt) {
 
   if (in_evt.type == event_type::key) {
@@ -786,22 +789,22 @@ bool xray::ui::imgui_backend::input_event(
 
   if (in_evt.type == event_type::mouse_wheel) {
     const auto& mw = in_evt.event.wheel;
-    _gui->MouseWheel += mw.delta > 0 ? +1.0f : -1.0f;
+    _gui->MouseWheel += mw.delta > 0 ? -1.0f : +1.0f;
     return true;
   }
 
   return false;
 }
 
-void xray::ui::imgui_backend::tick(const float delta) {
+void xray::ui::user_interface::tick(const float delta) {
   ImGui::GetIO().DeltaTime = delta / 1000.0f;
 }
 
-bool xray::ui::imgui_backend::wants_input() const noexcept {
+bool xray::ui::user_interface::wants_input() const noexcept {
   return _gui->WantCaptureKeyboard || _gui->WantCaptureMouse;
 }
 
-void xray::ui::imgui_backend::setup_key_mappings() {
+void xray::ui::user_interface::setup_key_mappings() {
   _gui->KeyMap[ImGuiKey_Tab]        = key_sym::to_integer(key_sym::e::tab);
   _gui->KeyMap[ImGuiKey_LeftArrow]  = key_sym::to_integer(key_sym::e::left);
   _gui->KeyMap[ImGuiKey_RightArrow] = key_sym::to_integer(key_sym::e::right);
@@ -824,8 +827,8 @@ void xray::ui::imgui_backend::setup_key_mappings() {
   _gui->RenderDrawListsFn          = nullptr;
 }
 
-xray::ui::imgui_backend::loaded_font*
-xray::ui::imgui_backend::find_font(const char* name) {
+xray::ui::user_interface::loaded_font*
+xray::ui::user_interface::find_font(const char* name) {
   if (name == nullptr) {
     name = "Default";
   }
@@ -843,18 +846,18 @@ xray::ui::imgui_backend::find_font(const char* name) {
   return &*fentry;
 }
 
-void xray::ui::imgui_backend::set_global_font(const char* name) {
+void xray::ui::user_interface::set_global_font(const char* name) {
   auto fnt_entry = find_font(name);
   if (fnt_entry) {
     _gui->FontDefault = fnt_entry->font;
   }
 }
 
-void xray::ui::imgui_backend::push_font(const char* name) {
+void xray::ui::user_interface::push_font(const char* name) {
   auto fnt_entry = find_font(name);
   if (fnt_entry) {
     ImGui::PushFont(fnt_entry->font);
   }
 }
 
-void xray::ui::imgui_backend::pop_font() { ImGui::PopFont(); }
+void xray::ui::user_interface::pop_font() { ImGui::PopFont(); }

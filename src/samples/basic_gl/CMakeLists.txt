@@ -22,17 +22,17 @@ set(project_sources
 #    ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
 #    ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
 
-    ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
-    ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc
+#    ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
+#    ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc
 
-    ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
-    ${proj_src_dir}/misc/mesh/mesh_demo.cc
+#    ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
+#    ${proj_src_dir}/misc/mesh/mesh_demo.cc
 
 #    ${proj_inc_dir}/misc/bufferless_draw/bufferless-draw-demo.hpp
 #    ${proj_src_dir}/misc/bufferless_draw/bufferless-draw-demo.cc
 
-    ${proj_inc_dir}/misc/geometric_shapes/geometric_shapes_demo.hpp
-    ${proj_src_dir}/misc/geometric_shapes/geometric_shapes_demo.cc
+#    ${proj_inc_dir}/misc/geometric_shapes/geometric_shapes_demo.hpp
+#    ${proj_src_dir}/misc/geometric_shapes/geometric_shapes_demo.cc
 
 #    ${proj_inc_dir}/misc/procedural_city/procedural_city_demo.hpp
 #    ${proj_src_dir}/misc/procedural_city/procedural_city_demo.cc

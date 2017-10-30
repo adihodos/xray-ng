@@ -50,6 +50,9 @@
 #include <string>
 #include <vector>
 
+#include <imgui/imconfig.h>
+#include <imgui/imgui.h>
+
 struct ImGuiIO;
 struct ImFont;
 
@@ -66,22 +69,20 @@ struct font_info {
   float       pixel_size;
 };
 
-class imgui_backend {
+class user_interface {
 public:
   static constexpr uint32_t VERTEX_BUFFER_SIZE = 1024 * 512;
   static constexpr uint32_t INDEX_BUFFER_SIZE  = 1024 * 128;
 
 #if defined(XRAY_RENDERER_DIRECTX)
-
-  explicit imgui_backend(ID3D11Device*        device,
-                         ID3D11DeviceContext* context) noexcept;
+  user_interface(ID3D11Device* device, ID3D11DeviceContext* context) noexcept;
 #else
-  imgui_backend() noexcept;
+  user_interface() noexcept;
 #endif
 
-  imgui_backend(const font_info* fonts, const size_t num_fonts);
+  user_interface(const font_info* fonts, const size_t num_fonts);
 
-  ~imgui_backend() noexcept;
+  ~user_interface() noexcept;
 
   bool input_event(const window_event& evt);
   bool wants_input() const noexcept;
@@ -135,11 +136,8 @@ private:
 
   ImGuiIO* _gui;
 
-  //  ImFont*  _small_font;
-  //  ImFont*  _medium_font;
-
 private:
-  XRAY_NO_COPY(imgui_backend);
+  XRAY_NO_COPY(user_interface);
 };
 
 /// @}
