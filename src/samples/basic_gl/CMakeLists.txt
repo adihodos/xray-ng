@@ -17,8 +17,9 @@ set(project_sources
 #    ${proj_inc_dir}/debug_record.hpp
 #    ${proj_src_dir}/debug_record.cc
 
-#    ${proj_src_dir}/misc/fractals/fractal_demo.cc
-#    ${proj_inc_dir}/misc/fractals/fractal_demo.hpp
+    ${proj_src_dir}/misc/fractals/fractal_demo.cc
+    ${proj_inc_dir}/misc/fractals/fractal_demo.hpp
+
 #    ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
 #    ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
 
@@ -50,6 +51,11 @@ set(project_sources
     # ${proj_inc_dir}/lit_torus.hpp
     # ${proj_src_dir}/lit_torus.cc
     ${proj_src_dir}/main.cc
+
+    ${proj_inc_dir}/mesh_lister.hpp
+    ${proj_src_dir}/mesh_lister.cc
+
+
     # ${proj_inc_dir}/material.hpp
     # ${proj_src_dir}/material.cc
     # ${proj_inc_dir}/phong_material_component.hpp
@@ -165,6 +171,8 @@ set(config_files
     ${proj_cfg_dir}/cap5/render_texture/demo.conf
     ${proj_cfg_dir}/misc/instanced_demo/cam_controller_spherical.conf
     ${proj_cfg_dir}/misc/geometric_shapes/cam_controller_spherical.conf
+    ${proj_cfg_dir}/misc/fractal_demo/cam_controller_spherical.conf
+    ${proj_cfg_dir}/lighting/directional_light/cam_controller_spherical.conf
     ${proj_cfg_dir}/logging.conf
     ${proj_cfg_dir}/cap6/edge_detect/app.new.conf
     ${proj_cfg_dir}/cap6/edge_detect/app.conf

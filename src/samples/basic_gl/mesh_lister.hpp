@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011-2016 Adrian Hodos
+// Copyright (c) 2011-2017 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,54 +26,38 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/// \file fractal_demo.hpp
+/// \file mesh_lister.hpp
 
 #pragma once
 
 #include "xray/xray.hpp"
-#include "demo_base.hpp"
-#include "xray/rendering/opengl/gl_handles.hpp"
-#include "xray/rendering/opengl/gpu_program.hpp"
-#include "xray/rendering/opengl/program_pipeline.hpp"
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace app {
 
-struct fractal_params {
-  float    width{0.0f};
-  float    height{0.0f};
-  float    shape_re{0.0f};
-  float    shape_im{0.0f};
-  uint32_t iterations{0};
+struct model_load_info {
+  std::string name;
+  std::string path;
 };
 
-class fractal_demo : public demo_base {
+class mesh_lister {
 public:
-  fractal_demo(const init_context_t& init_ctx);
+  void build_list(const std::string& root_path) {
+    build_list(root_path.c_str());
+  }
 
-  ~fractal_demo();
+  void build_list(const char* root_path);
 
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void loop_event(const xray::ui::window_loop_event&) override;
-
-private:
-  void init();
-  void draw(const int32_t surface_w, const int32_t surface_h);
-  void draw_ui(const int32_t surface_w, const int32_t surface_h);
+  const std::vector<model_load_info>& mesh_list() const noexcept {
+    return _mesh_list;
+  }
 
 private:
-  int32_t                              _shape_idx{0u};
-  int32_t                              _iterations{256};
-  fractal_params                       _fp{};
-  xray::rendering::scoped_buffer       _quad_vb;
-  xray::rendering::scoped_buffer       _quad_ib;
-  xray::rendering::scoped_vertex_array _quad_layout;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
+  void build_list_impl(const char* root_path);
 
-private:
-  XRAY_NO_COPY(fractal_demo);
+  std::vector<model_load_info> _mesh_list;
 };
 
 } // namespace app

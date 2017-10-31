@@ -32,6 +32,7 @@
 
 #include "xray/xray.hpp"
 #include "demo_base.hpp"
+#include "mesh_lister.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/scalar3.hpp"
@@ -109,11 +110,15 @@ private:
     bool  rotate_z{false};
     bool  drawnormals{false};
     float rotate_speed{0.01f};
+    float normal_len{0.5f};
   } _demo_opts;
 
   struct {
     xray::scene::camera                             cam;
-    xray::scene::camera_controller_spherical_coords cam_control{&cam};
+    xray::scene::camera_controller_spherical_coords cam_control{
+      &cam, "config/lighting/directional_light/cam_controller_spherical.conf"};
+    mesh_lister available_meshes;
+    int32_t     current_mesh_idx{};
   } _scene;
 
 private:

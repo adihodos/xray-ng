@@ -35,6 +35,7 @@
 #include "xray/base/maybe.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/objects/aabb3.hpp"
+#include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
@@ -70,6 +71,10 @@ struct vertex_attribute_descriptor {
 
 class basic_mesh {
 public:
+  using vertex_buffer_handle       = GLuint;
+  using index_buffer_handle        = GLuint;
+  using vertex_array_object_handle = GLuint;
+
   basic_mesh() noexcept = default;
   XRAY_DEFAULT_MOVE(basic_mesh);
 
@@ -85,17 +90,17 @@ public:
 
   explicit operator bool() const noexcept { return valid(); }
 
-  GLuint vertex_buffer() const noexcept {
+  vertex_buffer_handle vertex_buffer() const noexcept {
     assert(valid());
     return xray::base::raw_handle(_vertexbuffer);
   }
 
-  GLuint index_buffer() const noexcept {
+  index_buffer_handle index_buffer() const noexcept {
     assert(valid());
     return xray::base::raw_handle(_indexbuffer);
   }
 
-  GLuint vertex_array() const noexcept {
+  vertex_array_object_handle vertex_array() const noexcept {
     assert(valid());
     return xray::base::raw_handle(_vertexarray);
   }
@@ -128,6 +133,11 @@ public:
     return _aabb;
   }
 
+  const xray::math::sphere3f& bounding_sphere() const noexcept {
+    assert(valid());
+    return _bsphere;
+  }
+
   void update_vertices() noexcept;
   void update_indices() noexcept;
 
@@ -136,23 +146,13 @@ public:
                          const vertex_attribute_descriptor* vertex_attributes,
                          const size_t vertex_attributes_count);
 
-  static bool load_mesh(
-    const std::string&                        file_path,
-    std::vector<xray::rendering::vertex_pnt>* vertices,
-    std::vector<uint32_t>*                    indices,
-    const uint32_t load_options = mesh_load_option::remove_points_lines) {
-    return load_mesh(file_path.c_str(), vertices, indices, load_options);
-  }
-
-  static bool load_mesh(
-    const char*                               file_path,
-    std::vector<xray::rendering::vertex_pnt>* vertices,
-    std::vector<uint32_t>*                    indices,
-    const uint32_t load_options = mesh_load_option::remove_points_lines);
-
 private:
-  void compute_aabb();
+  void create(const gsl::span<const vertex_pnt>& vertices,
+              const gsl::span<const uint32_t>&   indices);
+
   void setup_buffers();
+
+  void compute_bounding();
 
   mesh_type                                _mtype;
   std::vector<xray::rendering::vertex_pnt> _vertices;
@@ -160,7 +160,8 @@ private:
   xray::rendering::scoped_buffer           _vertexbuffer;
   xray::rendering::scoped_buffer           _indexbuffer;
   xray::rendering::scoped_vertex_array     _vertexarray;
-  xray::math::aabb3f _aabb{xray::math::aabb3f::stdc::identity};
+  xray::math::aabb3f   _aabb{xray::math::aabb3f::stdc::identity};
+  xray::math::sphere3f _bsphere{};
 
 private:
   XRAY_NO_COPY(basic_mesh);

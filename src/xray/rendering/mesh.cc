@@ -7,6 +7,7 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
+#include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include <algorithm>
@@ -22,19 +23,26 @@
 #include <unordered_map>
 #include <vector>
 
-#define TINYOBJ_LOADER_OPT_IMPLEMENTATION
-#include "tinyobj/tinyobj_loader_opt.h"
-
 using namespace std;
 using namespace xray::base;
 using namespace xray::math;
 using namespace xray::rendering;
-using namespace tinyobj_opt;
 
-struct geometry_blob {
-  std::vector<xray::rendering::vertex_pnt> vertices;
-  std::vector<uint32_t>                    indices;
-};
+xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
+  : _mtype{type} {
+
+  using namespace xray::rendering;
+
+  mesh_loader mloader{path};
+  if (!mloader) {
+    XR_DBG_MSG("Failed to load mesh {}", path);
+    return;
+  }
+
+  create(mloader.vertex_span(), mloader.index_span());
+  _aabb    = mloader.bounding().axis_aligned_bbox;
+  _bsphere = mloader.bounding().bounding_sphere;
+}
 
 xray::rendering::basic_mesh::basic_mesh(
   const xray::rendering::vertex_pnt* vertices,
@@ -44,69 +52,30 @@ xray::rendering::basic_mesh::basic_mesh(
   const mesh_type                    mtype)
   : _mtype{mtype} {
 
-  _vertices.resize(num_vertices);
-  _indices.resize(num_indices);
+  create(
+    gsl::span<const vertex_pnt>{
+      vertices, vertices + static_cast<ptrdiff_t>(num_vertices)},
+    gsl::span<const uint32_t>{indices,
+                              indices + static_cast<ptrdiff_t>(num_indices)});
+  compute_bounding();
+}
 
-  memcpy(_vertices.data(), vertices, num_vertices * sizeof(vertices[0]));
-  memcpy(_indices.data(), indices, num_indices * sizeof(indices[0]));
+void xray::rendering::basic_mesh::create(
+  const gsl::span<const vertex_pnt>& vertices,
+  const gsl::span<const uint32_t>&   indices) {
+  assert(!vertices.empty());
+  assert(!indices.empty());
 
-  compute_aabb();
+  _vertices.resize(vertices.length());
+  _indices.resize(indices.length());
+
+  memcpy(_vertices.data(), vertices.data(), vertices.length_bytes());
+  memcpy(_indices.data(), indices.data(), indices.length_bytes());
+
   setup_buffers();
 }
 
-template <class T>
-inline void hash_combine(std::size_t& s, const T& v) {
-  std::hash<T> h;
-  s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
-}
-
-namespace tinyobj_opt {
-
-inline bool operator==(const tinyobj_opt::index_t& a,
-                       const tinyobj_opt::index_t& b) {
-  return a.vertex_index == b.vertex_index && a.normal_index == b.normal_index &&
-         a.texcoord_index == b.texcoord_index;
-}
-
-inline bool operator!=(const tinyobj_opt::index_t& a,
-                       const tinyobj_opt::index_t& b) {
-  return !(a == b);
-}
-
-} // namespace tinyobj_opt
-
-namespace std {
-template <>
-struct hash<tinyobj_opt::index_t> {
-  using argument_type = tinyobj_opt::index_t;
-  using result_type   = std::size_t;
-
-  result_type operator()(const argument_type& a) const {
-    result_type r{};
-    hash_combine(r, a.vertex_index);
-    hash_combine(r, a.normal_index);
-    hash_combine(r, a.texcoord_index);
-
-    return r;
-  }
-};
-} // namespace std
-
-xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
-  : _mtype{type} {
-
-  using namespace xray::rendering;
-
-  if (!load_mesh(
-        path, &_vertices, &_indices, mesh_load_option::remove_points_lines)) {
-    return;
-  }
-
-  compute_aabb();
-  setup_buffers();
-}
-
-void xray::rendering::basic_mesh::compute_aabb() {
+void xray::rendering::basic_mesh::compute_bounding() {
   assert(!_vertices.empty());
 
   timer_highp op_tm;
@@ -170,6 +139,11 @@ void xray::rendering::basic_mesh::compute_aabb() {
              _aabb.max.y,
              _aabb.max.z,
              op_tm.elapsed_millis());
+
+  _bsphere = xray::math::bounding_sphere<float>(
+    begin(_vertices), end(_vertices), [](const vertex_pnt& vs_in) {
+      return vs_in.position;
+    });
 }
 
 void xray::rendering::basic_mesh::setup_buffers() {
@@ -177,13 +151,15 @@ void xray::rendering::basic_mesh::setup_buffers() {
   gl::NamedBufferStorage(raw_handle(_vertexbuffer),
                          xray::base::container_bytes_size(_vertices),
                          _vertices.data(),
-                         _mtype == mesh_type::readonly ? 0 : gl::MAP_WRITE_BIT);
+                         _mtype == mesh_type::readonly ? GLbitfield{0}
+                                                       : gl::MAP_WRITE_BIT);
 
   gl::CreateBuffers(1, raw_handle_ptr(_indexbuffer));
   gl::NamedBufferStorage(raw_handle(_indexbuffer),
                          xray::base::container_bytes_size(_indices),
                          _indices.data(),
-                         _mtype == mesh_type::readonly ? 0 : gl::MAP_WRITE_BIT);
+                         _mtype == mesh_type::readonly ? GLbitfield{0}
+                                                       : gl::MAP_WRITE_BIT);
 
   gl::CreateVertexArrays(1, raw_handle_ptr(_vertexarray));
   const auto vao = raw_handle(_vertexarray);
@@ -211,7 +187,7 @@ void xray::rendering::basic_mesh::setup_buffers() {
 void xray::rendering::basic_mesh::update_vertices() noexcept {
   assert(_mtype == mesh_type::writable);
 
-  compute_aabb();
+  compute_bounding();
 
   scoped_resource_mapping vbmap{vertex_buffer(),
                                 gl::MAP_WRITE_BIT,
@@ -312,94 +288,4 @@ void xray::rendering::basic_mesh::set_instance_data(
 
              gl::EnableVertexArrayAttrib(vao, component_index);
            });
-}
-
-bool xray::rendering::basic_mesh::load_mesh(
-  const char*                               file_path,
-  std::vector<xray::rendering::vertex_pnt>* vertices,
-  std::vector<uint32_t>*                    indices,
-  const uint32_t load_options /*= mesh_load_option::remove_points_lines*/) {
-
-  using namespace xray::rendering;
-
-  attrib_t           attrs;
-  vector<shape_t>    shapes;
-  vector<material_t> mtls;
-
-  platformstl::memory_mapped_file mmfile{file_path};
-
-  const auto res = parseObj(
-    &attrs, &shapes, &mtls, (const char*) mmfile.memory(), mmfile.size(), {});
-
-  if (!res) {
-    return false;
-  }
-
-  vertices->reserve(attrs.vertices.size());
-  indices->reserve(attrs.indices.size());
-
-  unordered_map<index_t, uint32_t> idxmap;
-
-  for_each(begin(attrs.indices), end(attrs.indices), [
-    has_normals   = !attrs.normals.empty(),
-    has_texcoords = !attrs.texcoords.empty(),
-    a             = &attrs,
-    &idxmap,
-    vertices,
-    indices
-  ](const index_t& idx) {
-
-    auto it = idxmap.find(idx);
-    if (it != end(idxmap)) {
-      indices->push_back(it->second);
-    } else {
-      vertex_pnt v;
-
-      v.position = {a->vertices[idx.vertex_index * 3 + 0],
-                    a->vertices[idx.vertex_index * 3 + 1],
-                    a->vertices[idx.vertex_index * 3 + 2]};
-
-      if (has_texcoords) {
-        v.texcoord = {a->texcoords[idx.texcoord_index * 2 + 0],
-                      1.0f - a->texcoords[idx.texcoord_index * 2 + 1]};
-      } else {
-        v.texcoord = vec2f::stdc::zero;
-      }
-
-      if (has_normals) {
-        v.normal = {a->normals[idx.normal_index * 3 + 0],
-                    a->normals[idx.normal_index * 3 + 1],
-                    a->normals[idx.normal_index * 3 + 2]};
-      } else {
-        v.normal = vec3f::stdc::zero;
-      }
-
-      vertices->push_back(v);
-      idxmap[idx] = (uint32_t) vertices->size() - 1;
-      indices->push_back((uint32_t) vertices->size() - 1);
-    }
-  });
-
-  if (attrs.normals.empty()) {
-    assert((indices->size() % 3) == 0);
-
-    for (size_t i = 0, cnt = indices->size() / 3; i < cnt; ++i) {
-      auto& v0 = (*vertices)[(*indices)[i * 3 + 0]];
-      auto& v1 = (*vertices)[(*indices)[i * 3 + 1]];
-      auto& v2 = (*vertices)[(*indices)[i * 3 + 2]];
-
-      const auto n =
-        cross(v1.position - v0.position, v2.position - v0.position);
-
-      v0.normal += n;
-      v1.normal += n;
-      v2.normal += n;
-    }
-
-    for_each(begin(*vertices), end(*vertices), [](vertex_pnt& v) {
-      v.normal = normalize(v.normal);
-    });
-  }
-
-  return true;
 }

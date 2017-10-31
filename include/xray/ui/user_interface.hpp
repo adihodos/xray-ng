@@ -32,6 +32,7 @@
 
 #include "xray/xray.hpp"
 #include "xray/base/fast_delegate.hpp"
+#include "xray/base/unique_pointer.hpp"
 
 #if defined(XRAY_RENDERER_DIRECTX)
 #include "xray/base/windows/com_ptr.hpp"
@@ -95,6 +96,11 @@ public:
   void push_font(const char* name);
   void pop_font();
 
+  void set_current() {
+    ImGui::SetCurrentContext(xray::base::raw_ptr(_imcontext));
+    _gui = &ImGui::GetIO();
+  }
+
 private:
   struct loaded_font {
     std::string name;
@@ -134,7 +140,15 @@ private:
     bool _valid{false};
   } _rendercontext;
 
-  ImGuiIO* _gui;
+  struct imcontext_deleter {
+    void operator()(ImGuiContext* p) noexcept {
+      if (p) {
+        ImGui::DestroyContext(p);
+      }
+    }
+  };
+  xray::base::unique_pointer<ImGuiContext, imcontext_deleter> _imcontext;
+  ImGuiIO*                                                    _gui;
 
 private:
   XRAY_NO_COPY(user_interface);

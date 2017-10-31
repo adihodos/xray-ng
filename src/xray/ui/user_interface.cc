@@ -20,6 +20,7 @@
 #include "xray/ui/key_sym.hpp"
 #include <algorithm>
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 #include <platformstl/filesystem/path.hpp>
 
 using namespace xray::base;
@@ -35,13 +36,10 @@ struct font_img_data {
   int32_t  bpp{};
 };
 
-xray::ui::user_interface::user_interface() noexcept : _gui{&ImGui::GetIO()} {
-  init(nullptr, 0);
-}
+xray::ui::user_interface::user_interface() noexcept { init(nullptr, 0); }
 
 xray::ui::user_interface::user_interface(const font_info* fonts,
-                                         const size_t     num_fonts)
-  : _gui{&ImGui::GetIO()} {
+                                         const size_t     num_fonts) {
   init(fonts, num_fonts);
 }
 
@@ -317,6 +315,13 @@ xray::ui::user_interface::user_interface(ID3D11Device*        device,
 
 void xray::ui::user_interface::init(const font_info* fonts,
                                     const size_t     num_fonts) {
+  _imcontext =
+    unique_pointer<ImGuiContext, imcontext_deleter>{ImGui::CreateContext()};
+  _imcontext->IO.Fonts = new ImFontAtlas();
+
+  set_current();
+  _gui = &ImGui::GetIO();
+
   _rendercontext._vertex_buffer = []() {
     GLuint vbuff{};
     gl::CreateBuffers(1, &vbuff);
@@ -465,11 +470,11 @@ void xray::ui::user_interface::init(const font_info* fonts,
              });
   }
 
-  _rendercontext._font_texture = [g = _gui]() {
+  _rendercontext._font_texture = [this]() {
     GLuint texh{};
 
     font_img_data font_img;
-    g->Fonts->GetTexDataAsRGBA32(
+    _gui->Fonts->GetTexDataAsRGBA32(
       &font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
 
     gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
@@ -484,9 +489,10 @@ void xray::ui::user_interface::init(const font_info* fonts,
                           gl::UNSIGNED_BYTE,
                           font_img.pixels);
 
+    XR_DBG_MSG("Fonts {}", _gui->Fonts->Fonts.size());
+
     return texh;
-  }
-  ();
+  }();
 
   _gui->Fonts->TexID =
     reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));

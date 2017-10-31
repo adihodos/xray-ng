@@ -56,14 +56,17 @@ struct axis_aligned_bounding_box3 {
 
   axis_aligned_bounding_box3() noexcept = default;
 
-  constexpr axis_aligned_bounding_box3(
-      const real_type xmin, const real_type ymin, const real_type zmin,
-      const real_type xmax, const real_type ymax, const real_type zmax) noexcept
-      : min{xmin, ymin, zmin}, max{xmax, ymax, zmax} {}
+  constexpr axis_aligned_bounding_box3(const real_type xmin,
+                                       const real_type ymin,
+                                       const real_type zmin,
+                                       const real_type xmax,
+                                       const real_type ymax,
+                                       const real_type zmax) noexcept
+    : min{xmin, ymin, zmin}, max{xmax, ymax, zmax} {}
 
   constexpr axis_aligned_bounding_box3(const point_type& min,
                                        const point_type& max) noexcept
-      : axis_aligned_bounding_box3{min.x, min.y, min.z, max.x, max.y, max.z} {}
+    : axis_aligned_bounding_box3{min.x, min.y, min.z, max.x, max.y, max.z} {}
 
   point_type center() const noexcept { return (max + min) / real_type{2}; }
 
@@ -72,6 +75,10 @@ struct axis_aligned_bounding_box3 {
   real_type height() const noexcept { return std::abs(max.y - min.y); }
 
   real_type depth() const noexcept { return std::abs(max.z - min.z); }
+
+  real_type max_dimension() const noexcept {
+    return std::max(width(), std::max(height(), depth()));
+  }
 
   struct stdc;
   //   ///< The identity bounding box.
@@ -82,9 +89,12 @@ struct axis_aligned_bounding_box3 {
 template <typename T>
 struct axis_aligned_bounding_box3<T>::stdc {
   static constexpr axis_aligned_bounding_box3<T> identity{
-      std::numeric_limits<T>::max(), std::numeric_limits<T>::max(),
-      std::numeric_limits<T>::max(), std::numeric_limits<T>::min(),
-      std::numeric_limits<T>::min(), std::numeric_limits<T>::min()};
+    std::numeric_limits<T>::max(),
+    std::numeric_limits<T>::max(),
+    std::numeric_limits<T>::max(),
+    std::numeric_limits<T>::min(),
+    std::numeric_limits<T>::min(),
+    std::numeric_limits<T>::min()};
 };
 
 // template <typename T>
@@ -106,5 +116,5 @@ using aabb3d = axis_aligned_bounding_box3<double>;
 
 /// @}
 
-} // namespace xray
 } // namespace math
+} // namespace xray

@@ -1258,9 +1258,9 @@ void ImGuiIO::AddInputCharactersUTF8(const char* utf8_chars) {
     AddInputCharacter(wchars[i]);
 }
 
-//-----------------------------------------------------------------------------
-// HELPERS
-//-----------------------------------------------------------------------------
+  //-----------------------------------------------------------------------------
+  // HELPERS
+  //-----------------------------------------------------------------------------
 
 #define IM_F32_TO_INT8_UNBOUND(_VAL)                                           \
   ((int) ((_VAL) *255.0f +                                                     \
@@ -1392,7 +1392,7 @@ const char* ImStristr(const char* haystack,
          (haystack_end && haystack < haystack_end)) {
     if (toupper(*haystack) == un0) {
       const char* b = needle + 1;
-      for (const char* a = haystack + 1; b < needle_end; a++, b++)
+      for (const char *a = haystack + 1; b < needle_end; a++, b++)
         if (toupper(*a) != toupper(*b))
           break;
       if (b == needle_end)
@@ -9598,7 +9598,7 @@ static bool STB_TEXTEDIT_INSERTCHARS(STB_TEXTEDIT_STRING* obj,
 #define STB_TEXTEDIT_K_SHIFT 0x20000
 
 #define STB_TEXTEDIT_IMPLEMENTATION
-#include "stb_textedit.h"
+#include "imgui/stb_textedit.h"
 
 } // namespace ImGuiStb
 
@@ -11749,8 +11749,8 @@ bool ImGui::ColorButton(const char*         desc_id,
   ImRect bb_inner  = bb;
   float  off = -0.75f; // The border (using Col_FrameBg) tends to look off when
                        // color is near-opaque and rounding is enabled. This
-                      // offset seemed like a good middle ground to reduce those
-                      // artifacts.
+  // offset seemed like a good middle ground to reduce those
+  // artifacts.
   bb_inner.Expand(off);
   if ((flags & ImGuiColorEditFlags_AlphaPreviewHalf) && col.w < 1.0f) {
     float mid_x =
@@ -13276,9 +13276,9 @@ void ImGui::Value(const char* prefix, float v, const char* float_format) {
   }
 }
 
-//-----------------------------------------------------------------------------
-// PLATFORM DEPENDENT HELPERS
-//-----------------------------------------------------------------------------
+  //-----------------------------------------------------------------------------
+  // PLATFORM DEPENDENT HELPERS
+  //-----------------------------------------------------------------------------
 
 #if defined(_WIN32) && !defined(_WINDOWS_) &&                                  \
   (!defined(IMGUI_DISABLE_WIN32_DEFAULT_CLIPBOARD_FUNCTIONS) ||                \
@@ -13431,7 +13431,7 @@ void ImGui::ShowMetricsWindow(bool* p_open) {
                                     // top-most draw list
         overlay_draw_list->PushClipRectFullScreen();
         int elem_offset = 0;
-        for (const ImDrawCmd* pcmd = draw_list->CmdBuffer.begin();
+        for (const ImDrawCmd *pcmd = draw_list->CmdBuffer.begin();
              pcmd < draw_list->CmdBuffer.end();
              elem_offset += pcmd->ElemCount, pcmd++) {
           if (pcmd->UserCallback == NULL && pcmd->ElemCount == 0)

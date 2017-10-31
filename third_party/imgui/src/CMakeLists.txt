@@ -10,9 +10,9 @@ set(project_sources
     ${proj_src_dir}/imgui.cpp
     ${proj_src_dir}/imgui_draw.cpp
     ${proj_src_dir}/imgui_demo.cpp
-    ${proj_src_dir}/stb_rect_pack.h
-    ${proj_src_dir}/stb_textedit.h
-    ${proj_src_dir}/stb_truetype.h
+    ${proj_inc_dir}/imgui/stb_rect_pack.h
+    ${proj_inc_dir}/imgui/stb_textedit.h
+    ${proj_inc_dir}/imgui/stb_truetype.h
     ${proj_inc_dir}/imgui/imgui.h
     )
 

@@ -54,13 +54,8 @@ static constexpr nice_shape_def NICE_SHAPES[] = {
 static constexpr uint32_t kIterations[] = {
   16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
 
-app::fractal_demo::fractal_demo() { init(); }
-
-app::fractal_demo::~fractal_demo() {}
-
-void app::fractal_demo::init() {
-  assert(!valid());
-
+app::fractal_demo::fractal_demo(const app::init_context_t& init_ctx)
+  : app::demo_base{init_ctx} {
   {
     geometry_data_t quad_mesh;
     geometry_factory::fullscreen_quad(&quad_mesh);
@@ -143,19 +138,55 @@ void app::fractal_demo::init() {
   gl::Disable(gl::DEPTH_TEST);
 }
 
-void app::fractal_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
+app::fractal_demo::~fractal_demo() {}
+
+void app::fractal_demo::loop_event(const xray::ui::window_loop_event& wle) {
   assert(valid());
 
+  _ui->tick(1.0f / 60.0f);
+  draw(wle.wnd_width, wle.wnd_height);
+  draw_ui(wle.wnd_width, wle.wnd_height);
+}
+
+void app::fractal_demo::event_handler(const xray::ui::window_event& evt) {
+  if (is_input_event(evt)) {
+    _ui->input_event(evt);
+    if (_ui->wants_input()) {
+      return;
+    }
+
+    if (evt.type == event_type::key &&
+        evt.event.key.keycode == key_sym::e::escape) {
+      _quit_receiver();
+      return;
+    }
+  }
+
+  //  if (evt.type == event_type::mouse_wheel) {
+  //    auto mwe = &evt.event.wheel;
+  //  }
+}
+
+bool get_next_shape_description(void*, int32_t idx, const char** shape_desc) {
+  if (idx < XR_I32_COUNTOF(NICE_SHAPES)) {
+    *shape_desc = NICE_SHAPES[idx].text;
+    return true;
+  }
+
+  return false;
+}
+
+void app::fractal_demo::draw(const int32_t surface_w, const int32_t surface_h) {
   gl::ClearNamedFramebufferfv(
     0, gl::COLOR, 0, color_palette::web::black.components);
   gl::ViewportIndexedf(0,
                        0.0f,
                        0.0f,
-                       (float) draw_ctx.window_width,
-                       (float) draw_ctx.window_height);
+                       static_cast<float>(surface_w),
+                       static_cast<float>(surface_h));
 
-  _fp.width      = static_cast<float>(draw_ctx.window_width);
-  _fp.height     = static_cast<float>(draw_ctx.window_height);
+  _fp.width      = static_cast<float>(surface_w);
+  _fp.height     = static_cast<float>(surface_h);
   _fp.iterations = (uint32_t) _iterations;
   _fp.shape_re   = NICE_SHAPES[_shape_idx % XR_COUNTOF(NICE_SHAPES)].pos.x;
   _fp.shape_im   = NICE_SHAPES[_shape_idx % XR_COUNTOF(NICE_SHAPES)].pos.y;
@@ -167,33 +198,26 @@ void app::fractal_demo::draw(const xray::rendering::draw_context_t& draw_ctx) {
   gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, nullptr);
 }
 
-void app::fractal_demo::update(const float /* delta_ms */) {}
+void app::fractal_demo::draw_ui(const int32_t surface_w,
+                                const int32_t surface_h) {
 
-void app::fractal_demo::event_handler(const xray::ui::window_event& evt) {
-  if (evt.type == event_type::mouse_wheel) {
-    auto mwe = &evt.event.wheel;
+  _ui->new_frame(surface_w, surface_h);
+
+  ImGui::SetNextWindowPos({0, 0}, ImGuiCond_Appearing);
+  if (ImGui::Begin("Options",
+                   nullptr,
+                   ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_ShowBorders)) {
+    ImGui::Combo("Shapes",
+                 &_shape_idx,
+                 &get_next_shape_description,
+                 nullptr,
+                 XR_I32_COUNTOF(NICE_SHAPES),
+                 XR_I32_COUNTOF(NICE_SHAPES) / 2);
+
+    ImGui::SliderInt("Iterations", &_iterations, 32, 4096, nullptr);
   }
-}
 
-bool get_next_shape_description(void*, int32_t idx, const char** shape_desc) {
-  if (idx < (int32_t) XR_COUNTOF(NICE_SHAPES)) {
-    *shape_desc = NICE_SHAPES[idx].text;
-    return true;
-  }
-
-  return false;
-}
-
-void app::fractal_demo::compose_ui() {
-  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
-  ImGui::Begin("Options");
-  ImGui::Combo("Shapes",
-               &_shape_idx,
-               &get_next_shape_description,
-               nullptr,
-               (int32_t) XR_COUNTOF(NICE_SHAPES),
-               (int32_t) XR_COUNTOF(NICE_SHAPES) / 2);
-
-  ImGui::SliderInt("Iterations", &_iterations, 32, 4096, nullptr);
   ImGui::End();
+  _ui->draw();
 }

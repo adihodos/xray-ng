@@ -52,6 +52,7 @@
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "lighting/directional_light_demo.hpp"
+#include "misc/fractals/fractal_demo.hpp"
 
 //#include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 //#include "misc/instanced_drawing/instanced_drawing_demo.hpp"
@@ -130,6 +131,7 @@ main_app::main_app(xray::ui::window* wnd)
 
 void main_app::demo_quit() {
   assert(demo_running());
+  _demo = nullptr;
   hookup_event_delegates();
 }
 
@@ -138,6 +140,7 @@ void main_app::hookup_event_delegates() {
   _window->events.poll_start = make_delegate(*this, &main_app::poll_start);
   _window->events.poll_end   = make_delegate(*this, &main_app::poll_end);
   _window->events.window     = make_delegate(*this, &main_app::event_handler);
+  _ui->set_current();
 }
 
 void main_app::event_handler(const xray::ui::window_event& wnd_evt) {
@@ -179,7 +182,9 @@ void main_app::loop_event(const xray::ui::window_loop_event& levt) {
                        demo_list,
                        XR_I32_COUNTOF(demo_list),
                        XR_I32_COUNTOF(demo_list) / 2)) {
+        ImGui::End();
         run_demo(static_cast<demo_type>(sel_idx));
+        return;
       }
     }
 
@@ -213,9 +218,9 @@ void main_app::run_demo(const demo_type type) {
       //      return xray::base::make_unique<colored_circle_demo>();
       //      break;
 
-      //    case demo_type::fractal:
-      //      return xray::base::make_unique<fractal_demo>();
-      //      break;
+    case demo_type::fractal:
+      return xray::base::make_unique<fractal_demo>(init_context);
+      break;
 
       //    case demo_type::texture_array:
       //      return xray::base::make_unique<texture_array_demo>();

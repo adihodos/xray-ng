@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011-2016 Adrian Hodos
+// Copyright (c) 2011-2017 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,54 +26,41 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/// \file fractal_demo.hpp
+#include "mesh_lister.hpp"
+#include <algorithm>
+#include <cassert>
+#include <platformstl/filesystem/filesystem_traits.hpp>
+#include <platformstl/filesystem/path.hpp>
+#include <platformstl/filesystem/readdir_sequence.hpp>
 
-#pragma once
+using namespace std;
 
-#include "xray/xray.hpp"
-#include "demo_base.hpp"
-#include "xray/rendering/opengl/gl_handles.hpp"
-#include "xray/rendering/opengl/gpu_program.hpp"
-#include "xray/rendering/opengl/program_pipeline.hpp"
-#include <cstdint>
+void app::mesh_lister::build_list(const char* root_path) {
+  assert(root_path != nullptr);
+  build_list_impl(root_path);
+  sort(begin(_mesh_list),
+       end(_mesh_list),
+       [](const model_load_info& m0, const model_load_info& m1) {
+         return m0.name < m1.name;
+       });
+}
 
-namespace app {
+void app::mesh_lister::build_list_impl(const char* root_path) {
+  platformstl::readdir_sequence rddir{
+    root_path,
+    platformstl::readdir_sequence::files |
+      platformstl::readdir_sequence::directories |
+      platformstl::readdir_sequence::fullPath};
 
-struct fractal_params {
-  float    width{0.0f};
-  float    height{0.0f};
-  float    shape_re{0.0f};
-  float    shape_im{0.0f};
-  uint32_t iterations{0};
-};
+  for_each(begin(rddir), end(rddir), [this](const char* dir_entry) {
+    if (platformstl::filesystem_traits<char>::is_directory(dir_entry)) {
+      build_list(dir_entry);
+      return;
+    }
 
-class fractal_demo : public demo_base {
-public:
-  fractal_demo(const init_context_t& init_ctx);
-
-  ~fractal_demo();
-
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void loop_event(const xray::ui::window_loop_event&) override;
-
-private:
-  void init();
-  void draw(const int32_t surface_w, const int32_t surface_h);
-  void draw_ui(const int32_t surface_w, const int32_t surface_h);
-
-private:
-  int32_t                              _shape_idx{0u};
-  int32_t                              _iterations{256};
-  fractal_params                       _fp{};
-  xray::rendering::scoped_buffer       _quad_vb;
-  xray::rendering::scoped_buffer       _quad_ib;
-  xray::rendering::scoped_vertex_array _quad_layout;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
-
-private:
-  XRAY_NO_COPY(fractal_demo);
-};
-
-} // namespace app
+    platformstl::path_a p{dir_entry};
+    if (strcmp(p.get_ext(), "bin") == 0) {
+      _mesh_list.push_back({p.pop_ext().get_file(), dir_entry});
+    }
+  });
+}

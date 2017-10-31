@@ -109,7 +109,7 @@ namespace IMGUI_STB_NAMESPACE {
 #define STBRP_STATIC
 #define STB_RECT_PACK_IMPLEMENTATION
 #endif
-#include "stb_rect_pack.h"
+#include "imgui/stb_rect_pack.h"
 
 #define STBTT_malloc(x, u) ((void) (u), ImGui::MemAlloc(x))
 #define STBTT_free(x, u) ((void) (u), ImGui::MemFree(x))
@@ -120,7 +120,7 @@ namespace IMGUI_STB_NAMESPACE {
 #else
 #define STBTT_DEF extern
 #endif
-#include "stb_truetype.h"
+#include "imgui/stb_truetype.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -1810,7 +1810,7 @@ bool ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas) {
     ImFontConfig& cfg = atlas->ConfigData[input_i];
     if (!cfg.GlyphRanges)
       cfg.GlyphRanges = atlas->GetGlyphRangesDefault();
-    for (const ImWchar* in_range = cfg.GlyphRanges; in_range[0] && in_range[1];
+    for (const ImWchar *in_range = cfg.GlyphRanges; in_range[0] && in_range[1];
          in_range += 2, total_ranges_count++)
       total_glyphs_count += (in_range[1] - in_range[0]) + 1;
   }
@@ -1896,7 +1896,7 @@ bool ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas) {
     // Setup ranges
     int font_glyphs_count = 0;
     int font_ranges_count = 0;
-    for (const ImWchar* in_range = cfg.GlyphRanges; in_range[0] && in_range[1];
+    for (const ImWchar *in_range = cfg.GlyphRanges; in_range[0] && in_range[1];
          in_range += 2, font_ranges_count++)
       font_glyphs_count += (in_range[1] - in_range[0]) + 1;
     tmp.Ranges      = buf_ranges + buf_ranges_n;
@@ -3024,7 +3024,8 @@ static inline float ImAcos01(float x) {
     return 0.0f;
   return acosf(x);
   // return (-0.69813170079773212f * x * x - 0.87266462599716477f) * x
-  // + 1.5707963267948966f; // Cheap approximation, may be enough for what we do.
+  // + 1.5707963267948966f; // Cheap approximation, may be enough for what we
+  // do.
 }
 
 // FIXME: Cleanup and move code to ImDrawList.

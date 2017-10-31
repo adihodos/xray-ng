@@ -18,17 +18,9 @@
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/user_interface.hpp"
-#include <algorithm>
 #include <cassert>
-#include <cstring>
-#include <imgui/imgui.h>
-#include <iterator>
 #include <opengl/opengl.hpp>
-#include <platformstl/filesystem/filesystem_traits.hpp>
-#include <platformstl/filesystem/path.hpp>
-#include <platformstl/filesystem/readdir_sequence.hpp>
 #include <span.h>
-#include <vector>
 
 using namespace xray::base;
 using namespace xray::rendering;
@@ -37,35 +29,6 @@ using namespace xray::ui;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
-
-struct model_load_info {
-  std::string name;
-  std::string path;
-};
-
-int32_t sel_idx{};
-
-std::vector<model_load_info> meshes;
-
-void get_mesh_list(const char* root_path, std::vector<model_load_info>* ml) {
-  platformstl::readdir_sequence rddir{
-    root_path,
-    platformstl::readdir_sequence::files |
-      platformstl::readdir_sequence::directories |
-      platformstl::readdir_sequence::fullPath};
-
-  for_each(begin(rddir), end(rddir), [ml](const char* dir_entry) {
-    if (platformstl::filesystem_traits<char>::is_directory(dir_entry)) {
-      get_mesh_list(dir_entry, ml);
-      return;
-    }
-
-    platformstl::path_a p{dir_entry};
-    if (strcmp(p.get_ext(), "bin") == 0) {
-      ml->push_back({p.pop_ext().get_file(), dir_entry});
-    }
-  });
-}
 
 app::directional_light_demo::directional_light_demo(
   const app::init_context_t& init_ctx)
@@ -87,8 +50,10 @@ app::directional_light_demo::~directional_light_demo() {}
 
 void app::directional_light_demo::init() {
   assert(!valid());
-  get_mesh_list(xr_app_config->model_root().c_str(), &meshes);
-  if (meshes.empty()) {
+
+  _scene.available_meshes.build_list(xr_app_config->model_root().c_str());
+  if (_scene.available_meshes.mesh_list().empty()) {
+    XR_DBG_MSG("No available meshes!!");
     return;
   }
 
@@ -100,32 +65,6 @@ void app::directional_light_demo::init() {
   _lights[0].ka        = color_palette::web::black;
   _lights[0].kd        = color_palette::web::white;
   _lights[0].ks        = color_palette::web::orange_red;
-
-  //  {
-  //    geometry_data_t blob;
-  //    geometry_factory::torus(16.0f, 8.0f, 32u, 64u, &blob);
-  //    vector<vertex_pnt> vertices;
-  //    transform(raw_ptr(blob.geometry),
-  //              raw_ptr(blob.geometry) + blob.vertex_count,
-  //              back_inserter(vertices),
-  //              [](const vertex_pntt& vsin) {
-  //                return vertex_pnt{vsin.position, vsin.normal,
-  //                vsin.texcoords};
-  //              });
-
-  //    _meshes[obj_type::teapot] = basic_mesh{vertices.data(),
-  //                                           vertices.size(),
-  //                                           raw_ptr(blob.indices),
-  //                                           blob.index_count};
-  //  }
-
-  //  if (!_meshes[obj_type::teapot]) {
-  //    return;
-  //  }
-
-  //  _objects[obj_type::teapot].scale = 0.085f;
-
-  switch_mesh(meshes[0].path.c_str());
 
   geometry_data_t blob;
   geometry_factory::grid(16.0f, 16.0f, 128, 128, &blob);
@@ -152,7 +91,9 @@ void app::directional_light_demo::init() {
 
   _objects[obj_type::ripple].mesh = &_meshes[obj_type::ripple];
   _objects[obj_type::teapot].mesh = &_meshes[obj_type::teapot];
-  _objects[obj_type::teapot].pos.y += _meshes[obj_type::ripple].aabb().height();
+
+  switch_mesh(
+    _scene.available_meshes.mesh_list()[_scene.current_mesh_idx].path.c_str());
 
   _vs = gpu_program_builder{}
           .add_file("shaders/lighting/vs.directional.glsl")
@@ -289,9 +230,25 @@ void app::directional_light_demo::draw() {
     _vs.flush_uniforms();
 
     gl::Enable(gl::CULL_FACE);
-
     gl::DrawElements(
       gl::TRIANGLES, teapot->mesh->index_count(), gl::UNSIGNED_INT, nullptr);
+
+    if (_demo_opts.drawnormals) {
+      const draw_context_t dc{0u,
+                              0u,
+                              _scene.cam.view(),
+                              _scene.cam.projection(),
+                              _scene.cam.projection_view(),
+                              &_scene.cam,
+                              nullptr};
+
+      _drawnormals.draw(dc,
+                        *teapot->mesh,
+                        R4::translate(teapot->pos) * teapot_rot,
+                        color_palette::web::green,
+                        color_palette::web::green,
+                        _demo_opts.normal_len);
+    }
   }
 
   if (_demo_opts.drawnormals) {
@@ -303,19 +260,12 @@ void app::directional_light_demo::draw() {
                             &_scene.cam,
                             nullptr};
 
-    //    _drawnormals.draw(dc,
-    //                      *teapot->mesh,
-    //                      teapot_world,
-    //                      color_palette::web::green,
-    //                      color_palette::web::green,
-    //                      2.0f);
-
     _drawnormals.draw(dc,
                       *ripple->mesh,
                       R4::translate(ripple->pos),
                       color_palette::web::cadet_blue,
                       color_palette::web::cadet_blue,
-                      2.0f);
+                      _demo_opts.normal_len);
   }
 }
 
@@ -386,7 +336,6 @@ void app::directional_light_demo::event_handler(
 
 void app::directional_light_demo::draw_ui(const int32_t surface_w,
                                           const int32_t surface_h) {
-
   _ui->new_frame(surface_w, surface_h);
 
   ImGui::SetNextWindowPos({0, 0}, ImGuiCond_Appearing);
@@ -399,20 +348,26 @@ void app::directional_light_demo::draw_ui(const int32_t surface_w,
     if (ImGui::CollapsingHeader("Model",
                                 ImGuiTreeNodeFlags_DefaultOpen |
                                   ImGuiTreeNodeFlags_Framed)) {
-      if (ImGui::Combo("Select a model",
-                       &sel_idx,
-                       [](void*, int32_t idx, const char** out) {
-                         *out = meshes[idx].name.c_str();
-                         return true;
-                       },
-                       nullptr,
-                       static_cast<int32_t>(meshes.size()),
-                       5)) {
-        switch_mesh(meshes[sel_idx].path.c_str());
+      if (ImGui::Combo(
+            "Select a model",
+            &_scene.current_mesh_idx,
+            [](void* p, int32_t idx, const char** out) {
+              auto obj = static_cast<directional_light_demo*>(p);
+              *out = obj->_scene.available_meshes.mesh_list()[idx].name.c_str();
+              return true;
+            },
+            this,
+            static_cast<int32_t>(_scene.available_meshes.mesh_list().size()),
+            5)) {
+        switch_mesh(_scene.available_meshes.mesh_list()[_scene.current_mesh_idx]
+                      .path.c_str());
       }
 
       ImGui::Separator();
+      ImGui::SliderFloat(
+        "Scale", &_objects[obj_type::teapot].scale, 0.1f, 10.0f);
 
+      ImGui::Separator();
       if (ImGui::ColorPicker3("Diffuse",
                               _demo_opts.kd_main.components,
                               ImGuiColorEditFlags_NoAlpha)) {
@@ -453,6 +408,8 @@ void app::directional_light_demo::draw_ui(const int32_t surface_w,
 
     if (ImGui::CollapsingHeader("Debug", ImGuiTreeNodeFlags_Framed)) {
       ImGui::Checkbox("Draw surface normals", &_demo_opts.drawnormals);
+      ImGui::Separator();
+      ImGui::SliderFloat("Normal length", &_demo_opts.normal_len, 0.1f, 5.0f);
     }
   }
 
@@ -464,23 +421,17 @@ void app::directional_light_demo::draw_ui(const int32_t surface_w,
 void app::directional_light_demo::poll_start(
   const xray::ui::poll_start_event&) {}
 
-void app::directional_light_demo::poll_end(const xray::ui::poll_end_event& p) {}
+void app::directional_light_demo::poll_end(const xray::ui::poll_end_event&) {}
 
 void app::directional_light_demo::switch_mesh(const char* mesh_path) {
-  mesh_loader mldr{mesh_path};
-  if (!mldr) {
-    XR_DBG_MSG("Failed to load mesh {}", mesh_path);
-  }
-
-  auto loaded_mesh = basic_mesh{mldr.vertex_data(),
-                                mldr.header().vertex_count,
-                                mldr.index_data(),
-                                mldr.header().index_count};
-
+  auto loaded_mesh = basic_mesh{mesh_path};
   if (!loaded_mesh) {
     XR_DBG_MSG("Failed to create mesh!");
     return;
   }
 
   _meshes[obj_type::teapot] = std::move(loaded_mesh);
+  _objects[obj_type::teapot].pos.y =
+    _objects[obj_type::ripple].mesh->aabb().height() /*+
+    _objects[obj_type::teapot].mesh->aabb().max_dimension() * 0.5f*/;
 }
