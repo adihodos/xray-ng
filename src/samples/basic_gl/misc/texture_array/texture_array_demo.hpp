@@ -44,17 +44,17 @@ namespace app {
 
 class texture_array_demo : public demo_base {
 public:
-  texture_array_demo();
+  texture_array_demo(const init_context_t& init_ctx);
 
   ~texture_array_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
+  virtual void loop_event(const xray::ui::window_loop_event&) override;
   virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
 
 private:
   void init();
+  void draw(const int32_t surface_width, const int32_t surface_height);
+  void draw_ui(const int32_t surface_width, const int32_t surface_height);
 
 private:
   xray::rendering::scoped_buffer       _quad_vb;

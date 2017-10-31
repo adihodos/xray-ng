@@ -22,9 +22,15 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-app::texture_array_demo::texture_array_demo() { init(); }
+struct imgui_scope {
+  imgui_scope(const char* name = nullptr) { ImGui::Begin(name); }
+  ~imgui_scope() { ImGui::End(); }
+};
 
-app::texture_array_demo::~texture_array_demo() {}
+struct imgui_group_scope {
+  imgui_group_scope() { ImGui::BeginGroup(); }
+  ~imgui_group_scope() { ImGui::EndGroup(); }
+};
 
 struct vertex2pt {
   vec2f pos;
@@ -49,9 +55,8 @@ static constexpr const char* TEXTURE_FILES[] = {"ash_uvgrid01.jpg",
                                                 "ash_uvgrid09.png",
                                                 "ash_uvgrid10.jpg"};
 
-void app::texture_array_demo::init() {
-  assert(!valid());
-
+app::texture_array_demo::texture_array_demo(const init_context_t& init_ctx)
+  : app::demo_base{init_ctx} {
   _quad_vb = []() {
     GLuint buffer{};
     gl::CreateBuffers(1, &buffer);
@@ -68,7 +73,7 @@ void app::texture_array_demo::init() {
     return index_buff;
   }();
 
-  _quad_layout = [vb = raw_handle(_quad_vb), ib = raw_handle(_quad_ib)]() {
+  _quad_layout = [ vb = raw_handle(_quad_vb), ib = raw_handle(_quad_ib) ]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
     gl::VertexArrayVertexBuffer(vao, 0, vb, 0, (GLsizei) sizeof(vertex2pt));
@@ -86,7 +91,8 @@ void app::texture_array_demo::init() {
     gl::VertexArrayAttribBinding(vao, 1, 0);
 
     return vao;
-  }();
+  }
+  ();
 
   _vs = gpu_program_builder{}
           .add_file("shaders/misc/texture_array/shader.vert.glsl")
@@ -159,11 +165,36 @@ void app::texture_array_demo::init() {
   gl::SamplerParameterfv(
     raw_handle(_sampler), gl::TEXTURE_BORDER_COLOR, _border_color.components);
 
+  _ui->set_global_font("Roboto-Regular");
   _valid = true;
 }
 
-void app::texture_array_demo::draw(
-  const xray::rendering::draw_context_t& draw_ctx) {
+app::texture_array_demo::~texture_array_demo() {}
+
+void app::texture_array_demo::loop_event(
+  const xray::ui::window_loop_event& wle) {
+  _ui->tick(1.0f / 60.0f);
+  draw(wle.wnd_width, wle.wnd_height);
+  draw_ui(wle.wnd_width, wle.wnd_height);
+}
+
+void app::texture_array_demo::event_handler(const xray::ui::window_event& evt) {
+  if (is_input_event(evt)) {
+    _ui->input_event(evt);
+    if (_ui->wants_input()) {
+      return;
+    }
+
+    if (evt.type == event_type::key &&
+        evt.event.key.keycode == key_sym::e::escape) {
+      _quit_receiver();
+      return;
+    }
+  }
+}
+
+void app::texture_array_demo::draw(const int32_t surface_width,
+                                   const int32_t surface_height) {
   assert(valid());
 
   gl::ClearNamedFramebufferfv(
@@ -171,8 +202,8 @@ void app::texture_array_demo::draw(
   gl::ViewportIndexedf(0,
                        0.0f,
                        0.0f,
-                       (float) draw_ctx.window_width,
-                       (float) draw_ctx.window_height);
+                       static_cast<float>(surface_width),
+                       static_cast<float>(surface_height));
 
   gl::BindTextureUnit(0, raw_handle(_texture_array));
   gl::BindSampler(0, raw_handle(_sampler));
@@ -183,11 +214,6 @@ void app::texture_array_demo::draw(
   _pipeline.use();
   gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_BYTE, nullptr);
 }
-
-void app::texture_array_demo::update(const float /* delta_ms */) {}
-
-void app::texture_array_demo::event_handler(
-  const xray::ui::window_event& /* evt */) {}
 
 struct texture_param_info {
   GLenum      mode;
@@ -212,110 +238,109 @@ static constexpr texture_param_info TEXTURE_SAMPLING_MODES[] = {
   TEX_PARAM_INFO_ENTRY(gl::LINEAR_MIPMAP_NEAREST),
   TEX_PARAM_INFO_ENTRY(gl::LINEAR_MIPMAP_LINEAR)};
 
-struct imgui_scope {
-  imgui_scope(const char* name = nullptr) { ImGui::Begin(name); }
-  ~imgui_scope() { ImGui::End(); }
-};
+void app::texture_array_demo::draw_ui(const int32_t surface_width,
+                                      const int32_t surface_height) {
+  _ui->new_frame(surface_width, surface_height);
 
-struct imgui_group_scope {
-  imgui_group_scope() { ImGui::BeginGroup(); }
-  ~imgui_group_scope() { ImGui::EndGroup(); }
-};
+  ImGui::SetNextWindowPos({0, 0}, ImGuiCond_Appearing);
+  if (ImGui::Begin("Options",
+                   nullptr,
+                   ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_ShowBorders)) {
 
-void app::texture_array_demo::compose_ui() {
-  ImGui::SetNextWindowPos({0, 0}, ImGuiSetCond_Always);
-  // ImGui::Begin("Options");
-  imgui_scope ui_scope{"Options"};
-
-  if (ImGui::Button("<< Previous image")) {
-    XR_LOG_INFO("Pushed button!");
-    _image_index =
-      clamp(_image_index - 1, 0, XR_I32_COUNTOF(TEXTURE_FILES) - 1);
-  }
-
-  if (ImGui::Button("Next image >>")) {
-    XR_LOG_INFO("Pushed button!");
-    _image_index =
-      clamp(_image_index + 1, 0, XR_I32_COUNTOF(TEXTURE_FILES) - 1);
-  }
-
-  ImGui::Separator();
-
-  {
-    imgui_group_scope grp{};
-    ImGui::Text("Texture wrapping");
-    for_each(begin(TEXTURE_WRAP_MODES),
-             end(TEXTURE_WRAP_MODES),
-             [this](const auto& twm) {
-               const auto selected =
-                 ImGui::RadioButton(twm.desc, _wrap_mode == twm.mode);
-
-               if (!selected)
-                 return;
-
-               if (_wrap_mode == twm.mode)
-                 return;
-
-               _wrap_mode = twm.mode;
-               gl::SamplerParameteri(
-                 raw_handle(_sampler), gl::TEXTURE_WRAP_S, _wrap_mode);
-               gl::SamplerParameteri(
-                 raw_handle(_sampler), gl::TEXTURE_WRAP_T, _wrap_mode);
-             });
-
-    if (_wrap_mode == gl::CLAMP_TO_BORDER) {
-      const bool color_changed =
-        ImGui::ColorEdit4("Border color", _border_color.components, false);
-      if (color_changed) {
-        gl::SamplerParameterfv(raw_handle(_sampler),
-                               gl::TEXTURE_BORDER_COLOR,
-                               _border_color.components);
-      }
+    if (ImGui::Button("<< Previous image")) {
+      XR_LOG_INFO("Pushed button!");
+      _image_index =
+        clamp(_image_index - 1, 0, XR_I32_COUNTOF(TEXTURE_FILES) - 1);
     }
 
-    ImGui::SliderInt("Texture wrapping factor", &_wrap_factor, 1, 10, "%.0f");
+    if (ImGui::Button("Next image >>")) {
+      XR_LOG_INFO("Pushed button!");
+      _image_index =
+        clamp(_image_index + 1, 0, XR_I32_COUNTOF(TEXTURE_FILES) - 1);
+    }
+
+    ImGui::Separator();
+
+    {
+      imgui_group_scope grp{};
+      ImGui::Text("Texture wrapping");
+      for_each(begin(TEXTURE_WRAP_MODES),
+               end(TEXTURE_WRAP_MODES),
+               [this](const auto& twm) {
+                 const auto selected =
+                   ImGui::RadioButton(twm.desc, _wrap_mode == twm.mode);
+
+                 if (!selected)
+                   return;
+
+                 if (_wrap_mode == twm.mode)
+                   return;
+
+                 _wrap_mode = twm.mode;
+                 gl::SamplerParameteri(
+                   raw_handle(_sampler), gl::TEXTURE_WRAP_S, _wrap_mode);
+                 gl::SamplerParameteri(
+                   raw_handle(_sampler), gl::TEXTURE_WRAP_T, _wrap_mode);
+               });
+
+      if (_wrap_mode == gl::CLAMP_TO_BORDER) {
+        const bool color_changed =
+          ImGui::ColorEdit4("Border color", _border_color.components, false);
+        if (color_changed) {
+          gl::SamplerParameterfv(raw_handle(_sampler),
+                                 gl::TEXTURE_BORDER_COLOR,
+                                 _border_color.components);
+        }
+      }
+
+      ImGui::SliderInt("Texture wrapping factor", &_wrap_factor, 1, 10, "%.0f");
+    }
+
+    ImGui::Separator();
+    {
+      imgui_group_scope grp{};
+      ImGui::Text("Minification filter");
+
+      for_each(begin(TEXTURE_SAMPLING_MODES),
+               end(TEXTURE_SAMPLING_MODES),
+               [this](const auto& samp_mode) {
+                 const auto sel_changed = ImGui::RadioButton(
+                   samp_mode.desc, samp_mode.mode == _min_filter);
+                 if (!sel_changed || (samp_mode.mode == _min_filter))
+                   return;
+
+                 _min_filter = samp_mode.mode;
+                 gl::SamplerParameteri(
+                   raw_handle(_sampler), gl::TEXTURE_MIN_FILTER, _min_filter);
+               });
+    }
+
+    ImGui::Separator();
+    {
+      imgui_group_scope grp{};
+      ImGui::Text("Magnification filter");
+
+      int32_t id{};
+      for_each(begin(TEXTURE_SAMPLING_MODES),
+               begin(TEXTURE_SAMPLING_MODES) + 2,
+               [this, &id](const auto& samp_mode) {
+                 ImGui::PushID(id++);
+
+                 const auto sel_changed = ImGui::RadioButton(
+                   samp_mode.desc, samp_mode.mode == _mag_filter);
+
+                 ImGui::PopID();
+                 if (!sel_changed || (samp_mode.mode == _mag_filter))
+                   return;
+
+                 _mag_filter = samp_mode.mode;
+                 gl::SamplerParameteri(
+                   raw_handle(_sampler), gl::TEXTURE_MAG_FILTER, _mag_filter);
+               });
+    }
   }
 
-  ImGui::Separator();
-  {
-    imgui_group_scope grp{};
-    ImGui::Text("Minification filter");
-
-    for_each(begin(TEXTURE_SAMPLING_MODES),
-             end(TEXTURE_SAMPLING_MODES),
-             [this](const auto& samp_mode) {
-               const auto sel_changed = ImGui::RadioButton(
-                 samp_mode.desc, samp_mode.mode == _min_filter);
-               if (!sel_changed || (samp_mode.mode == _min_filter))
-                 return;
-
-               _min_filter = samp_mode.mode;
-               gl::SamplerParameteri(
-                 raw_handle(_sampler), gl::TEXTURE_MIN_FILTER, _min_filter);
-             });
-  }
-
-  ImGui::Separator();
-  {
-    imgui_group_scope grp{};
-    ImGui::Text("Magnification filter");
-
-    int32_t id{};
-    for_each(begin(TEXTURE_SAMPLING_MODES),
-             begin(TEXTURE_SAMPLING_MODES) + 2,
-             [this, &id](const auto& samp_mode) {
-               ImGui::PushID(id++);
-
-               const auto sel_changed = ImGui::RadioButton(
-                 samp_mode.desc, samp_mode.mode == _mag_filter);
-
-               ImGui::PopID();
-               if (!sel_changed || (samp_mode.mode == _mag_filter))
-                 return;
-
-               _mag_filter = samp_mode.mode;
-               gl::SamplerParameteri(
-                 raw_handle(_sampler), gl::TEXTURE_MAG_FILTER, _mag_filter);
-             });
-  }
+  ImGui::End();
+  _ui->draw();
 }

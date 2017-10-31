@@ -20,8 +20,8 @@ set(project_sources
     ${proj_src_dir}/misc/fractals/fractal_demo.cc
     ${proj_inc_dir}/misc/fractals/fractal_demo.hpp
 
-#    ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
-#    ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
+    ${proj_src_dir}/misc/texture_array/texture_array_demo.cc
+    ${proj_inc_dir}/misc/texture_array/texture_array_demo.hpp
 
     ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
     ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc

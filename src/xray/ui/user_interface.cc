@@ -512,7 +512,10 @@ void xray::ui::user_interface::init(const font_info* fonts,
 
 #endif
 
-xray::ui::user_interface::~user_interface() noexcept { ImGui::Shutdown(); }
+xray::ui::user_interface::~user_interface() noexcept {
+  set_current();
+  ImGui::Shutdown();
+}
 
 void xray::ui::user_interface::draw() {
   ImGui::Render();

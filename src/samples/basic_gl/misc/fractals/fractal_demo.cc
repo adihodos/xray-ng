@@ -136,6 +136,7 @@ app::fractal_demo::fractal_demo(const app::init_context_t& init_ctx)
   _valid = true;
 
   gl::Disable(gl::DEPTH_TEST);
+  _ui->set_global_font("UbuntuMono-Regular");
 }
 
 app::fractal_demo::~fractal_demo() {}
@@ -215,7 +216,7 @@ void app::fractal_demo::draw_ui(const int32_t surface_w,
                  XR_I32_COUNTOF(NICE_SHAPES),
                  XR_I32_COUNTOF(NICE_SHAPES) / 2);
 
-    ImGui::SliderInt("Iterations", &_iterations, 32, 4096, nullptr);
+    ImGui::SliderInt("Iterations", &_iterations, 16, 4096, nullptr);
   }
 
   ImGui::End();

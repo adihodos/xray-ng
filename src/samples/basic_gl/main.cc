@@ -54,6 +54,7 @@
 #include "lighting/directional_light_demo.hpp"
 #include "misc/fractals/fractal_demo.hpp"
 #include "misc/instanced_drawing/instanced_drawing_demo.hpp"
+#include "misc/texture_array/texture_array_demo.hpp"
 
 //#include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 
@@ -86,6 +87,7 @@ enum class demo_type : int32_t {
 class main_app : public demo_base {
 public:
   explicit main_app(xray::ui::window* wnd);
+  ~main_app() {}
 
   bool valid() const noexcept { return _initialized; }
 
@@ -223,9 +225,9 @@ void main_app::run_demo(const demo_type type) {
       return xray::base::make_unique<fractal_demo>(init_context);
       break;
 
-      //    case demo_type::texture_array:
-      //      return xray::base::make_unique<texture_array_demo>();
-      //      break;
+    case demo_type::texture_array:
+      return xray::base::make_unique<texture_array_demo>(init_context);
+      break;
 
       //    case demo_type::mesh:
       //      return xray::base::make_unique<mesh_demo>(init_context);

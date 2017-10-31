@@ -50,10 +50,11 @@ public:
 
   virtual ~demo_base();
 
-  virtual void event_handler(const xray::ui::window_event& evt) = 0;
   virtual void poll_start(const xray::ui::poll_start_event&);
   virtual void poll_end(const xray::ui::poll_end_event&);
-  virtual void loop_event(const xray::ui::window_loop_event&) = 0;
+
+  virtual void event_handler(const xray::ui::window_event& evt) = 0;
+  virtual void loop_event(const xray::ui::window_loop_event&)   = 0;
 
   bool     valid() const noexcept { return _valid; }
   explicit operator bool() const noexcept { return valid(); }
