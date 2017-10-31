@@ -53,9 +53,10 @@
 #include "init_context.hpp"
 #include "lighting/directional_light_demo.hpp"
 #include "misc/fractals/fractal_demo.hpp"
+#include "misc/instanced_drawing/instanced_drawing_demo.hpp"
 
 //#include "misc/geometric_shapes/geometric_shapes_demo.hpp"
-//#include "misc/instanced_drawing/instanced_drawing_demo.hpp"
+
 //#include "misc/mesh/mesh_demo.hpp"
 
 using namespace xray;
@@ -243,10 +244,9 @@ void main_app::run_demo(const demo_type type) {
       //      xray::base::make_unique<procedural_city_demo>(init_context);
       //      break;
 
-      //    case demo_type::instanced_drawing:
-      //      return
-      //      xray::base::make_unique<instanced_drawing_demo>(init_context);
-      //      break;
+    case demo_type::instanced_drawing:
+      return xray::base::make_unique<instanced_drawing_demo>(init_context);
+      break;
 
       //    case demo_type::geometric_shapes:
       //      return

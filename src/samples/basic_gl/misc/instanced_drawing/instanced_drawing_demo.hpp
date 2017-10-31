@@ -76,12 +76,10 @@ public:
   ~instanced_drawing_demo();
 
   virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void poll_start(const xray::ui::poll_start_event&) override;
-  virtual void poll_end(const xray::ui::poll_end_event&) override;
   virtual void loop_event(const xray::ui::window_loop_event&) override;
 
 private:
-  void compose_ui();
+  void compose_ui(const int32_t surface_width, const int32_t surface_height);
 
 private:
   struct instance_info {
@@ -116,13 +114,16 @@ private:
   xray::rendering::scoped_sampler      _sampler;
   xray::base::random_number_generator  _rand;
   simple_world                         _world;
-  xray::ui::imgui_backend              _app_ui;
   xray::math::vec2i32                  _window_size;
 
   struct {
     xray::scene::camera                camera;
     xray::scene::fps_camera_controller cam_control{&camera};
   } _scene;
+
+  struct demo_options {
+    int32_t instance_count{object_instances::instance_count};
+  } _demo_opts;
 
   xray::base::timer_highp _timer;
 

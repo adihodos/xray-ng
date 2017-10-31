@@ -312,8 +312,10 @@ app::instanced_drawing_demo::instanced_drawing_demo(
     draw_cmds[1].base_instance  = draw_cmds[0].instance_count;
 
     gl::CreateBuffers(1, raw_handle_ptr(_indirect_draw_cmd_buffer));
-    gl::NamedBufferStorage(
-      raw_handle(_indirect_draw_cmd_buffer), sizeof(draw_cmds), draw_cmds, 0);
+    gl::NamedBufferStorage(raw_handle(_indirect_draw_cmd_buffer),
+                           sizeof(draw_cmds),
+                           draw_cmds,
+                           gl::MAP_WRITE_BIT);
 
     GL_MARK_BUFFER(raw_handle(_indirect_draw_cmd_buffer),
                    "Indirect draw commands buffer");
@@ -482,8 +484,7 @@ void app::instanced_drawing_demo::loop_event(
   _timer.update_and_reset();
   const auto delta_tm = _timer.elapsed_millis();
 
-  _app_ui.tick(delta_tm);
-  compose_ui();
+  _ui->tick(delta_tm);
 
   _scene.cam_control.update();
 
@@ -568,15 +569,71 @@ void app::instanced_drawing_demo::loop_event(
 
   gl::MultiDrawElementsIndirect(gl::TRIANGLES, gl::UNSIGNED_INT, nullptr, 2, 0);
 
-  _app_ui.draw();
+  compose_ui(wle.wnd_width, wle.wnd_height);
+  _ui->draw();
 }
 
-void app::instanced_drawing_demo::compose_ui() {
+void app::instanced_drawing_demo::compose_ui(const int32_t surface_width,
+                                             const int32_t surface_height) {
+  _ui->new_frame(surface_width, surface_height);
   ImGui::SetNextWindowPos(vec2f::stdc::zero, ImGuiCond_Appearing);
 
-  if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::Button("button #1");
-    ImGui::Button("button #2");
+  if (ImGui::Begin("Options",
+                   nullptr,
+                   ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_ShowBorders)) {
+    if (ImGui::SliderInt(
+          "Instance count",
+          &_demo_opts.instance_count,
+          2,
+          static_cast<int32_t>(object_instances::instance_count))) {
+
+      scoped_resource_mapping draw_cmd_buffer{
+        raw_handle(_indirect_draw_cmd_buffer),
+        gl::MAP_WRITE_BIT,
+        sizeof(draw_elements_indirect_command) * 2};
+
+      if (draw_cmd_buffer) {
+        auto ptr = static_cast<draw_elements_indirect_command*>(
+          draw_cmd_buffer.memory());
+
+        ptr[0].instance_count = _demo_opts.instance_count / 2;
+        ptr[1].instance_count = _demo_opts.instance_count / 2;
+      }
+    }
+
+    int32_t    idx{};
+    const auto instance_span =
+      gsl::as_span(_obj_instances.instances.data(),
+                   static_cast<ptrdiff_t>(_demo_opts.instance_count));
+
+    for_each(
+      begin(instance_span), end(instance_span), [&idx](instance_info& ii) {
+
+        if (ImGui::TreeNodeEx(fmt::format("Instance #{}", idx).c_str(),
+                              ImGuiTreeNodeFlags_CollapsingHeader)) {
+          ImGui::PushID(idx);
+          ImGui::SliderFloat("Roll", &ii.roll, -two_pi<float>, two_pi<float>);
+          ImGui::SameLine();
+          ImGui::SliderFloat("Pitch", &ii.pitch, -two_pi<float>, two_pi<float>);
+          ImGui::SameLine();
+          ImGui::SliderFloat("Yaw", &ii.yaw, -two_pi<float>, two_pi<float>);
+
+          ImGui::Separator();
+          ImGui::InputFloat("Scaling",
+                            &ii.scale,
+                            0.1f,
+                            0.5f,
+                            3,
+                            ImGuiInputTextFlags_CharsDecimal);
+          ImGui::PopID();
+
+          ii.scale = clamp(ii.scale, 0.1f, 10.0f);
+
+          ImGui::TreePop();
+        }
+        idx++;
+      });
   }
 
   ImGui::End();
@@ -608,8 +665,8 @@ void app::instanced_drawing_demo::event_handler(
   }
 
   if (is_input_event(evt)) {
-    _app_ui.input_event(evt);
-    if (!_app_ui.wants_input()) {
+    _ui->input_event(evt);
+    if (!_ui->wants_input()) {
       //
       //  Quit on escape
       if (evt.type == event_type::key &&
@@ -621,12 +678,4 @@ void app::instanced_drawing_demo::event_handler(
     }
     return;
   }
-}
-
-void app::instanced_drawing_demo::poll_start(
-  const xray::ui::poll_start_event&) {}
-
-void app::instanced_drawing_demo::poll_end(const xray::ui::poll_end_event&) {
-  ImGui::GetStyle().Alpha = 1.0f;
-  _app_ui.new_frame(_window_size.x, _window_size.y);
 }
