@@ -4,7 +4,7 @@
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 
 xray::rendering::texture_loader::texture_loader(
-    const char* file_path, const texture_load_options load_opts) {
+  const char* file_path, const texture_load_options load_opts) {
   assert(file_path != nullptr);
 
   try {
@@ -14,11 +14,68 @@ xray::rendering::texture_loader::texture_loader(
       stbi_set_flip_vertically_on_load(true);
 
     xray::base::unique_pointer_reset(
-        _texdata,
-        stbi_load_from_memory(static_cast<const stbi_uc*>(tex_file.memory()),
-                              static_cast<int32_t>(tex_file.size()), &_x_size,
-                              &_y_size, &_levels, 0));
+      _texdata,
+      stbi_load_from_memory(static_cast<const stbi_uc*>(tex_file.memory()),
+                            static_cast<int32_t>(tex_file.size()),
+                            &_x_size,
+                            &_y_size,
+                            &_levels,
+                            0));
   } catch (const std::exception& e) {
     XR_LOG_ERR("Failed to load texture {}", file_path);
   }
+}
+
+GLenum xray::rendering::texture_loader::format() const noexcept {
+  assert(_texdata != nullptr);
+
+  switch (_levels) {
+  case 1:
+    return gl::RED;
+    break;
+
+  case 2:
+    return gl::RG;
+    break;
+
+  case 3:
+    return gl::RGB;
+    break;
+
+  case 4:
+    return gl::RGBA;
+    break;
+
+  default:
+    break;
+  }
+
+  return gl::INVALID_ENUM;
+}
+
+GLenum xray::rendering::texture_loader::internal_format() const noexcept {
+  assert(_texdata != nullptr);
+
+  switch (_levels) {
+  case 1:
+    return gl::R8;
+    break;
+
+  case 2:
+    return gl::RG8;
+    break;
+
+  case 3:
+    return gl::RGB8;
+    break;
+
+  case 4:
+    return gl::RGBA8;
+    break;
+
+  default:
+    break;
+  }
+
+  return gl::INVALID_ENUM;
 }

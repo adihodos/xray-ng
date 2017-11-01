@@ -70,6 +70,14 @@ struct font_info {
   float       pixel_size;
 };
 
+struct imcontext_deleter {
+  void operator()(ImGuiContext* p) noexcept {
+    if (p) {
+      ImGui::DestroyContext(p);
+    }
+  }
+};
+
 class user_interface {
 public:
   static constexpr uint32_t VERTEX_BUFFER_SIZE = 1024 * 512;
@@ -140,13 +148,6 @@ private:
     bool _valid{false};
   } _rendercontext;
 
-  struct imcontext_deleter {
-    void operator()(ImGuiContext* p) noexcept {
-      if (p) {
-        ImGui::DestroyContext(p);
-      }
-    }
-  };
   xray::base::unique_pointer<ImGuiContext, imcontext_deleter> _imcontext;
   ImGuiIO*                                                    _gui;
 

@@ -82,15 +82,9 @@ public:
 
   int32_t depth() const noexcept { return _levels; }
 
-  GLenum format() const noexcept {
-    assert(_texdata != nullptr);
-    return _levels == 3 ? gl::RGB : gl::RGBA;
-  }
+  GLenum format() const noexcept;
 
-  GLenum internal_format() const noexcept {
-    assert(_texdata != nullptr);
-    return _levels == 3 ? gl::RGB8 : gl::RGBA8;
-  }
+  GLenum internal_format() const noexcept;
 
   GLenum pixel_size() const noexcept { return gl::UNSIGNED_BYTE; }
 
