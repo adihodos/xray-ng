@@ -21,7 +21,6 @@
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
-#include "xray/ui/ui.hpp"
 #include "xray/ui/user_interface.hpp"
 #include <algorithm>
 #include <cassert>
@@ -65,6 +64,7 @@ app::mesh_demo::mesh_demo(const init_context_t& init_ctx)
 
   _camcontrol.update();
   init();
+  _ui->set_global_font("UbuntuMono-Regular");
 }
 
 app::mesh_demo::~mesh_demo() {}
@@ -285,42 +285,26 @@ void app::mesh_demo::draw(const float surface_width,
   }
 }
 
-nk_color
-xray_color_to_nk_color(const xray::rendering::rgb_color& clr) noexcept {
-  return {static_cast<uint8_t>(clr.r * 255.0f),
-          static_cast<uint8_t>(clr.g * 255.0f),
-          static_cast<uint8_t>(clr.b * 255.0f),
-          static_cast<uint8_t>(clr.a * 255.0f)};
-}
+void app::mesh_demo::draw_ui(const int32_t surface_width,
+                             const int32_t surface_height) {
+  _ui->new_frame(surface_width, surface_height);
 
-xray::rendering::rgb_color nk_color_to_xray_color(const nk_color clr) noexcept {
-  return {static_cast<float>(clr.r) / 255.0f,
-          static_cast<float>(clr.g) / 255.0f,
-          static_cast<float>(clr.b) / 255.0f,
-          static_cast<float>(clr.a) / 255.0f};
-}
+  ImGui::SetNextWindowPos({0.0f, 0.0f}, ImGuiCond_Appearing);
 
-void app::mesh_demo::compose_ui() {
-  auto ctx = _ui.ctx();
-  if (nk_begin(ctx,
-               "Options",
-               nk_rect(0.0f, 0.0f, 360.0f, 512.0f),
-               NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE |
-                 NK_WINDOW_TITLE | NK_WINDOW_MOVABLE)) {
-
-    nk_layout_row_dynamic(ctx, 25.0f, 1);
-    nk_label(ctx, "Model", NK_TEXT_ALIGN_CENTERED);
-
+  if (ImGui::Begin("Options",
+                   nullptr,
+                   ImGuiWindowFlags_ShowBorders |
+                     ImGuiWindowFlags_AlwaysAutoResize)) {
     int32_t selected{_sel_id == -1 ? 0 : _sel_id};
-    nk_combobox_callback(ctx,
-                         [](void*, int id, const char** outstr) {
-                           *outstr = loadable_meshes[id].display_name;
-                         },
-                         nullptr,
-                         &selected,
-                         XR_I32_COUNTOF(loadable_meshes),
-                         25,
-                         nk_vec2(200.0f, 200.0f));
+    ImGui::Combo("Displayed model",
+                 &selected,
+                 [](void*, int32_t id, const char** out) {
+                   *out = loadable_meshes[id].display_name;
+                   return true;
+                 },
+                 nullptr,
+                 XR_I32_COUNTOF(loadable_meshes),
+                 5);
 
     if (selected != _sel_id) {
       XR_DBG_MSG("Changing mesh from {} to {}", _sel_id, selected);
@@ -331,74 +315,36 @@ void app::mesh_demo::compose_ui() {
     }
 
     if (_mesh_info) {
-      nk_layout_row_dynamic(ctx, 240, 1);
-      if (nk_group_begin(ctx,
-                         "Mesh info",
-                         NK_WINDOW_BORDER | NK_WINDOW_NO_SCROLLBAR |
-                           NK_WINDOW_TITLE)) {
-
+      if (ImGui::CollapsingHeader("Mesh info", ImGuiTreeNodeFlags_Framed)) {
         const auto mi = _mesh_info.value();
-        nk_layout_row_dynamic(ctx, 18, 1);
-        nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Vertices %u", mi.vertices);
-        nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Indices %u", mi.indices);
-        nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Bytes vertex %u", mi.vertex_bytes);
-        nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Index bytes %u", mi.index_bytes);
-        nk_labelf(ctx,
-                  NK_TEXT_ALIGN_LEFT,
-                  "AABB [%s : %s]",
-                  string_cast(mi.bbox.min).c_str(),
-                  string_cast(mi.bbox.max).c_str());
-        nk_labelf(ctx,
-                  NK_TEXT_ALIGN_LEFT,
-                  "Bounding sphere [%s x %3.3f]",
-                  string_cast(mi.bsphere.center).c_str(),
-                  mi.bsphere.radius);
-        nk_group_end(ctx);
+
+        ImGui::Text("Vertex count: %u", mi.vertices);
+        ImGui::Text("Index count: %u", mi.indices);
+        ImGui::Text("Vertex bytes: %zu", mi.vertex_bytes);
+        ImGui::Text("Index bytes: %zu", mi.index_bytes);
       }
 
-      nk_layout_row_dynamic(ctx, 320, 1);
-
-      if (nk_group_begin(
-            ctx, "Drawing options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-        nk_layout_row_dynamic(ctx, 25.0f, 1);
-        nk_checkbox_label(ctx, "Draw wireframe", &_drawparams.draw_wireframe);
-        nk_checkbox_label(
-          ctx, "Draw bounding box", &_drawparams.draw_boundingbox);
-        nk_checkbox_label(ctx, "Draw normals", &_drawparams.drawnormals);
+      if (ImGui::CollapsingHeader("Debug options", ImGuiTreeNodeFlags_Framed)) {
+        ImGui::Checkbox("Draw as wireframe", &_drawparams.draw_wireframe);
+        ImGui::Checkbox("Draw bounding box", &_drawparams.draw_boundingbox);
+        ImGui::Checkbox("Draw surface normals", &_drawparams.drawnormals);
 
         if (_drawparams.drawnormals) {
-          nk_label(ctx, "Normal color start", NK_TEXT_ALIGN_LEFT);
-          const auto cs = nk_color_picker(
-            ctx, xray_color_to_nk_color(_drawparams.start_color), NK_RGBA);
-
-          _drawparams.start_color = nk_color_to_xray_color(cs);
-
-          nk_label(ctx, "Normal color end", NK_TEXT_ALIGN_LEFT);
-          const auto ce = nk_color_picker(
-            ctx, xray_color_to_nk_color(_drawparams.end_color), NK_RGBA);
-
-          _drawparams.end_color = nk_color_to_xray_color(ce);
-
-          nk_label(
-            ctx,
-            fmt::format("Normal length {}", _drawparams.normal_len).c_str(),
-            NK_TEXT_ALIGN_LEFT);
-
-          _drawparams.normal_len = nk_propertyf(ctx,
-                                                "Normal length",
-                                                0.1f,
-                                                _drawparams.normal_len,
-                                                1.0f,
-                                                0.05f,
-                                                0.05f);
+          ImGui::ColorEdit3("Normal start color",
+                            _drawparams.start_color.components,
+                            ImGuiColorEditFlags_NoAlpha);
+          ImGui::ColorEdit3("Normal end color",
+                            _drawparams.end_color.components,
+                            ImGuiColorEditFlags_NoAlpha);
+          ImGui::SliderFloat(
+            "Normal length", &_drawparams.normal_len, 0.1f, 10.0f);
         }
-        nk_group_end(ctx);
       }
     }
   }
 
-  nk_end(ctx);
-  _camcontrol.update();
+  ImGui::End();
+  _ui->draw();
 }
 
 void app::mesh_demo::event_handler(const xray::ui::window_event& evt) {
@@ -413,30 +359,34 @@ void app::mesh_demo::event_handler(const xray::ui::window_event& evt) {
     return;
   }
 
-  if (evt.type == event_type::key &&
-      evt.event.key.keycode == key_sym::e::escape) {
-    _quit_receiver();
-    return;
+  if (is_input_event(evt)) {
+    if (evt.type == event_type::key &&
+        evt.event.key.keycode == key_sym::e::escape) {
+      _quit_receiver();
+      return;
+    }
+
+    _ui->input_event(evt);
+    if (!_ui->wants_input()) {
+      _camcontrol.input_event(evt);
+    }
   }
-
-  _ui.ui_event(evt);
-  if (!_ui.input.wants()) {
-    _camcontrol.input_event(evt);
-  }
 }
 
-void app::mesh_demo::poll_start(const xray::ui::poll_start_event&) {
-  _ui.input.begin();
-}
+// void app::mesh_demo::poll_start(const xray::ui::poll_start_event&) {
+//  _ui.input.begin();
+//}
 
-void app::mesh_demo::poll_end(const xray::ui::poll_end_event&) {
-  _ui.input.end();
-}
+// void app::mesh_demo::poll_end(const xray::ui::poll_end_event&) {
+//  _ui.input.end();
+//}
 
 void app::mesh_demo::loop_event(const xray::ui::window_loop_event& wle) {
-  compose_ui();
+  _camcontrol.update();
+  _ui->tick(1.0f / 60.0f);
+
   draw(static_cast<float>(wle.wnd_width), static_cast<float>(wle.wnd_height));
-  _ui.render(wle.wnd_width, wle.wnd_height);
+  draw_ui(wle.wnd_width, wle.wnd_height);
 }
 
 xray::base::maybe<app::mesh_demo::mesh_info>

@@ -30,11 +30,12 @@
 
 /// \file   geometry_data.hpp    Class with geometric data.
 
-#include <cstddef>
-#include <cstdint>
+#include "xray/xray.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vertex_format/vertex_pntt.hpp"
-#include "xray/xray.hpp"
+#include <cstddef>
+#include <cstdint>
+#include <span.h>
 
 namespace xray {
 namespace rendering {
@@ -57,9 +58,9 @@ struct geometry_data_t {
 
   void setup(const size_type num_vertices, const size_type num_indices) {
     vertex_count = num_vertices;
-    index_count = num_indices;
+    index_count  = num_indices;
     geometry =
-        scoped_vector_array_t<vertex_pntt>{new vertex_pntt[num_vertices]};
+      scoped_vector_array_t<vertex_pntt>{new vertex_pntt[num_vertices]};
     indices = scoped_vector_array_t<uint32_t>{new uint32_t[num_indices]};
   }
 
@@ -67,16 +68,38 @@ struct geometry_data_t {
     return vertex_count != 0 && index_count != 0;
   }
 
-  size_type vertex_count{0};
-  size_type index_count{0};
-  scoped_vector_array_t<vertex_pntt> geometry;
-  scoped_vector_array_t<uint32_t> indices;
+  gsl::span<vertex_pntt> vertex_span() {
+    assert(vertex_count != 0);
+    return gsl::as_span(xray::base::raw_ptr(geometry),
+                        static_cast<ptrdiff_t>(vertex_count));
+  }
 
- private:
+  gsl::span<uint32_t> index_span() {
+    assert(index_count != 0);
+    return gsl::as_span(xray::base::raw_ptr(indices),
+                        static_cast<ptrdiff_t>(index_count));
+  }
+
+  vertex_pntt* vertex_data() {
+    assert(vertex_count != 0);
+    return xray::base::raw_ptr(geometry);
+  }
+
+  uint32_t* index_data() {
+    assert(index_count != 0);
+    return xray::base::raw_ptr(indices);
+  }
+
+  size_type                          vertex_count{0};
+  size_type                          index_count{0};
+  scoped_vector_array_t<vertex_pntt> geometry;
+  scoped_vector_array_t<uint32_t>    indices;
+
+private:
   XRAY_NO_COPY(geometry_data_t);
 };
 
 /// @}
 
-}  // namespace rendering
-}  // namespace xray
+} // namespace rendering
+} // namespace xray

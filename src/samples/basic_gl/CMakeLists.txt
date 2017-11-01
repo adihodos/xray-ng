@@ -26,8 +26,8 @@ set(project_sources
     ${proj_inc_dir}/misc/instanced_drawing/instanced_drawing_demo.hpp
     ${proj_src_dir}/misc/instanced_drawing/instanced_drawing_demo.cc
 
-#    ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
-#    ${proj_src_dir}/misc/mesh/mesh_demo.cc
+    ${proj_inc_dir}/misc/mesh/mesh_demo.hpp
+    ${proj_src_dir}/misc/mesh/mesh_demo.cc
 
 #    ${proj_inc_dir}/misc/bufferless_draw/bufferless-draw-demo.hpp
 #    ${proj_src_dir}/misc/bufferless_draw/bufferless-draw-demo.cc
@@ -40,6 +40,10 @@ set(project_sources
 
     ${proj_inc_dir}/lighting/directional_light_demo.hpp
     ${proj_src_dir}/lighting/directional_light_demo.cc
+
+    ${proj_inc_dir}/misc/terrain/basic/terrain_demo.hpp
+    ${proj_src_dir}/misc/terrain/basic/terrain_demo.cc
+
 
 #    ${proj_inc_dir}/lighting/point_light_demo.hpp
 #    ${proj_src_dir}/lighting/point_light_demo.cc
@@ -126,6 +130,9 @@ set(shader_files
 
     ${proj_src_dir}/shaders/misc/geometric_shapes/vs.glsl
     ${proj_src_dir}/shaders/misc/geometric_shapes/fs.glsl
+
+    ${proj_src_dir}/shaders/misc/terrain/basic/vs.glsl
+    ${proj_src_dir}/shaders/misc/terrain/basic/fs.glsl
 
     ${proj_src_dir}/shaders/less4/phong_lighting.glsl
     ${proj_src_dir}/shaders/less4/frag_passthrough.glsl
