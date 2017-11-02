@@ -68,16 +68,18 @@ private:
   xray::rendering::fragment_program _fs;
   xray::rendering::program_pipeline _pipeline;
   xray::rendering::scoped_texture   _objtex;
+  xray::rendering::scoped_texture   _colormap;
   xray::rendering::scoped_sampler   _sampler;
 
   xray::scene::camera                             _camera;
   xray::scene::camera_controller_spherical_coords _camcontrol{
-    &_camera, "config/misc/mesh_demo/cam_controller_spherical.conf"};
+    &_camera, "config/misc/terrain/cam_controller_spherical.conf"};
 
   struct terrain_opts {
     int32_t width{513};
     int32_t height{513};
     float   scaling{1.0f};
+    bool    wireframe{false};
   } _terrain_opts;
 
 private:

@@ -40,6 +40,69 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
+struct null_height_gen {
+  float operator()() const noexcept { return {}; }
+};
+
+class terrain_generator {
+public:
+  template <typename HeightGenerator>
+  static void make_terrain(const int32_t            tiles_x,
+                           const int32_t            tiles_y,
+                           const float              tile_step,
+                           const HeightGenerator&   hgen,
+                           std::vector<vertex_pnt>& terrain_vertices,
+                           std::vector<uint32_t>&   terrain_indices);
+};
+
+template <typename HeightGenerator>
+void terrain_generator::make_terrain(const int32_t            tiles_x,
+                                     const int32_t            tiles_z,
+                                     const float              tile_step,
+                                     const HeightGenerator&   hgen,
+                                     std::vector<vertex_pnt>& terrain_vertices,
+                                     std::vector<uint32_t>&   terrain_indices) {
+
+  const auto vertex_count = (tiles_x + 1) * (tiles_z + 1);
+  const auto delta_uv     = vec2f{1.0f / static_cast<float>(tiles_x),
+                              1.0f / static_cast<float>(tiles_z)};
+
+  const auto hh = (tiles_z + 1) * tile_step * 0.5f;
+  const auto hw = (tiles_x + 1) * tile_step * 0.5f;
+
+  for (int32_t z = 0; z <= tiles_z; ++z) {
+    for (int32_t x = 0; x <= tiles_x; ++x) {
+      vertex_pnt v;
+      v.position = vec3f{static_cast<float>(x) * tile_step - hw,
+                         0.0f,
+                         static_cast<float>(z) * tile_step - hh};
+      v.normal   = vec3f::stdc::unit_y;
+      v.texcoord = vec2f{static_cast<float>(x) * delta_uv.x,
+                         static_cast<float>(z) * delta_uv.y};
+
+      terrain_vertices.push_back(v);
+    }
+  }
+
+  assert(terrain_vertices.size() == vertex_count);
+
+  const auto index_count = tiles_x * tiles_z * 2 * 3;
+
+  for (int32_t z = 0; z < tiles_z; ++z) {
+    for (int32_t x = 0; x < tiles_x; ++x) {
+      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x);
+      terrain_indices.push_back((z) * (tiles_x + 1) + x + 1);
+      terrain_indices.push_back((z) * (tiles_x + 1) + x);
+
+      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x);
+      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x + 1);
+      terrain_indices.push_back((z) * (tiles_x + 1) + x + 1);
+    }
+  }
+
+  assert(terrain_indices.size() == index_count);
+}
+
 class heightmap_loader {
 public:
   heightmap_loader(const char* path);
@@ -96,6 +159,30 @@ app::terrain_demo::~terrain_demo() {}
 void app::terrain_demo::init() {
   assert(!valid());
 
+  {
+    std::vector<vertex_pnt> v;
+    std::vector<uint32_t>   i;
+    terrain_generator::make_terrain(3, 2, 1.0f, null_height_gen{}, v, i);
+
+    unique_ptr<FILE, decltype(&fclose)> fp{fopen("terr.txt", "wt"), &fclose};
+    for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
+      fprintf(
+        f, "\n%3.3f, %3.3f, %3.3f", v.position.x, v.position.y, v.position.z);
+    });
+
+    fprintf(fp.get(), "\n###############");
+    for (size_t j = 0; j < i.size() / 3; ++j) {
+      fprintf(fp.get(), "\n%u %u %u", i[j * 3 + 0], i[j * 3 + 1], i[j * 3 + 2]);
+    }
+
+    fprintf(fp.get(), "\n###############");
+
+    fflush(fp.get());
+    for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
+      fprintf(f, "\n%3.3f, %3.3f", v.texcoord.x, v.texcoord.y);
+    });
+  }
+
   //
   // turn off these so we don't get spammed
   gl::DebugMessageControl(gl::DONT_CARE,
@@ -105,32 +192,38 @@ void app::terrain_demo::init() {
                           nullptr,
                           gl::FALSE_);
 
-  heightmap_loader hmldr{
-    xr_app_config->texture_path("worlds/test/terrain_heightmap.r16").c_str()};
+  //  heightmap_loader hmldr{
+  //    xr_app_config->texture_path("worlds/test/terrain_heightmap.r16").c_str()};
 
-  if (!hmldr) {
-    XR_DBG_MSG("Failed to load heightmap!");
-    return;
-  }
+  //  if (!hmldr) {
+  //    XR_DBG_MSG("Failed to load heightmap!");
+  //    return;
+  //  }
 
-  geometry_data_t terrain;
-  geometry_factory::grid(static_cast<float>(_terrain_opts.width - 1),
-                         static_cast<float>(_terrain_opts.height - 1),
-                         static_cast<size_t>(_terrain_opts.width - 1),
-                         static_cast<size_t>(_terrain_opts.height - 1),
-                         &terrain);
+  //  geometry_data_t terrain;
+  //  geometry_factory::grid(static_cast<float>(_terrain_opts.width - 1),
+  //                         static_cast<float>(_terrain_opts.height - 1),
+  //                         static_cast<size_t>(_terrain_opts.width - 1),
+  //                         static_cast<size_t>(_terrain_opts.height - 1),
+  //                         &terrain);
+
+  //  vector<vertex_pnt> vertices;
+  //  vertices.reserve(terrain.vertex_count);
+  //  const auto vspan = terrain.vertex_span();
+  //  const auto hspan = hmldr.data();
+
+  //  transform(begin(vspan),
+  //            end(vspan),
+  //            back_inserter(vertices),
+  //            [](const vertex_pntt& vs_in) {
+  //              return vertex_pnt{vs_in.position, vs_in.normal,
+  //              vs_in.texcoords};
+  //            });
 
   vector<vertex_pnt> vertices;
-  vertices.reserve(terrain.vertex_count);
-  const auto vspan = terrain.vertex_span();
-  const auto hspan = hmldr.data();
-
-  transform(begin(vspan),
-            end(vspan),
-            back_inserter(vertices),
-            [](const vertex_pntt& vs_in) {
-              return vertex_pnt{vs_in.position, vs_in.normal, vs_in.texcoords};
-            });
+  vector<uint32_t>   indices;
+  terrain_generator::make_terrain(
+    1023, 1023, 1.0f, null_height_gen{}, vertices, indices);
 
   // for (int32_t z = 0; z < _terrain_opts.height; ++z) {
   //  for (int32_t x = 0; x < _terrain_opts.width; ++x) {
@@ -155,8 +248,8 @@ void app::terrain_demo::init() {
 
   _mesh = basic_mesh{vertices.data(),
                      vertices.size(),
-                     terrain.index_data(),
-                     terrain.index_count,
+                     indices.data(),
+                     indices.size(),
                      mesh_type::writable};
   if (!_mesh) {
     XR_DBG_MSG("Failed to create grid!");
@@ -185,33 +278,70 @@ void app::terrain_demo::init() {
 
   _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
 
-  texture_loader tldr{
-    xr_app_config->texture_path("worlds/test/terrain_heightmap.png").c_str()};
+  {
+    texture_loader tldr{
+      xr_app_config->texture_path("worlds/test/heightmap01.png").c_str()};
 
-  if (!tldr) {
-    return;
+    if (!tldr) {
+      return;
+    }
+
+    gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_objtex));
+
+    gl::TextureStorage2D(raw_handle(_objtex),
+                         1,
+                         tldr.internal_format(),
+                         tldr.width(),
+                         tldr.height());
+
+    //    gl::TextureStorage2D(raw_handle(_objtex), 1, gl::R8, 3, 2);
+
+    gl::TextureSubImage2D(raw_handle(_objtex),
+                          0,
+                          0,
+                          0,
+                          tldr.width(),
+                          tldr.height(),
+                          tldr.format(),
+                          gl::UNSIGNED_BYTE,
+                          tldr.data());
+
+    //    const uint8_t ccolor = 0;
+    //    gl::ClearTexImage(
+    //      raw_handle(_objtex), 0, gl::RED, gl::UNSIGNED_BYTE, &ccolor);
   }
 
-  gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_objtex));
-  gl::TextureStorage2D(raw_handle(_objtex),
-                       1,
-                       tldr.internal_format(),
-                       tldr.width(),
-                       tldr.height());
-  gl::TextureSubImage2D(raw_handle(_objtex),
-                        0,
-                        0,
-                        0,
-                        tldr.width(),
-                        tldr.height(),
-                        tldr.format(),
-                        gl::UNSIGNED_BYTE,
-                        tldr.data());
+  {
+    texture_loader tldr{
+      xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str()};
+    if (!tldr) {
+      XR_DBG_MSG("Failed to load color map for terrain!");
+      return;
+    }
+
+    gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_colormap));
+    gl::TextureStorage2D(raw_handle(_colormap),
+                         1,
+                         tldr.internal_format(),
+                         tldr.width(),
+                         tldr.height());
+    gl::TextureSubImage2D(raw_handle(_colormap),
+                          0,
+                          0,
+                          0,
+                          tldr.width(),
+                          tldr.height(),
+                          tldr.format(),
+                          gl::UNSIGNED_BYTE,
+                          tldr.data());
+  }
 
   gl::CreateSamplers(1, raw_handle_ptr(_sampler));
   const auto smp = raw_handle(_sampler);
-  gl::SamplerParameteri(smp, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
+  gl::SamplerParameteri(smp, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR);
   gl::SamplerParameteri(smp, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
+  gl::SamplerParameteri(smp, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_BORDER);
+  gl::SamplerParameteri(smp, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_BORDER);
 
   gl::Enable(gl::DEPTH_TEST);
   gl::Enable(gl::CULL_FACE);
@@ -229,23 +359,36 @@ void app::terrain_demo::draw(const float surface_width,
   gl::ViewportIndexedf(0, 0.0f, 0.0f, surface_width, surface_height);
 
   {
-    scoped_polygon_mode_setting  set_wireframe{gl::LINE};
-    scoped_winding_order_setting set_cw{gl::CW};
 
-    const GLuint bound_textures[] = {raw_handle(_objtex)};
-    gl::BindTextures(0, 1, bound_textures);
+    //    scoped_winding_order_setting set_cw{gl::CW};
 
-    const GLuint bound_samplers[] = {raw_handle(_sampler)};
-    gl::BindSamplers(0, 1, bound_samplers);
+    const GLuint bound_textures[] = {raw_handle(_objtex),
+                                     raw_handle(_colormap)};
+
+    gl::BindTextures(0, XR_I32_COUNTOF(bound_textures), bound_textures);
+
+    const GLuint bound_samplers[] = {raw_handle(_sampler),
+                                     raw_handle(_sampler)};
+
+    gl::BindSamplers(0, XR_I32_COUNTOF(bound_samplers), bound_samplers);
 
     gl::BindVertexArray(_mesh.vertex_array());
 
     _vs.set_uniform("world_view_proj_mtx",
                     _camera.projection_view() *
                       mat4f{R3::scale_y(_terrain_opts.scaling)});
+    _vs.set_uniform("scale_factor", _terrain_opts.scaling);
+
     _pipeline.use();
-    gl::DrawElements(
-      gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+
+    if (_terrain_opts.wireframe) {
+      scoped_polygon_mode_setting set_wireframe{gl::LINE};
+      gl::DrawElements(
+        gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+    } else {
+      gl::DrawElements(
+        gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+    }
   }
 
   //  if (_drawparams.drawnormals) {
@@ -293,7 +436,9 @@ void app::terrain_demo::draw_ui(const int32_t surface_width,
                    ImGuiWindowFlags_ShowBorders |
                      ImGuiWindowFlags_AlwaysAutoResize)) {
 
-    ImGui::SliderFloat("Scaling", &_terrain_opts.scaling, 1.0f, 255.0f);
+    ImGui::DragFloat("Scaling", &_terrain_opts.scaling, 0.25f, 1.0f, 16.0f);
+    ImGui::Separator();
+    ImGui::Checkbox("Draw wireframe", &_terrain_opts.wireframe);
   }
 
   ImGui::End();

@@ -176,6 +176,7 @@ set(proj_cfg_dir "${proj_src_dir}/config")
 set(config_files
     ${proj_cfg_dir}/app_config.conf
     ${proj_cfg_dir}/cap5/render_texture/demo.conf
+    ${proj_cfg_dir}/misc/terrain/cam_controller_spherical.conf
     ${proj_cfg_dir}/misc/instanced_demo/cam_controller_spherical.conf
     ${proj_cfg_dir}/misc/geometric_shapes/cam_controller_spherical.conf
     ${proj_cfg_dir}/misc/fractal_demo/cam_controller_spherical.conf
