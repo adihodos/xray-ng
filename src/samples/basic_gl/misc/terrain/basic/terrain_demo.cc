@@ -32,6 +32,8 @@
 #include <stb/stb_image.h>
 #include <vector>
 
+#include <png.h>
+
 using namespace xray::base;
 using namespace xray::rendering;
 using namespace xray::math;
@@ -39,6 +41,181 @@ using namespace xray::ui;
 using namespace std;
 
 extern xray::base::app_config* xr_app_config;
+
+class image_loader {
+public:
+  image_loader() = default;
+
+  void load(const char* path);
+
+  uint32_t width() const noexcept { return _width; }
+
+  uint32_t height() const noexcept { return _height; }
+
+  uint32_t pixel_size() const noexcept { return _pixel_size; }
+
+  uint32_t pixel_format() const noexcept { return _gl_fmt; }
+
+  uint32_t pixel_store_format() const noexcept { return _gl_internal_fmt; }
+
+  const uint8_t* pixels() const noexcept {
+    return xray::base::raw_ptr(_pixels);
+  }
+
+  explicit operator bool() const noexcept { return valid(); }
+
+private:
+  struct malloc_deleter {
+    void operator()(void* p) const noexcept { free(p); }
+  };
+
+  bool valid() const noexcept { return _pixels != nullptr; }
+
+  struct impl_details;
+  xray::base::unique_pointer<impl_details>            _impl;
+  uint32_t                                            _width{};
+  uint32_t                                            _height{};
+  int32_t                                             _bitdepth{};
+  int32_t                                             _colortype{};
+  int32_t                                             _channels{};
+  xray::base::unique_pointer<uint8_t, malloc_deleter> _pixels;
+  uint32_t                                            _pixel_size{};
+  uint32_t                                            _gl_fmt{};
+  uint32_t                                            _gl_internal_fmt{};
+  XRAY_NO_COPY(image_loader);
+};
+
+struct image_loader::impl_details {
+  png_structp png_ptr;
+  png_infop   png_info;
+  png_infop   png_end_info;
+};
+
+void image_loader::load(const char* path) {
+  _impl = xray::base::make_unique<impl_details>();
+  unique_pointer<FILE, decltype(&fclose)> fp{fopen(path, "rb"), &fclose};
+  if (!fp) {
+    XR_DBG_MSG("Failed to open image {}", path);
+    return;
+  }
+
+  png_byte header[8];
+  fread(header, sizeof(header), 1, raw_ptr(fp));
+
+  if (png_sig_cmp(header, 0, 8)) {
+    XR_DBG_MSG("PNG signature invalid!");
+    return;
+  }
+
+  _impl->png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+  if (!_impl->png_ptr) {
+    return;
+  }
+
+  _impl->png_info = png_create_info_struct(_impl->png_ptr);
+  if (!_impl->png_info) {
+    return;
+  }
+
+  png_init_io(_impl->png_ptr, raw_ptr(fp));
+  png_set_sig_bytes(_impl->png_ptr, sizeof(header));
+
+  png_read_info(_impl->png_ptr, _impl->png_info);
+
+  _width     = png_get_image_width(_impl->png_ptr, _impl->png_info);
+  _height    = png_get_image_width(_impl->png_ptr, _impl->png_info);
+  _bitdepth  = png_get_bit_depth(_impl->png_ptr, _impl->png_info);
+  _colortype = png_get_color_type(_impl->png_ptr, _impl->png_info);
+  _channels  = png_get_channels(_impl->png_ptr, _impl->png_info);
+
+  switch (_colortype) {
+  case PNG_COLOR_TYPE_GRAY:
+    _gl_fmt = gl::RED;
+    break;
+
+  case PNG_COLOR_TYPE_PALETTE:
+  case PNG_COLOR_TYPE_RGB:
+    _gl_fmt = gl::RGB;
+    break;
+
+  case PNG_COLOR_TYPE_RGBA:
+    _gl_fmt = gl::RGBA;
+    break;
+
+  default:
+    assert(false && "Unhandled color type!");
+    break;
+  }
+
+  if (_colortype == PNG_COLOR_TYPE_GRAY && _bitdepth < 8) {
+    png_set_expand_gray_1_2_4_to_8(_impl->png_ptr);
+    _bitdepth = 8;
+  }
+
+  if (_colortype == PNG_COLOR_TYPE_PALETTE) {
+    png_set_palette_to_rgb(_impl->png_ptr);
+  }
+
+  if (png_get_valid(_impl->png_ptr, _impl->png_info, PNG_INFO_tRNS)) {
+    png_set_tRNS_to_alpha(_impl->png_ptr);
+  }
+
+  assert(_bitdepth % 8 == 0);
+
+  const uint32_t internal_fmt[][3] = {{gl::R8, gl::R16, gl::R32F},
+                                      {gl::RG8, gl::RG16, gl::RG32F},
+                                      {gl::RGB8, gl::RGB16, gl::RGB32F},
+                                      {gl::RGBA8, gl::RGBA16, gl::RGBA32F}};
+
+  const uint32_t(&fmtref)[3] = internal_fmt[_bitdepth / 8];
+  const auto int_fmt         = [fmtref](const uint32_t ctype) {
+    switch (ctype) { case PNG_COLOR_TYPE_GRAY: }
+  }();
+
+  switch (_bitdepth) {
+  case 8:
+    _pixel_size = gl::UNSIGNED_BYTE;
+    break;
+
+  case 16:
+    _pixel_size = gl::UNSIGNED_SHORT;
+    break;
+
+  case 32:
+    _pixel_size = gl::UNSIGNED_INT;
+    break;
+
+  default:
+    assert(false && "Unhandled bit depth!");
+    break;
+  }
+
+  png_read_update_info(_impl->png_ptr, _impl->png_info);
+
+  auto row_bytes = png_get_rowbytes(_impl->png_ptr, _impl->png_info);
+  row_bytes += 3 - ((row_bytes - 1) % 4);
+
+  _pixels = unique_pointer<uint8_t, malloc_deleter>{
+    static_cast<uint8_t*>(malloc(row_bytes * _height * (_bitdepth / 8) + 15))};
+
+  if (!_pixels) {
+    return;
+  }
+
+  unique_pointer<png_byte*, malloc_deleter> row_ptrs{
+    static_cast<png_byte**>(malloc(_height * sizeof(png_byte*)))};
+
+  if (!row_ptrs) {
+    return;
+  }
+
+  auto p = raw_ptr(row_ptrs);
+  for (uint32_t i = 0; i < _height; ++i) {
+    p[_height - 1 - i] = raw_ptr(_pixels) + i * row_bytes;
+  }
+
+  png_read_image(_impl->png_ptr, raw_ptr(row_ptrs));
+}
 
 struct null_height_gen {
   float operator()() const noexcept { return {}; }
@@ -279,18 +456,25 @@ void app::terrain_demo::init() {
   _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
 
   {
-    texture_loader tldr{
-      xr_app_config->texture_path("worlds/test/heightmap01.png").c_str()};
+    image_loader tldr;
+    tldr.load(
+      xr_app_config->texture_path("worlds/test/heightmap01.png").c_str());
 
     if (!tldr) {
       return;
     }
+    //    texture_loader tldr{
+    //      xr_app_config->texture_path("worlds/test/heightmap01.png").c_str()};
+
+    //    if (!tldr) {
+    //      return;
+    //    }
 
     gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_objtex));
 
     gl::TextureStorage2D(raw_handle(_objtex),
                          1,
-                         tldr.internal_format(),
+                         tldr.pixel_store_format(),
                          tldr.width(),
                          tldr.height());
 
@@ -302,9 +486,9 @@ void app::terrain_demo::init() {
                           0,
                           tldr.width(),
                           tldr.height(),
-                          tldr.format(),
-                          gl::UNSIGNED_BYTE,
-                          tldr.data());
+                          tldr.pixel_format(),
+                          tldr.pixel_size(),
+                          tldr.pixels());
 
     //    const uint8_t ccolor = 0;
     //    gl::ClearTexImage(

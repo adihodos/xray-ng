@@ -204,7 +204,9 @@ target_link_libraries(basic-gl-app
     xray-scene
     xray-ui
     ${SYS_DEP_LIBS}
-    tbb_static)
+    tbb_static
+    png
+    )
 
 add_custom_target(COPY_SHADERS ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders
