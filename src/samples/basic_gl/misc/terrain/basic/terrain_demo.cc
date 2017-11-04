@@ -168,9 +168,9 @@ void image_loader::load(const char* path) {
                                       {gl::RGBA8, gl::RGBA16, gl::RGBA32F}};
 
   const uint32_t(&fmtref)[3] = internal_fmt[_bitdepth / 8];
-  const auto int_fmt         = [fmtref](const uint32_t ctype) {
-    switch (ctype) { case PNG_COLOR_TYPE_GRAY: }
-  }();
+  //  const auto int_fmt         = [fmtref](const uint32_t ctype) {
+  //    switch (ctype) { case PNG_COLOR_TYPE_GRAY: }
+  //  }();
 
   switch (_bitdepth) {
   case 8:

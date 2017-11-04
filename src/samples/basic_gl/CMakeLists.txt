@@ -205,7 +205,8 @@ target_link_libraries(basic-gl-app
     xray-ui
     ${SYS_DEP_LIBS}
     tbb_static
-    png
+    png_static
+    zlibstatic
     )
 
 add_custom_target(COPY_SHADERS ALL
