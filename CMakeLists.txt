@@ -141,6 +141,7 @@ include_directories(third_party/catch/include)
 include_directories(third_party/nuklear/include)
 
 add_subdirectory(third_party/zlib-1.2.11)
+include_directories(third_party/zlib-1.2.11/include)
 add_subdirectory(third_party/libpng-1.6.32)
 include_directories(third_party/libpng-1.6.32/include)
 

@@ -42,6 +42,10 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
+struct malloc_deleter {
+  void operator()(void* p) const noexcept { free(p); }
+};
+
 class image_loader {
 public:
   image_loader() = default;
@@ -65,10 +69,6 @@ public:
   explicit operator bool() const noexcept { return valid(); }
 
 private:
-  struct malloc_deleter {
-    void operator()(void* p) const noexcept { free(p); }
-  };
-
   bool valid() const noexcept { return _pixels != nullptr; }
 
   struct impl_details;
@@ -160,6 +160,8 @@ void image_loader::load(const char* path) {
     png_set_tRNS_to_alpha(_impl->png_ptr);
   }
 
+  png_set_scale_16(_impl->png_ptr);
+
   assert(_bitdepth % 8 == 0);
 
   const uint32_t internal_fmt[][3] = {{gl::R8, gl::R16, gl::R32F},
@@ -167,28 +169,27 @@ void image_loader::load(const char* path) {
                                       {gl::RGB8, gl::RGB16, gl::RGB32F},
                                       {gl::RGBA8, gl::RGBA16, gl::RGBA32F}};
 
-  const uint32_t(&fmtref)[3] = internal_fmt[_bitdepth / 8];
-  //  const auto int_fmt         = [fmtref](const uint32_t ctype) {
-  //    switch (ctype) { case PNG_COLOR_TYPE_GRAY: }
-  //  }();
+  assert(_channels >= 1 && _channels <= 4);
+  _gl_internal_fmt = internal_fmt[_channels - 1][0];
 
-  switch (_bitdepth) {
-  case 8:
-    _pixel_size = gl::UNSIGNED_BYTE;
-    break;
+  // switch (_bitdepth) {
+  // case 8:
+  //  _pixel_size = gl::UNSIGNED_BYTE;
+  //  break;
 
-  case 16:
-    _pixel_size = gl::UNSIGNED_SHORT;
-    break;
+  // case 16:
+  //  _pixel_size = gl::UNSIGNED_SHORT;
+  //  break;
 
-  case 32:
-    _pixel_size = gl::UNSIGNED_INT;
-    break;
+  // case 32:
+  //  _pixel_size = gl::UNSIGNED_INT;
+  //  break;
 
-  default:
-    assert(false && "Unhandled bit depth!");
-    break;
-  }
+  // default:
+  //  assert(false && "Unhandled bit depth!");
+  //  break;
+  //}
+  _pixel_size = gl::UNSIGNED_BYTE;
 
   png_read_update_info(_impl->png_ptr, _impl->png_info);
 
@@ -400,7 +401,7 @@ void app::terrain_demo::init() {
   vector<vertex_pnt> vertices;
   vector<uint32_t>   indices;
   terrain_generator::make_terrain(
-    1023, 1023, 1.0f, null_height_gen{}, vertices, indices);
+    512, 512, 1.0f, null_height_gen{}, vertices, indices);
 
   // for (int32_t z = 0; z < _terrain_opts.height; ++z) {
   //  for (int32_t x = 0; x < _terrain_opts.width; ++x) {
@@ -458,7 +459,7 @@ void app::terrain_demo::init() {
   {
     image_loader tldr;
     tldr.load(
-      xr_app_config->texture_path("worlds/test/heightmap01.png").c_str());
+      xr_app_config->texture_path("worlds/test/theightmap.png").c_str());
 
     if (!tldr) {
       return;
@@ -496,28 +497,32 @@ void app::terrain_demo::init() {
   }
 
   {
-    texture_loader tldr{
-      xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str()};
-    if (!tldr) {
-      XR_DBG_MSG("Failed to load color map for terrain!");
-      return;
-    }
+    // texture_loader tldr{
+    //  xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str()};
+    // if (!tldr) {
+    //  XR_DBG_MSG("Failed to load color map for terrain!");
+    //  return;
+    //}
+
+    image_loader tldr;
+    tldr.load(xr_app_config->texture_path("worlds/test/tdiffuse.png").c_str());
 
     gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_colormap));
     gl::TextureStorage2D(raw_handle(_colormap),
                          1,
-                         tldr.internal_format(),
+                         tldr.pixel_store_format(),
                          tldr.width(),
                          tldr.height());
+
     gl::TextureSubImage2D(raw_handle(_colormap),
                           0,
                           0,
                           0,
                           tldr.width(),
                           tldr.height(),
-                          tldr.format(),
+                          tldr.pixel_format(),
                           gl::UNSIGNED_BYTE,
-                          tldr.data());
+                          tldr.pixels());
   }
 
   gl::CreateSamplers(1, raw_handle_ptr(_sampler));
