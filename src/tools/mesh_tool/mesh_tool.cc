@@ -7,7 +7,6 @@
 #include "xray/math/objects/sphere_math.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
-#include "xray/rendering/mesh.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include <algorithm>
 #include <cstdint>

@@ -23,11 +23,6 @@ set(project_sources
     ${proj_inc_dir}/geometry/geometry_factory.hpp
     ${proj_src_dir}/geometry/geometry_factory.cc
 
-    ${proj_inc_dir}/geometry/aabb_visualizer.hpp
-    ${proj_src_dir}/geometry/aabb_visualizer.cc
-    ${proj_inc_dir}/geometry/surface_normal_visualizer.hpp
-    ${proj_src_dir}/geometry/surface_normal_visualizer.cc
-    
     ${proj_inc_dir}/vertex_format/vertex_format.hpp
     ${proj_inc_dir}/vertex_format/vertex_p.hpp
     ${proj_inc_dir}/vertex_format/vertex_pc.hpp
@@ -39,14 +34,22 @@ set(project_sources
     ${proj_inc_dir}/render_stage.hpp
     ${proj_src_dir}/render_stage.cc
 
-    ${proj_inc_dir}/texture_loader.hpp
-    ${proj_src_dir}/texture_loader.cc
-
-    ${proj_inc_dir}/mesh.hpp
-    ${proj_src_dir}/mesh.cc
     ${proj_inc_dir}/mesh_loader.hpp
     ${proj_src_dir}/mesh_loader.cc
 )
 
-add_library(xray-rendering STATIC ${project_sources})
+if (NOT XRAY_USE_DIRECTX11)
+    set(render_api_dependent_sources
+        ${proj_inc_dir}/geometry/aabb_visualizer.hpp
+        ${proj_src_dir}/geometry/aabb_visualizer.cc
+        ${proj_inc_dir}/geometry/surface_normal_visualizer.hpp
+        ${proj_src_dir}/geometry/surface_normal_visualizer.cc
+        ${proj_inc_dir}/mesh.hpp
+        ${proj_src_dir}/mesh.cc
+        ${proj_inc_dir}/texture_loader.hpp
+        ${proj_src_dir}/texture_loader.cc    
+        )
+endif()
+
+add_library(xray-rendering STATIC ${project_sources} ${render_api_dependent_sources})
 target_link_libraries(xray-rendering ${TBB_LIBRARY} xray-base stb)

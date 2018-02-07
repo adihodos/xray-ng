@@ -44,7 +44,7 @@ class scoped_rasterizer_state {
 public:
   explicit scoped_rasterizer_state(ID3D11DeviceContext*   context,
                                    ID3D11RasterizerState* new_state) noexcept
-      : _context{context} {
+    : _context{context} {
     context->RSGetState(&_old_state);
     context->RSSetState(new_state);
   }
@@ -57,7 +57,6 @@ private:
 
 private:
   XRAY_NO_COPY(scoped_rasterizer_state);
-  XRAY_NO_MOVE(scoped_rasterizer_state);
 };
 
 class scoped_blend_state {
@@ -79,7 +78,6 @@ private:
 
 private:
   XRAY_NO_COPY(scoped_blend_state);
-  XRAY_NO_MOVE(scoped_blend_state);
 };
 
 class scoped_depth_stencil_state {
@@ -99,13 +97,13 @@ private:
 
 private:
   XRAY_NO_COPY(scoped_depth_stencil_state);
-  XRAY_NO_MOVE(scoped_depth_stencil_state);
 };
 
 class scoped_viewport {
 public:
-  scoped_viewport(ID3D11DeviceContext* context, const D3D11_VIEWPORT* viewports,
-                  const size_t num_viewports) noexcept;
+  scoped_viewport(ID3D11DeviceContext*  context,
+                  const D3D11_VIEWPORT* viewports,
+                  const size_t          num_viewports) noexcept;
 
   ~scoped_viewport() noexcept;
 
@@ -114,11 +112,10 @@ private:
   D3D11_VIEWPORT
   _saved_viewport[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
   uint32_t _viewport_count{
-      D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE};
+    D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE};
 
 private:
   XRAY_NO_COPY(scoped_viewport);
-  XRAY_NO_MOVE(scoped_viewport);
 };
 
 class scoped_scissor_rects {
@@ -132,13 +129,12 @@ public:
 private:
   ID3D11DeviceContext* _context;
   D3D11_RECT           _saved_scissor_rects
-      [D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    [D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
   uint32_t _scissors_count{
-      D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE};
+    D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE};
 
 private:
   XRAY_NO_COPY(scoped_scissor_rects);
-  XRAY_NO_MOVE(scoped_scissor_rects);
 };
 
 /// @}

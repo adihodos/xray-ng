@@ -12,7 +12,7 @@
 namespace app {
 
 struct directional_light {
-  xray::math::float3         direction;
+  xray::math::vec3f          direction;
   float                      pad1;
   xray::rendering::rgb_color color;
 };
@@ -49,4 +49,4 @@ private:
 private:
   XRAY_NO_COPY(simple_object);
 };
-}
+} // namespace app

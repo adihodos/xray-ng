@@ -83,11 +83,7 @@ public:
   static constexpr uint32_t VERTEX_BUFFER_SIZE = 1024 * 512;
   static constexpr uint32_t INDEX_BUFFER_SIZE  = 1024 * 128;
 
-#if defined(XRAY_RENDERER_DIRECTX)
-  user_interface(ID3D11Device* device, ID3D11DeviceContext* context) noexcept;
-#else
   user_interface() noexcept;
-#endif
 
   user_interface(const font_info* fonts, const size_t num_fonts);
 
@@ -118,6 +114,7 @@ private:
 
   loaded_font* find_font(const char* name = nullptr);
   void         init(const font_info* fonts, const size_t num_fonts);
+  void         load_fonts(const font_info* fonts, const size_t num_fonts);
   void         setup_key_mappings();
 
   struct render_context {

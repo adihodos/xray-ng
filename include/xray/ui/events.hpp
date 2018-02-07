@@ -187,6 +187,18 @@ struct window_event {
     key_event              key;
     window_configure_event configure;
   } event;
+
+  static window_event configure_event(const int32_t width,
+                                      const int32_t height,
+                                      window*       wnd) noexcept {
+    window_event we;
+    we.type                   = event_type::configure;
+    we.event.configure.wnd    = wnd;
+    we.event.configure.width  = width;
+    we.event.configure.height = height;
+
+    return we;
+  }
 };
 
 inline bool is_input_event(const window_event& we) noexcept {

@@ -31,12 +31,14 @@
 /// \file   input_event.hpp
 
 #include "xray/xray.hpp"
-#include "xray/base/basic_timer.hpp"
 #include "xray/base/fast_delegate.hpp"
-#include "xray/ui/fwd_input_events.hpp"
+#include "xray/base/resource_holder.hpp"
+#include "xray/base/unique_pointer.hpp"
+#include "xray/ui/events.hpp"
+#include "xray/ui/window_params.hpp"
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
-#include <vector>
 #include <windows.h>
 
 namespace xray {
@@ -45,50 +47,17 @@ namespace ui {
 /// \addtogroup __GroupXrayUI
 /// @{
 
-struct input_event_t;
-
-struct window_params {
-  uint32_t    width;
-  uint32_t    height;
-  bool        fullscreen;
-  const char* title;
-};
-
-struct window_draw_event {
-  HWND     window;
-  uint32_t width;
-  uint32_t height;
-};
-
 class application_window {
 public:
-  using tick_event_type = xray::base::fast_delegate<void(const float)>;
-
-  using resize_event_type =
-      xray::base::fast_delegate<void(const uint32_t, const uint32_t)>;
-
-  using draw_event_type =
-      xray::base::fast_delegate<void(const window_draw_event&)>;
-
-  using input_event_type =
-      xray::base::fast_delegate<void(const input_event_t&)>;
-
-  using swap_buffers_event_type =
-      xray::base::fast_delegate<HRESULT(const bool)>;
-
-  using toggle_full_screen_event_type = xray::base::fast_delegate<void(void)>;
-
-  struct tag_events {
-    tick_event_type               tick;
-    resize_event_type             resize;
-    draw_event_type               draw;
-    input_event_type              input;
-    swap_buffers_event_type       swap_buffers;
-    toggle_full_screen_event_type toggle_fullscreen;
+  struct {
+    loop_event_delegate       loop;
+    window_event_delegate     window;
+    poll_start_event_delegate poll_start;
+    poll_end_event_delegate   poll_end;
   } events;
 
 public:
-  application_window(const window_params& init_params);
+  application_window(const window_params_t& init_params);
 
   ~application_window();
 
@@ -109,24 +78,29 @@ public:
 private:
   bool is_valid() const noexcept { return _wininfo.handle != nullptr; }
 
-  static LRESULT WINAPI wnd_proc_stub(HWND wnd, UINT msg, WPARAM w_param,
+  static LRESULT WINAPI wnd_proc_stub(HWND   wnd,
+                                      UINT   msg,
+                                      WPARAM w_param,
                                       LPARAM l_param);
 
-  LRESULT window_procedure(const UINT msg, const WPARAM w_param,
-                           const LPARAM l_param);
+  LRESULT
+  window_procedure(const UINT msg, const WPARAM w_param, const LPARAM l_param);
 
   void make_frame();
 
 private:
-  void wm_size_event(const int32_t size_request, const int32_t width,
+  void wm_size_event(const int32_t size_request,
+                     const int32_t width,
                      const int32_t height) noexcept;
 
   void key_event(const int32_t key_code, const bool down) noexcept;
 
   void syskeydown_event(const WPARAM w_param, const LPARAM l_param) noexcept;
 
-  void mouse_button_event(WPARAM w_param, LPARAM l_param,
-                          const mouse_button button, const bool down) noexcept;
+  void mouse_button_event(WPARAM             w_param,
+                          LPARAM             l_param,
+                          const mouse_button button,
+                          const bool         down) noexcept;
 
   void mouse_move_event(WPARAM w_param, LPARAM l_param) noexcept;
 
@@ -157,9 +131,8 @@ private:
     RECT     wnd_rect;
   };
 
-  window_info            _wininfo;
-  saved_window_info      _saved_wnd_info;
-  xray::base::timer_stdp _timer;
+  window_info       _wininfo;
+  saved_window_info _saved_wnd_info;
   XRAY_NO_COPY(application_window);
 };
 

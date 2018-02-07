@@ -203,10 +203,10 @@ void xray::scene::fps_camera_controller::update() {
 
   if (!_syncstatus.lens) {
     cam_->set_projection(
-      projection::perspective_symmetric(_lensparams.aspect_ratio,
-                                        _lensparams.fov,
-                                        _lensparams.nearplane,
-                                        _lensparams.farplane));
+      projections_rh::perspective_symmetric(_lensparams.aspect_ratio,
+                                            _lensparams.fov,
+                                            _lensparams.nearplane,
+                                            _lensparams.farplane));
     _syncstatus.lens = true;
   }
 }

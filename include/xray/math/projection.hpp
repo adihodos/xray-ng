@@ -239,7 +239,7 @@ scalar4x4<T> projections_rh::orthographic(const T left,
 
 /// \brief  Builds projection matrices assuming a left handed coordinate
 ///         system.
-struct projection {
+struct projections_lh {
 
   template <typename T>
   inline static scalar4x4<T> perspective_symmetric(const T width,
@@ -265,25 +265,19 @@ struct projection {
                                   const T far_plane) noexcept;
 
   template <typename T>
-  static scalar4x4<T> ortho_off_center(const T left,
-                                       const T right,
-                                       const T top,
-                                       const T bottom,
-                                       const T near_plane,
-                                       const T far_plane) noexcept;
-
-  template <typename T>
-  static scalar4x4<T> ortho(const T width,
-                            const T height,
-                            const T near_plane,
-                            const T far_plane) noexcept;
+  static scalar4x4<T> orthographic(const T left,
+                                   const T right,
+                                   const T top,
+                                   const T bottom,
+                                   const T near_plane,
+                                   const T far_plane) noexcept;
 };
 
 template <typename T>
-scalar4x4<T> projection::perspective_symmetric(const T aspect_ratio,
-                                               const T fov,
-                                               const T near_plane,
-                                               const T far_plane) noexcept {
+scalar4x4<T> projections_lh::perspective_symmetric(const T aspect_ratio,
+                                                   const T fov,
+                                                   const T near_plane,
+                                                   const T far_plane) noexcept {
   //
   // distance to projection plane
   const auto d = T(1) / std::tan(fov / T(2));
@@ -303,12 +297,12 @@ scalar4x4<T> projection::perspective_symmetric(const T aspect_ratio,
 }
 
 template <typename T>
-scalar4x4<T> projection::perspective(const T left,
-                                     const T right,
-                                     const T top,
-                                     const T bottom,
-                                     const T near_plane,
-                                     const T far_plane) noexcept {
+scalar4x4<T> projections_lh::perspective(const T left,
+                                         const T right,
+                                         const T top,
+                                         const T bottom,
+                                         const T near_plane,
+                                         const T far_plane) noexcept {
   const auto x_sum = right + left;
   const auto x_dif = right - left;
   const auto y_sum = top + bottom;
@@ -331,7 +325,7 @@ scalar4x4<T> projection::perspective(const T left,
 }
 
 template <typename T>
-scalar4x4<T> projection::ortho_off_center(const T left,
+scalar4x4<T> projections_lh::orthographic(const T left,
                                           const T right,
                                           const T top,
                                           const T bottom,
@@ -354,35 +348,6 @@ scalar4x4<T> projection::ortho_off_center(const T left,
           T(2) / y_diff,
           T(0),
           -(y_sum / y_diff),
-          // 3rd row
-          T(0),
-          T(0),
-          T(1) / z_diff,
-          -(near_plane / z_diff),
-          // 4th row
-          T(0),
-          T(0),
-          T(0),
-          T(1)};
-}
-
-template <typename T>
-scalar4x4<T> projection::ortho(const T width,
-                               const T height,
-                               const T near_plane,
-                               const T far_plane) noexcept {
-  const auto z_diff = far_plane - near_plane;
-
-  return {// 1st row
-          T(2) / width,
-          T(0),
-          T(0),
-          T(0),
-          // 2nd row
-          T(0),
-          T(2) / height,
-          T(0),
-          T(0),
           // 3rd row
           T(0),
           T(0),

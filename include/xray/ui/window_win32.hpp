@@ -31,8 +31,6 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/base/basic_timer.hpp"
-#include "xray/base/resource_holder.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/window_params.hpp"
@@ -55,7 +53,7 @@ struct hdc_deleter {
 };
 
 using scoped_window_dc =
-  base::unique_pointer<std::remove_pointer<HDC>::type, hdc_deleter>;
+  base::unique_pointer<std::remove_pointer_t<HDC>, hdc_deleter>;
 
 struct hglrc_deleter {
   HDC _windowDC;
@@ -70,7 +68,17 @@ struct hglrc_deleter {
 };
 
 using scoped_opengl_context =
-  base::unique_pointer<std::remove_pointer<HGLRC>::type, hglrc_deleter>;
+  base::unique_pointer<std::remove_pointer_t<HGLRC>, hglrc_deleter>;
+
+struct wnd_deleter {
+  void operator()(HWND wnd) const noexcept {
+    if (wnd)
+      DestroyWindow(wnd);
+  }
+};
+
+using scoped_window =
+  base::unique_pointer<std::remove_pointer_t<HWND>, wnd_deleter>;
 
 } // namespace detail
 
@@ -104,7 +112,13 @@ public:
 public:
   explicit operator bool() const noexcept { return valid(); }
 
-  bool valid() const noexcept { return _glcontext != nullptr; }
+  bool valid() const noexcept {
+#if defined(XRAY_RENDERER_OPENGL)
+    return _glcontext != nullptr;
+#else  /* defined XRAY_RENDERER_OPENGL */
+    return _window != nullptr;
+#endif /* !defined XRAY_RENDERER_OPENGL */
+  }
 
   /// @}
 
@@ -136,14 +150,17 @@ private:
   void event_configure(const WPARAM wparam, const LPARAM lparam);
 
 private:
-  HWND                          _window{nullptr};
+  HWND _window{nullptr};
+
+#if defined(XRAY_RENDERER_OPENGL)
   int32_t                       _pixelformat_id{};
   detail::scoped_window_dc      _window_dc{};
   detail::scoped_opengl_context _glcontext{};
-  int32_t                       _wnd_width{-1};
-  int32_t                       _wnd_height{-1};
-  std::atomic<int32_t>          _quit_flag{false};
-  base::timer_highp             _timer{};
+#endif /* defined XRAY_RENDERER_OPENGL */
+
+  int32_t              _wnd_width{-1};
+  int32_t              _wnd_height{-1};
+  std::atomic<int32_t> _quit_flag{false};
 
 private:
   XRAY_NO_COPY(window);

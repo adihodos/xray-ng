@@ -1,5 +1,7 @@
+#if defined(XRAY_RENDERER_OPENGL)
 #include "opengl/opengl.hpp"
 #include "opengl/wglext.h"
+#endif
 
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/containers/fixed_vector.hpp"
@@ -176,6 +178,7 @@ static POINT get_primary_monitor_resolution() {
           std::abs(monInfo.rcWork.bottom - monInfo.rcWork.top)};
 }
 
+#if defined(XRAY_RENDERER_OPENGL)
 ///
 /// Pointers to WGL extensions
 struct wgl {
@@ -188,11 +191,14 @@ PFNWGLCHOOSEPIXELFORMATARBPROC    wgl::ChoosePixelFormatARB;
 PFNWGLCREATECONTEXTATTRIBSARBPROC wgl::CreateContextAttribsARB;
 PFNWGLSWAPINTERVALEXTPROC         wgl::SwapIntervalEXT;
 
+#endif /* defined XRAY_RENDERER_OPENGL */
+
 xray::ui::window::window(const window_params_t& wparam) { initialize(&wparam); }
 
 xray::ui::window::~window() {}
 
 void xray::ui::window::initialize(const window_params_t* wp) {
+#if defined(XRAY_RENDERER_OPENGL)
   if (_pixelformat_id == 0) {
     constexpr const char* const kTempWindowClassName =
       "__##@@_TempOpenGLWindow";
@@ -333,6 +339,9 @@ void xray::ui::window::initialize(const window_params_t* wp) {
   }
 
   assert(_pixelformat_id != 0);
+
+#endif /* defined XRAY_RENDERER_OPENGL */
+
   //
   // Since we have found a suitable pixel format, we will now create
   // the real window, where we will draw stuff.
@@ -346,7 +355,7 @@ void xray::ui::window::initialize(const window_params_t* wp) {
     GetModuleHandle(nullptr),
     LoadIcon(nullptr, IDI_APPLICATION),
     LoadCursor(nullptr, IDC_ARROW),
-    (HBRUSH) GetStockObject(COLOR_WINDOW + 1),
+    reinterpret_cast<HBRUSH>(GetStockObject(COLOR_WINDOW + 1)),
     nullptr,
     kWindowClassName,
     nullptr,
@@ -375,10 +384,11 @@ void xray::ui::window::initialize(const window_params_t* wp) {
                            GetModuleHandle(nullptr),
                            this);
   if (!_window) {
-    XR_LOG_CRITICAL("Failed to recreate window !");
+    XR_LOG_CRITICAL("Failed to create main window !");
     return;
   }
 
+#if defined(XRAY_RENDERER_OPENGL)
   _window_dc = scoped_window_dc{GetDC(_window), hdc_deleter{_window}};
 
   PIXELFORMATDESCRIPTOR selectedPixelFormat;
@@ -469,6 +479,8 @@ void xray::ui::window::initialize(const window_params_t* wp) {
     _glcontext = {};
     return;
   }
+
+#endif /* defined XRAY_RENDERER_OPENGL */
 
   ShowWindow(_window, SW_SHOWNORMAL);
   UpdateWindow(_window);
@@ -572,7 +584,10 @@ void xray::ui::window::message_loop() {
     //
     // user loop event
     events.loop({_wnd_width, _wnd_height, this});
+
+#if defined(XRAY_RENDERER_OPENGL)
     SwapBuffers(raw_ptr(_window_dc));
+#endif
   }
 }
 

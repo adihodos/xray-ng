@@ -276,8 +276,8 @@ void app::mesh_demo::draw(const float surface_width,
 
   if (_drawparams.draw_boundingbox) {
     draw_context_t dc;
-    dc.window_width     = surface_width;
-    dc.window_height    = surface_height;
+    dc.window_width     = static_cast<uint32_t>(surface_width);
+    dc.window_height    = static_cast<uint32_t>(surface_height);
     dc.view_matrix      = _camera.view();
     dc.proj_view_matrix = _camera.projection_view();
     dc.active_camera    = &_camera;

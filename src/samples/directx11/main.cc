@@ -1,7 +1,6 @@
 #include "xray/xray.hpp"
 #include "cap1/test_object.hpp"
 #include "xray/base/app_config.hpp"
-#include "xray/base/debug/debug_ext.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/maybe.hpp"
@@ -46,7 +45,7 @@ public:
 
 private:
   static constexpr const char* controller_cfg_file_path =
-      "config/cam_controller_spherical.conf";
+    "config/cam_controller_spherical.conf";
 
   void ui_logic();
 
@@ -80,20 +79,21 @@ private:
 
 basic_scene::basic_scene(application_window* app_wnd,
                          dx11_renderer*      renderer) noexcept
-    : _appwnd{app_wnd}
-    , _renderer{renderer}
-    , _object{renderer->device()}
-    , _cam_control{&_cam, controller_cfg_file_path}
-    , _ui{renderer->device(), renderer->context()} {
+  : _appwnd{app_wnd}
+  , _renderer{renderer}
+  , _object{renderer->device()}
+  , _cam_control{&_cam, controller_cfg_file_path}
+  , _ui{renderer->device(), renderer->context()} {
+
   memset(_frame_time, 0, sizeof(_frame_time));
   const auto r_win_height =
-      static_cast<float>(_renderer->render_target_height());
+    static_cast<float>(_renderer->render_target_height());
   const auto r_win_width = static_cast<float>(_renderer->render_target_width());
 
   _cam.look_at({0.0f, 10.0f, -5.0f}, float3::stdc::zero, float3::stdc::unit_y);
 
   _cam.set_projection(projection::perspective_symmetric(
-      r_win_width, r_win_height, radians(60.0f), 0.5f, 1000.0f));
+    r_win_width, r_win_height, radians(60.0f), 0.5f, 1000.0f));
 
   _draw_context.active_camera     = &_cam;
   _draw_context.projection_matrix = _cam.projection();
@@ -125,15 +125,23 @@ void basic_scene::ui_logic() {
     {
       ImGui::Text("View frame vectors :");
       ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
-                         "R: [%3.3f %3.3f %3.3f]", _cam.right().x,
-                         _cam.right().y, _cam.right().z);
+                         "R: [%3.3f %3.3f %3.3f]",
+                         _cam.right().x,
+                         _cam.right().y,
+                         _cam.right().z);
       ImGui::TextColored(ImVec4(0.0f, 0.0f, 1.0f, 1.0f),
-                         "U: [%3.3f %3.3f %3.3f]", _cam.up().x, _cam.up().y,
+                         "U: [%3.3f %3.3f %3.3f]",
+                         _cam.up().x,
+                         _cam.up().y,
                          _cam.up().z);
       ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f),
-                         "D: [%3.3f %3.3f %3.3f]", _cam.direction().x,
-                         _cam.direction().y, _cam.direction().z);
-      ImGui::Text("O: [%3.3f %3.3f %3.3f]", _cam.origin().x, _cam.origin().y,
+                         "D: [%3.3f %3.3f %3.3f]",
+                         _cam.direction().x,
+                         _cam.direction().y,
+                         _cam.direction().z);
+      ImGui::Text("O: [%3.3f %3.3f %3.3f]",
+                  _cam.origin().x,
+                  _cam.origin().y,
                   _cam.origin().z);
     }
 
@@ -146,9 +154,22 @@ void basic_scene::ui_logic() {
                   "\t%.3f %.3f %.3f %.3f\n"
                   "\t%.3f %.3f %.3f %.3f\n"
                   "\t%.3f %.3f %.3f %.3f ",
-                  vm.a00, vm.a01, vm.a02, vm.a03, vm.a10, vm.a11, vm.a12,
-                  vm.a13, vm.a20, vm.a21, vm.a22, vm.a23, vm.a30, vm.a31,
-                  vm.a32, vm.a33);
+                  vm.a00,
+                  vm.a01,
+                  vm.a02,
+                  vm.a03,
+                  vm.a10,
+                  vm.a11,
+                  vm.a12,
+                  vm.a13,
+                  vm.a20,
+                  vm.a21,
+                  vm.a22,
+                  vm.a23,
+                  vm.a30,
+                  vm.a31,
+                  vm.a32,
+                  vm.a33);
     }
 
     ImGui::Separator();
@@ -160,9 +181,22 @@ void basic_scene::ui_logic() {
                   "\t%.3f %.3f %.3f %.3f\n"
                   "\t%.3f %.3f %.3f %.3f\n"
                   "\t%.3f %.3f %.3f %.3f ",
-                  vm.a00, vm.a01, vm.a02, vm.a03, vm.a10, vm.a11, vm.a12,
-                  vm.a13, vm.a20, vm.a21, vm.a22, vm.a23, vm.a30, vm.a31,
-                  vm.a32, vm.a33);
+                  vm.a00,
+                  vm.a01,
+                  vm.a02,
+                  vm.a03,
+                  vm.a10,
+                  vm.a11,
+                  vm.a12,
+                  vm.a13,
+                  vm.a20,
+                  vm.a21,
+                  vm.a22,
+                  vm.a23,
+                  vm.a30,
+                  vm.a31,
+                  vm.a32,
+                  vm.a33);
     }
 
     ImGui::End();
@@ -180,8 +214,8 @@ void basic_scene::ui_logic() {
     ImGui::Text("Working set peak MBytes: %u",
                 _proc_stats.work_set_peak / 1024);
     ImGui::Separator();
-    ImGui::PlotLines("CPU Usage", _frame_time, 60, 0, nullptr, 0.0f, 100.0f,
-                     ImVec2(0, 120));
+    ImGui::PlotLines(
+      "CPU Usage", _frame_time, 60, 0, nullptr, 0.0f, 100.0f, ImVec2(0, 120));
     ImGui::End();
   }
 }
@@ -206,14 +240,14 @@ void basic_scene::tick_event(const float delta_ms) noexcept {
   _proc_stats = _perf_stats_thread.process_stats();
 
   if (_frame_idx == 60)
-    _frame_idx              = 0;
+    _frame_idx = 0;
   _frame_time[_frame_idx++] = _proc_stats.cpu_usage;
 }
 
 void basic_scene::draw_event(const window_draw_event& /*wde*/) noexcept {
   // constexpr auto clear_color = color_palette::material::blue100;
-  _renderer->clear_render_target_view(_clear_color.r, _clear_color.g,
-                                      _clear_color.b);
+  _renderer->clear_render_target_view(
+    _clear_color.r, _clear_color.g, _clear_color.b);
   _renderer->clear_depth_stencil();
 
   if (!_object)
@@ -234,7 +268,7 @@ void basic_scene::resize_event(const uint32_t width,
   const auto r_win_height = static_cast<float>(height);
 
   _cam.set_projection(projection::perspective_symmetric(
-      r_win_width, r_win_height, radians(60.0f), 0.5f, 1000.0f));
+    r_win_width, r_win_height, radians(60.0f), 0.5f, 1000.0f));
 
   _draw_context.window_height = height;
   _draw_context.window_width  = width;
@@ -284,9 +318,9 @@ maybe<scalar2u32> get_primary_monitor_resolution() {
     return nothing{};
 
   const auto res_x = static_cast<uint32_t>(
-      std::abs(mon_info.rcWork.right - mon_info.rcMonitor.left));
+    std::abs(mon_info.rcWork.right - mon_info.rcMonitor.left));
   const auto res_y = static_cast<uint32_t>(
-      std::abs(mon_info.rcWork.bottom - mon_info.rcWork.top));
+    std::abs(mon_info.rcWork.bottom - mon_info.rcWork.top));
 
   XR_LOG_INFO("Primary monitor resolution [{0}x{1}]", res_x, res_y);
   return scalar2u32{res_x, res_y};
@@ -296,11 +330,11 @@ class test_scene {
 public:
   explicit test_scene(application_window* appwnd,
                       dx11_renderer*      renderer) noexcept
-      : _appwnd{appwnd}, _renderer{renderer} {}
+    : _appwnd{appwnd}, _renderer{renderer} {}
 
-  void input_event(const xray::ui::input_event_t& input_evt);
-  void draw_event(const xray::ui::window_draw_event& wde);
-  void resize_event(const uint32_t w, const uint32_t h);
+  void    input_event(const xray::ui::input_event_t& input_evt);
+  void    draw_event(const xray::ui::window_draw_event& wde);
+  void    resize_event(const uint32_t w, const uint32_t h);
   void    tick_event(const float);
   HRESULT swap_buffers_event(const bool);
 
@@ -355,8 +389,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   const auto primary_mon_res = get_primary_monitor_resolution();
 
   const window_params wnd_setup{
-      primary_mon_res ? primary_mon_res.value().x : 1024,
-      primary_mon_res ? primary_mon_res.value().y : 768, false, "Direct3D App"};
+    primary_mon_res ? primary_mon_res.value().x : 1024,
+    primary_mon_res ? primary_mon_res.value().y : 768,
+    false,
+    "Direct3D App"};
 
   application_window app_wnd{wnd_setup};
   if (!app_wnd) {
@@ -365,10 +401,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   }
 
   const renderer_init_params renderer_setup{
-      DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_D24_UNORM_S8_UINT,
-      D3D_DRIVER_TYPE_HARDWARE,
-      D3D11_CREATE_DEVICE_DEBUG | D3D11_CREATE_DEVICE_SINGLETHREADED,
-      app_wnd.handle()};
+    DXGI_FORMAT_R8G8B8A8_UNORM,
+    DXGI_FORMAT_D24_UNORM_S8_UINT,
+    D3D_DRIVER_TYPE_HARDWARE,
+    D3D11_CREATE_DEVICE_DEBUG | D3D11_CREATE_DEVICE_SINGLETHREADED,
+    app_wnd.handle()};
 
   dx11_renderer renderer{renderer_setup};
   if (!renderer) {
@@ -385,9 +422,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     app_wnd.events.resize = make_delegate(s, &basic_scene::resize_event);
 
     app_wnd.events.swap_buffers =
-        make_delegate(renderer, &dx11_renderer::swap_buffers);
+      make_delegate(renderer, &dx11_renderer::swap_buffers);
     app_wnd.events.toggle_fullscreen =
-        make_delegate(renderer, &dx11_renderer::toggle_fullscreen);
+      make_delegate(renderer, &dx11_renderer::toggle_fullscreen);
   }
 
   // test_scene ts{&app_wnd, &renderer};

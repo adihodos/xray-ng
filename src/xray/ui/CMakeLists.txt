@@ -4,16 +4,9 @@ set(proj_inc_dir ${CMAKE_SOURCE_DIR}/include/xray/ui)
 set(proj_src_dir ${CMAKE_SOURCE_DIR}/src/xray/ui)
 
 if (WIN32)
-    if (XRAY_USE_DIRECTX11)
-        set(platform_sources
-            ${proj_inc_dir}/app_window.hpp
-            ${proj_src_dir}/app_window.cc
-            ${proj_src_dir}/key_symbols_win.cc)
-    else()
-        set(platform_sources
-            ${proj_inc_dir}/window_win32.hpp
-            ${proj_src_dir}/window_win32.cc)
-    endif()
+    set(platform_sources
+      ${proj_inc_dir}/window_win32.hpp
+      ${proj_src_dir}/window_win32.cc)
 else()
     set(platform_sources
         ${proj_inc_dir}/window_x11.hpp

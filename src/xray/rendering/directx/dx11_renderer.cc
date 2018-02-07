@@ -143,7 +143,7 @@ static const char* dxgi_error_code_to_string(const HRESULT dxgi_errcode) {
 }
 
 xray::rendering::dx11_renderer::dx11_renderer(
-    const renderer_init_params& init_params) {
+  const renderer_init_params& init_params) {
 
   //
   //  Init params.
@@ -160,10 +160,16 @@ xray::rendering::dx11_renderer::dx11_renderer(
   {
 
     D3D_FEATURE_LEVEL max_feat_lvl;
-    const auto        ret_code = D3D11CreateDevice(
-        nullptr, init_params.driver_type, nullptr,
-        init_params.create_device_opts, nullptr, 0, D3D11_SDK_VERSION,
-        raw_ptr_ptr(dx_device_), &max_feat_lvl, raw_ptr_ptr(devcontext_));
+    const auto        ret_code = D3D11CreateDevice(nullptr,
+                                            init_params.driver_type,
+                                            nullptr,
+                                            init_params.create_device_opts,
+                                            nullptr,
+                                            0,
+                                            D3D11_SDK_VERSION,
+                                            raw_ptr_ptr(dx_device_),
+                                            &max_feat_lvl,
+                                            raw_ptr_ptr(devcontext_));
 
     if (FAILED(ret_code)) {
       XR_LOG_CRITICAL("Failed to create D3D device and context!");
@@ -178,8 +184,8 @@ xray::rendering::dx11_renderer::dx11_renderer(
       com_ptr<IDXGIDevice1> dxgi_device;
       {
         const auto result = dx_device_->QueryInterface(
-            __uuidof(IDXGIDevice1),
-            reinterpret_cast<void**>(raw_ptr_ptr(dxgi_device)));
+          __uuidof(IDXGIDevice1),
+          reinterpret_cast<void**>(raw_ptr_ptr(dxgi_device)));
 
         if (FAILED(result)) {
           XR_LOG_CRITICAL("Failed to obtain IDXGIDevice1 interface !");
@@ -190,8 +196,8 @@ xray::rendering::dx11_renderer::dx11_renderer(
       com_ptr<IDXGIAdapter1> dxgi_adapter;
       {
         const auto result = dxgi_device->GetParent(
-            __uuidof(IDXGIAdapter1),
-            reinterpret_cast<void**>(raw_ptr_ptr(dxgi_adapter)));
+          __uuidof(IDXGIAdapter1),
+          reinterpret_cast<void**>(raw_ptr_ptr(dxgi_adapter)));
 
         if (FAILED(result)) {
           XR_LOG_CRITICAL("Failed to obtain IDXGIAdapter1 interface!");
@@ -201,8 +207,8 @@ xray::rendering::dx11_renderer::dx11_renderer(
 
       {
         const auto result = dxgi_adapter->GetParent(
-            __uuidof(IDXGIFactory1),
-            reinterpret_cast<void**>(raw_ptr_ptr(factory)));
+          __uuidof(IDXGIFactory1),
+          reinterpret_cast<void**>(raw_ptr_ptr(factory)));
 
         if (FAILED(result)) {
           XR_LOG_CRITICAL("Failed to obtain IDXGIFactory1 critical!");
@@ -237,22 +243,25 @@ xray::rendering::dx11_renderer::dx11_renderer(
 
       DXGI_MODE_DESC closest_match;
 
-      if (primary_output->FindClosestMatchingMode(&desired_mode, &closest_match,
-                                                  nullptr) == S_OK) {
+      if (primary_output->FindClosestMatchingMode(
+            &desired_mode, &closest_match, nullptr) == S_OK) {
         closest_mode_match = closest_match;
       }
     }
 
     if (!closest_mode_match) {
       XR_LOG_ERR("No display mode found with requested properties : {}x{}",
-                 output_wnd_width_, output_wnd_height_);
+                 output_wnd_width_,
+                 output_wnd_height_);
       return;
     }
 
     const auto mode = closest_mode_match.value();
 
-    XR_LOG_INFO("Renderer display resolution {} x {} @ {}/{}", mode.Width,
-                mode.Height, mode.RefreshRate.Numerator,
+    XR_LOG_INFO("Renderer display resolution {} x {} @ {}/{}",
+                mode.Width,
+                mode.Height,
+                mode.RefreshRate.Numerator,
                 mode.RefreshRate.Denominator);
 
     //
@@ -273,12 +282,12 @@ xray::rendering::dx11_renderer::dx11_renderer(
       //  fullscreen later.
       swap_chain_desc.Windowed = true;
 
-      const auto ret_code = factory->CreateSwapChain(
-          raw_ptr(dx_device_), &swap_chain_desc, raw_ptr_ptr(swap_chain_));
+      const auto create_swapchain_res = factory->CreateSwapChain(
+        raw_ptr(dx_device_), &swap_chain_desc, raw_ptr_ptr(swap_chain_));
 
-      if (FAILED(ret_code)) {
+      if (FAILED(create_swapchain_res)) {
         XR_LOG_CRITICAL("Failed to create swap chain, error {0}",
-                        dxgi_error_code_to_string(ret_code));
+                        dxgi_error_code_to_string(create_swapchain_res));
         return;
       }
     }
@@ -289,7 +298,7 @@ xray::rendering::dx11_renderer::dx11_renderer(
       //  transitions.
       factory->MakeWindowAssociation(init_params.output_window,
                                      DXGI_MWA_NO_WINDOW_CHANGES |
-                                         DXGI_MWA_NO_ALT_ENTER);
+                                       DXGI_MWA_NO_ALT_ENTER);
 
       create_rtvs();
     }
@@ -312,7 +321,7 @@ xray::rendering::dx11_renderer::~dx11_renderer() {
 }
 
 void xray::rendering::dx11_renderer::handle_resize(
-    const uint32_t width, const uint32_t height) noexcept {
+  const uint32_t width, const uint32_t height) noexcept {
   if (!valid())
     return;
 
@@ -334,7 +343,7 @@ void xray::rendering::dx11_renderer::handle_resize(
   //  stencil views.
   {
     const auto resize_result =
-        swap_chain_->ResizeBuffers(1, 0, 0, backbuffer_format_, 0);
+      swap_chain_->ResizeBuffers(1, 0, 0, backbuffer_format_, 0);
 
     if (FAILED(resize_result)) {
       XR_LOG_CRITICAL("Failed to resize buffers, error {0}",
@@ -347,8 +356,10 @@ void xray::rendering::dx11_renderer::handle_resize(
 }
 
 void xray::rendering::dx11_renderer::clear_render_target_view(
-    const float red, const float green, const float blue,
-    const float alpha /*= 1.0f*/) {
+  const float red,
+  const float green,
+  const float blue,
+  const float alpha /*= 1.0f*/) {
   assert(valid());
 
   const float clear_color[] = {red, green, blue, alpha};
@@ -359,7 +370,8 @@ void xray::rendering::dx11_renderer::clear_depth_stencil() {
   assert(valid());
   devcontext_->ClearDepthStencilView(raw_ptr(depth_stencil_view_),
                                      D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
-                                     1.0f, 0xFF);
+                                     1.0f,
+                                     0xFF);
 }
 
 void xray::rendering::dx11_renderer::create_rtvs() noexcept {
@@ -375,8 +387,9 @@ void xray::rendering::dx11_renderer::create_rtvs() noexcept {
   {
     com_ptr<ID3D11Texture2D> backbuffer_tex;
     swap_chain_->GetBuffer(
-        0, __uuidof(ID3D11Texture2D),
-        reinterpret_cast<void**>(raw_ptr_ptr(backbuffer_tex)));
+      0,
+      __uuidof(ID3D11Texture2D),
+      reinterpret_cast<void**>(raw_ptr_ptr(backbuffer_tex)));
 
     if (!backbuffer_tex)
       return;
@@ -384,7 +397,7 @@ void xray::rendering::dx11_renderer::create_rtvs() noexcept {
     backbuffer_tex->GetDesc(&texture_desc);
 
     const auto ret_code = dx_device_->CreateRenderTargetView(
-        raw_ptr(backbuffer_tex), nullptr, raw_ptr_ptr(render_target_view_));
+      raw_ptr(backbuffer_tex), nullptr, raw_ptr_ptr(render_target_view_));
 
     if (FAILED(ret_code)) {
       XR_LOG_CRITICAL("Failed to create render target view for back surface!");
@@ -410,7 +423,7 @@ void xray::rendering::dx11_renderer::create_rtvs() noexcept {
 
     {
       const auto ret_code = dx_device_->CreateTexture2D(
-          &tex_stencil_desc, nullptr, raw_ptr_ptr(depth_stencil_texture_));
+        &tex_stencil_desc, nullptr, raw_ptr_ptr(depth_stencil_texture_));
 
       if (FAILED(ret_code)) {
         XR_LOG_CRITICAL("Failed to create depth/stencil texture!");
@@ -419,9 +432,10 @@ void xray::rendering::dx11_renderer::create_rtvs() noexcept {
     }
 
     {
-      const auto result_create_dsv = dx_device_->CreateDepthStencilView(
-          raw_ptr(depth_stencil_texture_), nullptr,
-          raw_ptr_ptr(depth_stencil_view_));
+      const auto result_create_dsv =
+        dx_device_->CreateDepthStencilView(raw_ptr(depth_stencil_texture_),
+                                           nullptr,
+                                           raw_ptr_ptr(depth_stencil_view_));
 
       if (FAILED(result_create_dsv)) {
         XR_LOG_CRITICAL("Failed to create depth/stecil view!");
@@ -435,9 +449,9 @@ void xray::rendering::dx11_renderer::create_rtvs() noexcept {
   //  output merger stage.
   {
     ID3D11RenderTargetView* const bound_render_targets[] = {
-        raw_ptr(render_target_view_)};
+      raw_ptr(render_target_view_)};
 
-    devcontext_->OMSetRenderTargets(XR_U32_COUNTOF__(bound_render_targets),
+    devcontext_->OMSetRenderTargets(XR_U32_COUNTOF(bound_render_targets),
                                     bound_render_targets,
                                     raw_ptr(depth_stencil_view_));
   }
@@ -457,7 +471,7 @@ void xray::rendering::dx11_renderer::create_rtvs() noexcept {
 }
 
 HRESULT xray::rendering::dx11_renderer::swap_buffers(
-    const bool test_for_occlusion /*= false*/) const noexcept {
+  const bool test_for_occlusion /*= false*/) const noexcept {
   if (!valid())
     return E_FAIL;
 

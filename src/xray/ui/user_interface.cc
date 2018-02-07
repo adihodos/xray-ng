@@ -36,7 +36,9 @@ struct font_img_data {
   int32_t  bpp{};
 };
 
-xray::ui::user_interface::user_interface() noexcept { init(nullptr, 0); }
+xray::ui::user_interface::user_interface() noexcept : _gui{&ImGui::GetIO()} {
+  init(nullptr, 0);
+}
 
 xray::ui::user_interface::user_interface(const font_info* fonts,
                                          const size_t     num_fonts) {
@@ -89,6 +91,10 @@ static constexpr const char* IMGUI_FRAGMENT_SHADER =
   "}";
 
 #else
+
+extern ID3D11Device*        xr_render_device;
+extern ID3D11DeviceContext* xr_render_device_context;
+
 static constexpr const char IMGUI_SHADER[] = "#pragma pack_matrix(row_major)\n \
 struct nk_vs_in { \
     float2 pos : POSITION; \
@@ -127,44 +133,52 @@ static constexpr auto IMGUI_SHADER_LEN =
 
 #endif
 
+void xray::ui::user_interface::init(const font_info* fonts,
+                                    const size_t     num_fonts) {
+  _imcontext =
+    unique_pointer<ImGuiContext, imcontext_deleter>{ImGui::CreateContext()};
+  _imcontext->IO.Fonts = new ImFontAtlas();
+
+  set_current();
+  _gui = &ImGui::GetIO();
+
 #if defined(XRAY_RENDERER_DIRECTX)
-xray::ui::user_interface::user_interface(ID3D11Device*        device,
-                                         ID3D11DeviceContext* context) noexcept
-  : _gui{&ImGui::GetIO()} {
-  _rcon.device  = device;
-  _rcon.context = context;
+
+  _rendercontext.device  = xr_render_device;
+  _rendercontext.context = xr_render_device_context;
 
   {
     D3D11_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth           = imgui_backend::VERTEX_BUFFER_SIZE;
+    buffer_desc.ByteWidth           = user_interface::VERTEX_BUFFER_SIZE;
     buffer_desc.BindFlags           = D3D11_BIND_VERTEX_BUFFER;
     buffer_desc.CPUAccessFlags      = D3D11_CPU_ACCESS_WRITE;
     buffer_desc.MiscFlags           = 0;
     buffer_desc.StructureByteStride = 0;
     buffer_desc.Usage               = D3D11_USAGE_DYNAMIC;
 
-    _rcon.device->CreateBuffer(
-      &buffer_desc, nullptr, raw_ptr_ptr(_rcon.vertex_buffer));
-    if (!_rcon.vertex_buffer)
+    _rendercontext.device->CreateBuffer(
+      &buffer_desc, nullptr, raw_ptr_ptr(_rendercontext.vertex_buffer));
+    if (!_rendercontext.vertex_buffer)
       return;
   }
 
   {
     D3D11_BUFFER_DESC buffer_desc;
     buffer_desc.BindFlags           = D3D11_BIND_INDEX_BUFFER;
-    buffer_desc.ByteWidth           = imgui_backend::INDEX_BUFFER_SIZE;
+    buffer_desc.ByteWidth           = user_interface::INDEX_BUFFER_SIZE;
     buffer_desc.CPUAccessFlags      = D3D11_CPU_ACCESS_WRITE;
     buffer_desc.MiscFlags           = 0;
     buffer_desc.StructureByteStride = 0;
     buffer_desc.Usage               = D3D11_USAGE_DYNAMIC;
 
-    _rcon.device->CreateBuffer(
-      &buffer_desc, nullptr, raw_ptr_ptr(_rcon.index_buffer));
-    if (!_rcon.index_buffer)
+    _rendercontext.device->CreateBuffer(
+      &buffer_desc, nullptr, raw_ptr_ptr(_rendercontext.index_buffer));
+    if (!_rendercontext.index_buffer)
       return;
   }
 
   {
+    load_fonts(fonts, num_fonts);
     font_img_data font_img;
     _gui->Fonts->GetTexDataAsRGBA32(
       &font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
@@ -190,19 +204,20 @@ xray::ui::user_interface::user_interface(ID3D11Device*        device,
     tex_data.SysMemSlicePitch = font_img.width * font_img.height * 4;
 
     com_ptr<ID3D11Texture2D> font_texture;
-    _rcon.device->CreateTexture2D(
+    _rendercontext.device->CreateTexture2D(
       &tex_desc, &tex_data, raw_ptr_ptr(font_texture));
 
     if (!font_texture)
       return;
 
-    _rcon.device->CreateShaderResourceView(
-      raw_ptr(font_texture), nullptr, raw_ptr_ptr(_rcon.font_texture));
+    _rendercontext.device->CreateShaderResourceView(
+      raw_ptr(font_texture), nullptr, raw_ptr_ptr(_rendercontext.font_texture));
 
-    if (!_rcon.font_texture)
+    if (!_rendercontext.font_texture)
       return;
 
-    _gui->Fonts->TexID = static_cast<void*>(raw_ptr(_rcon.font_texture));
+    _gui->Fonts->TexID =
+      static_cast<void*>(raw_ptr(_rendercontext.font_texture));
   }
 
   {
@@ -213,21 +228,21 @@ xray::ui::user_interface::user_interface(ID3D11Device*        device,
     sampler_desc.AddressW       = D3D11_TEXTURE_ADDRESS_WRAP;
     sampler_desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
 
-    _rcon.device->CreateSamplerState(&sampler_desc,
-                                     raw_ptr_ptr(_rcon.font_sampler));
-    if (!_rcon.font_sampler)
+    _rendercontext.device->CreateSamplerState(
+      &sampler_desc, raw_ptr_ptr(_rendercontext.font_sampler));
+    if (!_rendercontext.font_sampler)
       return;
   }
 
   {
-    _rcon.vs =
-      vertex_shader{_rcon.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "vs_main"};
-    if (!_rcon.vs)
+    _rendercontext.vs = vertex_shader{
+      _rendercontext.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "vs_main"};
+    if (!_rendercontext.vs)
       return;
 
-    _rcon.ps =
-      pixel_shader{_rcon.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "ps_main"};
-    if (!_rcon.ps)
+    _rendercontext.ps = pixel_shader{
+      _rendercontext.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "ps_main"};
+    if (!_rendercontext.ps)
       return;
   }
 
@@ -243,8 +258,9 @@ xray::ui::user_interface::user_interface(ID3D11Device*        device,
     desc.RenderTarget[0].BlendOpAlpha          = D3D11_BLEND_OP_ADD;
     desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
-    _rcon.device->CreateBlendState(&desc, raw_ptr_ptr(_rcon.blend_state));
-    if (!_rcon.blend_state)
+    _rendercontext.device->CreateBlendState(
+      &desc, raw_ptr_ptr(_rendercontext.blend_state));
+    if (!_rendercontext.blend_state)
       return;
   }
 
@@ -253,9 +269,9 @@ xray::ui::user_interface::user_interface(ID3D11Device*        device,
     dss_desc.DepthEnable   = false;
     dss_desc.StencilEnable = false;
 
-    _rcon.device->CreateDepthStencilState(
-      &dss_desc, raw_ptr_ptr(_rcon.depth_stencil_state));
-    if (!_rcon.depth_stencil_state)
+    _rendercontext.device->CreateDepthStencilState(
+      &dss_desc, raw_ptr_ptr(_rendercontext.depth_stencil_state));
+    if (!_rendercontext.depth_stencil_state)
       return;
   }
 
@@ -266,9 +282,10 @@ xray::ui::user_interface::user_interface(ID3D11Device*        device,
     desc.ScissorEnable   = true;
     desc.DepthClipEnable = true;
 
-    _rcon.device->CreateRasterizerState(&desc, raw_ptr_ptr(_rcon.raster_state));
+    _rendercontext.device->CreateRasterizerState(
+      &desc, raw_ptr_ptr(_rendercontext.raster_state));
 
-    if (!_rcon.raster_state)
+    if (!_rendercontext.raster_state)
       return;
   }
 
@@ -296,31 +313,20 @@ xray::ui::user_interface::user_interface(ID3D11Device*        device,
        D3D11_INPUT_PER_VERTEX_DATA,
        0}};
 
-    auto signature_bytecode = _rcon.vs.bytecode();
+    auto signature_bytecode = _rendercontext.vs.bytecode();
 
-    _rcon.device->CreateInputLayout(vertex_fmt_desc,
-                                    3,
-                                    signature_bytecode->GetBufferPointer(),
-                                    signature_bytecode->GetBufferSize(),
-                                    raw_ptr_ptr(_rcon.input_layout));
+    _rendercontext.device->CreateInputLayout(
+      vertex_fmt_desc,
+      3,
+      signature_bytecode->GetBufferPointer(),
+      signature_bytecode->GetBufferSize(),
+      raw_ptr_ptr(_rendercontext.input_layout));
 
-    if (!_rcon.input_layout)
+    if (!_rendercontext.input_layout)
       return;
   }
 
-  setup_key_mappings();
-  _rcon.valid = true;
-}
 #else
-
-void xray::ui::user_interface::init(const font_info* fonts,
-                                    const size_t     num_fonts) {
-  _imcontext =
-    unique_pointer<ImGuiContext, imcontext_deleter>{ImGui::CreateContext()};
-  _imcontext->IO.Fonts = new ImFontAtlas();
-
-  set_current();
-  _gui = &ImGui::GetIO();
 
   _rendercontext._vertex_buffer = []() {
     GLuint vbuff{};
@@ -347,10 +353,9 @@ void xray::ui::user_interface::init(const font_info* fonts,
   if (!_rendercontext._index_buffer)
     return;
 
-  _rendercontext._vertex_arr = [
-    vbh = raw_handle(_rendercontext._vertex_buffer),
-    ibh = raw_handle(_rendercontext._index_buffer)
-  ]() {
+  _rendercontext._vertex_arr = [vbh = raw_handle(_rendercontext._vertex_buffer),
+                                ibh =
+                                  raw_handle(_rendercontext._index_buffer)]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
 
@@ -377,8 +382,7 @@ void xray::ui::user_interface::init(const font_info* fonts,
     gl::VertexArrayAttribBinding(vao, 2, 0);
 
     return vao;
-  }
-  ();
+  }();
 
   _rendercontext._vs = gpu_program_builder{}
                          .add_string(IMGUI_VERTEX_SHADER)
@@ -407,69 +411,7 @@ void xray::ui::user_interface::init(const font_info* fonts,
   _rendercontext._pipeline.use_vertex_program(_rendercontext._vs)
     .use_fragment_program(_rendercontext._fs);
 
-  {
-    //
-    // Default fonts that always get loaded (Proggy and FontAwesome)
-    auto default_font = _gui->Fonts->AddFontDefault();
-    _rendercontext.fonts.push_back({"Default", 13.0f, default_font});
-
-    ImFontConfig config;
-    config.MergeMode                   = true;
-    static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
-    auto                 font_awesome  = _gui->Fonts->AddFontFromFileTTF(
-      app_config::instance()
-        ->font_path("fontawesome/fontawesome-webfont.ttf")
-        .c_str(),
-      13.0f,
-      &config,
-      icon_ranges);
-    assert(font_awesome != nullptr);
-    _rendercontext.fonts.push_back({"fontawesome", 13.0f, font_awesome});
-
-    for_each(fonts, fonts + num_fonts, [this](const font_info& fi) {
-      ImFontConfig config;
-      config.OversampleH         = 3;
-      config.OversampleV         = 1;
-      config.GlyphExtraSpacing.x = 1.0f;
-
-      auto fnt =
-        _gui->Fonts->AddFontFromFileTTF(fi.path.c_str(),
-                                        fi.pixel_size,
-                                        &config,
-                                        _gui->Fonts->GetGlyphRangesDefault());
-
-      if (!fnt) {
-        XR_DBG_MSG("Failed to load font {}", fi.path);
-        return;
-      }
-
-      platformstl::path_a fpath{fi.path};
-
-      _rendercontext.fonts.push_back(
-        {fpath.pop_ext().get_file(), fi.pixel_size, fnt});
-    });
-
-    sort(begin(_rendercontext.fonts),
-         end(_rendercontext.fonts),
-         [](const loaded_font& f0, const loaded_font& f1) {
-           if (f0.name < f1.name) {
-             return true;
-           }
-
-           if (f0.name > f1.name) {
-             return false;
-           }
-
-           return f0.pixel_size <= f1.pixel_size;
-         });
-
-    for_each(begin(_rendercontext.fonts),
-             end(_rendercontext.fonts),
-             [](const loaded_font& fi) {
-               XR_DBG_MSG("Loaded font {}, size {}", fi.name, fi.pixel_size);
-             });
-  }
-
+  load_fonts(fonts, num_fonts);
   _rendercontext._font_texture = [this]() {
     GLuint texh{};
 
@@ -506,11 +448,75 @@ void xray::ui::user_interface::init(const font_info* fonts,
     return smph;
   }();
 
+#endif
+
   setup_key_mappings();
   _rendercontext._valid = true;
 }
 
-#endif
+void xray::ui::user_interface::load_fonts(const font_info* fonts,
+                                          const size_t     num_fonts) {
+  //
+  // Default fonts that always get loaded (Proggy and FontAwesome)
+  auto default_font = _gui->Fonts->AddFontDefault();
+  _rendercontext.fonts.push_back({"Default", 13.0f, default_font});
+
+  ImFontConfig config;
+  config.MergeMode                   = true;
+  static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
+  auto                 font_awesome  = _gui->Fonts->AddFontFromFileTTF(
+    app_config::instance()
+      ->font_path("fontawesome/fontawesome-webfont.ttf")
+      .c_str(),
+    13.0f,
+    &config,
+    icon_ranges);
+  assert(font_awesome != nullptr);
+  _rendercontext.fonts.push_back({"fontawesome", 13.0f, font_awesome});
+
+  for_each(fonts, fonts + num_fonts, [this](const font_info& fi) {
+    ImFontConfig config;
+    config.OversampleH         = 3;
+    config.OversampleV         = 1;
+    config.GlyphExtraSpacing.x = 1.0f;
+
+    auto fnt =
+      _gui->Fonts->AddFontFromFileTTF(fi.path.c_str(),
+                                      fi.pixel_size,
+                                      &config,
+                                      _gui->Fonts->GetGlyphRangesDefault());
+
+    if (!fnt) {
+      XR_DBG_MSG("Failed to load font {}", fi.path);
+      return;
+    }
+
+    platformstl::path_a fpath{fi.path};
+
+    _rendercontext.fonts.push_back(
+      {fpath.pop_ext().get_file(), fi.pixel_size, fnt});
+  });
+
+  sort(begin(_rendercontext.fonts),
+       end(_rendercontext.fonts),
+       [](const loaded_font& f0, const loaded_font& f1) {
+         if (f0.name < f1.name) {
+           return true;
+         }
+
+         if (f0.name > f1.name) {
+           return false;
+         }
+
+         return f0.pixel_size <= f1.pixel_size;
+       });
+
+  for_each(begin(_rendercontext.fonts),
+           end(_rendercontext.fonts),
+           [](const loaded_font& fi) {
+             XR_DBG_MSG("Loaded font {}, size {}", fi.name, fi.pixel_size);
+           });
+}
 
 xray::ui::user_interface::~user_interface() noexcept {
   set_current();
@@ -522,16 +528,16 @@ void xray::ui::user_interface::draw() {
   auto draw_data = ImGui::GetDrawData();
 
 #if defined(XRAY_RENDERER_DIRECTX)
-  auto dc = _rcon.context;
+  auto dc = _rendercontext.context;
 
   {
     scoped_resource_mapping vb_map{
-      dc, raw_ptr(_rcon.vertex_buffer), D3D11_MAP_WRITE_DISCARD};
+      dc, raw_ptr(_rendercontext.vertex_buffer), D3D11_MAP_WRITE_DISCARD};
     if (!vb_map)
       return;
 
     scoped_resource_mapping ib_map{
-      dc, raw_ptr(_rcon.index_buffer), D3D11_MAP_WRITE_DISCARD};
+      dc, raw_ptr(_rendercontext.index_buffer), D3D11_MAP_WRITE_DISCARD};
     if (!ib_map)
       return;
 
@@ -555,21 +561,23 @@ void xray::ui::user_interface::draw() {
 
   auto& gui = ImGui::GetIO();
   {
-    const auto proj_matrix = projection::orthographic(
+    const auto proj_matrix = projections_lh::orthographic(
       0.0f, gui.DisplaySize.x, 0.0f, gui.DisplaySize.y, 0.0f, 1.0f);
 
-    _rcon.vs.set_uniform_block("matrix_pack", proj_matrix);
-    _rcon.ps.set_sampler("font_sampler", raw_ptr(_rcon.font_sampler));
-    _rcon.vs.bind(dc);
+    _rendercontext.vs.set_uniform_block("matrix_pack", proj_matrix);
+    _rendercontext.ps.set_sampler("font_sampler",
+                                  raw_ptr(_rendercontext.font_sampler));
+    _rendercontext.vs.bind(dc);
   }
 
   const float        blend_factor[4] = {0.f, 0.f, 0.f, 0.f};
   scoped_blend_state blend_state{
-    dc, raw_ptr(_rcon.blend_state), blend_factor, 0xffffffff};
+    dc, raw_ptr(_rendercontext.blend_state), blend_factor, 0xffffffff};
 
   scoped_depth_stencil_state ds_state{
-    dc, raw_ptr(_rcon.depth_stencil_state), 0};
-  scoped_rasterizer_state raster_state{dc, raw_ptr(_rcon.raster_state)};
+    dc, raw_ptr(_rendercontext.depth_stencil_state), 0};
+  scoped_rasterizer_state raster_state{dc,
+                                       raw_ptr(_rendercontext.raster_state)};
   scoped_scissor_rects    scissor_rects{dc, nullptr, 0};
 
   D3D11_VIEWPORT viewport;
@@ -582,15 +590,15 @@ void xray::ui::user_interface::draw() {
   scoped_viewport viewports{dc, &viewport, 1};
 
   {
-    ID3D11Buffer*  bound_vbs[] = {raw_ptr(_rcon.vertex_buffer)};
+    ID3D11Buffer*  bound_vbs[] = {raw_ptr(_rendercontext.vertex_buffer)};
     const uint32_t strides     = static_cast<uint32_t>(sizeof(ImDrawVert));
     const uint32_t offsets     = 0;
     dc->IASetVertexBuffers(0, 1, bound_vbs, &strides, &offsets);
-    dc->IASetIndexBuffer(raw_ptr(_rcon.index_buffer),
+    dc->IASetIndexBuffer(raw_ptr(_rendercontext.index_buffer),
                          sizeof(ImDrawIdx) == 2 ? DXGI_FORMAT_R16_UINT
                                                 : DXGI_FORMAT_R32_UINT,
                          0);
-    dc->IASetInputLayout(raw_ptr(_rcon.input_layout));
+    dc->IASetInputLayout(raw_ptr(_rendercontext.input_layout));
     dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   }
 
@@ -609,16 +617,18 @@ void xray::ui::user_interface::draw() {
                                   static_cast<LONG>(cmd->ClipRect.w)};
 
       dc->RSSetScissorRects(1, &scissor_rc);
-      _rcon.ps.set_resource_view(
+      _rendercontext.ps.set_resource_view(
         "font_tex", static_cast<ID3D11ShaderResourceView*>(cmd->TextureId));
-      _rcon.ps.bind(dc);
+      _rendercontext.ps.bind(dc);
       dc->DrawIndexed(cmd->ElemCount, index_offset, vertex_offset);
       index_offset += cmd->ElemCount;
     }
 
     vertex_offset += cmd_list->VtxBuffer.size();
   }
+
 #else
+
   const auto fb_width =
     static_cast<int32_t>(_gui->DisplaySize.x * _gui->DisplayFramebufferScale.x);
   const auto fb_height =
@@ -674,7 +684,7 @@ void xray::ui::user_interface::draw() {
   gl::Viewport(0, 0, fb_width, fb_height);
 
   const auto projection_mtx =
-    projection::ortho_off_center(0.0f,
+    projections_rh::orthographic(0.0f,
                                  static_cast<float>(fb_width),
                                  0.0f,
                                  static_cast<float>(fb_height),
