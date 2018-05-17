@@ -3,6 +3,7 @@
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/basic_timer.hpp"
+#include "xray/base/pod_zero.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar2.hpp"
@@ -26,13 +27,12 @@
 #include <cassert>
 #include <cstring>
 #include <iterator>
+#include <ktx.h>
 #include <opengl/opengl.hpp>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <span.h>
 #include <stb/stb_image.h>
 #include <vector>
-
-#include <png.h>
 
 using namespace xray::base;
 using namespace xray::rendering;
@@ -42,180 +42,42 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-struct malloc_deleter {
-  void operator()(void* p) const noexcept { free(p); }
-};
+xray::rendering::scoped_texture
+load_texture_from_file(const char*           file_path,
+                       xray::math::vec3ui32* texture_dimensions) {
+  xray::rendering::scoped_texture texture{};
 
-class image_loader {
-public:
-  image_loader() = default;
+  try {
+    platformstl::memory_mapped_file      texture_file{file_path};
+    xray::base::pod_zero<KTX_dimensions> tex_dimensions{};
+    GLenum                               texture_target{};
 
-  void load(const char* path);
+    const auto load_result =
+      ktxLoadTextureM(texture_file.memory(),
+                      static_cast<GLsizei>(texture_file.size()),
+                      raw_handle_ptr(texture),
+                      &texture_target,
+                      &tex_dimensions,
+                      nullptr,
+                      nullptr,
+                      nullptr,
+                      nullptr);
 
-  uint32_t width() const noexcept { return _width; }
-
-  uint32_t height() const noexcept { return _height; }
-
-  uint32_t pixel_size() const noexcept { return _pixel_size; }
-
-  uint32_t pixel_format() const noexcept { return _gl_fmt; }
-
-  uint32_t pixel_store_format() const noexcept { return _gl_internal_fmt; }
-
-  const uint8_t* pixels() const noexcept {
-    return xray::base::raw_ptr(_pixels);
+    if (load_result != KTX_SUCCESS) {
+      XR_DBG_MSG(
+        "Failed to load texture %s, error code %d", file_path, load_result);
+    } else {
+      if (texture_dimensions) {
+        texture_dimensions->x = tex_dimensions.width;
+        texture_dimensions->y = tex_dimensions.height;
+        texture_dimensions->z = tex_dimensions.depth;
+      }
+    }
+  } catch (const std::exception& ex) {
+    XR_DBG_MSG("Failed to open texture file %s", file_path);
   }
 
-  explicit operator bool() const noexcept { return valid(); }
-
-private:
-  bool valid() const noexcept { return _pixels != nullptr; }
-
-  struct impl_details;
-  xray::base::unique_pointer<impl_details>            _impl;
-  uint32_t                                            _width{};
-  uint32_t                                            _height{};
-  int32_t                                             _bitdepth{};
-  int32_t                                             _colortype{};
-  int32_t                                             _channels{};
-  xray::base::unique_pointer<uint8_t, malloc_deleter> _pixels;
-  uint32_t                                            _pixel_size{};
-  uint32_t                                            _gl_fmt{};
-  uint32_t                                            _gl_internal_fmt{};
-  XRAY_NO_COPY(image_loader);
-};
-
-struct image_loader::impl_details {
-  png_structp png_ptr;
-  png_infop   png_info;
-  png_infop   png_end_info;
-};
-
-void image_loader::load(const char* path) {
-  _impl = xray::base::make_unique<impl_details>();
-  unique_pointer<FILE, decltype(&fclose)> fp{fopen(path, "rb"), &fclose};
-  if (!fp) {
-    XR_DBG_MSG("Failed to open image {}", path);
-    return;
-  }
-
-  png_byte header[8];
-  fread(header, sizeof(header), 1, raw_ptr(fp));
-
-  if (png_sig_cmp(header, 0, 8)) {
-    XR_DBG_MSG("PNG signature invalid!");
-    return;
-  }
-
-  _impl->png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
-  if (!_impl->png_ptr) {
-    return;
-  }
-
-  _impl->png_info = png_create_info_struct(_impl->png_ptr);
-  if (!_impl->png_info) {
-    return;
-  }
-
-  png_init_io(_impl->png_ptr, raw_ptr(fp));
-  png_set_sig_bytes(_impl->png_ptr, sizeof(header));
-
-  png_read_info(_impl->png_ptr, _impl->png_info);
-
-  _width     = png_get_image_width(_impl->png_ptr, _impl->png_info);
-  _height    = png_get_image_width(_impl->png_ptr, _impl->png_info);
-  _bitdepth  = png_get_bit_depth(_impl->png_ptr, _impl->png_info);
-  _colortype = png_get_color_type(_impl->png_ptr, _impl->png_info);
-  _channels  = png_get_channels(_impl->png_ptr, _impl->png_info);
-
-  switch (_colortype) {
-  case PNG_COLOR_TYPE_GRAY:
-    _gl_fmt = gl::RED;
-    break;
-
-  case PNG_COLOR_TYPE_PALETTE:
-  case PNG_COLOR_TYPE_RGB:
-    _gl_fmt = gl::RGB;
-    break;
-
-  case PNG_COLOR_TYPE_RGBA:
-    _gl_fmt = gl::RGBA;
-    break;
-
-  default:
-    assert(false && "Unhandled color type!");
-    break;
-  }
-
-  if (_colortype == PNG_COLOR_TYPE_GRAY && _bitdepth < 8) {
-    png_set_expand_gray_1_2_4_to_8(_impl->png_ptr);
-    _bitdepth = 8;
-  }
-
-  if (_colortype == PNG_COLOR_TYPE_PALETTE) {
-    png_set_palette_to_rgb(_impl->png_ptr);
-  }
-
-  if (png_get_valid(_impl->png_ptr, _impl->png_info, PNG_INFO_tRNS)) {
-    png_set_tRNS_to_alpha(_impl->png_ptr);
-  }
-
-  png_set_scale_16(_impl->png_ptr);
-
-  assert(_bitdepth % 8 == 0);
-
-  const uint32_t internal_fmt[][3] = {{gl::R8, gl::R16, gl::R32F},
-                                      {gl::RG8, gl::RG16, gl::RG32F},
-                                      {gl::RGB8, gl::RGB16, gl::RGB32F},
-                                      {gl::RGBA8, gl::RGBA16, gl::RGBA32F}};
-
-  assert(_channels >= 1 && _channels <= 4);
-  _gl_internal_fmt = internal_fmt[_channels - 1][0];
-
-  // switch (_bitdepth) {
-  // case 8:
-  //  _pixel_size = gl::UNSIGNED_BYTE;
-  //  break;
-
-  // case 16:
-  //  _pixel_size = gl::UNSIGNED_SHORT;
-  //  break;
-
-  // case 32:
-  //  _pixel_size = gl::UNSIGNED_INT;
-  //  break;
-
-  // default:
-  //  assert(false && "Unhandled bit depth!");
-  //  break;
-  //}
-  _pixel_size = gl::UNSIGNED_BYTE;
-
-  png_read_update_info(_impl->png_ptr, _impl->png_info);
-
-  auto row_bytes = png_get_rowbytes(_impl->png_ptr, _impl->png_info);
-  row_bytes += 3 - ((row_bytes - 1) % 4);
-
-  _pixels = unique_pointer<uint8_t, malloc_deleter>{
-    static_cast<uint8_t*>(malloc(row_bytes * _height * (_bitdepth / 8) + 15))};
-
-  if (!_pixels) {
-    return;
-  }
-
-  unique_pointer<png_byte*, malloc_deleter> row_ptrs{
-    static_cast<png_byte**>(malloc(_height * sizeof(png_byte*)))};
-
-  if (!row_ptrs) {
-    return;
-  }
-
-  auto p = raw_ptr(row_ptrs);
-  for (uint32_t i = 0; i < _height; ++i) {
-    p[_height - 1 - i] = raw_ptr(_pixels) + i * row_bytes;
-  }
-
-  png_read_image(_impl->png_ptr, raw_ptr(row_ptrs));
+  return texture;
 }
 
 struct null_height_gen {
@@ -281,43 +143,6 @@ void terrain_generator::make_terrain(const int32_t            tiles_x,
   assert(terrain_indices.size() == index_count);
 }
 
-class heightmap_loader {
-public:
-  heightmap_loader(const char* path);
-  heightmap_loader(const std::string& path) : heightmap_loader{path.c_str()} {}
-
-  gsl::span<const uint16_t> data() const noexcept {
-    return gsl::as_span(_data, _width * _height);
-  }
-
-  int32_t width() const noexcept { return _width; }
-
-  int32_t height() const noexcept { return _height; }
-
-  explicit operator bool() const noexcept {
-    return _data && (_width != 0) && (_height != 0);
-  }
-
-private:
-  platformstl::memory_mapped_file _file;
-  const uint16_t*                 _data{};
-  int32_t                         _width{};
-  int32_t                         _height{};
-
-  XRAY_NO_COPY(heightmap_loader);
-};
-
-heightmap_loader::heightmap_loader(const char* path) {
-  try {
-    _file   = platformstl::memory_mapped_file{path};
-    _data   = static_cast<const uint16_t*>(_file.memory());
-    _width  = 513;
-    _height = 513;
-  } catch (...) {
-    return;
-  }
-}
-
 app::terrain_demo::terrain_demo(const init_context_t& init_ctx)
   : demo_base{init_ctx} {
   _camera.set_projection(projections_rh::perspective_symmetric(
@@ -337,29 +162,31 @@ app::terrain_demo::~terrain_demo() {}
 void app::terrain_demo::init() {
   assert(!valid());
 
-  {
-    std::vector<vertex_pnt> v;
-    std::vector<uint32_t>   i;
-    terrain_generator::make_terrain(3, 2, 1.0f, null_height_gen{}, v, i);
+  // {
+  //   std::vector<vertex_pnt> v;
+  //   std::vector<uint32_t>   i;
+  //   terrain_generator::make_terrain(3, 2, 1.0f, null_height_gen{}, v, i);
 
-    unique_ptr<FILE, decltype(&fclose)> fp{fopen("terr.txt", "wt"), &fclose};
-    for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
-      fprintf(
-        f, "\n%3.3f, %3.3f, %3.3f", v.position.x, v.position.y, v.position.z);
-    });
+  //   unique_ptr<FILE, decltype(&fclose)> fp{fopen("terr.txt", "wt"), &fclose};
+  //   for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
+  //     fprintf(
+  //       f, "\n%3.3f, %3.3f, %3.3f", v.position.x, v.position.y,
+  //       v.position.z);
+  //   });
 
-    fprintf(fp.get(), "\n###############");
-    for (size_t j = 0; j < i.size() / 3; ++j) {
-      fprintf(fp.get(), "\n%u %u %u", i[j * 3 + 0], i[j * 3 + 1], i[j * 3 + 2]);
-    }
+  //   fprintf(fp.get(), "\n###############");
+  //   for (size_t j = 0; j < i.size() / 3; ++j) {
+  //     fprintf(fp.get(), "\n%u %u %u", i[j * 3 + 0], i[j * 3 + 1], i[j * 3 +
+  //     2]);
+  //   }
 
-    fprintf(fp.get(), "\n###############");
+  //   fprintf(fp.get(), "\n###############");
 
-    fflush(fp.get());
-    for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
-      fprintf(f, "\n%3.3f, %3.3f", v.texcoord.x, v.texcoord.y);
-    });
-  }
+  //   fflush(fp.get());
+  //   for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
+  //     fprintf(f, "\n%3.3f, %3.3f", v.texcoord.x, v.texcoord.y);
+  //   });
+  // }
 
   //
   // turn off these so we don't get spammed
@@ -370,59 +197,10 @@ void app::terrain_demo::init() {
                           nullptr,
                           gl::FALSE_);
 
-  //  heightmap_loader hmldr{
-  //    xr_app_config->texture_path("worlds/test/terrain_heightmap.r16").c_str()};
-
-  //  if (!hmldr) {
-  //    XR_DBG_MSG("Failed to load heightmap!");
-  //    return;
-  //  }
-
-  //  geometry_data_t terrain;
-  //  geometry_factory::grid(static_cast<float>(_terrain_opts.width - 1),
-  //                         static_cast<float>(_terrain_opts.height - 1),
-  //                         static_cast<size_t>(_terrain_opts.width - 1),
-  //                         static_cast<size_t>(_terrain_opts.height - 1),
-  //                         &terrain);
-
-  //  vector<vertex_pnt> vertices;
-  //  vertices.reserve(terrain.vertex_count);
-  //  const auto vspan = terrain.vertex_span();
-  //  const auto hspan = hmldr.data();
-
-  //  transform(begin(vspan),
-  //            end(vspan),
-  //            back_inserter(vertices),
-  //            [](const vertex_pntt& vs_in) {
-  //              return vertex_pnt{vs_in.position, vs_in.normal,
-  //              vs_in.texcoords};
-  //            });
-
   vector<vertex_pnt> vertices;
   vector<uint32_t>   indices;
   terrain_generator::make_terrain(
-    512, 512, 1.0f, null_height_gen{}, vertices, indices);
-
-  // for (int32_t z = 0; z < _terrain_opts.height; ++z) {
-  //  for (int32_t x = 0; x < _terrain_opts.width; ++x) {
-  //    // const vec3f pos{vspan[z * _terrain_opts.width + x].position.x,
-  //    //                static_cast<float>(hspan[z * _terrain_opts.width + x])
-  //    /
-  //    //                  512.0f,
-  //    //                vspan[z * _terrain_opts.width + x].position.z};
-
-  //    // vertices.push_back({pos,
-  //    //                    vspan[z * _terrain_opts.width + x].normal,
-  //    //                    vspan[z * _terrain_opts.width + x].texcoords});
-  //  }
-  //}
-
-  //  transform(begin(vspan),
-  //            end(vspan),
-  //            back_inserter(vertices),
-  //            [hmap = hmldr.data()](const vertex_pntt& vsin) {
-  //              return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
-  //            });
+    1023, 1023, 1.0f, null_height_gen{}, vertices, indices);
 
   _mesh = basic_mesh{vertices.data(),
                      vertices.size(),
@@ -455,75 +233,6 @@ void app::terrain_demo::init() {
   }()};
 
   _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
-
-  {
-    image_loader tldr;
-    tldr.load(
-      xr_app_config->texture_path("worlds/test/theightmap.png").c_str());
-
-    if (!tldr) {
-      return;
-    }
-    //    texture_loader tldr{
-    //      xr_app_config->texture_path("worlds/test/heightmap01.png").c_str()};
-
-    //    if (!tldr) {
-    //      return;
-    //    }
-
-    gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_objtex));
-
-    gl::TextureStorage2D(raw_handle(_objtex),
-                         1,
-                         tldr.pixel_store_format(),
-                         tldr.width(),
-                         tldr.height());
-
-    //    gl::TextureStorage2D(raw_handle(_objtex), 1, gl::R8, 3, 2);
-
-    gl::TextureSubImage2D(raw_handle(_objtex),
-                          0,
-                          0,
-                          0,
-                          tldr.width(),
-                          tldr.height(),
-                          tldr.pixel_format(),
-                          tldr.pixel_size(),
-                          tldr.pixels());
-
-    //    const uint8_t ccolor = 0;
-    //    gl::ClearTexImage(
-    //      raw_handle(_objtex), 0, gl::RED, gl::UNSIGNED_BYTE, &ccolor);
-  }
-
-  {
-    // texture_loader tldr{
-    //  xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str()};
-    // if (!tldr) {
-    //  XR_DBG_MSG("Failed to load color map for terrain!");
-    //  return;
-    //}
-
-    image_loader tldr;
-    tldr.load(xr_app_config->texture_path("worlds/test/tdiffuse.png").c_str());
-
-    gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_colormap));
-    gl::TextureStorage2D(raw_handle(_colormap),
-                         1,
-                         tldr.pixel_store_format(),
-                         tldr.width(),
-                         tldr.height());
-
-    gl::TextureSubImage2D(raw_handle(_colormap),
-                          0,
-                          0,
-                          0,
-                          tldr.width(),
-                          tldr.height(),
-                          tldr.pixel_format(),
-                          gl::UNSIGNED_BYTE,
-                          tldr.pixels());
-  }
 
   gl::CreateSamplers(1, raw_handle_ptr(_sampler));
   const auto smp = raw_handle(_sampler);

@@ -111,16 +111,11 @@ message("Compiler flags = ${CMAKE_CXX_FLAGS}")
 
 #
 # required libraries
-# find_package(TBB REQUIRED)
-# include_directories(${TBB_INCLUDE_DIR})
 
 if (NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
   include_directories(third_party/opengl/include)
   add_subdirectory(third_party/opengl/src)
 endif()
-
-# find_package(ASSIMP REQUIRED)
-# include_directories(${ASSIMP_INCLUDE_DIR})
 
 if (CMAKE_BUILD_TYPE MATCHES Debug)
     message(" ---> Debug build <---")
@@ -130,6 +125,7 @@ endif()
 #
 # common macros for all builds
 add_definitions(-DLIBCONFIG_STATIC)
+add_definitions(-DKTX_OPENGL=1)
 
 include_directories(include)
 include_directories(third_party/gsl/include)
@@ -140,11 +136,7 @@ include_directories(third_party/imgui/include)
 include_directories(third_party/easyloggingpp/include)
 include_directories(third_party/catch/include)
 include_directories(third_party/nuklear/include)
-
-add_subdirectory(third_party/zlib-1.2.11)
-include_directories(third_party/zlib-1.2.11/include)
-add_subdirectory(third_party/libpng-1.6.32)
-include_directories(third_party/libpng-1.6.32/include)
+include_directories(third_party/ktx/include)
 
 add_subdirectory(third_party/tbb)
 include_directories(third_party/tbb/include)
@@ -160,3 +152,10 @@ add_subdirectory(third_party/libconfig/src)
 add_subdirectory(third_party/stb/src)
 add_subdirectory(third_party/imgui/src)
 add_subdirectory(src)
+
+include_directories(third_party/ktx/include)  
+include_directories(third_party/ktx/other_include)
+add_subdirectory(third_party/ktx/lib)
+
+include_directories(third_party/libnoise/include)
+add_subdirectory(third_party/libnoise)

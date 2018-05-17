@@ -7,11 +7,13 @@
 #include "xray/math/objects/sphere_math.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <platformstl/filesystem/path.hpp>
 #include <platformstl/filesystem/readdir_sequence.hpp>
 #include <unordered_map>
@@ -70,9 +72,7 @@ struct hash<tinyobj_opt::index_t> {
 static bool
 load_mesh_obj_format(const char*                               file_path,
                      std::vector<xray::rendering::vertex_pnt>* vertices,
-                     std::vector<uint32_t>*                    indices,
-                     const uint32_t                            load_options =
-                       xray::rendering::mesh_load_option::remove_points_lines) {
+                     std::vector<uint32_t>*                    indices) {
 
   using namespace xray::rendering;
 
@@ -102,7 +102,6 @@ load_mesh_obj_format(const char*                               file_path,
             &idxmap,
             vertices,
             indices](const index_t& idx) {
-
              auto it = idxmap.find(idx);
              if (it != end(idxmap)) {
                indices->push_back(it->second);
@@ -186,8 +185,7 @@ int main(int argc, char** argv) {
       vertices.clear();
       indices.clear();
 
-      if (!load_mesh_obj_format(
-            file, &vertices, &indices, mesh_load_option::remove_points_lines)) {
+      if (!load_mesh_obj_format(file, &vertices, &indices)) {
         XR_DBG_MSG("Failed to load mesh!");
         return;
       }
@@ -235,7 +233,6 @@ int main(int argc, char** argv) {
       // geometry data
       fwrite(vertices.data(), vertices.size(), mhdr.vertex_size, outfile.get());
       fwrite(indices.data(), indices.size(), mhdr.index_size, outfile.get());
-
     });
 
   return 0;

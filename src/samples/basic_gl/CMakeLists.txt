@@ -203,10 +203,9 @@ target_link_libraries(basic-gl-app
     xray-rendering
     xray-scene
     xray-ui
+    ktx_gl
     ${SYS_DEP_LIBS}
     tbb_static
-    png_static
-    zlibstatic
     )
 
 add_custom_target(COPY_SHADERS ALL
