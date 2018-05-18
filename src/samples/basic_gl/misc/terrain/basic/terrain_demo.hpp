@@ -78,8 +78,8 @@ private:
   struct terrain_opts {
     int32_t width{513};
     int32_t height{513};
-    float   scaling{1.0f};
-    bool    wireframe{false};
+    float   scaling{4.0f};
+    bool    wireframe{true};
   } _terrain_opts;
 
 private:

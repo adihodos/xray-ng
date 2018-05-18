@@ -23,6 +23,9 @@
         "xstring": "cpp",
         "xtree": "cpp",
         "xutility": "cpp",
-        "*.rh": "cpp"
+        "*.rh": "cpp",
+        "hash_map": "cpp",
+        "string_view": "cpp",
+        "valarray": "cpp"
     }
 }

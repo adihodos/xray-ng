@@ -151,7 +151,6 @@ add_subdirectory(third_party/tinyobj)
 add_subdirectory(third_party/libconfig/src)
 add_subdirectory(third_party/stb/src)
 add_subdirectory(third_party/imgui/src)
-add_subdirectory(src)
 
 include_directories(third_party/ktx/include)  
 include_directories(third_party/ktx/other_include)
@@ -159,3 +158,5 @@ add_subdirectory(third_party/ktx/lib)
 
 include_directories(third_party/libnoise/include)
 add_subdirectory(third_party/libnoise)
+
+add_subdirectory(src)

@@ -206,6 +206,7 @@ target_link_libraries(basic-gl-app
     ktx_gl
     ${SYS_DEP_LIBS}
     tbb_static
+    noise
     )
 
 add_custom_target(COPY_SHADERS ALL

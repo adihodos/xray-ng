@@ -28,10 +28,11 @@
 #include <cstring>
 #include <iterator>
 #include <ktx.h>
+#include <noise/noise.h>
+#include <noise/noiseutils.h>
 #include <opengl/opengl.hpp>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 #include <span.h>
-#include <stb/stb_image.h>
 #include <vector>
 
 using namespace xray::base;
@@ -80,67 +81,64 @@ load_texture_from_file(const char*           file_path,
   return texture;
 }
 
-struct null_height_gen {
-  float operator()() const noexcept { return {}; }
-};
-
 class terrain_generator {
 public:
-  template <typename HeightGenerator>
-  static void make_terrain(const int32_t            tiles_x,
-                           const int32_t            tiles_y,
-                           const float              tile_step,
-                           const HeightGenerator&   hgen,
+  static void make_terrain(const float              width,
+                           const float              depth,
+                           const uint32_t           vertices_x,
+                           const uint32_t           vertices_z,
                            std::vector<vertex_pnt>& terrain_vertices,
                            std::vector<uint32_t>&   terrain_indices);
 };
 
-template <typename HeightGenerator>
-void terrain_generator::make_terrain(const int32_t            tiles_x,
-                                     const int32_t            tiles_z,
-                                     const float              tile_step,
-                                     const HeightGenerator&   hgen,
+void terrain_generator::make_terrain(const float              width,
+                                     const float              depth,
+                                     const uint32_t           vertices_x,
+                                     const uint32_t           vertices_z,
                                      std::vector<vertex_pnt>& terrain_vertices,
                                      std::vector<uint32_t>&   terrain_indices) {
 
-  const auto vertex_count = (tiles_x + 1) * (tiles_z + 1);
-  const auto delta_uv     = vec2f{1.0f / static_cast<float>(tiles_x),
-                              1.0f / static_cast<float>(tiles_z)};
+  const auto vertex_count = vertices_x * vertices_z;
+  const auto face_count   = (vertices_x - 1) * (vertices_z - 1) * 2;
 
-  const auto hh = (tiles_z + 1) * tile_step * 0.5f;
-  const auto hw = (tiles_x + 1) * tile_step * 0.5f;
+  const auto half_width = 0.5f * width;
+  const auto half_depth = 0.5f * depth;
 
-  for (int32_t z = 0; z <= tiles_z; ++z) {
-    for (int32_t x = 0; x <= tiles_x; ++x) {
-      vertex_pnt v;
-      v.position = vec3f{static_cast<float>(x) * tile_step - hw,
-                         0.0f,
-                         static_cast<float>(z) * tile_step - hh};
-      v.normal   = vec3f::stdc::unit_y;
-      v.texcoord = vec2f{static_cast<float>(x) * delta_uv.x,
-                         static_cast<float>(z) * delta_uv.y};
+  const float dx = width / static_cast<float>(vertices_x - 1);
+  const float dz = depth / static_cast<float>(vertices_z - 1);
 
-      terrain_vertices.push_back(v);
+  const float du = 1.0f / static_cast<float>(vertices_x - 1);
+  const float dv = 1.0f / static_cast<float>(vertices_z - 1);
+
+  terrain_vertices.resize(vertex_count);
+  for (uint32_t i = 0; i < vertices_z; ++i) {
+    const float z = half_depth - i * dz;
+
+    for (uint32_t j = 0; j < vertices_x; ++j) {
+      const float x = -half_width + j * dx;
+
+      terrain_vertices[i * vertices_x + j].position = vec3f{x, 0.0f, z};
+      terrain_vertices[i * vertices_x + j].normal   = vec3f::stdc::unit_y;
+      terrain_vertices[i * vertices_x + j].texcoord = vec2f{j * du, i * dv};
     }
   }
 
-  assert(terrain_vertices.size() == vertex_count);
+  terrain_indices.resize(face_count * 3);
+  uint32_t k{};
 
-  const auto index_count = tiles_x * tiles_z * 2 * 3;
+  for (uint32_t i = 0; i < vertices_z - 1; ++i) {
+    for (uint32_t j = 0; j < vertices_x - 1; ++j) {
+      terrain_indices[k + 0] = (i + 1) * vertices_x + j;
+      terrain_indices[k + 1] = i * vertices_x + j + 1;
+      terrain_indices[k + 2] = i * vertices_x + j;
 
-  for (int32_t z = 0; z < tiles_z; ++z) {
-    for (int32_t x = 0; x < tiles_x; ++x) {
-      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x);
-      terrain_indices.push_back((z) * (tiles_x + 1) + x + 1);
-      terrain_indices.push_back((z) * (tiles_x + 1) + x);
+      terrain_indices[k + 3] = (i + 1) * vertices_x + j;
+      terrain_indices[k + 4] = (i + 1) * vertices_x + j + 1;
+      terrain_indices[k + 5] = i * vertices_x + j + 1;
 
-      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x);
-      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x + 1);
-      terrain_indices.push_back((z) * (tiles_x + 1) + x + 1);
+      k += 6;
     }
   }
-
-  assert(terrain_indices.size() == index_count);
 }
 
 app::terrain_demo::terrain_demo(const init_context_t& init_ctx)
@@ -162,32 +160,6 @@ app::terrain_demo::~terrain_demo() {}
 void app::terrain_demo::init() {
   assert(!valid());
 
-  // {
-  //   std::vector<vertex_pnt> v;
-  //   std::vector<uint32_t>   i;
-  //   terrain_generator::make_terrain(3, 2, 1.0f, null_height_gen{}, v, i);
-
-  //   unique_ptr<FILE, decltype(&fclose)> fp{fopen("terr.txt", "wt"), &fclose};
-  //   for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
-  //     fprintf(
-  //       f, "\n%3.3f, %3.3f, %3.3f", v.position.x, v.position.y,
-  //       v.position.z);
-  //   });
-
-  //   fprintf(fp.get(), "\n###############");
-  //   for (size_t j = 0; j < i.size() / 3; ++j) {
-  //     fprintf(fp.get(), "\n%u %u %u", i[j * 3 + 0], i[j * 3 + 1], i[j * 3 +
-  //     2]);
-  //   }
-
-  //   fprintf(fp.get(), "\n###############");
-
-  //   fflush(fp.get());
-  //   for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
-  //     fprintf(f, "\n%3.3f, %3.3f", v.texcoord.x, v.texcoord.y);
-  //   });
-  // }
-
   //
   // turn off these so we don't get spammed
   gl::DebugMessageControl(gl::DONT_CARE,
@@ -197,10 +169,51 @@ void app::terrain_demo::init() {
                           nullptr,
                           gl::FALSE_);
 
+  static constexpr const uint32_t VERTICES_X = 256;
+  static constexpr const uint32_t VERTICES_Z = 256;
+
   vector<vertex_pnt> vertices;
   vector<uint32_t>   indices;
   terrain_generator::make_terrain(
-    1023, 1023, 1.0f, null_height_gen{}, vertices, indices);
+    128.0f, 128.0f, VERTICES_X, VERTICES_Z, vertices, indices);
+
+  noise::module::Perlin              noise_module{};
+  noise::utils::NoiseMap             height_map{};
+  noise::utils::NoiseMapBuilderPlane heightmap_builder{};
+  heightmap_builder.SetSourceModule(noise_module);
+  heightmap_builder.SetDestNoiseMap(height_map);
+  heightmap_builder.SetDestSize(VERTICES_X, VERTICES_Z);
+  heightmap_builder.SetBounds(2.0, 6.0, 1.0, 5.0);
+  heightmap_builder.Build();
+
+  noise::utils::RendererImage renderer{};
+  noise::utils::Image         image;
+  renderer.SetSourceNoiseMap(height_map);
+  renderer.SetDestImage(image);
+
+  renderer.ClearGradient();
+  renderer.AddGradientPoint(-1.0000, utils::Color(0, 0, 128, 255));   // deeps
+  renderer.AddGradientPoint(-0.2500, utils::Color(0, 0, 255, 255));   // shallow
+  renderer.AddGradientPoint(0.0000, utils::Color(0, 128, 255, 255));  // shore
+  renderer.AddGradientPoint(0.0625, utils::Color(240, 240, 64, 255)); // sand
+  renderer.AddGradientPoint(0.1250, utils::Color(32, 160, 0, 255));   // grass
+  renderer.AddGradientPoint(0.3750, utils::Color(224, 224, 0, 255));  // dirt
+  renderer.AddGradientPoint(0.7500, utils::Color(128, 128, 128, 255)); // rock
+  renderer.AddGradientPoint(1.0000, utils::Color(255, 255, 255, 255)); // snow
+
+  renderer.AddGradientPoint(1.0000, utils::Color(255, 255, 255, 255)); // snow
+  renderer.EnableLight();
+  renderer.SetLightContrast(3.0);   // Triple the contrast
+  renderer.SetLightBrightness(2.0); // Double the brightness
+
+  renderer.render();
+
+  for (int32_t z = 0; z < VERTICES_Z; ++z) {
+    const auto slab_ptr = height_map.GetConstSlabPtr(z);
+    for (int32_t x = 0; x < VERTICES_X; ++x) {
+      vertices[z * VERTICES_X + x].position.y = slab_ptr[x];
+    }
+  }
 
   _mesh = basic_mesh{vertices.data(),
                      vertices.size(),
@@ -242,7 +255,7 @@ void app::terrain_demo::init() {
   gl::SamplerParameteri(smp, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_BORDER);
 
   gl::Enable(gl::DEPTH_TEST);
-  gl::Enable(gl::CULL_FACE);
+  // gl::Enable(gl::CULL_FACE);
 
   _valid = true;
 }
@@ -260,15 +273,15 @@ void app::terrain_demo::draw(const float surface_width,
 
     //    scoped_winding_order_setting set_cw{gl::CW};
 
-    const GLuint bound_textures[] = {raw_handle(_objtex),
-                                     raw_handle(_colormap)};
+    // const GLuint bound_textures[] = {raw_handle(_objtex),
+    //                                  raw_handle(_colormap)};
 
-    gl::BindTextures(0, XR_I32_COUNTOF(bound_textures), bound_textures);
+    // gl::BindTextures(0, XR_I32_COUNTOF(bound_textures), bound_textures);
 
     const GLuint bound_samplers[] = {raw_handle(_sampler),
                                      raw_handle(_sampler)};
 
-    gl::BindSamplers(0, XR_I32_COUNTOF(bound_samplers), bound_samplers);
+    // gl::BindSamplers(0, XR_I32_COUNTOF(bound_samplers), bound_samplers);
 
     gl::BindVertexArray(_mesh.vertex_array());
 
@@ -334,7 +347,7 @@ void app::terrain_demo::draw_ui(const int32_t surface_width,
                    ImGuiWindowFlags_ShowBorders |
                      ImGuiWindowFlags_AlwaysAutoResize)) {
 
-    ImGui::DragFloat("Scaling", &_terrain_opts.scaling, 0.25f, 1.0f, 16.0f);
+    ImGui::DragFloat("Scaling", &_terrain_opts.scaling, 0.25f, 1.0f, 64.0f);
     ImGui::Separator();
     ImGui::Checkbox("Draw wireframe", &_terrain_opts.wireframe);
   }
