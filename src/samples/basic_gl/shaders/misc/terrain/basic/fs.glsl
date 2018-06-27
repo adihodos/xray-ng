@@ -3,13 +3,12 @@
 in VS_OUT_FS_IN {
   vec3 pos_view;
   vec3 norm_view;
-  vec2 texcoords;
+  vec3 texcoords;
 } fs_in;
 
 layout (location = 0) out vec4 final_frag_color;
-// layout (binding = 1) uniform sampler2D TERRAIN_COLORMAP;
+layout (binding = 0) uniform sampler2DArray TERRAIN_COLORMAP;
 
 void main() {
-  final_frag_color = vec4(1.0, 0.0, 0.0, 1.0);
-    //texture(TERRAIN_COLORMAP, fs_in.texcoords);
+  final_frag_color = texture(TERRAIN_COLORMAP, fs_in.texcoords);
 }

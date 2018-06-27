@@ -468,106 +468,58 @@ void xray::rendering::geometry_factory::box(const float      width,
 //   }
 // }
 
-void xray::rendering::geometry_factory::grid(const float      grid_width,
-                                             const float      grid_depth,
-                                             const size_t     row_count,
-                                             const size_t     column_count,
-                                             geometry_data_t* mesh_data) {
+void xray::rendering::geometry_factory::grid(const float      width,
+                                             const float      depth,
+                                             const uint32_t   vertices_x,
+                                             const uint32_t   vertices_z,
+                                             geometry_data_t* grid) {
 
-  const size_t vertices_per_row = row_count + 1;
-  const size_t vertices_per_col = column_count + 1;
+  const auto vertex_count = vertices_x * vertices_z;
+  const auto face_count   = (vertices_x - 1) * (vertices_z - 1) * 2;
 
-  const size_t vertex_count = vertices_per_row * vertices_per_col;
-  const size_t face_count   = row_count * column_count * 2;
+  const auto half_width = 0.5f * width;
+  const auto half_depth = 0.5f * depth;
 
-  const float half_width = 0.5f * grid_width;
-  const float half_depth = 0.5f * grid_depth;
+  const float dx = width / static_cast<float>(vertices_x - 1);
+  const float dz = depth / static_cast<float>(vertices_z - 1);
 
-  const float delta_x = grid_width / column_count;
-  const float delta_z = grid_depth / row_count;
+  const float du = 1.0f / static_cast<float>(vertices_x - 1);
+  const float dv = 1.0f / static_cast<float>(vertices_z - 1);
 
-  const float delta_tu = 1.0f / column_count;
-  const float delta_tv = 1.0f / row_count;
+  grid->setup(vertex_count, face_count * 3);
 
-  mesh_data->setup(static_cast<uint32_t>(vertex_count),
-                   static_cast<uint32_t>(face_count * 3));
+  for (uint32_t i = 0; i < vertices_z; ++i) {
+    const float z = half_depth - i * dz;
 
-  // typedef tbb::blocked_range2d<size_t, size_t> grid_domain_t;
+    for (uint32_t j = 0; j < vertices_x; ++j) {
+      const float x = -half_width + j * dx;
 
-  // tbb::parallel_for(
-  //   grid_domain_t{0, vertices_per_row, 0, vertices_per_col},
-  //   [=](const grid_domain_t& thread_subdomain) {
-  //     for (size_t row_idx = thread_subdomain.rows().begin();
-  //          row_idx < thread_subdomain.rows().end();
-  //          ++row_idx) {
-  //       const float z_coord = half_depth - row_idx * delta_z;
+      auto gptr = &grid->geometry[i * vertices_x + j];
 
-  //       for (size_t col_idx = thread_subdomain.cols().begin();
-  //            col_idx < thread_subdomain.cols().end();
-  //            ++col_idx) {
-  //         vertex_pntt& output_vtx =
-  //           mesh_data->geometry[row_idx * vertices_per_col + col_idx];
-
-  //         const float x_coord = -half_width + col_idx * delta_x;
-
-  //         output_vtx.position = math::vec3f{x_coord, 0.0f, z_coord};
-  //         output_vtx.normal   = math::vec3f::stdc::unit_y;
-  //         output_vtx.tangent  = math::vec3f::stdc::unit_x;
-  //         output_vtx.texcoords =
-  //           math::vec2f{col_idx * delta_tu, row_idx * delta_tv};
-  //       }
-  //     }
-  //   });
-
-  for (size_t row_idx = 0; row_idx < vertices_per_row; ++row_idx) {
-    const float z_coord = half_depth - row_idx * delta_z;
-
-    for (size_t col_idx = 0; col_idx < vertices_per_col; ++col_idx) {
-      vertex_pntt& output_vtx =
-        mesh_data->geometry[row_idx * vertices_per_col + col_idx];
-
-      const float x_coord = -half_width + col_idx * delta_x;
-
-      output_vtx.position = math::vec3f{x_coord, 0.0f, z_coord};
-      output_vtx.normal   = math::vec3f::stdc::unit_y;
-      output_vtx.tangent  = math::vec3f::stdc::unit_x;
-      output_vtx.texcoords =
-        math::vec2f{col_idx * delta_tu, row_idx * delta_tv};
+      gptr->position  = vec3f{x, 0.0f, z};
+      gptr->normal    = vec3f::stdc::unit_y;
+      gptr->texcoords = vec2f{j * du, i * dv};
     }
   }
 
   //
   // Setup indices for the generated vertices.
   auto index_array =
-    gsl::span<uint32_t>(raw_ptr(mesh_data->indices), mesh_data->index_count);
+    gsl::span<uint32_t>(raw_ptr(grid->indices), grid->index_count);
 
-  size_t quad_idx = 0;
-  for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
-    for (size_t col_idx = 0; col_idx < column_count; ++col_idx) {
+  uint32_t k{};
 
-      //
-      //  First face.
-      index_array[quad_idx] =
-        static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
+  for (uint32_t i = 0; i < vertices_z - 1; ++i) {
+    for (uint32_t j = 0; j < vertices_x - 1; ++j) {
+      index_array[k + 0] = (i + 1) * vertices_x + j;
+      index_array[k + 1] = i * vertices_x + j + 1;
+      index_array[k + 2] = i * vertices_x + j;
 
-      index_array[quad_idx + 1] =
-        static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
+      index_array[k + 3] = (i + 1) * vertices_x + j;
+      index_array[k + 4] = (i + 1) * vertices_x + j + 1;
+      index_array[k + 5] = i * vertices_x + j + 1;
 
-      index_array[quad_idx + 2] =
-        static_cast<uint32_t>(row_idx * vertices_per_col + col_idx);
-
-      //
-      //  Second face
-      index_array[quad_idx + 3] =
-        static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx);
-
-      index_array[quad_idx + 4] =
-        static_cast<uint32_t>((row_idx + 1) * vertices_per_col + col_idx + 1);
-
-      index_array[quad_idx + 5] =
-        static_cast<uint32_t>(row_idx * vertices_per_col + col_idx + 1);
-
-      quad_idx += 6; // next quad
+      k += 6;
     }
   }
 }

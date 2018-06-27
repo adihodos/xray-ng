@@ -43,6 +43,38 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
+void compute_normal_map(const int32_t width, const int32_t depth) {
+  //
+  // sample 3x3 around pixel
+  using xray::math::max;
+
+  for (int32_t z = 0; z < depth; ++z) {
+    for (int32_t x = 0; x < width; ++x) {
+
+      const int32_t idx = z * depth + x;
+
+      const auto is0 = max((z - 1) * depth + x - 1, 0);
+      const auto is1 = max((z - 1) * depth + x, 0);
+      const auto is2 = max((z - 1) * depth + x + 1, 0);
+
+      const auto is3 = max(z * depth + x - 1, 0);
+      const auto is4 = max(z * depth + x, 0);
+      const auto is5 = max(z * depth + x + 1, 0);
+
+      const auto is6 = max((z + 1) * depth + x - 1, 0);
+      const auto is7 = max((z + 1) * depth + x, 0);
+      const auto is8 = max((z + 1) * depth + x + 1, 0);
+    }
+  }
+}
+
+struct per_instance_transform {
+  mat4f    world;
+  mat4f    world_view_proj;
+  uint32_t instance_vertex_offset;
+  uint32_t pad[3];
+};
+
 xray::rendering::scoped_texture
 load_texture_from_file(const char*           file_path,
                        xray::math::vec3ui32* texture_dimensions) {
@@ -81,66 +113,6 @@ load_texture_from_file(const char*           file_path,
   return texture;
 }
 
-class terrain_generator {
-public:
-  static void make_terrain(const float              width,
-                           const float              depth,
-                           const uint32_t           vertices_x,
-                           const uint32_t           vertices_z,
-                           std::vector<vertex_pnt>& terrain_vertices,
-                           std::vector<uint32_t>&   terrain_indices);
-};
-
-void terrain_generator::make_terrain(const float              width,
-                                     const float              depth,
-                                     const uint32_t           vertices_x,
-                                     const uint32_t           vertices_z,
-                                     std::vector<vertex_pnt>& terrain_vertices,
-                                     std::vector<uint32_t>&   terrain_indices) {
-
-  const auto vertex_count = vertices_x * vertices_z;
-  const auto face_count   = (vertices_x - 1) * (vertices_z - 1) * 2;
-
-  const auto half_width = 0.5f * width;
-  const auto half_depth = 0.5f * depth;
-
-  const float dx = width / static_cast<float>(vertices_x - 1);
-  const float dz = depth / static_cast<float>(vertices_z - 1);
-
-  const float du = 1.0f / static_cast<float>(vertices_x - 1);
-  const float dv = 1.0f / static_cast<float>(vertices_z - 1);
-
-  terrain_vertices.resize(vertex_count);
-  for (uint32_t i = 0; i < vertices_z; ++i) {
-    const float z = half_depth - i * dz;
-
-    for (uint32_t j = 0; j < vertices_x; ++j) {
-      const float x = -half_width + j * dx;
-
-      terrain_vertices[i * vertices_x + j].position = vec3f{x, 0.0f, z};
-      terrain_vertices[i * vertices_x + j].normal   = vec3f::stdc::unit_y;
-      terrain_vertices[i * vertices_x + j].texcoord = vec2f{j * du, i * dv};
-    }
-  }
-
-  terrain_indices.resize(face_count * 3);
-  uint32_t k{};
-
-  for (uint32_t i = 0; i < vertices_z - 1; ++i) {
-    for (uint32_t j = 0; j < vertices_x - 1; ++j) {
-      terrain_indices[k + 0] = (i + 1) * vertices_x + j;
-      terrain_indices[k + 1] = i * vertices_x + j + 1;
-      terrain_indices[k + 2] = i * vertices_x + j;
-
-      terrain_indices[k + 3] = (i + 1) * vertices_x + j;
-      terrain_indices[k + 4] = (i + 1) * vertices_x + j + 1;
-      terrain_indices[k + 5] = i * vertices_x + j + 1;
-
-      k += 6;
-    }
-  }
-}
-
 app::terrain_demo::terrain_demo(const init_context_t& init_ctx)
   : demo_base{init_ctx} {
   _camera.set_projection(projections_rh::perspective_symmetric(
@@ -169,60 +141,143 @@ void app::terrain_demo::init() {
                           nullptr,
                           gl::FALSE_);
 
-  static constexpr const uint32_t VERTICES_X = 256;
-  static constexpr const uint32_t VERTICES_Z = 256;
+  //
+  // Create basic grid mesh.
+  {
+    geometry_data_t grid_geometry;
+    geometry_factory::grid(terrain_consts::TILE_WIDTH,
+                           terrain_consts::TILE_DEPTH,
+                           terrain_consts::VERTICES_X,
+                           terrain_consts::VERTICES_Z,
+                           &grid_geometry);
 
-  vector<vertex_pnt> vertices;
-  vector<uint32_t>   indices;
-  terrain_generator::make_terrain(
-    128.0f, 128.0f, VERTICES_X, VERTICES_Z, vertices, indices);
+    std::vector<vertex_pnt> vertices;
+    const auto              vspan = grid_geometry.vertex_span();
+    transform(
+      begin(vspan),
+      end(vspan),
+      back_inserter(vertices),
+      [](const vertex_pntt& vs_in) {
+        return vertex_pnt{vs_in.position, vs_in.normal, vs_in.texcoords};
+      });
+
+    _mesh = basic_mesh{vertices.data(),
+                       vertices.size(),
+                       grid_geometry.index_data(),
+                       grid_geometry.index_count,
+                       mesh_type::writable};
+    if (!_mesh) {
+      XR_DBG_MSG("Failed to create grid!");
+      return;
+    }
+  }
+
+  //
+  // Setup colormap texture array
+  {
+    gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, raw_handle_ptr(_colormap));
+    gl::TextureStorage3D(raw_handle(_colormap),
+                         1,
+                         gl::RGBA8,
+                         terrain_consts::VERTICES_X,
+                         terrain_consts::VERTICES_Z,
+                         terrain_consts::NUM_TILES);
+
+    constexpr const GLint swizzle_mask[] = {
+      gl::ALPHA, gl::BLUE, gl::GREEN, gl::RED};
+
+    gl::TextureParameteriv(
+      raw_handle(_colormap), gl::TEXTURE_SWIZZLE_RGBA, swizzle_mask);
+  }
+
+  //
+  // Generate height maps, color maps
+  std::vector<float> heightmap_vertices;
+  heightmap_vertices.reserve(_mesh.vertex_count() * terrain_consts::NUM_TILES);
+
+  constexpr const vec4f TILE_BOUNDS[] = {vec4f{0.0f, 4.0f, 0.0f, 4.0f},
+                                         vec4f{4.0f, 8.0f, 0.0f, 4.0f},
+                                         vec4f{8.0f, 12.0f, 0.0f, 4.0f}};
 
   noise::module::Perlin              noise_module{};
   noise::utils::NoiseMap             height_map{};
   noise::utils::NoiseMapBuilderPlane heightmap_builder{};
   heightmap_builder.SetSourceModule(noise_module);
   heightmap_builder.SetDestNoiseMap(height_map);
-  heightmap_builder.SetDestSize(VERTICES_X, VERTICES_Z);
-  heightmap_builder.SetBounds(2.0, 6.0, 1.0, 5.0);
-  heightmap_builder.Build();
+  heightmap_builder.SetDestSize(terrain_consts::VERTICES_X,
+                                terrain_consts::VERTICES_Z);
+  heightmap_builder.EnableSeamless(true);
 
   noise::utils::RendererImage renderer{};
   noise::utils::Image         image;
   renderer.SetSourceNoiseMap(height_map);
   renderer.SetDestImage(image);
 
-  renderer.ClearGradient();
-  renderer.AddGradientPoint(-1.0000, utils::Color(0, 0, 128, 255));   // deeps
-  renderer.AddGradientPoint(-0.2500, utils::Color(0, 0, 255, 255));   // shallow
-  renderer.AddGradientPoint(0.0000, utils::Color(0, 128, 255, 255));  // shore
-  renderer.AddGradientPoint(0.0625, utils::Color(240, 240, 64, 255)); // sand
-  renderer.AddGradientPoint(0.1250, utils::Color(32, 160, 0, 255));   // grass
-  renderer.AddGradientPoint(0.3750, utils::Color(224, 224, 0, 255));  // dirt
-  renderer.AddGradientPoint(0.7500, utils::Color(128, 128, 128, 255)); // rock
-  renderer.AddGradientPoint(1.0000, utils::Color(255, 255, 255, 255)); // snow
+  for (int32_t i = 0; i < terrain_consts::NUM_TILES; ++i) {
+    heightmap_builder.SetBounds(
+      TILE_BOUNDS[i].x, TILE_BOUNDS[i].y, TILE_BOUNDS[i].z, TILE_BOUNDS[i].w);
+    heightmap_builder.Build();
 
-  renderer.AddGradientPoint(1.0000, utils::Color(255, 255, 255, 255)); // snow
-  renderer.EnableLight();
-  renderer.SetLightContrast(3.0);   // Triple the contrast
-  renderer.SetLightBrightness(2.0); // Double the brightness
+    renderer.ClearGradient();
+    renderer.AddGradientPoint(-1.0000, utils::Color(0, 0, 128, 255)); // deeps
+    renderer.AddGradientPoint(-0.2500, utils::Color(0, 0, 255, 255)); // shallow
+    renderer.AddGradientPoint(0.0000, utils::Color(0, 128, 255, 255));  // shore
+    renderer.AddGradientPoint(0.0625, utils::Color(240, 240, 64, 255)); // sand
+    renderer.AddGradientPoint(0.1250, utils::Color(32, 160, 0, 255));   // grass
+    renderer.AddGradientPoint(0.3750, utils::Color(224, 224, 0, 255));  // dirt
+    renderer.AddGradientPoint(0.7500, utils::Color(128, 128, 128, 255)); // rock
+    renderer.AddGradientPoint(1.0000, utils::Color(255, 255, 255, 255)); // snow
 
-  renderer.render();
+    renderer.EnableLight();
+    renderer.SetLightContrast(3.0);   // Triple the contrast
+    renderer.SetLightBrightness(2.0); // Double the brightness
 
-  for (int32_t z = 0; z < VERTICES_Z; ++z) {
-    const auto slab_ptr = height_map.GetConstSlabPtr(z);
-    for (int32_t x = 0; x < VERTICES_X; ++x) {
-      vertices[z * VERTICES_X + x].position.y = slab_ptr[x];
+    renderer.Render();
+
+    //
+    // Upload colormap
+    gl::TextureSubImage3D(raw_handle(_colormap),
+                          0,
+                          0,
+                          0,
+                          i,
+                          terrain_consts::VERTICES_X,
+                          terrain_consts::VERTICES_Z,
+                          1,
+                          gl::RGBA,
+                          gl::UNSIGNED_BYTE,
+                          image.GetSlabPtr());
+
+    //
+    // Copy generated height vertices
+    for (uint32_t z = 0; z < terrain_consts::VERTICES_Z; ++z) {
+      auto slab_ptr = height_map.GetSlabPtr(z);
+
+      for (uint32_t x = 0; x < terrain_consts::VERTICES_X; ++x) {
+        heightmap_vertices.push_back(slab_ptr[x]);
+      }
     }
   }
 
-  _mesh = basic_mesh{vertices.data(),
-                     vertices.size(),
-                     indices.data(),
-                     indices.size(),
-                     mesh_type::writable};
-  if (!_mesh) {
-    XR_DBG_MSG("Failed to create grid!");
-    return;
+  //
+  // Per instance heightmap buffer
+  {
+    gl::CreateBuffers(1, raw_handle_ptr(_per_instance_heightmap));
+    gl::NamedBufferStorage(raw_handle(_per_instance_heightmap),
+                           container_bytes_size(heightmap_vertices),
+                           heightmap_vertices.data(),
+                           0);
+  }
+
+  //
+  // Per instance transform buffer
+  {
+    gl::CreateBuffers(1, raw_handle_ptr(_per_instance_transforms));
+    gl::NamedBufferStorage(raw_handle(_per_instance_transforms),
+                           sizeof(per_instance_transform) *
+                             terrain_consts::NUM_TILES,
+                           nullptr,
+                           gl::MAP_WRITE_BIT);
   }
 
   _vs = gpu_program_builder{}
@@ -269,36 +324,66 @@ void app::terrain_demo::draw(const float surface_width,
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
   gl::ViewportIndexedf(0, 0.0f, 0.0f, surface_width, surface_height);
 
+  //
+  // Upload instance transforms
   {
+    per_instance_transform instance_transforms[terrain_consts::NUM_TILES];
 
-    //    scoped_winding_order_setting set_cw{gl::CW};
+    for (int32_t i = 0; i < terrain_consts::NUM_TILES; ++i) {
+      const auto world =
+        R4::translate(static_cast<float>(i * (terrain_consts::TILE_DEPTH - 1)),
+                      0.0f,
+                      0.0f) *
+        mat4f{R3::scale_y(_terrain_opts.scaling)};
 
-    // const GLuint bound_textures[] = {raw_handle(_objtex),
-    //                                  raw_handle(_colormap)};
+      instance_transforms[i].world = transpose(world);
 
-    // gl::BindTextures(0, XR_I32_COUNTOF(bound_textures), bound_textures);
+      instance_transforms[i].world_view_proj =
+        transpose(_camera.projection_view() * world);
 
-    const GLuint bound_samplers[] = {raw_handle(_sampler),
-                                     raw_handle(_sampler)};
+      instance_transforms[i].instance_vertex_offset =
+        static_cast<uint32_t>(i * _mesh.vertex_count());
+    }
 
-    // gl::BindSamplers(0, XR_I32_COUNTOF(bound_samplers), bound_samplers);
+    scoped_resource_mapping bmap{raw_handle(_per_instance_transforms),
+                                 gl::MAP_WRITE_BIT |
+                                   gl::MAP_INVALIDATE_BUFFER_BIT,
+                                 sizeof(instance_transforms)};
+
+    if (!bmap) {
+      XR_LOG_ERR("Failed to map instance transform buffer for updating!");
+      return;
+    }
+
+    memcpy(bmap.memory(), instance_transforms, sizeof(instance_transforms));
+  }
+
+  {
+    gl::BindBufferBase(
+      gl::SHADER_STORAGE_BUFFER, 0, raw_handle(_per_instance_heightmap));
+    gl::BindBufferBase(
+      gl::SHADER_STORAGE_BUFFER, 1, raw_handle(_per_instance_transforms));
+
+    gl::BindTextureUnit(0, raw_handle(_colormap));
+    gl::BindSampler(0, raw_handle(_sampler));
 
     gl::BindVertexArray(_mesh.vertex_array());
-
-    _vs.set_uniform("world_view_proj_mtx",
-                    _camera.projection_view() *
-                      mat4f{R3::scale_y(_terrain_opts.scaling)});
-    _vs.set_uniform("scale_factor", _terrain_opts.scaling);
 
     _pipeline.use();
 
     if (_terrain_opts.wireframe) {
       scoped_polygon_mode_setting set_wireframe{gl::LINE};
-      gl::DrawElements(
-        gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+      gl::DrawElementsInstanced(gl::TRIANGLES,
+                                _mesh.index_count(),
+                                gl::UNSIGNED_INT,
+                                nullptr,
+                                terrain_consts::NUM_TILES);
     } else {
-      gl::DrawElements(
-        gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
+      gl::DrawElementsInstanced(gl::TRIANGLES,
+                                _mesh.index_count(),
+                                gl::UNSIGNED_INT,
+                                nullptr,
+                                terrain_consts::NUM_TILES);
     }
   }
 

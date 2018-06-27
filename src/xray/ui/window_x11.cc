@@ -847,7 +847,6 @@ void xray::ui::window::event_mouse_button(const XButtonEvent* x11evt) {
                                  });
 
     if (mapped_button != end(REGULAR_BUTTON_MAPPINGS)) {
-      XR_LOG_INFO("Button press/release!");
       //
       //
       mouse_button_event mbe;
@@ -874,7 +873,6 @@ void xray::ui::window::event_mouse_button(const XButtonEvent* x11evt) {
     }
   }
 
-  XR_LOG_INFO("Wheel event!");
   mouse_wheel_event mwe;
   mwe.delta     = x11evt->button == Button4 ? -1 : 1;
   mwe.wnd       = this;

@@ -143,11 +143,11 @@ public:
   /// Creates a grid in the XZ plane, centered around the origin.
   /// \param  grid_width  Length along the X axis.
   /// \param  grid_depth  Length along the Z axis.
-  static void grid(const float      grid_width,
-                   const float      grid_depth,
-                   const size_t     row_count,
-                   const size_t     column_count,
-                   geometry_data_t* grid_geometry);
+  static void grid(const float      width,
+                   const float      depth,
+                   const uint32_t   vertices_x,
+                   const uint32_t   vertices_z,
+                   geometry_data_t* grid);
 
   /// Creates a sphere, centered at the origin.
   /// \param  tess_factor_horz    Horizontal tesselation factor. Must be

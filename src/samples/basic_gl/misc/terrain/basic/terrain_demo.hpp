@@ -61,13 +61,20 @@ private:
   void draw_ui(const int32_t surface_width, const int32_t surface_height);
 
 private:
-  uint32_t                          _vertexcount{};
-  uint32_t                          _indexcount{};
+  struct terrain_consts {
+    static constexpr const uint32_t VERTICES_X = 512;
+    static constexpr const uint32_t VERTICES_Z = 512;
+    static constexpr const float    TILE_WIDTH = 256.0f;
+    static constexpr const float    TILE_DEPTH = 256.0f;
+    static constexpr const int32_t  NUM_TILES  = 3;
+  };
+
+  xray::rendering::scoped_buffer    _per_instance_heightmap;
+  xray::rendering::scoped_buffer    _per_instance_transforms;
   xray::rendering::basic_mesh       _mesh;
   xray::rendering::vertex_program   _vs;
   xray::rendering::fragment_program _fs;
   xray::rendering::program_pipeline _pipeline;
-  xray::rendering::scoped_texture   _objtex;
   xray::rendering::scoped_texture   _colormap;
   xray::rendering::scoped_sampler   _sampler;
 
@@ -78,7 +85,7 @@ private:
   struct terrain_opts {
     int32_t width{513};
     int32_t height{513};
-    float   scaling{4.0f};
+    float   scaling{16.0f};
     bool    wireframe{true};
   } _terrain_opts;
 
