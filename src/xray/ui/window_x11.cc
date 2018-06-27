@@ -583,30 +583,30 @@ xray::ui::window::window(const window_params_t& wparam)
     XInternAtom(raw_ptr(_display), "WM_DELETE_WINDOW", False);
   XSetWMProtocols(raw_ptr(_display), raw_ptr(_window), &_window_delete_atom, 1);
 
-  //
-  // remove window manager decorations
-  _motif_hints = XInternAtom(raw_ptr(_display), "_MOTIF_WM_HINTS", False);
-
-  struct {
-    unsigned long flags{};
-    unsigned long functions{};
-    unsigned long decorations{};
-    long          input_mode{};
-    unsigned long status{};
-  } motif_wm_hints{};
-
-  motif_wm_hints.flags       = 2;
-  motif_wm_hints.decorations = 0;
+  const Atom window_atoms[] = {
+    XInternAtom(raw_ptr(_display), "_NET_WM_STATE", False),
+    XInternAtom(raw_ptr(_display), "_NET_WM_STATE_MAXIMIZED_VERT", False),
+    XInternAtom(raw_ptr(_display), "_NET_WM_STATE_MAXIMIZED_HORZ", False),
+    XInternAtom(raw_ptr(_display), "_NET_WM_STATE_SKIP_PAGER", False),
+    XInternAtom(raw_ptr(_display), "_NET_WM_STATE_ABOVE", False),
+    XInternAtom(raw_ptr(_display), "_NET_WM_STATE_FULLSCREEN", False),
+  };
 
   XChangeProperty(raw_ptr(_display),
                   raw_ptr(_window),
-                  _motif_hints,
-                  _motif_hints,
+                  window_atoms[0],
+                  XA_ATOM,
                   32,
                   PropModeReplace,
-                  reinterpret_cast<unsigned char*>(&motif_wm_hints),
-                  5);
+                  (unsigned char*) (&window_atoms[1]),
+                  XR_I32_COUNTOF(window_atoms) - 1);
 
+  const Atom name_atoms[] = {
+    XInternAtom(raw_ptr(_display), "_NET_WM_NAME", False),
+    XInternAtom(raw_ptr(_display), "UTF8_STRING", False),
+  };
+
+  
   //
   // load OpenGL
   const char* extension_list =
