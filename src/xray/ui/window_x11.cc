@@ -606,7 +606,6 @@ xray::ui::window::window(const window_params_t& wparam)
     XInternAtom(raw_ptr(_display), "UTF8_STRING", False),
   };
 
-  
   //
   // load OpenGL
   const char* extension_list =
@@ -749,6 +748,8 @@ xray::ui::window::~window() {
   if (_pointer_grabbed) {
     XUngrabPointer(raw_ptr(_display), CurrentTime);
   }
+
+  glXMakeContextCurrent(raw_ptr(_display), None, None, nullptr);
 }
 
 void xray::ui::window::swap_buffers() noexcept {
