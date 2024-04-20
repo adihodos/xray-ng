@@ -27,13 +27,15 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "demo_base.hpp"
+
+#include <algorithm>
+#include <vector>
+
 #include "init_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/debug_output.hpp"
-#include <algorithm>
 #include <platformstl/filesystem/filesystem_traits.hpp>
 #include <platformstl/filesystem/readdir_sequence.hpp>
-#include <vector>
 
 using namespace std;
 

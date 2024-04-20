@@ -1,4 +1,13 @@
 #include "misc/instanced_drawing/instanced_drawing_demo.hpp"
+
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <iterator>
+#include <numeric>
+#include <span>
+#include <vector>
+
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/math/constants.hpp"
@@ -22,16 +31,12 @@
 #include "xray/rendering/opengl/scoped_state.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
-#include <algorithm>
-#include <cassert>
-#include <cstring>
+
 #include <imgui/imgui.h>
-#include <iterator>
+#include <itlib/small_vector.hpp>
 #include <opengl/opengl.hpp>
 #include <platformstl/filesystem/readdir_sequence.hpp>
-#include <span.h>
 #include <stlsoft/memory/auto_buffer.hpp>
-#include <vector>
 
 using namespace xray::base;
 using namespace xray::rendering;
@@ -158,15 +163,16 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                                // "leo2/leo2a6.bin"
                                //                               "a10/a10.bin"
                                "typhoon/typhoon.bin"};
-  mesh_loader       mloaders[2];
-  for (size_t i = 0; i < XR_COUNTOF(files); ++i) {
-    mloaders[i].load(xr_app_config->model_path(files[i]).c_str());
+
+  itlib::small_vector<mesh_loader, 8> mloaders{};
+  for (const char* f : files) {
+    mesh_loader::load(init_ctx.cfg->model_path(f).c_str())
+      .map([&mloaders](mesh_loader&& loaded_mdl) {
+        mloaders.emplace_back(std::move(loaded_mdl));
+      });
   }
 
-  const auto any_failed = any_of(
-    begin(mloaders), end(mloaders), [](const mesh_loader& ml) { return !ml; });
-
-  if (any_failed) {
+  if (mloaders.size() != size(files)) {
     XR_LOG_ERR("Failed to load all models!");
     return;
   }
@@ -260,11 +266,9 @@ app::instanced_drawing_demo::instanced_drawing_demo(
     GL_MARK_BUFFER(raw_handle(_draw_ids), "Instance id buffer");
   }
 
-  _vertexarray = [
-    vb = raw_handle(_vertices),
-    ib = raw_handle(_indices),
-    di = raw_handle(_draw_ids)
-  ]() {
+  _vertexarray = [vb = raw_handle(_vertices),
+                  ib = raw_handle(_indices),
+                  di = raw_handle(_draw_ids)]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
 
@@ -293,8 +297,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
     gl::VertexArrayBindingDivisor(vao, 1, 1);
 
     return scoped_vertex_array{vao};
-  }
-  ();
+  }();
 
   {
     draw_elements_indirect_command draw_cmds[2];
@@ -348,7 +351,6 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   //
   // load textures
   _textures = []() {
-
     GLuint tex{};
     gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, &tex);
     bool store_allocated{false};
@@ -368,7 +370,6 @@ app::instanced_drawing_demo::instanced_drawing_demo(
              end(dir_contents_reader),
              [tex, &store_allocated, textures_count, &tex_idx](
                const auto& texture_file) {
-
                texture_loader tl{texture_file, texture_load_options::flip_y};
                if (!tl) {
                  XR_LOG_ERR("Failed to load texture {}", texture_file);
@@ -396,7 +397,6 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                                      tl.format(),
                                      gl::UNSIGNED_BYTE,
                                      tl.data());
-
              });
 
     return scoped_texture{tex};
@@ -416,8 +416,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
   uint32_t idx{};
   generate_n(back_inserter(_obj_instances.instances),
              object_instances::instance_count,
-             [ r = &_rand, &idx ]() {
-
+             [r = &_rand, &idx]() {
                static constexpr auto OBJ_DST = 50.0f;
 
                instance_info new_inst;
@@ -444,8 +443,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
                            gl::MAP_WRITE_BIT);
 
     return scoped_buffer{buff};
-  }
-  ();
+  }();
 
   _obj_instances.buffer_texture_ids = [objs = &_obj_instances]() {
     GLuint buff{};
@@ -461,8 +459,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
       buff, texid_buff.size() * sizeof(uint32_t), texid_buff.data(), 0);
 
     return scoped_buffer{buff};
-  }
-  ();
+  }();
 
   gl::Enable(gl::DEPTH_TEST);
   gl::Enable(gl::CULL_FACE);
@@ -521,7 +518,6 @@ void app::instanced_drawing_demo::loop_event(
               end(_obj_instances.instances),
               back_inserter(instance_transforms),
               [this](instance_info& ii) {
-
                 const auto obj_rotation =
                   mat4f{R3::rotate_xyz(ii.roll, ii.yaw, ii.pitch)};
 
@@ -604,12 +600,11 @@ void app::instanced_drawing_demo::compose_ui(const int32_t surface_width,
 
     int32_t    idx{};
     const auto instance_span =
-      gsl::as_span(_obj_instances.instances.data(),
-                   static_cast<ptrdiff_t>(_demo_opts.instance_count));
+      std::span{_obj_instances.instances.data(),
+                static_cast<ptrdiff_t>(_demo_opts.instance_count)};
 
     for_each(
       begin(instance_span), end(instance_span), [&idx](instance_info& ii) {
-
         if (ImGui::TreeNodeEx(fmt::format("Instance #{}", idx).c_str(),
                               ImGuiTreeNodeFlags_CollapsingHeader)) {
           ImGui::PushID(idx);
@@ -628,7 +623,7 @@ void app::instanced_drawing_demo::compose_ui(const int32_t surface_width,
                             ImGuiInputTextFlags_CharsDecimal);
           ImGui::PopID();
 
-          ii.scale = clamp(ii.scale, 0.1f, 10.0f);
+          ii.scale = xray::math::clamp(ii.scale, 0.1f, 10.0f);
 
           ImGui::TreePop();
         }

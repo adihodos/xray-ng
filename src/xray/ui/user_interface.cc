@@ -493,8 +493,8 @@ void xray::ui::user_interface::load_fonts(const font_info* fonts,
 
     platformstl::path_a fpath{fi.path};
 
-    _rendercontext.fonts.push_back(
-      {fpath.pop_ext().get_file(), fi.pixel_size, fnt});
+      _rendercontext.fonts.emplace_back(
+        std::string{fpath.pop_ext().get_file().data()}, fi.pixel_size, fnt);
   });
 
   sort(begin(_rendercontext.fonts),
@@ -738,7 +738,8 @@ void xray::ui::user_interface::draw() {
          cmd_itr != cmd_end;
          ++cmd_itr) {
 
-      const GLuint textures_to_bind[] = {(GLuint)(intptr_t) cmd_itr->TextureId};
+      const GLuint textures_to_bind[] = {
+        (GLuint) (intptr_t) cmd_itr->TextureId};
       gl::BindTextures(0, 1, textures_to_bind);
 
       gl::Scissor(

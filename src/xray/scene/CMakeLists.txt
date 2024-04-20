@@ -17,4 +17,3 @@ set(project_sources
 
 add_library(xray-scene STATIC ${project_sources})
 target_link_libraries(xray-scene libconfig xray-ui)
-#target_link_libraries(xray ${GLFW_LIBRARY} xray-base xray-opengl-renderer)

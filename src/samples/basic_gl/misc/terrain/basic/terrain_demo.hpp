@@ -76,6 +76,7 @@ private:
   xray::rendering::fragment_program _fs;
   xray::rendering::program_pipeline _pipeline;
   xray::rendering::scoped_texture   _colormap;
+  xray::rendering::scoped_texture   _heightmap;
   xray::rendering::scoped_sampler   _sampler;
 
   xray::scene::camera                             _camera;

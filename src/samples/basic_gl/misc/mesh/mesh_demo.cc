@@ -27,7 +27,7 @@
 #include <cstring>
 #include <iterator>
 #include <opengl/opengl.hpp>
-#include <span.h>
+#include <span>
 #include <vector>
 
 using namespace xray::base;
@@ -391,10 +391,13 @@ void app::mesh_demo::loop_event(const xray::ui::window_loop_event& wle) {
 
 xray::base::maybe<app::mesh_demo::mesh_info>
 app::mesh_demo::load_mesh(const char* model_path) {
-  mesh_loader mesh_loader{model_path};
-  if (!mesh_loader) {
+	auto loaded_obj = mesh_loader::load(model_path);
+  if (!loaded_obj) {
     return nothing{};
   }
+
+  const auto& mesh_loader = loaded_obj.value();
+
 
   if (mesh_loader.header().vertex_count > _vertexcount) {
     XR_DBG_MSG("Reallocating vertex buffer!");

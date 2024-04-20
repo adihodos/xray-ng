@@ -3,7 +3,6 @@
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/basic_timer.hpp"
-#include "xray/base/pod_zero.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar2.hpp"
@@ -27,12 +26,10 @@
 #include <cassert>
 #include <cstring>
 #include <iterator>
-#include <ktx.h>
-#include <noise/noise.h>
-#include <noise/noiseutils.h>
 #include <opengl/opengl.hpp>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
-#include <span.h>
+#include <span>
+#include <stb/stb_image.h>
 #include <vector>
 
 using namespace xray::base;
@@ -43,75 +40,105 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-void compute_normal_map(const int32_t width, const int32_t depth) {
-  //
-  // sample 3x3 around pixel
-  using xray::math::max;
-
-  for (int32_t z = 0; z < depth; ++z) {
-    for (int32_t x = 0; x < width; ++x) {
-
-      const int32_t idx = z * depth + x;
-
-      const auto is0 = max((z - 1) * depth + x - 1, 0);
-      const auto is1 = max((z - 1) * depth + x, 0);
-      const auto is2 = max((z - 1) * depth + x + 1, 0);
-
-      const auto is3 = max(z * depth + x - 1, 0);
-      const auto is4 = max(z * depth + x, 0);
-      const auto is5 = max(z * depth + x + 1, 0);
-
-      const auto is6 = max((z + 1) * depth + x - 1, 0);
-      const auto is7 = max((z + 1) * depth + x, 0);
-      const auto is8 = max((z + 1) * depth + x + 1, 0);
-    }
-  }
-}
-
-struct per_instance_transform {
-  mat4f    world;
-  mat4f    world_view_proj;
-  uint32_t instance_vertex_offset;
-  uint32_t pad[3];
+struct null_height_gen {
+  float operator()() const noexcept { return {}; }
 };
 
-xray::rendering::scoped_texture
-load_texture_from_file(const char*           file_path,
-                       xray::math::vec3ui32* texture_dimensions) {
-  xray::rendering::scoped_texture texture{};
+class terrain_generator {
+public:
+  template <typename HeightGenerator>
+  static void make_terrain(const int32_t            tiles_x,
+                           const int32_t            tiles_y,
+                           const float              tile_step,
+                           const HeightGenerator&   hgen,
+                           std::vector<vertex_pnt>& terrain_vertices,
+                           std::vector<uint32_t>&   terrain_indices);
+};
 
-  try {
-    platformstl::memory_mapped_file      texture_file{file_path};
-    xray::base::pod_zero<KTX_dimensions> tex_dimensions{};
-    GLenum                               texture_target{};
+template <typename HeightGenerator>
+void terrain_generator::make_terrain(const int32_t            tiles_x,
+                                     const int32_t            tiles_z,
+                                     const float              tile_step,
+                                     const HeightGenerator&   hgen,
+                                     std::vector<vertex_pnt>& terrain_vertices,
+                                     std::vector<uint32_t>&   terrain_indices) {
 
-    const auto load_result =
-      ktxLoadTextureM(texture_file.memory(),
-                      static_cast<GLsizei>(texture_file.size()),
-                      raw_handle_ptr(texture),
-                      &texture_target,
-                      &tex_dimensions,
-                      nullptr,
-                      nullptr,
-                      nullptr,
-                      nullptr);
+  const auto vertex_count = (tiles_x + 1) * (tiles_z + 1);
+  const auto delta_uv     = vec2f{1.0f / static_cast<float>(tiles_x),
+                              1.0f / static_cast<float>(tiles_z)};
 
-    if (load_result != KTX_SUCCESS) {
-      XR_DBG_MSG(
-        "Failed to load texture %s, error code %d", file_path, load_result);
-    } else {
-      if (texture_dimensions) {
-        texture_dimensions->x = tex_dimensions.width;
-        texture_dimensions->y = tex_dimensions.height;
-        texture_dimensions->z = tex_dimensions.depth;
-      }
+  const auto hh = (tiles_z + 1) * tile_step * 0.5f;
+  const auto hw = (tiles_x + 1) * tile_step * 0.5f;
+
+  for (int32_t z = 0; z <= tiles_z; ++z) {
+    for (int32_t x = 0; x <= tiles_x; ++x) {
+      vertex_pnt v;
+      v.position = vec3f{static_cast<float>(x) * tile_step - hw,
+                         0.0f,
+                         static_cast<float>(z) * tile_step - hh};
+      v.normal   = vec3f::stdc::unit_y;
+      v.texcoord = vec2f{static_cast<float>(x) * delta_uv.x,
+                         static_cast<float>(z) * delta_uv.y};
+
+      terrain_vertices.push_back(v);
     }
-  } catch (const std::exception& ex) {
-    XR_DBG_MSG("Failed to open texture file %s", file_path);
   }
 
-  return texture;
+  assert(terrain_vertices.size() == vertex_count);
+
+  const auto index_count = tiles_x * tiles_z * 2 * 3;
+
+  for (int32_t z = 0; z < tiles_z; ++z) {
+    for (int32_t x = 0; x < tiles_x; ++x) {
+      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x);
+      terrain_indices.push_back((z) * (tiles_x + 1) + x + 1);
+      terrain_indices.push_back((z) * (tiles_x + 1) + x);
+
+      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x);
+      terrain_indices.push_back((z + 1) * (tiles_x + 1) + x + 1);
+      terrain_indices.push_back((z) * (tiles_x + 1) + x + 1);
+    }
+  }
+
+  assert(terrain_indices.size() == index_count);
 }
+
+// class heightmap_loader {
+// public:
+//   heightmap_loader(const char* path);
+//   heightmap_loader(const std::string& path) : heightmap_loader{path.c_str()} {}
+// 
+//   gsl::span<const uint16_t> data() const noexcept {
+//     return gsl::as_span(_data, _width * _height);
+//   }
+// 
+//   int32_t width() const noexcept { return _width; }
+// 
+//   int32_t height() const noexcept { return _height; }
+// 
+//   explicit operator bool() const noexcept {
+//     return _data && (_width != 0) && (_height != 0);
+//   }
+// 
+// private:
+//   platformstl::memory_mapped_file _file;
+//   const uint16_t*                 _data{};
+//   int32_t                         _width{};
+//   int32_t                         _height{};
+// 
+//   XRAY_NO_COPY(heightmap_loader);
+// };
+// 
+// heightmap_loader::heightmap_loader(const char* path) {
+//   try {
+//     _file   = platformstl::memory_mapped_file{path};
+//     _data   = static_cast<const uint16_t*>(_file.memory());
+//     _width  = 513;
+//     _height = 513;
+//   } catch (...) {
+//     return;
+//   }
+// }
 
 app::terrain_demo::terrain_demo(const init_context_t& init_ctx)
   : demo_base{init_ctx} {
@@ -132,6 +159,30 @@ app::terrain_demo::~terrain_demo() {}
 void app::terrain_demo::init() {
   assert(!valid());
 
+  {
+    std::vector<vertex_pnt> v;
+    std::vector<uint32_t>   i;
+    terrain_generator::make_terrain(3, 2, 1.0f, null_height_gen{}, v, i);
+
+    unique_ptr<FILE, decltype(&fclose)> fp{fopen("terr.txt", "wt"), &fclose};
+    for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
+      fprintf(
+        f, "\n%3.3f, %3.3f, %3.3f", v.position.x, v.position.y, v.position.z);
+    });
+
+    fprintf(fp.get(), "\n###############");
+    for (size_t j = 0; j < i.size() / 3; ++j) {
+      fprintf(fp.get(), "\n%u %u %u", i[j * 3 + 0], i[j * 3 + 1], i[j * 3 + 2]);
+    }
+
+    fprintf(fp.get(), "\n###############");
+
+    fflush(fp.get());
+    for_each(begin(v), end(v), [f = fp.get()](const vertex_pnt& v) {
+      fprintf(f, "\n%3.3f, %3.3f", v.texcoord.x, v.texcoord.y);
+    });
+  }
+
   //
   // turn off these so we don't get spammed
   gl::DebugMessageControl(gl::DONT_CARE,
@@ -141,143 +192,68 @@ void app::terrain_demo::init() {
                           nullptr,
                           gl::FALSE_);
 
-  //
-  // Create basic grid mesh.
-  {
-    geometry_data_t grid_geometry;
-    geometry_factory::grid(terrain_consts::TILE_WIDTH,
-                           terrain_consts::TILE_DEPTH,
-                           terrain_consts::VERTICES_X,
-                           terrain_consts::VERTICES_Z,
-                           &grid_geometry);
+  //  heightmap_loader hmldr{
+  //    xr_app_config->texture_path("worlds/test/terrain_heightmap.r16").c_str()};
 
-    std::vector<vertex_pnt> vertices;
-    const auto              vspan = grid_geometry.vertex_span();
-    transform(
-      begin(vspan),
-      end(vspan),
-      back_inserter(vertices),
-      [](const vertex_pntt& vs_in) {
-        return vertex_pnt{vs_in.position, vs_in.normal, vs_in.texcoords};
-      });
+  //  if (!hmldr) {
+  //    XR_DBG_MSG("Failed to load heightmap!");
+  //    return;
+  //  }
 
-    _mesh = basic_mesh{vertices.data(),
-                       vertices.size(),
-                       grid_geometry.index_data(),
-                       grid_geometry.index_count,
-                       mesh_type::writable};
-    if (!_mesh) {
-      XR_DBG_MSG("Failed to create grid!");
-      return;
-    }
-  }
+  //  geometry_data_t terrain;
+  //  geometry_factory::grid(static_cast<float>(_terrain_opts.width - 1),
+  //                         static_cast<float>(_terrain_opts.height - 1),
+  //                         static_cast<size_t>(_terrain_opts.width - 1),
+  //                         static_cast<size_t>(_terrain_opts.height - 1),
+  //                         &terrain);
 
-  //
-  // Setup colormap texture array
-  {
-    gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, raw_handle_ptr(_colormap));
-    gl::TextureStorage3D(raw_handle(_colormap),
-                         1,
-                         gl::RGBA8,
-                         terrain_consts::VERTICES_X,
-                         terrain_consts::VERTICES_Z,
-                         terrain_consts::NUM_TILES);
+  //  vector<vertex_pnt> vertices;
+  //  vertices.reserve(terrain.vertex_count);
+  //  const auto vspan = terrain.vertex_span();
+  //  const auto hspan = hmldr.data();
 
-    constexpr const GLint swizzle_mask[] = {
-      gl::ALPHA, gl::BLUE, gl::GREEN, gl::RED};
+  //  transform(begin(vspan),
+  //            end(vspan),
+  //            back_inserter(vertices),
+  //            [](const vertex_pntt& vs_in) {
+  //              return vertex_pnt{vs_in.position, vs_in.normal,
+  //              vs_in.texcoords};
+  //            });
 
-    gl::TextureParameteriv(
-      raw_handle(_colormap), gl::TEXTURE_SWIZZLE_RGBA, swizzle_mask);
-  }
+  vector<vertex_pnt> vertices;
+  vector<uint32_t>   indices;
+  terrain_generator::make_terrain(
+    1023, 1023, 1.0f, null_height_gen{}, vertices, indices);
 
-  //
-  // Generate height maps, color maps
-  std::vector<float> heightmap_vertices;
-  heightmap_vertices.reserve(_mesh.vertex_count() * terrain_consts::NUM_TILES);
+  // for (int32_t z = 0; z < _terrain_opts.height; ++z) {
+  //  for (int32_t x = 0; x < _terrain_opts.width; ++x) {
+  //    // const vec3f pos{vspan[z * _terrain_opts.width + x].position.x,
+  //    //                static_cast<float>(hspan[z * _terrain_opts.width + x])
+  //    /
+  //    //                  512.0f,
+  //    //                vspan[z * _terrain_opts.width + x].position.z};
 
-  constexpr const vec4f TILE_BOUNDS[] = {vec4f{0.0f, 4.0f, 0.0f, 4.0f},
-                                         vec4f{4.0f, 8.0f, 0.0f, 4.0f},
-                                         vec4f{8.0f, 12.0f, 0.0f, 4.0f}};
+  //    // vertices.push_back({pos,
+  //    //                    vspan[z * _terrain_opts.width + x].normal,
+  //    //                    vspan[z * _terrain_opts.width + x].texcoords});
+  //  }
+  //}
 
-  noise::module::Perlin              noise_module{};
-  noise::utils::NoiseMap             height_map{};
-  noise::utils::NoiseMapBuilderPlane heightmap_builder{};
-  heightmap_builder.SetSourceModule(noise_module);
-  heightmap_builder.SetDestNoiseMap(height_map);
-  heightmap_builder.SetDestSize(terrain_consts::VERTICES_X,
-                                terrain_consts::VERTICES_Z);
-  heightmap_builder.EnableSeamless(true);
+  //  transform(begin(vspan),
+  //            end(vspan),
+  //            back_inserter(vertices),
+  //            [hmap = hmldr.data()](const vertex_pntt& vsin) {
+  //              return vertex_pnt{vsin.position, vsin.normal, vsin.texcoords};
+  //            });
 
-  noise::utils::RendererImage renderer{};
-  noise::utils::Image         image;
-  renderer.SetSourceNoiseMap(height_map);
-  renderer.SetDestImage(image);
-
-  for (int32_t i = 0; i < terrain_consts::NUM_TILES; ++i) {
-    heightmap_builder.SetBounds(
-      TILE_BOUNDS[i].x, TILE_BOUNDS[i].y, TILE_BOUNDS[i].z, TILE_BOUNDS[i].w);
-    heightmap_builder.Build();
-
-    renderer.ClearGradient();
-    renderer.AddGradientPoint(-1.0000, utils::Color(0, 0, 128, 255)); // deeps
-    renderer.AddGradientPoint(-0.2500, utils::Color(0, 0, 255, 255)); // shallow
-    renderer.AddGradientPoint(0.0000, utils::Color(0, 128, 255, 255));  // shore
-    renderer.AddGradientPoint(0.0625, utils::Color(240, 240, 64, 255)); // sand
-    renderer.AddGradientPoint(0.1250, utils::Color(32, 160, 0, 255));   // grass
-    renderer.AddGradientPoint(0.3750, utils::Color(224, 224, 0, 255));  // dirt
-    renderer.AddGradientPoint(0.7500, utils::Color(128, 128, 128, 255)); // rock
-    renderer.AddGradientPoint(1.0000, utils::Color(255, 255, 255, 255)); // snow
-
-    renderer.EnableLight();
-    renderer.SetLightContrast(3.0);   // Triple the contrast
-    renderer.SetLightBrightness(2.0); // Double the brightness
-
-    renderer.Render();
-
-    //
-    // Upload colormap
-    gl::TextureSubImage3D(raw_handle(_colormap),
-                          0,
-                          0,
-                          0,
-                          i,
-                          terrain_consts::VERTICES_X,
-                          terrain_consts::VERTICES_Z,
-                          1,
-                          gl::RGBA,
-                          gl::UNSIGNED_BYTE,
-                          image.GetSlabPtr());
-
-    //
-    // Copy generated height vertices
-    for (uint32_t z = 0; z < terrain_consts::VERTICES_Z; ++z) {
-      auto slab_ptr = height_map.GetSlabPtr(z);
-
-      for (uint32_t x = 0; x < terrain_consts::VERTICES_X; ++x) {
-        heightmap_vertices.push_back(slab_ptr[x]);
-      }
-    }
-  }
-
-  //
-  // Per instance heightmap buffer
-  {
-    gl::CreateBuffers(1, raw_handle_ptr(_per_instance_heightmap));
-    gl::NamedBufferStorage(raw_handle(_per_instance_heightmap),
-                           container_bytes_size(heightmap_vertices),
-                           heightmap_vertices.data(),
-                           0);
-  }
-
-  //
-  // Per instance transform buffer
-  {
-    gl::CreateBuffers(1, raw_handle_ptr(_per_instance_transforms));
-    gl::NamedBufferStorage(raw_handle(_per_instance_transforms),
-                           sizeof(per_instance_transform) *
-                             terrain_consts::NUM_TILES,
-                           nullptr,
-                           gl::MAP_WRITE_BIT);
+  _mesh = basic_mesh{vertices.data(),
+                     vertices.size(),
+                     indices.data(),
+                     indices.size(),
+                     mesh_type::writable};
+  if (!_mesh) {
+    XR_DBG_MSG("Failed to create grid!");
+    return;
   }
 
   _vs = gpu_program_builder{}
@@ -302,6 +278,64 @@ void app::terrain_demo::init() {
 
   _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
 
+  {
+    texture_loader tldr{
+      xr_app_config->texture_path("worlds/test/heightmap01.png").c_str()};
+
+    if (!tldr) {
+      return;
+    }
+
+    gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_heightmap));
+
+    gl::TextureStorage2D(raw_handle(_heightmap),
+                         1,
+                         tldr.internal_format(),
+                         tldr.width(),
+                         tldr.height());
+
+    //    gl::TextureStorage2D(raw_handle(_heightmap), 1, gl::R8, 3, 2);
+
+    gl::TextureSubImage2D(raw_handle(_heightmap),
+                          0,
+                          0,
+                          0,
+                          tldr.width(),
+                          tldr.height(),
+                          tldr.format(),
+                          gl::UNSIGNED_BYTE,
+                          tldr.data());
+
+    //    const uint8_t ccolor = 0;
+    //    gl::ClearTexImage(
+    //      raw_handle(_objtex), 0, gl::RED, gl::UNSIGNED_BYTE, &ccolor);
+  }
+
+  {
+    texture_loader tldr{
+      xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str()};
+    if (!tldr) {
+      XR_DBG_MSG("Failed to load color map for terrain!");
+      return;
+    }
+
+    gl::CreateTextures(gl::TEXTURE_2D, 1, raw_handle_ptr(_colormap));
+    gl::TextureStorage2D(raw_handle(_colormap),
+                         1,
+                         tldr.internal_format(),
+                         tldr.width(),
+                         tldr.height());
+    gl::TextureSubImage2D(raw_handle(_colormap),
+                          0,
+                          0,
+                          0,
+                          tldr.width(),
+                          tldr.height(),
+                          tldr.format(),
+                          gl::UNSIGNED_BYTE,
+                          tldr.data());
+  }
+
   gl::CreateSamplers(1, raw_handle_ptr(_sampler));
   const auto smp = raw_handle(_sampler);
   gl::SamplerParameteri(smp, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR);
@@ -310,7 +344,7 @@ void app::terrain_demo::init() {
   gl::SamplerParameteri(smp, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_BORDER);
 
   gl::Enable(gl::DEPTH_TEST);
-  // gl::Enable(gl::CULL_FACE);
+  gl::Enable(gl::CULL_FACE);
 
   _valid = true;
 }
@@ -324,66 +358,36 @@ void app::terrain_demo::draw(const float surface_width,
   gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
   gl::ViewportIndexedf(0, 0.0f, 0.0f, surface_width, surface_height);
 
-  //
-  // Upload instance transforms
   {
-    per_instance_transform instance_transforms[terrain_consts::NUM_TILES];
 
-    for (int32_t i = 0; i < terrain_consts::NUM_TILES; ++i) {
-      const auto world =
-        R4::translate(static_cast<float>(i * (terrain_consts::TILE_DEPTH - 1)),
-                      0.0f,
-                      0.0f) *
-        mat4f{R3::scale_y(_terrain_opts.scaling)};
+    //    scoped_winding_order_setting set_cw{gl::CW};
 
-      instance_transforms[i].world = transpose(world);
+    const GLuint bound_textures[] = {raw_handle(_heightmap),
+                                     raw_handle(_colormap)};
 
-      instance_transforms[i].world_view_proj =
-        transpose(_camera.projection_view() * world);
+    gl::BindTextures(0, XR_I32_COUNTOF(bound_textures), bound_textures);
 
-      instance_transforms[i].instance_vertex_offset =
-        static_cast<uint32_t>(i * _mesh.vertex_count());
-    }
+    const GLuint bound_samplers[] = {raw_handle(_sampler),
+                                     raw_handle(_sampler)};
 
-    scoped_resource_mapping bmap{raw_handle(_per_instance_transforms),
-                                 gl::MAP_WRITE_BIT |
-                                   gl::MAP_INVALIDATE_BUFFER_BIT,
-                                 sizeof(instance_transforms)};
-
-    if (!bmap) {
-      XR_LOG_ERR("Failed to map instance transform buffer for updating!");
-      return;
-    }
-
-    memcpy(bmap.memory(), instance_transforms, sizeof(instance_transforms));
-  }
-
-  {
-    gl::BindBufferBase(
-      gl::SHADER_STORAGE_BUFFER, 0, raw_handle(_per_instance_heightmap));
-    gl::BindBufferBase(
-      gl::SHADER_STORAGE_BUFFER, 1, raw_handle(_per_instance_transforms));
-
-    gl::BindTextureUnit(0, raw_handle(_colormap));
-    gl::BindSampler(0, raw_handle(_sampler));
+    gl::BindSamplers(0, XR_I32_COUNTOF(bound_samplers), bound_samplers);
 
     gl::BindVertexArray(_mesh.vertex_array());
+
+    _vs.set_uniform("world_view_proj_mtx",
+                    _camera.projection_view() *
+                      mat4f{R3::scale_y(_terrain_opts.scaling)});
+    _vs.set_uniform("scale_factor", _terrain_opts.scaling);
 
     _pipeline.use();
 
     if (_terrain_opts.wireframe) {
       scoped_polygon_mode_setting set_wireframe{gl::LINE};
-      gl::DrawElementsInstanced(gl::TRIANGLES,
-                                _mesh.index_count(),
-                                gl::UNSIGNED_INT,
-                                nullptr,
-                                terrain_consts::NUM_TILES);
+      gl::DrawElements(
+        gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
     } else {
-      gl::DrawElementsInstanced(gl::TRIANGLES,
-                                _mesh.index_count(),
-                                gl::UNSIGNED_INT,
-                                nullptr,
-                                terrain_consts::NUM_TILES);
+      gl::DrawElements(
+        gl::TRIANGLES, _mesh.index_count(), gl::UNSIGNED_INT, nullptr);
     }
   }
 
@@ -432,7 +436,7 @@ void app::terrain_demo::draw_ui(const int32_t surface_width,
                    ImGuiWindowFlags_ShowBorders |
                      ImGuiWindowFlags_AlwaysAutoResize)) {
 
-    ImGui::DragFloat("Scaling", &_terrain_opts.scaling, 0.25f, 1.0f, 64.0f);
+    ImGui::DragFloat("Scaling", &_terrain_opts.scaling, 0.25f, 1.0f, 16.0f);
     ImGui::Separator();
     ImGui::Checkbox("Draw wireframe", &_terrain_opts.wireframe);
   }

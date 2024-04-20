@@ -3,7 +3,7 @@ project(mesh-tool)
 set(SOURCES mesh_tool.cc)
 
 add_executable(mesh-tool ${SOURCES})
-target_link_libraries(mesh-tool xray-base ${SYS_DEP_LIBS} tinyobj)
+target_link_libraries(mesh-tool mio::mio tl::optional xray-base ${SYS_DEP_LIBS} tinyobj)
 
 # add_custom_target(
 #     COPY_ALL ALL

@@ -3,8 +3,7 @@ project(enum_gen)
 set(SOURCES main.cc)
 
 add_executable(enum_gen ${SOURCES})
-target_link_libraries(enum_gen
-    xray-base)
+target_link_libraries(enum_gen fmt::fmt xray-base)
 
 
 add_custom_target(

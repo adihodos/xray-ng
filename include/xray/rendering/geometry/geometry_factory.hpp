@@ -32,9 +32,10 @@
 ///         geometrical shapes.
 
 #include "xray/xray.hpp"
+#include <cassert>
 #include <cmath>
 #include <cstdint>
-#include <span.h>
+#include <span>
 
 namespace xray {
 namespace rendering {
@@ -50,15 +51,15 @@ struct vertex_ripple_parameters {
 
 struct vertex_effect {
   template <typename vertex_type>
-  static void ripple(gsl::span<vertex_type>          vertices,
-                     gsl::span<uint32_t>             indices,
+  static void ripple(std::span<vertex_type>          vertices,
+                     std::span<uint32_t>             indices,
                      const vertex_ripple_parameters& rp) noexcept;
 };
 
 template <typename vertex_type>
 void xray::rendering::vertex_effect::ripple(
-  gsl::span<vertex_type>          vertices,
-  gsl::span<uint32_t>             indices,
+  std::span<vertex_type>          vertices,
+  std::span<uint32_t>             indices,
   const vertex_ripple_parameters& rp) noexcept {
 
   const auto scale_x = rp.width * 0.5f;
@@ -73,9 +74,9 @@ void xray::rendering::vertex_effect::ripple(
       rp.amplitude * std::sin(rp.period * (x_pos * x_pos + z_pos * z_pos));
   }
 
-  assert((indices.length() % 3) == 0);
+  assert((indices.size() % 3) == 0);
 
-  for (uint32_t i = 0, idx_count = (uint32_t) indices.length(); i < idx_count;
+  for (uint32_t i = 0, idx_count = (uint32_t) indices.size(); i < idx_count;
        i += 3) {
     auto& v0 = vertices[indices[i + 0]];
     auto& v1 = vertices[indices[i + 1]];

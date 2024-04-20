@@ -35,7 +35,7 @@
 #include "xray/rendering/vertex_format/vertex_pntt.hpp"
 #include <cstddef>
 #include <cstdint>
-#include <span.h>
+#include <span>
 
 namespace xray {
 namespace rendering {
@@ -68,16 +68,16 @@ struct geometry_data_t {
     return vertex_count != 0 && index_count != 0;
   }
 
-  gsl::span<vertex_pntt> vertex_span() {
+  std::span<vertex_pntt> vertex_span() {
     assert(vertex_count != 0);
-    return gsl::as_span(xray::base::raw_ptr(geometry),
-                        static_cast<ptrdiff_t>(vertex_count));
+    return std::span{xray::base::raw_ptr(geometry),
+					 static_cast<ptrdiff_t>(vertex_count)};
   }
 
-  gsl::span<uint32_t> index_span() {
+  std::span<uint32_t> index_span() {
     assert(index_count != 0);
-    return gsl::as_span(xray::base::raw_ptr(indices),
-                        static_cast<ptrdiff_t>(index_count));
+    return std::span{xray::base::raw_ptr(indices),
+					 static_cast<ptrdiff_t>(index_count)};
   }
 
   vertex_pntt* vertex_data() {

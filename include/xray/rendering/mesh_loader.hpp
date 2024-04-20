@@ -31,15 +31,19 @@
 /// \file   mesh.hpp    Simple class to represent a mesh.
 
 #include "xray/xray.hpp"
-#include "platformstl/filesystem/memory_mapped_file.hpp"
+
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <utility>
+
 #include "xray/base/maybe.hpp"
 #include "xray/math/objects/aabb3.hpp"
 #include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
-#include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <span.h>
+#include <mio/mmap.hpp>
+#include <tl/optional.hpp>
 
 namespace xray {
 namespace rendering {
@@ -82,37 +86,34 @@ struct mesh_load_option {
 /// of type vertex_pnt. The indices are of uint32_t type.
 class mesh_loader {
 public:
-  mesh_loader() = default;
+  mesh_loader()                         = delete;
+  mesh_loader(mesh_loader&&)            = default;
+  mesh_loader& operator=(mesh_loader&&) = default;
 
-  mesh_loader(
-    const char*    file_path,
-    const uint32_t load_opts = mesh_load_option::remove_points_lines) {
-    load(file_path, load_opts);
-  }
+  explicit mesh_loader(mio::mmap_source mmfile) noexcept : _mfile{std::move(mmfile)} {}
 
-  bool load(const char*    file_path,
-            const uint32_t load_opts = mesh_load_option::remove_points_lines);
+  static tl::optional<mesh_loader>
+  load(const char*    file_path,
+       const uint32_t load_opts = mesh_load_option::remove_points_lines);
 
   ///   \brief  Returns the header data of the mesh file.
   const mesh_header& header() const noexcept {
-    assert(valid());
-    return *reinterpret_cast<const mesh_header*>(_mfile.memory());
+    return *reinterpret_cast<const mesh_header*>(_mfile.data());
   }
 
   const mesh_bounding& bounding() const noexcept {
-    assert(valid());
     return *reinterpret_cast<const mesh_bounding*>(
-      reinterpret_cast<const uint8_t*>(_mfile.memory()) + sizeof(mesh_header));
+      reinterpret_cast<const uint8_t*>(_mfile.data()) + sizeof(mesh_header));
   }
 
   ///   \brief  Returns a pointer to the mesh data.
-  const void* get_data() const noexcept { return _mfile.memory(); }
+  const void* get_data() const noexcept { return _mfile.data(); }
 
   ///   \brief  Returns a span that can be used to iterate over the vertices.
-  gsl::span<const vertex_pnt> vertex_span() const noexcept;
+  std::span<const vertex_pnt> vertex_span() const noexcept;
 
   ///   \brief  Returns a span that can be used to iterate over the indices.
-  gsl::span<const uint32_t> index_span() const noexcept;
+  std::span<const uint32_t> index_span() const noexcept;
 
   ///   \brief  Returns a pointer to the vertex data.
   const vertex_pnt* vertex_data() const noexcept;
@@ -122,26 +123,19 @@ public:
 
   ///   \brief  Returns the number of bytes with vertex data.
   size_t vertex_bytes() const noexcept {
-    assert(valid());
     return header().vertex_count * header().vertex_size;
   }
 
   ///   \brief  Returns the number of bytes with indices data.
   size_t index_bytes() const noexcept {
-    assert(valid());
     return header().index_count * header().index_size;
   }
 
   ///   \brief  Reads the header information from a binary mesh file.
-  static base::maybe<mesh_header> read_header(const char* file_path);
-
-  ///   \brief  Sanity checking.
-  explicit operator bool() const noexcept { return valid(); }
+  static tl::optional<mesh_header> read_header(const char* file_path);
 
 private:
-  bool valid() const noexcept { return _mfile.memory() != nullptr; }
-
-  platformstl::memory_mapped_file _mfile;
+  mio::mmap_source _mfile;
 
   XRAY_NO_COPY(mesh_loader);
 };

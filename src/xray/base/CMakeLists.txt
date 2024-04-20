@@ -38,4 +38,4 @@ if (WIN32)
 endif()
 
 add_library(xray-base STATIC ${project_sources})
-target_link_libraries(xray-base ${platform_libs} fmt libconfig)
+target_link_libraries(xray-base PRIVATE ${platform_libs} libconfig PUBLIC fmt::fmt STLSoft)

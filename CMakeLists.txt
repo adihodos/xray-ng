@@ -1,9 +1,30 @@
-cmake_minimum_required(VERSION 3.6)
-project(xray-ng VERSION 0.5.0.0 LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.20)
+project(xray-ng VERSION 0.5.0.0 LANGUAGES C CXX)
 
-set(CMAKE_MODULE_PATH
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+# download CPM.cmake
+file(
+  DOWNLOAD
+  https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.38.3/CPM.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake
+  EXPECTED_HASH SHA256=cc155ce02e7945e7b8967ddfaff0b050e958a723ef7aad3766d368940cb15494
+)
+include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
+
+CPMAddPackage("gh:oneapi-src/oneTBB@2021.12.0")
+CPMAddPackage("gh:fmtlib/fmt#10.2.1")
+CPMAddPackage("gh:TartanLlama/optional@1.1.0")
+CPMAddPackage("gh:tinyobjloader/tinyobjloader#release")
+CPMAddPackage("gh:vimpunk/mio#master")
+CPMAddPackage("gh:iboB/itlib#master")
+CPMAddPackage(
+  NAME STLSoft
+  GITHUB_REPOSITORY adihodos/STLSoft-1.10
+  GIT_TAG fixes
+  OPTIONS "BUILD_TESTING OFF")
+  
+# set(CMAKE_MODULE_PATH
+#   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+#   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
 set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib )
@@ -16,7 +37,9 @@ foreach( OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES} )
     set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_BINARY_DIR}/lib )
 endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "Export compilation commands for code completion (clangd)")
+set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 if (MSVC)
   option(XRAY_USE_DIRECTX11 "DirectX 11" OFF)
@@ -106,21 +129,20 @@ if (WIN32 AND NOT MSVC)
 
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${cxx_standard} ${cxx_warn_level} ${cxx_disabled_warnings} ${cxx_debug_flags} ${cxx_aditional_flags}")
-message("Compiler flags = ${CMAKE_CXX_FLAGS}")
-
-#
-# required libraries
-
 if (NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
   include_directories(third_party/opengl/include)
   add_subdirectory(third_party/opengl/src)
 endif()
 
 if (CMAKE_BUILD_TYPE MATCHES Debug)
-    message(" ---> Debug build <---")
-    add_definitions(-DXRAY_IS_DEBUG_BUILD)
+  message(" ---> Debug build <---")
+  add_definitions(-DXRAY_IS_DEBUG_BUILD)
 endif()
+
+# add_library(STLSoft INTERFACE)
+# target_include_directories(STLSoft INTERFACE "${PROJECT_SOURCE_DIR}/third_party/stlsoft/include")
+# 
+# target_compile_features(STLSoft INTERFACE cxx_std_20)
 
 #
 # common macros for all builds
@@ -128,9 +150,7 @@ add_definitions(-DLIBCONFIG_STATIC)
 add_definitions(-DKTX_OPENGL=1)
 
 include_directories(include)
-include_directories(third_party/gsl/include)
 include_directories(third_party/libconfig/include)
-include_directories(third_party/stlsoft-1.9.124/include)
 include_directories(third_party/stb/include)
 include_directories(third_party/imgui/include)
 include_directories(third_party/easyloggingpp/include)
@@ -138,15 +158,9 @@ include_directories(third_party/catch/include)
 include_directories(third_party/nuklear/include)
 include_directories(third_party/ktx/include)
 
-add_subdirectory(third_party/tbb)
-include_directories(third_party/tbb/include)
-
-add_subdirectory(third_party/fmt)
-include_directories(third_party/fmt)
-
-include_directories(third_party/tinyobj/include)
-include_directories(third_party/tinyobj/src)
-add_subdirectory(third_party/tinyobj)
+# include_directories(third_party/tinyobj/include)
+# include_directories(third_party/tinyobj/src)
+# add_subdirectory(third_party/tinyobj)
 
 add_subdirectory(third_party/libconfig/src)
 add_subdirectory(third_party/stb/src)

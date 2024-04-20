@@ -20,7 +20,7 @@
 #include "xray/ui/user_interface.hpp"
 #include <cassert>
 #include <opengl/opengl.hpp>
-#include <span.h>
+#include <span>
 
 using namespace xray::base;
 using namespace xray::rendering;
@@ -81,8 +81,8 @@ void app::directional_light_demo::init() {
     1.0f, 3.0f * two_pi<float>, 16.0f, 16.0f};
 
   vertex_effect::ripple(
-    gsl::span<vertex_pnt>{verts},
-    gsl::span<uint32_t>{raw_ptr(blob.indices),
+    std::span<vertex_pnt>{verts},
+    std::span<uint32_t>{raw_ptr(blob.indices),
                         raw_ptr(blob.indices) + blob.index_count},
     rparams);
 

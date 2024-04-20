@@ -171,13 +171,14 @@
 ///  };
 /// \endcode
 
-#define XRAY_NO_COPY(type_name)                                                \
-  type_name(type_name const&) = delete;                                        \
-  type_name& operator=(type_name const&) = delete
+#define XRAY_NO_COPY(xr_user_defined_type_name)                                \
+  xr_user_defined_type_name(xr_user_defined_type_name const&) = delete;        \
+  xr_user_defined_type_name& operator=(xr_user_defined_type_name const&) =     \
+    delete
 
-#define XRAY_DEFAULT_MOVE(type_name)                                           \
-  type_name(type_name&&) = default;                                            \
-  type_name& operator=(type_name&&) = default
+#define XRAY_DEFAULT_MOVE(xr_user_defined_type_name)                           \
+  xr_user_defined_type_name(xr_user_defined_type_name&&)            = default; \
+  xr_user_defined_type_name& operator=(xr_user_defined_type_name&&) = default
 
 ///
 /// \def XRAY_GEN_OPAQUE_TYPE(type)
