@@ -193,6 +193,7 @@ source_group(shaders FILES ${shader_files})
 source_group(configuration FILES ${config_files})
 
 add_executable(basic-gl-app ${project_sources} ${shader_files} ${config_files})
+target_compile_features(basic-gl-app PRIVATE cxx_std_20)
 
 message("Platform libs ${SYS_DEP_LIBS}")
 
@@ -204,7 +205,8 @@ target_link_libraries(basic-gl-app
     xray-scene
     xray-ui
     ${SYS_DEP_LIBS}
-    tbb_static)
+    TBB::tbb
+	itlib::itlib)
 
 add_custom_target(COPY_SHADERS ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders

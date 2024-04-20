@@ -167,8 +167,7 @@ int main(int, char**) {
       continue;
     }
 
-    fmt::MemoryWriter mw;
-    string            outtext{template_hpp};
+    string outtext{template_hpp};
 
     auto fn_gen_namespaces = [&deffile](string& ns_begin, string& ns_end) {
       const auto ns_entry = deffile.lookup_entry("enum_def.namespaces");

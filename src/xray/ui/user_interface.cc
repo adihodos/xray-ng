@@ -347,10 +347,9 @@ void xray::ui::user_interface::init(const font_info* fonts,
   if (!_rendercontext._index_buffer)
     return;
 
-  _rendercontext._vertex_arr = [
-    vbh = raw_handle(_rendercontext._vertex_buffer),
-    ibh = raw_handle(_rendercontext._index_buffer)
-  ]() {
+  _rendercontext._vertex_arr = [vbh = raw_handle(_rendercontext._vertex_buffer),
+                                ibh =
+                                  raw_handle(_rendercontext._index_buffer)]() {
     GLuint vao{};
     gl::CreateVertexArrays(1, &vao);
 
@@ -377,8 +376,7 @@ void xray::ui::user_interface::init(const font_info* fonts,
     gl::VertexArrayAttribBinding(vao, 2, 0);
 
     return vao;
-  }
-  ();
+  }();
 
   _rendercontext._vs = gpu_program_builder{}
                          .add_string(IMGUI_VERTEX_SHADER)
@@ -445,8 +443,8 @@ void xray::ui::user_interface::init(const font_info* fonts,
 
       platformstl::path_a fpath{fi.path};
 
-      _rendercontext.fonts.push_back(
-        {fpath.pop_ext().get_file(), fi.pixel_size, fnt});
+      _rendercontext.fonts.emplace_back(
+        std::string{fpath.pop_ext().get_file().data()}, fi.pixel_size, fnt);
     });
 
     sort(begin(_rendercontext.fonts),
@@ -728,7 +726,8 @@ void xray::ui::user_interface::draw() {
          cmd_itr != cmd_end;
          ++cmd_itr) {
 
-      const GLuint textures_to_bind[] = {(GLuint)(intptr_t) cmd_itr->TextureId};
+      const GLuint textures_to_bind[] = {
+        (GLuint) (intptr_t) cmd_itr->TextureId};
       gl::BindTextures(0, 1, textures_to_bind);
 
       gl::Scissor(

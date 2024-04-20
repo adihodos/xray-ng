@@ -69,6 +69,8 @@ app::demo_base::demo_base(const init_context_t& init_ctx)
 
 app::demo_base::~demo_base() {}
 
-void app::demo_base::poll_start(const xray::ui::poll_start_event&) {}
+void app::demo_base::poll_start(const xray::ui::poll_start_event& e) {
+	
+}
 
 void app::demo_base::poll_end(const xray::ui::poll_end_event&) {}

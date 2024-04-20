@@ -56,6 +56,3 @@ set(project_sources
 )
 
 source_group(math FILES ${project_sources})
-
-#add_library(xray-base STATIC ${project_sources})
-#target_link_libraries(xray-base ${platform_libs} ${FMT_LIBRARY} libconfig)

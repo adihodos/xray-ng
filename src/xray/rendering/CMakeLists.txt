@@ -1,9 +1,10 @@
 project (xray-rendering)
 
 if (XRAY_USE_DIRECTX11)
-    add_subdirectory(directx)
+  add_subdirectory(directx)
 else()
-    add_subdirectory(opengl)
+  message("Building OpenGL support library")
+  add_subdirectory(opengl)
 endif()
 
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering")
@@ -46,7 +47,9 @@ set(project_sources
     ${proj_src_dir}/mesh.cc
     ${proj_inc_dir}/mesh_loader.hpp
     ${proj_src_dir}/mesh_loader.cc
-)
+  )
+  
 
-add_library(xray-rendering STATIC ${project_sources})
-target_link_libraries(xray-rendering ${TBB_LIBRARY} xray-base stb)
+add_library(${PROJECT_NAME} STATIC ${project_sources})
+target_compile_features(${PROJECT_NAME} INTERFACE PRIVATE cxx_std_20) 
+target_link_libraries(${PROJECT_NAME} TBB::tbb xray-base stb STLSoft mio::mio tl::optional)

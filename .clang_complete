@@ -1,8 +1,0 @@
--std=c++14
--DXRAY_RENDERER_OPENGL
--DXRAY_IS_DEBUG_BUILD
--I/home/ahodos/opt/dev/sdks/glfw/include
--I/home/ahodos/opt/dev/sdks/intel-tbb/include
--I/home/ahodos/opt/dev/sdks/assimp/include
--I/home/ahodos/projects/xray-ng/include
--I/home/ahodos/projects/xray-ng/third_party

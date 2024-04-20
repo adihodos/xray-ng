@@ -31,6 +31,13 @@
 /// \file   mesh.hpp    Simple class to represent a mesh.
 
 #include "xray/xray.hpp"
+
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <vector>
+
 #include "platformstl/filesystem/memory_mapped_file.hpp"
 #include "xray/base/maybe.hpp"
 #include "xray/base/unique_pointer.hpp"
@@ -40,11 +47,6 @@
 #include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
-#include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <span.h>
-#include <vector>
 
 namespace xray {
 namespace rendering {
@@ -108,22 +110,22 @@ public:
   uint32_t index_count() const noexcept { return (uint32_t) _indices.size(); }
   uint32_t vertex_count() const noexcept { return (uint32_t) _vertices.size(); }
 
-  gsl::span<vertex_pnt> vertices() noexcept {
+  std::span<vertex_pnt> vertices() noexcept {
     assert(valid());
     return {_vertices};
   }
 
-  gsl::span<const vertex_pnt> vertices() const noexcept {
+  std::span<const vertex_pnt> vertices() const noexcept {
     assert(valid());
     return {_vertices};
   }
 
-  gsl::span<uint32_t> indices() noexcept {
+  std::span<uint32_t> indices() noexcept {
     assert(valid());
     return {_indices};
   }
 
-  gsl::span<const uint32_t> indices() const noexcept {
+  std::span<const uint32_t> indices() const noexcept {
     assert(valid());
     return {_indices};
   }
@@ -147,8 +149,8 @@ public:
                          const size_t vertex_attributes_count);
 
 private:
-  void create(const gsl::span<const vertex_pnt>& vertices,
-              const gsl::span<const uint32_t>&   indices);
+  void create(const std::span<const vertex_pnt>& vertices,
+              const std::span<const uint32_t>&   indices);
 
   void setup_buffers();
 

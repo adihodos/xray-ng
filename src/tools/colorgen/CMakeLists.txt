@@ -3,6 +3,7 @@ project(colorgen)
 set(SOURCES main.cc)
 
 add_executable(colorgen ${SOURCES})
+target_link_libraries(colorgen STLSoft)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-local-typedefs")
 
 # add_custom_target(

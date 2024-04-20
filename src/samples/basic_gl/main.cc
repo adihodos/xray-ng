@@ -47,7 +47,8 @@
 #include <chrono>
 #include <cstdint>
 #include <opengl/opengl.hpp>
-#include <tbb/tbb.h>
+#include <oneapi/tbb/info.h>
+#include <oneapi/tbb/task_arena.h>
 #include <thread>
 
 #include "demo_base.hpp"
@@ -59,7 +60,7 @@
 #include "misc/terrain/basic/terrain_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
 
-//#include "misc/geometric_shapes/geometric_shapes_demo.hpp"
+// #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 
 using namespace xray;
 using namespace xray::base;
@@ -210,8 +211,7 @@ void main_app::loop_event(const xray::ui::window_loop_event& levt) {
 
 void main_app::run_demo(const demo_type type) {
   auto make_demo_fn =
-    [ this, w = _window ](const demo_type dtype)->unique_pointer<demo_base> {
-
+    [this, w = _window](const demo_type dtype) -> unique_pointer<demo_base> {
     const init_context_t init_context{
       w->width(),
       w->height(),
@@ -392,17 +392,14 @@ void debug_proc(GLenum source,
     }
   }();
 
-  const auto full_msg =
-    fmt::format("OpenGL debug message\n[MESSAGE] : {}\n[SOURCE] : {}\n[TYPE] : "
-                "{}\n[SEVERITY] "
-                ": {}\n[ID] : {}",
-                message,
-                msg_source,
-                msg_type,
-                msg_severity,
-                id);
-
-  XR_LOG_DEBUG(full_msg);
+  XR_LOG_DEBUG("OpenGL debug message\n[MESSAGE] : {}\n[SOURCE] : {}\n[TYPE] : "
+               "{}\n[SEVERITY] "
+               ": {}\n[ID] : {}",
+               message,
+               msg_source,
+               msg_type,
+               msg_severity,
+               id);
 }
 
 } // namespace app
@@ -521,7 +518,9 @@ int main(int argc, char** argv) {
 
   XR_LOG_INFO("Starting up ...");
 
-  tbb::task_scheduler_init tbb_initializer{};
+  const int num_threads = oneapi::tbb::info::default_concurrency();
+  XR_LOG_INFO("Default concurency {}", num_threads);
+  // tbb::task_scheduler_init tbb_initializer{};
 
   app_config app_cfg{"config/app_config.conf"};
   xr_app_config = &app_cfg;

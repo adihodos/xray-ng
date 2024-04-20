@@ -27,8 +27,10 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mesh_lister.hpp"
+
 #include <algorithm>
 #include <cassert>
+
 #include <platformstl/filesystem/filesystem_traits.hpp>
 #include <platformstl/filesystem/path.hpp>
 #include <platformstl/filesystem/readdir_sequence.hpp>
@@ -58,9 +60,10 @@ void app::mesh_lister::build_list_impl(const char* root_path) {
       return;
     }
 
+    using stlsoft::c_str_data;
     platformstl::path_a p{dir_entry};
-    if (strcmp(p.get_ext(), "bin") == 0) {
-      _mesh_list.push_back({p.pop_ext().get_file(), dir_entry});
+    if (strcmp(c_str_data(p.get_ext()), "bin") == 0) {
+      _mesh_list.emplace_back(c_str_data(p.pop_ext().get_file()), dir_entry);
     }
   });
 }

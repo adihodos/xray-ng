@@ -186,7 +186,8 @@ private:
   /// @{
 
 private:
-  XRAY_NO_COPY(maybe<value_type>);
+	// using this_class_type = maybe<value_type>;
+  XRAY_NO_COPY(maybe);
 
   /// @}
 };

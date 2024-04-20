@@ -1,4 +1,17 @@
 #include "xray/rendering/opengl/gpu_program.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <numeric>
+#include <span>
+#include <string>
+#include <system_error>
+#include <unordered_map>
+#include <utility>
+
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/shims/string.hpp"
@@ -6,19 +19,10 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
-#include <algorithm>
-#include <array>
-#include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <gsl.h>
-#include <numeric>
-#include <platformstl/filesystem/memory_mapped_file.hpp>
-#include <span.h>
+
 #include <stlsoft/memory/auto_buffer.hpp>
-#include <string>
-#include <unordered_map>
-#include <utility>
+#include <tl/optional.hpp>
+#include <mio/mmap.hpp>
 
 using namespace xray::base;
 
@@ -173,31 +177,34 @@ xray::rendering::shader_source_descriptor::shader_source_descriptor(
   : src_type{shader_source_type::code}, s_str{src_str} {}
 
 xray::rendering::scoped_program_handle
-xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
-  noexcept {
+xray::rendering::gpu_program_builder::build_program(
+  const GLenum stg) const noexcept {
   using namespace xray::base;
   using namespace stlsoft;
-  using namespace platformstl;
+
   using namespace std;
 
-  using std::uint32_t;
   using std::int32_t;
+  using std::uint32_t;
+
+  using mm_file_t = tl::optional<mio::mmap_source>;
 
   array<const char*, MAX_SLOTS> src_pointers;
   src_pointers.fill(nullptr);
-  array<memory_mapped_file, MAX_SLOTS> mapped_src_files;
+  array<mm_file_t, MAX_SLOTS> mapped_src_files;
 
   {
     //
     // retrieve pointer to the strings with the source code of the program.
     // strings defined in the config file are placed in front of the
     // string from the shader file.
-    auto src_pts_range = gsl::span<const char*>{
+    auto src_pts_range = std::span<const char*>{
       src_pointers.data(), static_cast<ptrdiff_t>(src_pointers.size())};
 
-    auto src_map_range = gsl::span<memory_mapped_file>{
+    auto src_map_range = std::span<mm_file_t>{
       mapped_src_files.data(), static_cast<ptrdiff_t>(mapped_src_files.size())};
-    auto src_dsc_range = gsl::span<const shader_source_descriptor>{
+
+    auto src_dsc_range = std::span<const shader_source_descriptor>{
       &_source_list[0], _sources_count};
 
     uint32_t idx{};
@@ -215,15 +222,20 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
              [&idx, &src_pts_range, &src_map_range](
                const shader_source_descriptor& ssd) {
                if (ssd.src_type == shader_source_type::file) {
-                 try {
-                   src_map_range[idx] = memory_mapped_file{ssd.s_file.name};
+
+                 std::error_code  err_code{};
+                 mio::mmap_source mapped_file =
+                   mio::make_mmap_source(ssd.s_file.name, err_code);
+                 if (!err_code) {
+                   src_map_range[idx] = tl::make_optional<mio::mmap_source>(
+                     std::move(mapped_file));
                    src_pts_range[idx] =
-                     static_cast<const char*>(src_map_range[idx].memory());
+                     static_cast<const char*>(src_map_range[idx]->data());
                    ++idx;
-                 } catch (const std::exception&) {
-                   XR_LOG_CRITICAL("Cannot open shader file {}",
-                                   ssd.s_file.name);
+                   return;
                  }
+
+                 XR_LOG_CRITICAL("Cannot open shader file {}", ssd.s_file.name);
                }
              });
   }
@@ -238,8 +250,7 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
     GLint linked_ok{false};
     gl::GetProgramiv(ph, gl::LINK_STATUS, &linked_ok);
     return linked_ok == gl::TRUE_;
-  }
-  ();
+  }();
 
   if (was_linked) {
     return gpu_prg;
@@ -257,7 +268,6 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const
   case s:                                                                      \
     return #s;                                                                 \
     break
-
     switch (stg) {
       STG_NAME(gl::VERTEX_SHADER);
       STG_NAME(gl::FRAGMENT_SHADER);
@@ -292,8 +302,7 @@ xray::rendering::detail::gpu_program_helpers::create_shader_from_string(
     GLint status{gl::FALSE_};
     gl::GetShaderiv(handle, gl::COMPILE_STATUS, &status);
     return status == gl::TRUE_;
-  }
-  ();
+  }();
 
   if (compilation_succeeded) {
     return shader;
@@ -392,7 +401,8 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(
     //
     // List of properties we need for the uniform blocks.
     const GLuint props_to_get[] = {
-      gl::BUFFER_BINDING, gl::BUFFER_DATA_SIZE,
+      gl::BUFFER_BINDING,
+      gl::BUFFER_DATA_SIZE,
     };
 
     union ublock_prop_data_t {
@@ -491,8 +501,8 @@ bool xray::rendering::detail::gpu_program_helpers::collect_uniforms(
   using namespace std;
   using namespace stlsoft;
 
-  using std::uint32_t;
   using std::int32_t;
+  using std::uint32_t;
 
   const auto phandle = program;
 
@@ -915,7 +925,6 @@ void xray::rendering::detail::gpu_program_base::flush_uniforms() {
     gl::BindBuffer(gl::UNIFORM_BUFFER, raw_handle(u_blk.gl_buff));
     gl::BindBufferBase(
       gl::UNIFORM_BUFFER, u_blk.bindpoint, raw_handle(u_blk.gl_buff));
-
   });
 
   if (!subroutine_uniforms_.empty()) {
@@ -924,7 +933,7 @@ void xray::rendering::detail::gpu_program_base::flush_uniforms() {
     for_each(begin(subroutine_uniforms_),
              end(subroutine_uniforms_),
              [indices =
-                gsl::span<GLuint>{indices_buff.data(),
+                std::span<GLuint>{indices_buff.data(),
                                   static_cast<ptrdiff_t>(indices_buff.size())}](
                const auto& sub_unifrm) {
                indices[sub_unifrm.ssu_location] =

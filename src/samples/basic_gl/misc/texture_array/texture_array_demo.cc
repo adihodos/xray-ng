@@ -250,12 +250,14 @@ void app::texture_array_demo::draw_ui(const int32_t surface_width,
 
     if (ImGui::Button("<< Previous image")) {
       XR_LOG_INFO("Pushed button!");
+	  using xray::math::clamp;
       _image_index =
         clamp(_image_index - 1, 0, XR_I32_COUNTOF(TEXTURE_FILES) - 1);
     }
 
     if (ImGui::Button("Next image >>")) {
       XR_LOG_INFO("Pushed button!");
+	  using xray::math::clamp;
       _image_index =
         clamp(_image_index + 1, 0, XR_I32_COUNTOF(TEXTURE_FILES) - 1);
     }

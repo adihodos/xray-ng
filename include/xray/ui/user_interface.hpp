@@ -111,6 +111,10 @@ public:
 
 private:
   struct loaded_font {
+    loaded_font() = default;
+    loaded_font(std::string n, const float size, ImFont* f)
+      : name{std::move(n)}, pixel_size{size}, font{f} {}
+
     std::string name;
     float       pixel_size;
     ImFont*     font;

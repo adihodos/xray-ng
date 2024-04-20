@@ -43,6 +43,5 @@ else()
 endif()
 
 add_library(xray-ui STATIC ${PROJECT_SOURCES_MAIN})
-target_link_libraries(xray-ui xray-imgui ${platform_libs})
+target_link_libraries(xray-ui xray-imgui STLSoft ${platform_libs})
 
-# install(TARGETS XrayUI DESTINATION Lib)

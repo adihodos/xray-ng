@@ -1,4 +1,13 @@
 #include "xray/rendering/mesh.hpp"
+
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <cstring>
+#include <random>
+#include <unordered_map>
+#include <vector>
+
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/math/math_std.hpp"
@@ -10,18 +19,9 @@
 #include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
-#include <algorithm>
-#include <cassert>
-#include <cmath>
-#include <cstring>
-#include <gsl.h>
-#include <platformstl/filesystem/memory_mapped_file.hpp>
-#include <random>
-#include <stlsoft/error/os_exception.hpp>
+#include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/parallel_reduce.h>
 #include <stlsoft/memory/auto_buffer.hpp>
-#include <tbb/tbb.h>
-#include <unordered_map>
-#include <vector>
 
 using namespace std;
 using namespace xray::base;
@@ -33,15 +33,15 @@ xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
 
   using namespace xray::rendering;
 
-  mesh_loader mloader{path};
+  tl::optional<mesh_loader> mloader{path};
   if (!mloader) {
     XR_DBG_MSG("Failed to load mesh {}", path);
     return;
   }
 
-  create(mloader.vertex_span(), mloader.index_span());
-  _aabb    = mloader.bounding().axis_aligned_bbox;
-  _bsphere = mloader.bounding().bounding_sphere;
+  create(mloader->vertex_span(), mloader->index_span());
+  _aabb    = mloader->bounding().axis_aligned_bbox;
+  _bsphere = mloader->bounding().bounding_sphere;
 }
 
 xray::rendering::basic_mesh::basic_mesh(
@@ -53,24 +53,25 @@ xray::rendering::basic_mesh::basic_mesh(
   : _mtype{mtype} {
 
   create(
-    gsl::span<const vertex_pnt>{
+    std::span<const vertex_pnt>{
       vertices, vertices + static_cast<ptrdiff_t>(num_vertices)},
-    gsl::span<const uint32_t>{indices,
+    std::span<const uint32_t>{indices,
                               indices + static_cast<ptrdiff_t>(num_indices)});
   compute_bounding();
 }
 
 void xray::rendering::basic_mesh::create(
-  const gsl::span<const vertex_pnt>& vertices,
-  const gsl::span<const uint32_t>&   indices) {
+  const std::span<const vertex_pnt>& vertices,
+  const std::span<const uint32_t>&   indices) {
   assert(!vertices.empty());
   assert(!indices.empty());
 
-  _vertices.resize(vertices.length());
-  _indices.resize(indices.length());
+  _vertices.resize(vertices.size());
+  _indices.resize(indices.size());
 
-  memcpy(_vertices.data(), vertices.data(), vertices.length_bytes());
-  memcpy(_indices.data(), indices.data(), indices.length_bytes());
+  memcpy(
+    _vertices.data(), vertices.data(), vertices.size() * sizeof(vertices[0]));
+  memcpy(_indices.data(), indices.data(), indices.size() * sizeof(vertices[0]));
 
   setup_buffers();
 }
@@ -80,41 +81,53 @@ void xray::rendering::basic_mesh::compute_bounding() {
 
   timer_highp op_tm;
 
-  struct aabb_reducer {
-  public:
-    aabb_reducer() noexcept = default;
-
-    aabb_reducer(const aabb_reducer& rhs, tbb::split) : _aabb{rhs._aabb} {}
-
-    void operator()(const tbb::blocked_range<const vertex_pnt*>& rng) {
-      for (auto b = rng.begin(), e = rng.end(); b < e; ++b) {
-        _aabb.max = max(_aabb.max, b->position);
-        _aabb.min = min(_aabb.min, b->position);
-      }
-    }
-
-    void join(const aabb_reducer& other) {
-      _aabb = math::merge(_aabb, other.bounding_box());
-    }
-
-    const aabb3f& bounding_box() const noexcept { return _aabb; }
-
-  private:
-    aabb3f _aabb{aabb3f::stdc::identity};
-  };
+  // struct aabb_reducer {
+  // public:
+  //   aabb_reducer() noexcept = default;
+  //
+  // 	  aabb_reducer(const aabb_reducer& rhs, oneapi::tbb::split) :
+  // _aabb{rhs._aabb} {}
+  //
+  //   void operator()(const tbb::blocked_range<const vertex_pnt*>& rng) {
+  //     for (auto b = rng.begin(), e = rng.end(); b < e; ++b) {
+  //       _aabb.max = max(_aabb.max, b->position);
+  //       _aabb.min = min(_aabb.min, b->position);
+  //     }
+  //   }
+  //
+  //   void join(const aabb_reducer& other) {
+  //     _aabb = math::merge(_aabb, other.bounding_box());
+  //   }
+  //
+  //   const aabb3f& bounding_box() const noexcept { return _aabb; }
+  //
+  // private:
+  //   aabb3f _aabb{aabb3f::stdc::identity};
+  // };
 
   static constexpr size_t PARALLEL_REDUCE_MIN_VERTEX_COUNT = 120'000'000u;
 
   if (_vertices.size() >= PARALLEL_REDUCE_MIN_VERTEX_COUNT) {
     scoped_timing_object<timer_highp> sto{&op_tm};
 
-    aabb_reducer reducer{};
-    tbb::parallel_reduce(
-      tbb::blocked_range<const vertex_pnt*>{&_vertices[0],
-                                            &_vertices[0] + _vertices.size()},
-      reducer);
+    namespace mt = oneapi::tbb;
 
-    _aabb = reducer.bounding_box();
+    _aabb = mt::parallel_reduce(
+      mt::blocked_range{static_cast<const vertex_pnt*>(_vertices.data()),
+						static_cast<const vertex_pnt*>(_vertices.data()) +
+                          _vertices.size()},
+      aabb3f{1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+      [](const tbb::blocked_range<const vertex_pnt*>& rng,
+         const aabb3f&                                initial_bbox) {
+        aabb3f box{initial_bbox};
+        for (const vertex_pnt* b = rng.begin(); b != rng.end(); ++b) {
+          box.max = max(box.max, b->position);
+          box.min = min(box.min, b->position);
+        }
+
+        return box;
+      },
+      [](const aabb3f& a, const aabb3f& b) { return math::merge(a, b); });
   } else {
     scoped_timing_object<timer_highp> sto{&op_tm};
 
@@ -249,7 +262,7 @@ void xray::rendering::basic_mesh::set_instance_data(
       static_cast<uint32_t>(i + 1);
   }
 
-  gsl::span<const vertex_attribute_descriptor> attributes{
+  std::span<const vertex_attribute_descriptor> attributes{
     vertex_attributes,
     vertex_attributes + static_cast<ptrdiff_t>(vertex_attributes_count)};
 

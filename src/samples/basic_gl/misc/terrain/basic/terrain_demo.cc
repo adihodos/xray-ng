@@ -28,7 +28,7 @@
 #include <iterator>
 #include <opengl/opengl.hpp>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
-#include <span.h>
+#include <span>
 #include <stb/stb_image.h>
 #include <vector>
 
@@ -103,42 +103,42 @@ void terrain_generator::make_terrain(const int32_t            tiles_x,
   assert(terrain_indices.size() == index_count);
 }
 
-class heightmap_loader {
-public:
-  heightmap_loader(const char* path);
-  heightmap_loader(const std::string& path) : heightmap_loader{path.c_str()} {}
-
-  gsl::span<const uint16_t> data() const noexcept {
-    return gsl::as_span(_data, _width * _height);
-  }
-
-  int32_t width() const noexcept { return _width; }
-
-  int32_t height() const noexcept { return _height; }
-
-  explicit operator bool() const noexcept {
-    return _data && (_width != 0) && (_height != 0);
-  }
-
-private:
-  platformstl::memory_mapped_file _file;
-  const uint16_t*                 _data{};
-  int32_t                         _width{};
-  int32_t                         _height{};
-
-  XRAY_NO_COPY(heightmap_loader);
-};
-
-heightmap_loader::heightmap_loader(const char* path) {
-  try {
-    _file   = platformstl::memory_mapped_file{path};
-    _data   = static_cast<const uint16_t*>(_file.memory());
-    _width  = 513;
-    _height = 513;
-  } catch (...) {
-    return;
-  }
-}
+// class heightmap_loader {
+// public:
+//   heightmap_loader(const char* path);
+//   heightmap_loader(const std::string& path) : heightmap_loader{path.c_str()} {}
+// 
+//   gsl::span<const uint16_t> data() const noexcept {
+//     return gsl::as_span(_data, _width * _height);
+//   }
+// 
+//   int32_t width() const noexcept { return _width; }
+// 
+//   int32_t height() const noexcept { return _height; }
+// 
+//   explicit operator bool() const noexcept {
+//     return _data && (_width != 0) && (_height != 0);
+//   }
+// 
+// private:
+//   platformstl::memory_mapped_file _file;
+//   const uint16_t*                 _data{};
+//   int32_t                         _width{};
+//   int32_t                         _height{};
+// 
+//   XRAY_NO_COPY(heightmap_loader);
+// };
+// 
+// heightmap_loader::heightmap_loader(const char* path) {
+//   try {
+//     _file   = platformstl::memory_mapped_file{path};
+//     _data   = static_cast<const uint16_t*>(_file.memory());
+//     _width  = 513;
+//     _height = 513;
+//   } catch (...) {
+//     return;
+//   }
+// }
 
 app::terrain_demo::terrain_demo(const init_context_t& init_ctx)
   : demo_base{init_ctx} {

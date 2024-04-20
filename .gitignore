@@ -10,8 +10,15 @@
 *.opendb
 *.~rc
 
+# clangd
+compile_commands.json
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
+
+# direnv
+.direnv/*
+.cache/*
 
 # Build results
 [Dd]ebug/

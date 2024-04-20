@@ -1,4 +1,11 @@
 #include "xray/rendering/geometry/geometry_factory.hpp"
+
+#include <cassert>
+#include <cmath>
+#include <cstring>
+#include <span>
+#include <vector>
+
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
@@ -8,12 +15,7 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
-#include <cassert>
-#include <cmath>
-#include <cstring>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
-#include <span.h>
-#include <vector>
 
 using namespace std;
 using namespace xray::base;
@@ -539,7 +541,7 @@ void xray::rendering::geometry_factory::grid(const float      grid_width,
   //
   // Setup indices for the generated vertices.
   auto index_array =
-    gsl::span<uint32_t>(raw_ptr(mesh_data->indices), mesh_data->index_count);
+    std::span<uint32_t>(raw_ptr(mesh_data->indices), mesh_data->index_count);
 
   size_t quad_idx = 0;
   for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
