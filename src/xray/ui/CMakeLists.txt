@@ -1,17 +1,17 @@
 project(xray-ui)
 
-set(proj_inc_dir ${CMAKE_SOURCE_DIR}/include/xray/ui)
-set(proj_src_dir ${CMAKE_SOURCE_DIR}/src/xray/ui)
+set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/ui")
+set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
-if (WIN32)
-    set(platform_sources
-      ${proj_inc_dir}/window_win32.hpp
-      ${proj_src_dir}/window_win32.cc)
-else()
-    set(platform_sources
-        ${proj_inc_dir}/window_x11.hpp
-        ${proj_src_dir}/window_x11.cc)
-endif()
+# if (WIN32)
+#     set(platform_sources
+#       ${proj_inc_dir}/window_win32.hpp
+#       ${proj_src_dir}/window_win32.cc)
+# else()
+#     set(platform_sources
+#         ${proj_inc_dir}/window_x11.hpp
+#         ${proj_src_dir}/window_x11.cc)
+# endif()
 
 set(PROJECT_SOURCES_MAIN
     ${proj_inc_dir}/events.hpp
@@ -25,16 +25,49 @@ set(PROJECT_SOURCES_MAIN
 
 #source_group("xray_ui" FILES ${PROJECT_SOURCES_MAIN})
 
-if (WIN32) 
-    if (XRAY_USE_DIRECTX11)
-        set(platform_libs dwmapi)
-    else()
-        set(platform_libs gdi32 user32 kernel32)
-    endif()
-else()
-    set(platform_libs X11 GL)
-endif()
+# if (WIN32) 
+#     if (XRAY_USE_DIRECTX11)
+#         set(platform_libs dwmapi)
+#     else()
+#         set(platform_libs gdi32 user32 kernel32)
+#     endif()
+# else()
+#     set(platform_libs X11 GL)
+# endif()
 
-add_library(xray-ui STATIC ${PROJECT_SOURCES_MAIN})
-target_link_libraries(xray-ui xray-imgui STLSoft ${platform_libs})
+add_library(
+  ${PROJECT_NAME} STATIC
+  ${PROJECT_SOURCES_MAIN}
+  $<$<PLATFORM_ID:Linux>:${proj_inc_dir}/window_x11.hpp>
+  $<$<PLATFORM_ID:Linux>:${proj_src_dir}/window_x11.cc>
+)
+
+target_include_directories(
+  ${PROJECT_NAME}
+  PUBLIC
+  $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+  PRIVATE
+)
+
+target_compile_features(
+  ${PROJECT_NAME}
+  PUBLIC cxx_std_20
+)
+
+target_compile_definitions(
+  ${PROJECT_NAME}
+  PRIVATE
+  $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
+  $<$<PLATFORM_ID:Linux>:XRAY_RENDERER_OPENGL>
+)
+
+target_link_libraries(
+  ${PROJECT_NAME}
+  PUBLIC
+  xray-base
+  xray-rendering
+  xray-imgui
+  $<$<PLATFORM_ID:Linux>:X11 GL>
+)
 

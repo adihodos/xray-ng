@@ -1,19 +1,22 @@
 project(xray-base)
 
-set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/base")
-set(proj_src_dir "${CMAKE_SOURCE_DIR}/src/xray/base")
+CPMAddPackage(
+  NAME STLSoft
+  GITHUB_REPOSITORY adihodos/STLSoft-1.10
+  GIT_TAG fixes
+  OPTIONS "BUILD_TESTING OFF")
 
-set(project_sources
+set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/base")
+set(proj_src_dir "${PROJECT_SOURCE_DIR}")
+
+set(project_headers
+    ${proj_inc_dir}/base_fwd.hpp
     ${proj_inc_dir}/array_dimension.hpp
     ${proj_inc_dir}/app_config.hpp
-    ${proj_src_dir}/app_config.cc
     ${proj_inc_dir}/basic_timer.hpp
-    ${proj_inc_dir}/base_fwd.hpp
     ${proj_inc_dir}/config_settings.hpp
-    ${proj_src_dir}/config_settings.cc
     ${proj_inc_dir}/containers/fixed_vector.hpp
     ${proj_inc_dir}/debug_output.hpp
-    ${proj_src_dir}/debug_output.cc
     ${proj_inc_dir}/delegate_list.hpp
     ${proj_inc_dir}/fast_delegate.hpp
     ${proj_inc_dir}/fnv_hash.hpp
@@ -25,17 +28,46 @@ set(project_sources
     ${proj_inc_dir}/syscall_wrapper.hpp
     ${proj_inc_dir}/unique_handle.hpp
     ${proj_inc_dir}/logger.hpp
-    ${proj_src_dir}/logger.cc
     ${proj_inc_dir}/shims/attribute/basic_path.hpp
     ${proj_inc_dir}/unique_pointer.hpp
     ${proj_inc_dir}/perf_stats_collector.hpp
-    ${proj_src_dir}/perf_stats_collector.cc
     ${proj_inc_dir}/windows/com_ptr.hpp
-    ${proj_inc_dir}/windows/handle_traits.hpp)
+    ${proj_inc_dir}/windows/handle_traits.hpp
+)
 
-if (WIN32)
-    set(platform_libs pdh)
-endif()
+set(project_sources
+    ${proj_src_dir}/app_config.cc
+    ${proj_src_dir}/config_settings.cc
+    ${proj_src_dir}/debug_output.cc
+    ${proj_src_dir}/logger.cc
+    ${proj_src_dir}/perf_stats_collector.cc)
 
-add_library(xray-base STATIC ${project_sources})
-target_link_libraries(xray-base PRIVATE ${platform_libs} libconfig PUBLIC fmt::fmt STLSoft)
+add_library(
+  ${PROJECT_NAME} STATIC
+  ${project_sources}
+  ${project_headers}
+)
+
+target_include_directories(
+  ${PROJECT_NAME}
+  PUBLIC
+  $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+  PRIVATE
+)
+
+target_compile_features(
+  ${PROJECT_NAME}
+  PUBLIC cxx_std_20
+)
+
+target_compile_definitions(
+  ${PROJECT_NAME}
+  PRIVATE
+  $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
+)
+
+target_link_libraries(
+  ${PROJECT_NAME}
+  PUBLIC config fmt::fmt STLSoft
+)

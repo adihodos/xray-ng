@@ -8,6 +8,7 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
+#include "xray/ui/user_interface.hpp"
 #include <algorithm>
 #include <cassert>
 #include <imgui/imgui.h>
@@ -165,6 +166,7 @@ app::texture_array_demo::texture_array_demo(const init_context_t& init_ctx)
   gl::SamplerParameterfv(
     raw_handle(_sampler), gl::TEXTURE_BORDER_COLOR, _border_color.components);
 
+  _ui->set_current();
   _ui->set_global_font("Roboto-Regular");
   _valid = true;
 }

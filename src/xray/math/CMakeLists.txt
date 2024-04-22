@@ -1,7 +1,6 @@
 project(xray-math)
 
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/math")
-set(proj_src_dir "${CMAKE_SOURCE_DIR}/src/xray/math")
 
 set(project_sources
     ${proj_inc_dir}/constants.hpp
@@ -13,7 +12,6 @@ set(project_sources
     ${proj_inc_dir}/quaternion.hpp
     ${proj_inc_dir}/quaternion_math.hpp
 
-    ${proj_inc_dir}/rectangle.hpp
     ${proj_inc_dir}/scalar2.hpp
     ${proj_inc_dir}/scalar2x3.hpp
     ${proj_inc_dir}/scalar2x3_math.hpp
@@ -53,6 +51,20 @@ set(project_sources
     ${proj_inc_dir}/objects/line2.hpp
     ${proj_inc_dir}/objects/sphere.hpp
     ${proj_inc_dir}/objects/ray2.hpp    
+)
+
+add_library(${PROJECT_NAME} INTERFACE ${project_sources})
+
+target_include_directories(
+  ${PROJECT_NAME}
+  INTERFACE
+  $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+)
+
+target_compile_features(
+  ${PROJECT_NAME}
+  INTERFACE cxx_std_20
 )
 
 source_group(math FILES ${project_sources})

@@ -8,6 +8,7 @@
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/vertex_format/vertex_pc.hpp"
 #include "xray/rendering/vertex_format/vertex_pntt.hpp"
+#include "xray/ui/user_interface.hpp"
 #include "xray/ui/events.hpp"
 #include <algorithm>
 #include <cassert>

@@ -31,6 +31,7 @@
 #include "xray/rendering/opengl/scoped_state.hpp"
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
+#include "xray/ui/user_interface.hpp"
 
 #include <imgui/imgui.h>
 #include <itlib/small_vector.hpp>

@@ -29,6 +29,14 @@
 /// \file main.cc
 
 #include "xray/xray.hpp"
+
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <numeric>
+#include <thread>
+#include <vector>
+
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/fast_delegate.hpp"
@@ -43,13 +51,13 @@
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/user_interface.hpp"
 #include "xray/ui/window.hpp"
-#include <algorithm>
-#include <chrono>
-#include <cstdint>
-#include <opengl/opengl.hpp>
+
 #include <oneapi/tbb/info.h>
 #include <oneapi/tbb/task_arena.h>
-#include <thread>
+#include <opengl/opengl.hpp>
+
+#include <platformstl/filesystem/filesystem_traits.hpp>
+#include <platformstl/filesystem/readdir_sequence.hpp>
 
 #include "demo_base.hpp"
 #include "init_context.hpp"
@@ -57,10 +65,11 @@
 #include "misc/fractals/fractal_demo.hpp"
 #include "misc/instanced_drawing/instanced_drawing_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
-#include "misc/terrain/basic/terrain_demo.hpp"
+// #include "misc/terrain/basic/terrain_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
 
 // #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
+// #include <quill/Quill.h>
 
 using namespace xray;
 using namespace xray::base;
@@ -84,10 +93,10 @@ enum class demo_type : int32_t {
   procedural_city,
   instanced_drawing,
   geometric_shapes,
-  terrain_basic
+  // terrain_basic
 };
 
-class main_app : public demo_base {
+class main_app {
 public:
   explicit main_app(xray::ui::window* wnd);
   ~main_app() {}
@@ -105,18 +114,23 @@ private:
   /// \group Event handlers
   /// @{
 
-  virtual void loop_event(const xray::ui::window_loop_event& loop_evt) override;
+  void loop_event(const xray::ui::window_loop_event& loop_evt);
 
-  virtual void event_handler(const xray::ui::window_event& wnd_evt) override;
+  void event_handler(const xray::ui::window_event& wnd_evt);
+
+  void poll_start(const xray::ui::poll_start_event&);
+
+  void poll_end(const xray::ui::poll_end_event&);
 
   /// @}
 
   void draw(const xray::ui::window_loop_event& loop_evt);
 
 private:
-  xray::ui::window*                     _window;
-  xray::base::unique_pointer<demo_base> _demo;
-  xray::rendering::rgb_color            _clear_color{
+  xray::ui::window*                                    _window;
+  xray::base::unique_pointer<xray::ui::user_interface> _ui{};
+  xray::base::unique_pointer<demo_base>                _demo;
+  xray::rendering::rgb_color                           _clear_color{
     xray::rendering::color_palette::material::orange700};
   xray::base::timer_highp _timer;
   bool                    _initialized{false};
@@ -124,16 +138,40 @@ private:
   XRAY_NO_COPY(main_app);
 };
 
-main_app::main_app(xray::ui::window* wnd)
-  : demo_base{{wnd->width(),
-               wnd->height(),
-               xr_app_config,
-               make_delegate(*this, &main_app::demo_quit)}}
-  , _window{wnd} {
+main_app::main_app(xray::ui::window* wnd) : _window{wnd} {
+
+  platformstl::readdir_sequence rddir{
+    xr_app_config->font_root(),
+    platformstl::readdir_sequence::fullPath |
+      platformstl ::readdir_sequence::directories |
+      platformstl::readdir_sequence::files};
+
+  using namespace std;
+  vector<xray::ui::font_info> fonts{};
+  for_each(begin(rddir), end(rddir), [&fonts](const char* dir_entry) {
+    using fs = platformstl::filesystem_traits<char>;
+
+    if (!fs::is_file(dir_entry))
+      return;
+
+    platformstl::path file_p{dir_entry};
+    if (!file_p.get_ext().compare(".ttf") && !file_p.get_ext().compare("otf"))
+      return;
+
+    fonts.push_back(xray::ui::font_info{dir_entry, 18.0f});
+  });
+
+  _ui = xray::base::make_unique<xray::ui::user_interface>(fonts.data(),
+                                                          fonts.size());
+
   hookup_event_delegates();
   _ui->set_global_font("Roboto-Regular");
   _timer.start();
 }
+
+void main_app::poll_start(const xray::ui::poll_start_event&) {}
+
+void main_app::poll_end(const xray::ui::poll_end_event&) {}
 
 void main_app::demo_quit() {
   assert(demo_running());
@@ -146,7 +184,7 @@ void main_app::hookup_event_delegates() {
   _window->events.poll_start = make_delegate(*this, &main_app::poll_start);
   _window->events.poll_end   = make_delegate(*this, &main_app::poll_end);
   _window->events.window     = make_delegate(*this, &main_app::event_handler);
-  _ui->set_current();
+  // _ui->set_current();
 }
 
 void main_app::event_handler(const xray::ui::window_event& wnd_evt) {
@@ -162,18 +200,20 @@ void main_app::loop_event(const xray::ui::window_loop_event& levt) {
   _ui->new_frame(levt.wnd_width, levt.wnd_height);
 
   {
-    const char* demo_list[] = {"None",
-                               "Colored Circle",
-                               "Julia fractal",
-                               "Texture array",
-                               "Mesh",
-                               "Bufferless drawing",
-                               "Directional lighting",
-                               "Point lighting",
-                               "Procedural city",
-                               "Instanced drawing",
-                               "Geometric shapes generation",
-                               "Terrain (basic)"};
+    const char* demo_list[] = {
+      "None",
+      "Colored Circle",
+      "Julia fractal",
+      "Texture array",
+      "Mesh",
+      "Bufferless drawing",
+      "Directional lighting",
+      "Point lighting",
+      "Procedural city",
+      "Instanced drawing",
+      "Geometric shapes generation",
+      // "Terrain (basic)"
+    };
 
     ImGui::SetNextWindowPos({0.0f, 0.0f}, ImGuiCond_Appearing);
 
@@ -216,6 +256,7 @@ void main_app::run_demo(const demo_type type) {
       w->width(),
       w->height(),
       xr_app_config,
+      xray::base::raw_ptr(_ui),
       make_delegate(*this, &main_app::demo_quit)};
 
     switch (dtype) {
@@ -262,9 +303,9 @@ void main_app::run_demo(const demo_type type) {
       //      return xray::base::make_unique<point_light_demo>(&init_context);
       //      break;
 
-    case demo_type::terrain_basic:
-      return xray::base::make_unique<terrain_demo>(init_context);
-      break;
+      // case demo_type::terrain_basic:
+      //   return xray::base::make_unique<terrain_demo>(init_context);
+      //   break;
 
     default:
       break;
@@ -512,9 +553,53 @@ private:
   std::vector<xray::math::vec3f>      _points;
 };
 
+void setup_quill() {
+  // quill::configure([]() {
+  //   quill::Config cfg{};
+  //   cfg.enable_console_colours = true;
+  //   cfg.backend_thread_name    = "Xray logging thread";
+  //   cfg.default_logger_name    = "xray-default logger";
+  //   return cfg;
+  // }());
+  //
+  // // Starts the logging backend thread
+  // quill::start();
+  //
+  // // Create a file logger
+  // quill::Logger* logger = quill::create_logger(
+  //   "file_logger", quill::file_handler("example.log", []() {
+  //     quill::FileHandlerConfig cfg;
+  //     cfg.set_open_mode('w');
+  //     cfg.set_pattern(
+  //       "[%(time)] [%(thread)] [%(file_name):%(line_number)] [%(logger)] "
+  //       "[%(log_level)] - %(message)",
+  //       "%H:%M:%S.%Qms");
+  //     return cfg;
+  //   }()));
+  //
+  // logger->set_log_level(quill::LogLevel::TraceL3);
+  //
+  // // enable a backtrace that will get flushed when we log CRITICAL
+  // logger->init_backtrace(2u, quill::LogLevel::Critical);
+  //
+  // LOG_BACKTRACE(logger, "Backtrace log {}", 1);
+  // LOG_BACKTRACE(logger, "Backtrace log {}", 2);
+  //
+  // LOG_INFO(logger, "Welcome to Quill!");
+  // LOG_ERROR(logger, "An error message. error code {}", 123);
+  // LOG_WARNING(logger, "A warning message.");
+  // LOG_CRITICAL(logger, "A critical error. Doing ur mom as usual ...");
+  // LOG_DEBUG(logger, "Debugging foo {}", 1234);
+  // LOG_TRACE_L1(logger, "{:>30}", "right aligned");
+  // LOG_TRACE_L2(logger, "Positional arguments are {1} {0} ", "too",
+  // "supported"); LOG_TRACE_L3(logger, "Support for floats {:03.2f}", 1.23456);
+}
+
 int main(int argc, char** argv) {
   using namespace xray::ui;
   using namespace xray::base;
+
+  setup_quill();
 
   XR_LOG_INFO("Starting up ...");
 

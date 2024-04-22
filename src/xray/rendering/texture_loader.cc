@@ -3,6 +3,19 @@
 #include <cassert>
 #include <platformstl/filesystem/memory_mapped_file.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
+
+void xray::rendering::detail::stbi_img_deleter::operator()(
+  uint8_t* mem) const noexcept
+  {
+	  if (mem) {
+		  stbi_image_free(mem);
+	  }
+  }
+
+xray::rendering::texture_loader::~texture_loader() {}  
+  
 xray::rendering::texture_loader::texture_loader(
   const char* file_path, const texture_load_options load_opts) {
   assert(file_path != nullptr);

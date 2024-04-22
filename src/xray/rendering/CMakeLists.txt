@@ -1,14 +1,9 @@
 project (xray-rendering)
 
-if (XRAY_USE_DIRECTX11)
-  add_subdirectory(directx)
-else()
-  message("Building OpenGL support library")
-  add_subdirectory(opengl)
-endif()
+# add_subdirectory(opengl)
 
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering")
-set(proj_src_dir "${CMAKE_SOURCE_DIR}/src/xray/rendering")
+set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
 set(project_sources
     ${proj_inc_dir}/colors/color_cast_rgb_hsv.hpp
@@ -19,6 +14,11 @@ set(project_sources
     ${proj_src_dir}/colors/color_cast_rgb_xyz.cc
     ${proj_inc_dir}/colors/color_palettes.hpp
     ${proj_src_dir}/colors/color_palettes.cc
+
+	${proj_inc_dir}/geometry/aabb_visualizer.hpp
+    ${proj_src_dir}/geometry/aabb_visualizer.cc
+    ${proj_inc_dir}/geometry/surface_normal_visualizer.hpp
+    ${proj_src_dir}/geometry/surface_normal_visualizer.cc
 
     ${proj_inc_dir}/geometry/geometry_data.hpp
     ${proj_inc_dir}/geometry/geometry_factory.hpp
@@ -37,22 +37,56 @@ set(project_sources
 
     ${proj_inc_dir}/mesh_loader.hpp
     ${proj_src_dir}/mesh_loader.cc
-)
-
-if (NOT XRAY_USE_DIRECTX11)
-    set(render_api_dependent_sources
-        ${proj_inc_dir}/geometry/aabb_visualizer.hpp
-        ${proj_src_dir}/geometry/aabb_visualizer.cc
-        ${proj_inc_dir}/geometry/surface_normal_visualizer.hpp
-        ${proj_src_dir}/geometry/surface_normal_visualizer.cc
-        ${proj_inc_dir}/mesh.hpp
-        ${proj_src_dir}/mesh.cc
-        ${proj_inc_dir}/texture_loader.hpp
-        ${proj_src_dir}/texture_loader.cc    
+	${proj_inc_dir}/mesh.hpp
+    ${proj_src_dir}/mesh.cc
+    ${proj_inc_dir}/texture_loader.hpp
+    ${proj_src_dir}/texture_loader.cc
   )
-endif()
-  
 
-add_library(${PROJECT_NAME} STATIC ${project_sources} ${render_api_dependent_sources})
-target_compile_features(${PROJECT_NAME} INTERFACE PRIVATE cxx_std_20) 
-target_link_libraries(${PROJECT_NAME} TBB::tbb xray-base stb STLSoft mio::mio tl::optional)
+  set(gl_proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering/opengl")
+  set(gl_proj_src_dir "${PROJECT_SOURCE_DIR}/opengl")
+
+  set(project_sources_gl
+	${gl_proj_inc_dir}/gl_handles.hpp
+	${gl_proj_src_dir}/gl_handles.cc
+	${gl_proj_inc_dir}/gl_misc.hpp
+	${gl_proj_inc_dir}/gpu_program.hpp
+	${gl_proj_src_dir}/gpu_program.cc
+	${gl_proj_inc_dir}/scoped_opengl_setting.hpp
+	${gl_proj_inc_dir}/program_pipeline.hpp
+	${gl_proj_src_dir}/program_pipeline.cc
+	${gl_proj_inc_dir}/scoped_resource_mapping.hpp
+	${gl_proj_inc_dir}/scoped_state.hpp
+	${gl_proj_inc_dir}/shader_base.hpp
+	${gl_proj_src_dir}/shader_base.cc
+  )
+
+  add_library(
+	${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl} )
+  
+  target_compile_features(
+	${PROJECT_NAME}
+	INTERFACE cxx_std_20
+  )
+
+  target_include_directories(
+	${PROJECT_NAME}
+	PUBLIC
+	$<INSTALL_INTERFACE:include>
+	$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/xray/rendering>
+	PRIVATE
+	$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+  )
+
+  target_compile_definitions(
+	${PROJECT_NAME}
+	PRIVATE
+	$<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
+  )
+  
+  target_link_libraries(
+	${PROJECT_NAME}
+	PUBLIC xray-glloader tl::optional xray-base STLSoft mio::mio
+	PRIVATE	TBB::tbb
+	$<$<PLATFORM_ID:Linux>:Xinerama>
+  )

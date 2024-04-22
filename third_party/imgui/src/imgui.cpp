@@ -839,7 +839,7 @@
 #include "imgui/imgui.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_PLACEMENT_NEW
-#include "imgui/imgui_internal.h"
+#include "imgui_internal.h"
 
 #include <ctype.h>                        // toupper, isprint
 #include <limits.h>                       // INT_MIN, INT_MAX
@@ -9598,7 +9598,7 @@ static bool STB_TEXTEDIT_INSERTCHARS(STB_TEXTEDIT_STRING* obj,
 #define STB_TEXTEDIT_K_SHIFT 0x20000
 
 #define STB_TEXTEDIT_IMPLEMENTATION
-#include "imgui/stb_textedit.h"
+#include "stb_textedit.h"
 
 } // namespace ImGuiStb
 

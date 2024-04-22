@@ -33,13 +33,16 @@
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
-#include "xray/ui/user_interface.hpp"
 #include <cstdint>
 
 namespace xray {
 namespace scene {
 class camera_controller;
 } // namespace scene
+
+namespace ui {
+class user_interface;
+}
 } // namespace xray
 
 namespace app {
@@ -60,9 +63,9 @@ public:
   explicit operator bool() const noexcept { return valid(); }
 
 protected:
-  bool                                                 _valid{false};
-  xray::base::fast_delegate<void()>                    _quit_receiver;
-  xray::base::unique_pointer<xray::ui::user_interface> _ui;
+  bool                              _valid{false};
+  xray::base::fast_delegate<void()> _quit_receiver;
+  xray::ui::user_interface*         _ui;
 };
 
 } // namespace app

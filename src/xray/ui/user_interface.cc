@@ -20,7 +20,6 @@
 #include "xray/ui/key_sym.hpp"
 #include <algorithm>
 #include <imgui/imgui.h>
-#include <imgui/imgui_internal.h>
 #include <platformstl/filesystem/path.hpp>
 
 using namespace xray::base;
@@ -137,7 +136,7 @@ void xray::ui::user_interface::init(const font_info* fonts,
                                     const size_t     num_fonts) {
   _imcontext =
     unique_pointer<ImGuiContext, imcontext_deleter>{ImGui::CreateContext()};
-  _imcontext->IO.Fonts = new ImFontAtlas();
+  // _imcontext->IO.Fonts = new ImFontAtlas();
 
   set_current();
   _gui = &ImGui::GetIO();
@@ -492,7 +491,6 @@ void xray::ui::user_interface::load_fonts(const font_info* fonts,
     }
 
     platformstl::path_a fpath{fi.path};
-
       _rendercontext.fonts.emplace_back(
         std::string{fpath.pop_ext().get_file().data()}, fi.pixel_size, fnt);
   });
@@ -514,7 +512,7 @@ void xray::ui::user_interface::load_fonts(const font_info* fonts,
   for_each(begin(_rendercontext.fonts),
            end(_rendercontext.fonts),
            [](const loaded_font& fi) {
-             XR_DBG_MSG("Loaded font {}, size {}", fi.name, fi.pixel_size);
+             XR_DBG_MSG("added font {}, size {} ...", fi.name, fi.pixel_size);
            });
 }
 

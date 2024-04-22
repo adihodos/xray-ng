@@ -1,22 +1,26 @@
-project(xray-opengl-renderer)
+project(opengl-lib)
 
-set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering/opengl")
-set(proj_src_dir "${CMAKE_SOURCE_DIR}/src/xray/rendering/opengl")
+set(proj_inc_dir "${CMAKE_SOURCE_DIR}/third_party/opengl/include")
+set(proj_src_dir "${CMAKE_SOURCE_DIR}")
 
 set(project_sources
-  ${proj_inc_dir}/gl_handles.hpp
-  ${proj_src_dir}/gl_handles.cc
-  ${proj_inc_dir}/gl_misc.hpp
-  ${proj_inc_dir}/gpu_program.hpp
-  ${proj_src_dir}/gpu_program.cc
-  ${proj_inc_dir}/scoped_opengl_setting.hpp
-  ${proj_inc_dir}/program_pipeline.hpp
-  ${proj_src_dir}/program_pipeline.cc
-  ${proj_inc_dir}/scoped_resource_mapping.hpp
-  ${proj_inc_dir}/scoped_state.hpp
-  ${proj_inc_dir}/shader_base.hpp
-  ${proj_src_dir}/shader_base.cc)
+  ${proj_inc_dir}/opengl.hpp
+  ${proj_src_dir}/opengl.cc
+)
 
 add_library(${PROJECT_NAME} STATIC ${project_sources})
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
-target_link_libraries(${PROJECT_NAME} xray-base xray-glloader tl::optional STLSoft mio::mio)
+
+target_compile_features(
+  ${PROJECT_NAME}
+  PUBLIC cxx_std_20)
+
+target_include_directories(
+  ${PROJECT_NAME}
+  PUBLIC
+  $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/opengl/include>
+  PRIVATE
+)
+
+
+target_link_libraries(${PROJECT_NAME}  xray-glloader tl::optional STLSoft mio::mio)

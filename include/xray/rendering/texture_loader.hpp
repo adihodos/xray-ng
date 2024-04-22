@@ -32,7 +32,6 @@
 #include "xray/base/unique_pointer.hpp"
 #include <cstdint>
 #include <opengl/opengl.hpp>
-#include <stb/stb_image.h>
 #include <string>
 
 namespace xray {
@@ -41,10 +40,7 @@ namespace rendering {
 namespace detail {
 
 struct stbi_img_deleter {
-  void operator()(stbi_uc* mem) const noexcept {
-    if (mem)
-      stbi_image_free(mem);
-  }
+  void operator()(uint8_t* mem) const noexcept;
 };
 
 } // namespace detail
@@ -58,8 +54,8 @@ enum class texture_load_options : uint32_t {
 
 class texture_loader {
 public:
-  texture_loader()  = default;
-  ~texture_loader() = default;
+  texture_loader() = default;
+  ~texture_loader();
 
   explicit texture_loader(
     const std::string&         file_path,
@@ -91,7 +87,7 @@ public:
   const uint8_t* data() const noexcept { return xray::base::raw_ptr(_texdata); }
 
 private:
-  xray::base::unique_pointer<stbi_uc, detail::stbi_img_deleter> _texdata;
+  xray::base::unique_pointer<uint8_t, detail::stbi_img_deleter> _texdata;
   int32_t                                                       _x_size{};
   int32_t                                                       _y_size{};
   int32_t                                                       _levels{};
