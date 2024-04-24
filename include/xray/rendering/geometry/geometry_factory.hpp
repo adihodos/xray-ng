@@ -150,6 +150,11 @@ public:
                    const uint32_t   vertices_z,
                    geometry_data_t* grid);
 
+  static geometry_data_t grid(const uint32_t cellsx,
+                              const uint32_t cellsy,
+                              const float    sx,
+                              const float    sz);
+
   /// Creates a sphere, centered at the origin.
   /// \param  tess_factor_horz    Horizontal tesselation factor. Must be
   ///         at least 3. A higher number results in a smoother sphere.

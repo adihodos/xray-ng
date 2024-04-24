@@ -33,7 +33,7 @@
 
 using namespace std;
 
-void xray::rendering::program_pipeline::use() {
+void xray::rendering::program_pipeline::use(const bool flushProgramUniforms) {
   assert(static_cast<bool>(_pipeline));
   assert(any_of(begin(_programs), end(_programs), [](const auto p) {
     return p != nullptr;
@@ -42,8 +42,18 @@ void xray::rendering::program_pipeline::use() {
   gl::UseProgram(0);
   gl::BindProgramPipeline(raw_handle(_pipeline));
 
-  for_each(begin(_programs), end(_programs), [](detail::gpu_program_base* prg) {
-    if (prg)
-      prg->flush_uniforms();
-  });
+  //
+  // TODO: FIXME: HACK:
+  // This is a miserable hack that’s needed due to the bad design of this class.
+  // It should not store pointers to the gpu programs bound to it (bind a gpu
+  // program to it then std::move it and you get undefined behavior ...).
+  // Flushing uniforms here, while convenient, can be suboptimal and is better
+  // left to the owner of the gpu programs.
+  if (flushProgramUniforms) {
+    for_each(
+      begin(_programs), end(_programs), [](detail::gpu_program_base* prg) {
+        if (prg)
+          prg->flush_uniforms();
+      });
+  }
 }

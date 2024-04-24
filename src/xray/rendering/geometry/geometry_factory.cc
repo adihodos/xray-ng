@@ -470,6 +470,63 @@ void xray::rendering::geometry_factory::box(const float      width,
 //   }
 // }
 
+xray::rendering::geometry_data_t
+xray::rendering::geometry_factory::grid(const uint32_t cellsx,
+                                        const uint32_t cellsz,
+                                        const float    sx,
+                                        const float    sz) {
+
+  const size_t vertex_count = (cellsx + 1) * (cellsx + 1);
+  const float  hx           = static_cast<float>(cellsx) * sx * 0.5f;
+  const float  hz           = static_cast<float>(cellsz) * sz * 0.5f;
+  const float  du           = 1.0f / (static_cast<float>(cellsx));
+  const float  dz           = 1.0f / (static_cast<float>(cellsz));
+
+  using vertex_collection_t =
+    geometry_data_t::scoped_vector_array_t<vertex_pntt>;
+  vertex_collection_t vertices{new vertex_pntt[vertex_count]};
+
+  using std::span;
+  span<vertex_pntt> vtx{raw_ptr(vertices), raw_ptr(vertices) + vertex_count};
+
+  for (size_t z = 0; z <= cellsz; ++z) {
+    for (size_t x = 0; x <= cellsx; ++x) {
+      vtx[z * cellsx + x].position = vec3f{
+        static_cast<float>(x) * sx - hx, .0f, static_cast<float>(z) * sz - hz};
+
+      vtx[z * cellsx + x].normal = vec3f::stdc::unit_y;
+      vtx[z * cellsx + x].texcoords =
+        vec2f{static_cast<float>(x) * du, static_cast<float>(z) * dz};
+    }
+  }
+
+  const size_t faces       = cellsx * cellsz * 2;
+  const size_t index_count = faces * 3;
+  using index_collection_t = geometry_data_t::scoped_vector_array_t<uint32_t>;
+  index_collection_t indices{new uint32_t[index_count]};
+
+  uint32_t* idx = raw_ptr(indices);
+  for (size_t z = 0; z < cellsz; ++z) {
+    for (size_t x = 0; x < cellsx; ++x) {
+
+		*idx++ = static_cast<uint32_t>(z * cellsx + x);
+		*idx++ = static_cast<uint32_t>(z * cellsx + x + 1);
+		*idx++ = static_cast<uint32_t>((z + 1) * cellsx + x + 1);
+
+		*idx++ = static_cast<uint32_t>(z * cellsx + x);
+		*idx++ = static_cast<uint32_t>((z + 1) * cellsx + x + 1);
+		*idx++ = static_cast<uint32_t>((z + 1) * cellsx + x);
+    }
+  }
+
+  return geometry_data_t {
+	  std::move(vertices),
+	  std::move(indices),
+	  vertex_count,
+	  index_count,
+  };
+}
+
 void xray::rendering::geometry_factory::grid(const float      width,
                                              const float      depth,
                                              const uint32_t   vertices_x,
@@ -535,7 +592,7 @@ void xray::rendering::geometry_factory::fullscreen_quad(
 
   constexpr math::vec3f normal_vec{0.0f, 0.0f, -1.0f};
   constexpr float       texcoords[] = {
-    0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f};
+          0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f};
 
   for (size_t idx = 0; idx < 4; ++idx) {
     grid_geometry->geometry[idx].position =

@@ -88,6 +88,11 @@ public:
              const size_t                       num_indices,
              const mesh_type                    mtype = mesh_type::readonly);
 
+  basic_mesh(std::span<const vertex_pnt> vertices,
+             std::span<const uint32_t>   indices) {
+    create(vertices, indices);
+  }
+
   bool valid() const noexcept { return _vertexbuffer && _indexbuffer; }
 
   explicit operator bool() const noexcept { return valid(); }
@@ -149,8 +154,8 @@ public:
                          const size_t vertex_attributes_count);
 
 private:
-  void create(const std::span<const vertex_pnt>& vertices,
-              const std::span<const uint32_t>&   indices);
+  void create(const std::span<const vertex_pnt> vertices,
+              const std::span<const uint32_t>   indices);
 
   void setup_buffers();
 

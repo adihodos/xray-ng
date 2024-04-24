@@ -18,6 +18,7 @@ CPMAddPackage("gh:TartanLlama/optional@1.1.0")
 CPMAddPackage("gh:vimpunk/mio#master")
 CPMAddPackage("gh:iboB/itlib#master")
 CPMAddPackage("gh:odygrd/quill@3.8.0")
+CPMAddPackage("gh:getml/reflect-cpp#main")
 # CPMAddPackage(
 #   NAME STLSoft
 #   GITHUB_REPOSITORY adihodos/STLSoft-1.10

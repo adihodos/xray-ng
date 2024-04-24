@@ -109,7 +109,7 @@ public:
     return *this;
   }
 
-  void use();
+  void use(const bool flushProgramUniforms = true);
 
 private:
   program_pipeline& use_stage(detail::gpu_program_base& prg,

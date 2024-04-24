@@ -50,7 +50,18 @@ struct geometry_data_t {
 
   using size_type = size_t;
 
-  geometry_data_t() noexcept {}
+  geometry_data_t(geometry_data_t&&) = default;
+
+  geometry_data_t() noexcept = default;
+
+  geometry_data_t(scoped_vector_array_t<vertex_pntt> vertices,
+                  scoped_vector_array_t<uint32_t>    idx,
+                  const size_type                    vtx_count,
+                  const size_type                    idx_count) noexcept
+    : geometry{std::move(vertices)}
+    , indices{std::move(idx)}
+    , vertex_count{vtx_count}
+    , index_count{idx_count} {}
 
   geometry_data_t(const size_type num_vertices, const size_type num_indices) {
     setup(num_vertices, num_indices);
@@ -68,24 +79,40 @@ struct geometry_data_t {
     return vertex_count != 0 && index_count != 0;
   }
 
-  std::span<vertex_pntt> vertex_span() {
+  std::span<vertex_pntt> vertex_span() noexcept {
     assert(vertex_count != 0);
     return std::span{xray::base::raw_ptr(geometry),
-					 static_cast<ptrdiff_t>(vertex_count)};
+                     static_cast<ptrdiff_t>(vertex_count)};
   }
 
-  std::span<uint32_t> index_span() {
+  std::span<const vertex_pntt> vertex_span() const noexcept {
+    assert(vertex_count != 0);
+    return std::span{xray::base::raw_ptr(geometry),
+                     static_cast<ptrdiff_t>(vertex_count)};
+  }
+
+  std::span<const uint32_t> index_span() const noexcept {
     assert(index_count != 0);
     return std::span{xray::base::raw_ptr(indices),
-					 static_cast<ptrdiff_t>(index_count)};
+                     static_cast<ptrdiff_t>(index_count)};
   }
 
-  vertex_pntt* vertex_data() {
+  vertex_pntt* vertex_data() noexcept {
     assert(vertex_count != 0);
     return xray::base::raw_ptr(geometry);
   }
 
-  uint32_t* index_data() {
+  const vertex_pntt* vertex_data() const noexcept {
+    assert(vertex_count != 0);
+    return xray::base::raw_ptr(geometry);
+  }
+
+  uint32_t* index_data() noexcept {
+    assert(index_count != 0);
+    return xray::base::raw_ptr(indices);
+  }
+
+  const uint32_t* index_data() const noexcept {
     assert(index_count != 0);
     return xray::base::raw_ptr(indices);
   }

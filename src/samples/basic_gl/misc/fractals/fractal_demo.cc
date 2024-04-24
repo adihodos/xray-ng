@@ -8,8 +8,8 @@
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/vertex_format/vertex_pc.hpp"
 #include "xray/rendering/vertex_format/vertex_pntt.hpp"
-#include "xray/ui/user_interface.hpp"
 #include "xray/ui/events.hpp"
+#include "xray/ui/user_interface.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -55,89 +55,104 @@ static constexpr nice_shape_def NICE_SHAPES[] = {
 static constexpr uint32_t kIterations[] = {
   16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
 
-app::fractal_demo::fractal_demo(const app::init_context_t& init_ctx)
-  : app::demo_base{init_ctx} {
-  {
-    geometry_data_t quad_mesh;
-    geometry_factory::fullscreen_quad(&quad_mesh);
+tl::optional<app::demo_bundle_t>
+app::fractal_demo::create(const init_context_t& initContext) {
 
-    vector<vertex_pc> quad_vertices;
-    transform(raw_ptr(quad_mesh.geometry),
-              raw_ptr(quad_mesh.geometry) + quad_mesh.vertex_count,
-              back_inserter(quad_vertices),
-              [](const auto& vs_in) {
-                vertex_pc vs_out;
-                vs_out.position = vs_in.position;
-                return vs_out;
-              });
+  geometry_data_t quad_mesh;
+  geometry_factory::fullscreen_quad(&quad_mesh);
 
-    _quad_vb = [&quad_vertices]() {
-      GLuint vbh{};
-      gl::CreateBuffers(1, &vbh);
-      gl::NamedBufferStorage(
-        vbh,
-        (GLsizeiptr)(quad_vertices.size() * sizeof(quad_vertices[0])),
-        &quad_vertices[0],
-        0);
+  vector<vertex_pc> quad_vertices;
+  transform(raw_ptr(quad_mesh.geometry),
+            raw_ptr(quad_mesh.geometry) + quad_mesh.vertex_count,
+            back_inserter(quad_vertices),
+            [](const auto& vs_in) {
+              vertex_pc vs_out;
+              vs_out.position = vs_in.position;
+              return vs_out;
+            });
 
-      return vbh;
-    }();
+  scoped_buffer quad_vb{[&quad_vertices]() {
+    GLuint vbh{};
+    gl::CreateBuffers(1, &vbh);
+    gl::NamedBufferStorage(
+      vbh,
+      (GLsizeiptr) (quad_vertices.size() * sizeof(quad_vertices[0])),
+      &quad_vertices[0],
+      0);
 
-    _quad_ib = [qm = &quad_mesh]() {
-      GLuint ib{};
-      gl::CreateBuffers(1, &ib);
-      gl::NamedBufferStorage(ib,
-                             (GLsizeiptr)(sizeof(uint32_t) * qm->index_count),
-                             raw_ptr(qm->indices),
-                             0);
-      return ib;
-    }
-    ();
+    return vbh;
+  }()};
 
-    if (!_quad_ib)
-      return;
-  }
+  if (!quad_vb)
+    return tl::nullopt;
 
-  _quad_layout = [ vb = raw_handle(_quad_vb), ib = raw_handle(_quad_ib) ]() {
-    GLuint vao{};
-    gl::CreateVertexArrays(1, &vao);
-    gl::VertexArrayVertexBuffer(vao, 0, vb, 0, (GLsizei) sizeof(vertex_pc));
-    gl::VertexArrayElementBuffer(vao, ib);
+  scoped_buffer quad_ib{[qm = &quad_mesh]() {
+    GLuint ib{};
+    gl::CreateBuffers(1, &ib);
+    gl::NamedBufferStorage(ib,
+                           (GLsizeiptr) (sizeof(uint32_t) * qm->index_count),
+                           raw_ptr(qm->indices),
+                           0);
+    return ib;
+  }()};
 
-    gl::VertexArrayAttribFormat(
-      vao, 0, 3, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pc, position));
-    gl::EnableVertexArrayAttrib(vao, 0);
-    gl::VertexArrayAttribBinding(vao, 0, 0);
+  if (!quad_ib)
+    return tl::nullopt;
 
-    return vao;
-  }
-  ();
+  scoped_vertex_array quad_layout{
+    [vb = raw_handle(quad_vb), ib = raw_handle(quad_ib)]() {
+      GLuint vao{};
+      gl::CreateVertexArrays(1, &vao);
+      gl::VertexArrayVertexBuffer(vao, 0, vb, 0, (GLsizei) sizeof(vertex_pc));
+      gl::VertexArrayElementBuffer(vao, ib);
 
-  _vs = gpu_program_builder{}
-          .add_file("shaders/misc/fractals/fractal_vert.glsl")
-          .build<render_stage::e::vertex>();
+      gl::VertexArrayAttribFormat(
+        vao, 0, 3, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pc, position));
+      gl::EnableVertexArrayAttrib(vao, 0);
+      gl::VertexArrayAttribBinding(vao, 0, 0);
 
-  if (!_vs)
-    return;
+      return vao;
+    }()};
 
-  _fs = gpu_program_builder{}
-          .add_file("shaders/misc/fractals/fractal_frag.glsl")
-          .build<render_stage::e::fragment>();
+  if (!quad_layout)
+    return tl::nullopt;
 
-  if (!_fs)
-    return;
+  vertex_program vs{gpu_program_builder{}
+                      .add_file("shaders/misc/fractals/fractal_vert.glsl")
+                      .build<render_stage::e::vertex>()};
 
-  _pipeline = program_pipeline{[]() {
+  if (!vs)
+    return tl::nullopt;
+
+  fragment_program fs{gpu_program_builder{}
+                        .add_file("shaders/misc/fractals/fractal_frag.glsl")
+                        .build<render_stage::e::fragment>()};
+
+  if (!fs)
+    return tl::nullopt;
+
+  program_pipeline pipeline{[]() {
     GLuint ppl{};
     gl::CreateProgramPipelines(1, &ppl);
     return ppl;
   }()};
 
-  _pipeline.use_vertex_program(_vs).use_fragment_program(_fs);
-  _valid = true;
+  pipeline.use_vertex_program(vs).use_fragment_program(fs);
 
-  gl::Disable(gl::DEPTH_TEST);
-  _ui->set_global_font("UbuntuMono-Regular");
+  auto demoObj          = xray::base::make_unique<fractal_demo>(initContext,
+                                                       move(quad_vb),
+                                                       move(quad_ib),
+                                                       move(quad_layout),
+                                                       move(vs),
+                                                       move(fs),
+                                                       move(pipeline));
+  auto winEventHandler  = make_delegate(*demoObj, &fractal_demo::event_handler);
+  auto loopEventHandler = make_delegate(*demoObj, &fractal_demo::loop_event);
+
+  demoObj->_valid = true;
+
+  return tl::make_optional<demo_bundle_t>(
+    move(demoObj), winEventHandler, loopEventHandler);
 }
 
 app::fractal_demo::~fractal_demo() {}
@@ -196,7 +211,9 @@ void app::fractal_demo::draw(const int32_t surface_w, const int32_t surface_h) {
   _fs.set_uniform_block("fractal_params", _fp);
 
   gl::BindVertexArray(raw_handle(_quad_layout));
-  _pipeline.use();
+  _pipeline.use(false);
+  _vs.flush_uniforms();
+  _fs.flush_uniforms();
   gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, nullptr);
 }
 

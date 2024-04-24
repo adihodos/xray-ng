@@ -54,6 +54,11 @@ struct rgba {
   uint8_t a;
 };
 
+struct InstanceXData {
+  mat4f worldViewProjection;
+  mat4f object2World;
+};
+
 app::simple_world::simple_world() {
   texture_loader tl{
     xr_app_config->texture_path("worlds/world1/seed_7677_elevation.png")
@@ -85,13 +90,15 @@ app::simple_world::simple_world() {
   gl::SamplerParameteri(
     raw_handle(_sampler), gl::TEXTURE_MAG_FILTER, gl::LINEAR);
 
-  geometry_data_t geometry;
-  geometry_factory::grid(_worldsize.x, _worldsize.y, 1024, 1024, &geometry);
+  const geometry_data_t geometry{
+    geometry_factory::grid(_worldsize.x, _worldsize.y, 1.0f, 1.0f)};
 
-  XR_LOG_INFO(
-    "Vertices {}, indices {}", geometry.vertex_count, geometry.index_count);
+  XR_LOG_INFO("World grid: vertices {}, indices {}",
+              geometry.vertex_count,
+              geometry.index_count);
 
   vector<vertex_pnt> vertices{};
+  vertices.reserve(geometry.vertex_count);
   transform(raw_ptr(geometry.geometry),
             raw_ptr(geometry.geometry) + geometry.vertex_count,
             back_inserter(vertices),
@@ -99,10 +106,10 @@ app::simple_world::simple_world() {
               return vertex_pnt{vtx.position, vtx.normal, vtx.texcoords};
             });
 
-  _world = basic_mesh{vertices.data(),
-                      vertices.size(),
-                      raw_ptr(geometry.indices),
-                      geometry.index_count};
+  _world =
+    basic_mesh{std::span{vertices},
+               std::span{raw_ptr(geometry.indices),
+                         raw_ptr(geometry.indices) + geometry.index_count}};
 
   _vs = gpu_program_builder{}
           .add_file("shaders/misc/instanced_draw/vs.world.glsl")
@@ -127,12 +134,14 @@ void app::simple_world::draw(const xray::scene::camera* cam) {
 
   _vs.set_uniform("WORLD_VIEW_PROJ", cam->projection_view());
 
+  gl::FrontFace(gl::CW);
   gl::BindVertexArray(_world.vertex_array());
   _pp.use();
   gl::BindTextureUnit(0, raw_handle(_heightmap));
   gl::BindSampler(0, raw_handle(_sampler));
   gl::DrawElements(
     gl::TRIANGLES, _world.index_count(), gl::UNSIGNED_INT, nullptr);
+  gl::FrontFace(gl::CCW);
 }
 
 app::instanced_drawing_demo::instanced_drawing_demo(
@@ -439,7 +448,8 @@ app::instanced_drawing_demo::instanced_drawing_demo(
     GLuint buff{};
     gl::CreateBuffers(1, &buff);
     gl::NamedBufferStorage(buff,
-                           sizeof(mat4f) * object_instances::instance_count,
+                           sizeof(InstanceXData) *
+                             object_instances::instance_count,
                            nullptr,
                            gl::MAP_WRITE_BIT);
 
@@ -464,6 +474,7 @@ app::instanced_drawing_demo::instanced_drawing_demo(
 
   gl::Enable(gl::DEPTH_TEST);
   gl::Enable(gl::CULL_FACE);
+  gl::FrontFace(gl::CCW);
   gl::ViewportIndexedf(0,
                        0.0f,
                        0.0f,
@@ -513,7 +524,7 @@ void app::instanced_drawing_demo::loop_event(
                }
              });
 
-    vector<mat4f> instance_transforms;
+    vector<InstanceXData> instance_transforms;
 
     transform(begin(_obj_instances.instances),
               end(_obj_instances.instances),
@@ -522,9 +533,10 @@ void app::instanced_drawing_demo::loop_event(
                 const auto obj_rotation =
                   mat4f{R3::rotate_xyz(ii.roll, ii.yaw, ii.pitch)};
 
-                return transpose(_scene.camera.projection_view() *
-                                 R4::translate(ii.position) * obj_rotation *
-                                 mat4f{R3::scale(ii.scale)});
+                return InstanceXData{
+                  _scene.camera.projection_view() * R4::translate(ii.position) *
+                    obj_rotation * mat4f{R3::scale(ii.scale)},
+                  obj_rotation};
               });
 
     scoped_resource_mapping buffermap{
@@ -552,8 +564,6 @@ void app::instanced_drawing_demo::loop_event(
                           raw_handle(_obj_instances.buffer_texture_ids)};
 
   gl::BindBuffersBase(gl::SHADER_STORAGE_BUFFER, 0, 2, ssbos);
-
-  scoped_winding_order_setting set_cw_winding{gl::CW};
 
   gl::BindVertexArray(raw_handle(_vertexarray));
   gl::BindTextureUnit(0, raw_handle(_textures));

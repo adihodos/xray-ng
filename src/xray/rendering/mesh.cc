@@ -61,8 +61,8 @@ xray::rendering::basic_mesh::basic_mesh(
 }
 
 void xray::rendering::basic_mesh::create(
-  const std::span<const vertex_pnt>& vertices,
-  const std::span<const uint32_t>&   indices) {
+  const std::span<const vertex_pnt> vertices,
+  const std::span<const uint32_t>   indices) {
   assert(!vertices.empty());
   assert(!indices.empty());
 
@@ -71,7 +71,7 @@ void xray::rendering::basic_mesh::create(
 
   memcpy(
     _vertices.data(), vertices.data(), vertices.size() * sizeof(vertices[0]));
-  memcpy(_indices.data(), indices.data(), indices.size() * sizeof(vertices[0]));
+  memcpy(_indices.data(), indices.data(), indices.size() * sizeof(indices[0]));
 
   setup_buffers();
 }

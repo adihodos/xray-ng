@@ -33,7 +33,9 @@
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
+
 #include <cstdint>
+#include <tuple>
 
 namespace xray {
 namespace scene {
@@ -46,6 +48,11 @@ class user_interface;
 } // namespace xray
 
 namespace app {
+
+class demo_base;
+using demo_bundle_t = std::tuple<xray::base::unique_pointer<demo_base>,
+                                 xray::ui::window_event_delegate,
+                                 xray::ui::loop_event_delegate>;
 
 class demo_base {
 public:
