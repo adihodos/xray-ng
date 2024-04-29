@@ -31,6 +31,15 @@
 #pragma once
 
 #include "xray/xray.hpp"
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <vector>
+
+#include <itlib/small_vector.hpp>
+#include <tl/optional.hpp>
+
 #include "demo_base.hpp"
 #include "mesh_lister.hpp"
 #include "xray/base/basic_timer.hpp"
@@ -45,7 +54,6 @@
 #include "xray/rendering/opengl/program_pipeline.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
-#include <cstdint>
 
 namespace app {
 
@@ -55,6 +63,10 @@ struct directional_light {
   xray::rendering::rgb_color ks;
   xray::math::vec3f          direction;
   float                      _pad;
+  xray::math::vec3f          half_vector;
+  float                      shininess{20.0f};
+  float                      strength{20.0f};
+  float                      _pad0[3];
 };
 
 struct obj_type {
@@ -70,8 +82,6 @@ struct graphics_object {
 
 class directional_light_demo : public demo_base {
 public:
-  directional_light_demo(const init_context_t& init_ctx);
-
   ~directional_light_demo();
 
   virtual void event_handler(const xray::ui::window_event& evt) override;
@@ -79,49 +89,78 @@ public:
   virtual void poll_start(const xray::ui::poll_start_event&) override;
   virtual void poll_end(const xray::ui::poll_end_event&) override;
 
+  static std::string_view short_desc() noexcept {
+    return "Directional lighting.";
+  }
+
+  static std::string_view detailed_desc() noexcept {
+    return "Demonstrates the use of directional lighting.";
+  }
+
+  static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
+
 private:
-  void init();
+  enum class SwitchMeshOpt { LoadFromFile, UseExisting };
+
   void draw();
   void draw_ui(const int32_t surface_w, const int32_t surface_h);
   void update(const float delta_ms);
-  void switch_mesh(const char* mesh_path);
+  void switch_mesh(const SwitchMeshOpt switchMeshOpt);
 
 private:
-  xray::base::timer_highp                    _timer;
-  xray::rendering::surface_normal_visualizer _drawnormals{};
-  xray::rendering::basic_mesh                _meshes[2];
-  graphics_object                            _objects[2];
-  xray::rendering::vertex_program            _vs;
-  xray::rendering::fragment_program          _fs;
-  xray::rendering::program_pipeline          _pipeline;
-  xray::rendering::scoped_texture            _objtex[2];
-  xray::rendering::scoped_sampler            _sampler;
-  directional_light                          _lights[1];
+  struct RenderState {
+    xray::rendering::surface_normal_visualizer           drawNormals;
+    itlib::small_vector<xray::rendering::basic_mesh, 4>  geometryObjects;
+    itlib::small_vector<graphics_object, 4>              graphicsObjects;
+    xray::rendering::vertex_program                      vs;
+    xray::rendering::fragment_program                    fs;
+    xray::rendering::program_pipeline                    pipeline;
+    itlib::small_vector<xray::rendering::scoped_texture> objectTextures;
+    xray::rendering::scoped_sampler                      sampler;
+  } mRenderState;
 
-  struct {
-    xray::math::vec3f          lightdir{0.0f, -1.0f, 0.0f};
-    xray::math::vec3f          kd{};
-    xray::math::vec3f          ks{};
+  struct DemoOptions {
+    xray::math::vec3f          lightdir{-1.0f, -1.0f, -1.0f};
+    xray::math::vec3f          ka{static_cast<xray::math::vec3f>(
+      xray::rendering::color_palette::web::light_gray)};
+    xray::math::vec3f          kd{static_cast<xray::math::vec3f>(
+      xray::rendering::color_palette::web::white)};
+    xray::math::vec3f          ks{static_cast<xray::math::vec3f>(
+      xray::rendering::color_palette::web::silver)};
     xray::rendering::rgb_color kd_main{
       xray::rendering::color_palette::material::blue300};
-    float specular_intensity{10.0f};
     bool  rotate_x{false};
     bool  rotate_y{true};
     bool  rotate_z{false};
     bool  drawnormals{false};
     float rotate_speed{0.01f};
     float normal_len{0.5f};
-  } _demo_opts;
+  } mDemoOptions;
 
-  struct {
+  struct ModelInfo {
+    std::filesystem::path path;
+    std::string           description;
+  };
+
+  struct Scene {
     xray::scene::camera                             cam;
     xray::scene::camera_controller_spherical_coords cam_control{
       &cam, "config/lighting/directional_light/cam_controller_spherical.conf"};
-    mesh_lister available_meshes;
-    int32_t     current_mesh_idx{};
-  } _scene;
+    std::vector<ModelInfo>                    modelFiles;
+    int32_t                                   current_mesh_idx{};
+    itlib::small_vector<directional_light, 4> lights{};
+    xray::base::timer_highp                   timer;
+    std::string                               debugOutput;
+  } mScene;
 
 private:
+  directional_light_demo(const init_context_t& ctx,
+                         RenderState&&         rs,
+                         const DemoOptions&    ds,
+                         Scene&&               s);
+
+  void adjust_model_transforms();
+
   XRAY_NO_COPY(directional_light_demo);
 };
 

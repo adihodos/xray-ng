@@ -29,6 +29,8 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#include "xray/math/scalar3.hpp"
+#include "xray/math/scalar4.hpp"
 
 namespace xray {
 namespace rendering {
@@ -70,8 +72,26 @@ public:
                       const float alpha = 1.0f) noexcept
     : r{red}, g{green}, b{blue}, a{alpha} {}
 
+  constexpr explicit rgb_color(const math::vec3f v, const float a_ = 1.0f)
+    : r{v.x}, g{v.y}, b{v.z}, a{a_} {}
+
+  constexpr explicit rgb_color(const math::vec4f v)
+    : r{v.x}
+    , g{v.y}
+    , b{v.z}
+    , a{v.w}
+
+  {}
+
   /// \name   Conversions
   /// @{
+  explicit operator math::vec3f() const noexcept {
+    return math::vec3f{this->r, this->g, this->b};
+  }
+
+  explicit operator math::vec4f() const noexcept {
+    return math::vec4f{this->r, this->g, this->b, this->a};
+  }
 
 public:
   /// \name   Self assign operators

@@ -38,7 +38,8 @@
 #include <span>
 #include <vector>
 
-#include "platformstl/filesystem/memory_mapped_file.hpp"
+#include <platformstl/filesystem/memory_mapped_file.hpp>
+
 #include "xray/base/maybe.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/objects/aabb3.hpp"
@@ -71,6 +72,7 @@ struct vertex_attribute_descriptor {
   const instance_descriptor* instance_desc{};
 };
 
+// TODO: this class has a terrible desing and needs to be revisited
 class basic_mesh {
 public:
   using vertex_buffer_handle       = GLuint;
@@ -91,6 +93,14 @@ public:
   basic_mesh(std::span<const vertex_pnt> vertices,
              std::span<const uint32_t>   indices) {
     create(vertices, indices);
+	compute_bounding();
+  }
+
+  basic_mesh(const mesh_loader& ml) {
+    const mesh_loader* mloader = &ml; // mlady monkaS
+    create(mloader->vertex_span(), mloader->index_span());
+    _aabb    = mloader->bounding().axis_aligned_bbox;
+    _bsphere = mloader->bounding().bounding_sphere;
   }
 
   bool valid() const noexcept { return _vertexbuffer && _indexbuffer; }

@@ -34,6 +34,12 @@
 #include <stlsoft/memory/auto_buffer.hpp>
 #include <string>
 
+#define XRAY_MATH_ENABLE_FMT_SUPPORT
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
+#include <fmt/core.h>
+#include <fmt/format.h>
+#endif
+
 namespace xray {
 namespace math {
 
@@ -48,3 +54,52 @@ std::string string_cast(const scalar3<T>& s) {
 
 } // namespace math
 } // namespace xray
+
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
+
+namespace fmt {
+
+// template <typename T>
+// struct formatter<xray::math::scalar3<T>> {
+//   template <typename ParseContext>
+//   constexpr auto parse(ParseContext& ctx);
+//
+//   template <typename FormatContext>
+//   auto format(const xray::math::scalar3<T>& val, FormatContext& ctx);
+// };
+//
+// template <typename T>
+// template <typename ParseContext>
+// constexpr auto formatter<xray::math::scalar3<T>>::parse(ParseContext& ctx) {
+//   return ctx.begin();
+// }
+//
+// template <typename T>
+// template <typename FormatContext>
+// auto formatter<xray::math::scalar3<T>>::format(const xray::math::scalar3<T>&
+// val,
+//                                         FormatContext&    ctx) {
+//   return fmt::format_to(
+//     ctx.begin(), "scalar3 = {.x = {}, .y = {}, .z = {}}", val.x, val.y,
+//     val.z);
+// }
+
+template <typename T>
+struct formatter<xray::math::scalar3<T>> : nested_formatter<T> {
+
+  // Formats value using the parsed format specification stored in this
+  // formatter and writes the output to ctx.out().
+  auto format(const xray::math::scalar3<T>& value, format_context& ctx) const {
+    return this->write_padded(ctx, [=](auto out) {
+      return fmt::format_to(out,
+                            "scalar3 [ .x = {}, .y = {}, .z = {} ]",
+                            this->nested(value.x),
+                            this->nested(value.y),
+                            this->nested(value.z));
+    });
+  }
+};
+
+} // namespace fmt
+
+#endif

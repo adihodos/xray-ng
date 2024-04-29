@@ -47,6 +47,7 @@ class basic_mesh;
 class surface_normal_visualizer {
 public:
   surface_normal_visualizer();
+  XRAY_DEFAULT_MOVE(surface_normal_visualizer);
 
   void draw(const xray::rendering::draw_context_t& ctx,
             const basic_mesh&                      mesh,

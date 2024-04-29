@@ -6,8 +6,7 @@ file(
   DOWNLOAD
   https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.38.3/CPM.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake
-  EXPECTED_HASH SHA256=cc155ce02e7945e7b8967ddfaff0b050e958a723ef7aad3766d368940cb15494
-)
+  EXPECTED_HASH SHA256=cc155ce02e7945e7b8967ddfaff0b050e958a723ef7aad3766d368940cb15494)
 include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
 
@@ -19,11 +18,11 @@ CPMAddPackage("gh:vimpunk/mio#master")
 CPMAddPackage("gh:iboB/itlib#master")
 CPMAddPackage("gh:odygrd/quill@3.8.0")
 CPMAddPackage("gh:getml/reflect-cpp#main")
-# CPMAddPackage(
-#   NAME STLSoft
-#   GITHUB_REPOSITORY adihodos/STLSoft-1.10
-#   GIT_TAG fixes
-#   OPTIONS "BUILD_TESTING OFF")
+CPMAddPackage(
+  NAME pipes
+  GITHUB_REPOSITORY adihodos/pipes
+  GIT_TAG master
+  OPTIONS "BUILD_TESTING OFF")
 
 CPMAddPackage(
   NAME libconfig
@@ -32,8 +31,7 @@ CPMAddPackage(
   OPTIONS "BUILD_TESTING OFF"
   "BUILD_EXAMPLES OFF"
   "BUILD_SHARED_LIBS OFF"
-  "BUILD_TESTS OFF"
-)
+  "BUILD_TESTS OFF")
 
 # set(CMAKE_MODULE_PATH
 #   "${CMAKE_PROJECT_DIR}/cmake"

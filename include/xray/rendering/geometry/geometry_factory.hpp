@@ -52,14 +52,14 @@ struct vertex_ripple_parameters {
 struct vertex_effect {
   template <typename vertex_type>
   static void ripple(std::span<vertex_type>          vertices,
-                     std::span<uint32_t>             indices,
+                     std::span<const uint32_t>       indices,
                      const vertex_ripple_parameters& rp) noexcept;
 };
 
 template <typename vertex_type>
 void xray::rendering::vertex_effect::ripple(
   std::span<vertex_type>          vertices,
-  std::span<uint32_t>             indices,
+  std::span<const uint32_t>       indices,
   const vertex_ripple_parameters& rp) noexcept {
 
   const auto scale_x = rp.width * 0.5f;

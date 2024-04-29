@@ -4,7 +4,6 @@ project(basic-gl-app)
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/src/samples/basic_gl")
 set(proj_src_dir "${CMAKE_SOURCE_DIR}/src/samples/basic_gl")
 
-
 set(project_sources
   # ${proj_inc_dir}/animated_plane.hpp
   # ${proj_src_dir}/animated_plane.cc
@@ -213,7 +212,8 @@ target_link_libraries(${PROJECT_NAME}
   xray-ui
   TBB::tbb
   itlib::itlib
-  quill::quill)
+  quill::quill
+  joboccara::pipes)
 
 add_custom_target(COPY_SHADERS ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders

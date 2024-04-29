@@ -68,6 +68,9 @@
 #include "misc/mesh/mesh_demo.hpp"
 // #include "misc/terrain/basic/terrain_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
+#include <rangelib/algorithms.hpp>
+#include <rangelib/rangelib.hpp>
+#include <rangelib/sequence_range.hpp>
 
 // #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 // #include <quill/Quill.h>
@@ -97,6 +100,8 @@ struct RegisteredDemosList<T, Rest...> {
   static void registerDemo(vector<DemoInfo>& demoList) {
     demoList.emplace_back(
       T::short_desc(), T::detailed_desc(), make_delegate(T::create));
+
+    RegisteredDemosList<Rest...>::registerDemo(demoList);
   }
 };
 
@@ -196,7 +201,13 @@ main_app::main_app(xray::ui::window* wnd) : _window{wnd} {
 
   hookup_event_delegates();
 
-  RegisteredDemosList<fractal_demo>::registerDemo(_registeredDemos);
+  RegisteredDemosList<fractal_demo, directional_light_demo>::registerDemo(
+    _registeredDemos);
+
+  rangelib::r_for_each(
+    rangelib::make_sequence_range(_registeredDemos), [](const DemoInfo& demo) {
+      XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc);
+    });
 
   _ui->set_global_font("Roboto-Regular");
   _timer.start();
@@ -306,71 +317,73 @@ void main_app::run_demo(const demo_type type) {
   //     xr_app_config,
   //     xray::base::raw_ptr(_ui),
   //     make_delegate(*this, &main_app::demo_quit)};
-  // 
+  //
   //   switch (dtype) {
-  // 
+  //
   //     //    case demo_type::colored_circle:
   //     //      return xray::base::make_unique<colored_circle_demo>();
   //     //      break;
-  // 
+  //
   //   case demo_type::fractal:
   //     return xray::base::make_unique<fractal_demo>(init_context);
   //     break;
-  // 
+  //
   //   case demo_type::texture_array:
   //     return xray::base::make_unique<texture_array_demo>(init_context);
   //     break;
-  // 
+  //
   //   case demo_type::mesh:
   //     return xray::base::make_unique<mesh_demo>(init_context);
   //     break;
-  // 
+  //
   //     //    case demo_type::bufferless_draw:
   //     //      return xray::base::make_unique<bufferless_draw_demo>();
   //     //      break;
-  // 
+  //
   //   case demo_type::lighting_directional:
   //     return xray::base::make_unique<directional_light_demo>(init_context);
   //     break;
-  // 
+  //
   //     //    case demo_type::procedural_city:
   //     //      return
   //     //      xray::base::make_unique<procedural_city_demo>(init_context);
   //     //      break;
-  // 
+  //
   //   case demo_type::instanced_drawing:
   //     return xray::base::make_unique<instanced_drawing_demo>(init_context);
   //     break;
-  // 
+  //
   //     //    case demo_type::geometric_shapes:
   //     //      return
   //     //      xray::base::make_unique<geometric_shapes_demo>(init_context);
   //     //      break;
-  // 
+  //
   //     //    case demo_type::lighting_point:
-  //     //      return xray::base::make_unique<point_light_demo>(&init_context);
+  //     //      return
+  //     xray::base::make_unique<point_light_demo>(&init_context);
   //     //      break;
-  // 
+  //
   //     // case demo_type::terrain_basic:
   //     //   return xray::base::make_unique<terrain_demo>(init_context);
   //     //   break;
-  // 
+  //
   //   default:
   //     break;
   //   }
-  // 
+  //
   //   return nullptr;
   // };
-  // 
+  //
   // _demo = make_demo_fn(type);
   // if (!_demo) {
   //   return;
   // }
-  // 
+  //
   // _window->events.loop       = make_delegate(*_demo, &demo_base::loop_event);
   // _window->events.poll_start = make_delegate(*_demo, &demo_base::poll_start);
   // _window->events.poll_end   = make_delegate(*_demo, &demo_base::poll_end);
-  // _window->events.window     = make_delegate(*_demo, &demo_base::event_handler);
+  // _window->events.window     = make_delegate(*_demo,
+  // &demo_base::event_handler);
 }
 
 void debug_proc(GLenum source,
