@@ -34,30 +34,45 @@
 namespace xray {
 namespace rendering {
 
-enum class vertex_format { undefined, p, pn, pt, pnt, pntt };
-
-enum class index_format { u16, u32 };
-
-struct component_type {
-  enum {
-    signed_byte,
-    unsigned_byte,
-    signed_short,
-    unsigned_short,
-    signed_int,
-    unsigned_int,
-    float_,
-    double_
-  };
+enum class vertex_format
+{
+    undefined,
+    p,
+    pn,
+    pt,
+    pnt,
+    pntt
 };
 
-struct vertex_format_entry_desc {
-  uint32_t component_count;
-  uint32_t component_type;
-  uint32_t component_offset;
+enum class index_format
+{
+    u16,
+    u32
 };
 
-template <xray::rendering::vertex_format fmt>
+struct component_type
+{
+    enum
+    {
+        signed_byte,
+        unsigned_byte,
+        signed_short,
+        unsigned_short,
+        signed_int,
+        unsigned_int,
+        float_,
+        double_
+    };
+};
+
+struct vertex_format_entry_desc
+{
+    uint32_t component_count;
+    uint32_t component_type;
+    uint32_t component_offset;
+};
+
+template<xray::rendering::vertex_format fmt>
 struct vertex_format_traits;
 
 } // namespace rendering

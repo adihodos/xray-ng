@@ -34,12 +34,13 @@
 namespace xray {
 namespace rendering {
 
-struct draw_elements_indirect_command {
-  uint32_t count;
-  uint32_t instance_count;
-  uint32_t first_index;
-  uint32_t base_vertex;
-  uint32_t base_instance;
+struct draw_elements_indirect_command
+{
+    uint32_t count;
+    uint32_t instance_count;
+    uint32_t first_index;
+    uint32_t base_vertex;
+    uint32_t base_instance;
 };
 
 } // namespace rendering

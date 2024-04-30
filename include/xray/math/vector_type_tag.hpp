@@ -37,10 +37,12 @@ namespace math {
 /// @{
 
 /// \brief      Interpret vector in row format.
-struct row_tag {};
+struct row_tag
+{};
 
 /// \brief      Interpret vector in column format.
-struct col_tag {};
+struct col_tag
+{};
 
 /// @}
 

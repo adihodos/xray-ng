@@ -30,8 +30,8 @@
 
 /// \file gpu_shader.hpp
 
-#include "xray/xray.hpp"
 #include "xray/rendering/directx/gpu_shader.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 #include <d3d11.h>
 
@@ -41,32 +41,31 @@ namespace rendering {
 /// \addtogroup __GroupXrayRendering_Directx
 /// @{
 
-struct vertex_shader_traits {
-  using interface_type = ID3D11VertexShader;
-  using handle_type    = ID3D11VertexShader*;
+struct vertex_shader_traits
+{
+    using interface_type = ID3D11VertexShader;
+    using handle_type = ID3D11VertexShader*;
 
-  static constexpr const char* const target = "vs_5_0";
+    static constexpr const char* const target = "vs_5_0";
 
-  static handle_type create(ID3D11Device* device,
-                            ID3D10Blob*   compiled_bytecode) {
-    ID3D11VertexShader* vs{};
-    device->CreateVertexShader(compiled_bytecode->GetBufferPointer(),
-                               compiled_bytecode->GetBufferSize(), nullptr,
-                               &vs);
-    return vs;
-  }
+    static handle_type create(ID3D11Device* device, ID3D10Blob* compiled_bytecode)
+    {
+        ID3D11VertexShader* vs{};
+        device->CreateVertexShader(
+            compiled_bytecode->GetBufferPointer(), compiled_bytecode->GetBufferSize(), nullptr, &vs);
+        return vs;
+    }
 
-  static void bind(ID3D11DeviceContext* context, ID3D11VertexShader* shader) {
-    context->VSSetShader(shader, nullptr, 0);
-  }
+    static void bind(ID3D11DeviceContext* context, ID3D11VertexShader* shader)
+    {
+        context->VSSetShader(shader, nullptr, 0);
+    }
 
-  static constexpr auto set_constant_buffers =
-      &ID3D11DeviceContext::VSSetConstantBuffers;
+    static constexpr auto set_constant_buffers = &ID3D11DeviceContext::VSSetConstantBuffers;
 
-  static constexpr auto set_resource_views =
-      &ID3D11DeviceContext::VSSetShaderResources;
+    static constexpr auto set_resource_views = &ID3D11DeviceContext::VSSetShaderResources;
 
-  static constexpr auto set_samplers = &ID3D11DeviceContext::VSSetSamplers;
+    static constexpr auto set_samplers = &ID3D11DeviceContext::VSSetSamplers;
 };
 
 using vertex_shader = gpu_shader<vertex_shader_traits>;

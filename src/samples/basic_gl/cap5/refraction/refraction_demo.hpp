@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "light_source.hpp"
 #include "material.hpp"
@@ -38,47 +37,49 @@
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
-class refraction_demo : public demo_base {
-public:
-  refraction_demo();
+class refraction_demo : public demo_base
+{
+  public:
+    refraction_demo();
 
-  ~refraction_demo();
+    ~refraction_demo();
 
-  void compose_ui();
+    void compose_ui();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
 
-  virtual void update(const float delta_ms) override;
+    virtual void update(const float delta_ms) override;
 
-  virtual void key_event(const int32_t key_code, const int32_t action,
-                         const int32_t mods) override;
+    virtual void key_event(const int32_t key_code, const int32_t action, const int32_t mods) override;
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  void init();
+  private:
+    void init();
 
-private:
-  xray::rendering::gpu_program         _drawprogram;
-  xray::rendering::scoped_buffer       _vertexbuffer_skybox;
-  xray::rendering::scoped_buffer       _indexbuffer_skybox;
-  xray::rendering::scoped_vertex_array _vertexarray_skybox;
-  uint32_t                             _skybox_indexcount{};
-  xray::rendering::simple_mesh         _spacecraft;
-  xray::rendering::scoped_texture      _skybox_texture;
-  xray::rendering::scoped_sampler      _skybox_sampler;
-  bool                                 _skybox_wiremesh{false};
+  private:
+    xray::rendering::gpu_program _drawprogram;
+    xray::rendering::scoped_buffer _vertexbuffer_skybox;
+    xray::rendering::scoped_buffer _indexbuffer_skybox;
+    xray::rendering::scoped_vertex_array _vertexarray_skybox;
+    uint32_t _skybox_indexcount{};
+    xray::rendering::simple_mesh _spacecraft;
+    xray::rendering::scoped_texture _skybox_texture;
+    xray::rendering::scoped_sampler _skybox_sampler;
+    bool _skybox_wiremesh{ false };
 
-  struct refraction_params_t {
-    float refract_surface{0.9f};
-    float reflect_surface{0.1f};
-  } _surfaceparams;
+    struct refraction_params_t
+    {
+        float refract_surface{ 0.9f };
+        float reflect_surface{ 0.1f };
+    } _surfaceparams;
 
-private:
-  XRAY_NO_COPY(refraction_demo);
+  private:
+    XRAY_NO_COPY(refraction_demo);
 };
 
 } // namespace app

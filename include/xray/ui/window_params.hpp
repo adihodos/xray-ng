@@ -36,16 +36,17 @@
 namespace xray {
 namespace ui {
 
-struct window_params_t {
-  const char* title;
-  int32_t     ver_major;
-  int32_t     ver_minor;
-  int32_t     depth_bits;
-  int32_t     stencil_bits;
-  int32_t     color_bits;
-  int32_t     sample_count;
-  uint32_t    debug_output_level;
-  bool        grab_input{false};
+struct window_params_t
+{
+    const char* title;
+    int32_t ver_major;
+    int32_t ver_minor;
+    int32_t depth_bits;
+    int32_t stencil_bits;
+    int32_t color_bits;
+    int32_t sample_count;
+    uint32_t debug_output_level;
+    bool grab_input{ false };
 };
 
 } // namespace ui

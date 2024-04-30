@@ -26,168 +26,168 @@ using namespace xray::math;
 using namespace xray::rendering;
 using namespace std;
 
-app::normal_map_demo::normal_map_demo() { init(); }
+app::normal_map_demo::normal_map_demo()
+{
+    init();
+}
 
 app::normal_map_demo::~normal_map_demo() {}
 
-void app::normal_map_demo::draw(const xray::rendering::draw_context_t& dc) {
-  assert(valid());
+void
+app::normal_map_demo::draw(const xray::rendering::draw_context_t& dc)
+{
+    assert(valid());
 
-  gl::BindVertexArray(raw_handle(_vertex_array));
+    gl::BindVertexArray(raw_handle(_vertex_array));
 
-  const GLuint bound_textures[] = {raw_handle(_diffuse_map),
-                                   raw_handle(_normal_map)};
-  gl::BindTextures(0, 2, bound_textures);
+    const GLuint bound_textures[] = { raw_handle(_diffuse_map), raw_handle(_normal_map) };
+    gl::BindTextures(0, 2, bound_textures);
 
-  const GLuint bound_samplers[] = {raw_handle(_sampler), raw_handle(_sampler)};
-  gl::BindSamplers(0, 2, bound_samplers);
+    const GLuint bound_samplers[] = { raw_handle(_sampler), raw_handle(_sampler) };
+    gl::BindSamplers(0, 2, bound_samplers);
 
-  struct matrix_pack {
-    mat4f world_view;
-    mat4f normal_view;
-    mat4f wvp;
-  } const obj_transforms{dc.view_matrix, dc.view_matrix, dc.proj_view_matrix};
+    struct matrix_pack
+    {
+        mat4f world_view;
+        mat4f normal_view;
+        mat4f wvp;
+    } const obj_transforms{ dc.view_matrix, dc.view_matrix, dc.proj_view_matrix };
 
-  gl::UseProgram(_draw_program.handle());
-  _draw_program.set_uniform_block("obj_transforms", obj_transforms);
+    gl::UseProgram(_draw_program.handle());
+    _draw_program.set_uniform_block("obj_transforms", obj_transforms);
 
-  const light_source sl{mul_point(dc.view_matrix, vec3f{0.0f, 15.0f, 15.0f}),
-                        0.0f, color_palette::material::white,
-                        color_palette::material::white,
-                        color_palette::material::white};
+    const light_source sl{ mul_point(dc.view_matrix, vec3f{ 0.0f, 15.0f, 15.0f }),
+                           0.0f,
+                           color_palette::material::white,
+                           color_palette::material::white,
+                           color_palette::material::white };
 
-  _draw_program.set_uniform_block("scene_lights", sl);
-  _draw_program.set_uniform("diffuse_map", 0);
-  _draw_program.set_uniform("normal_map", 1);
-  _draw_program.bind_to_pipeline();
+    _draw_program.set_uniform_block("scene_lights", sl);
+    _draw_program.set_uniform("diffuse_map", 0);
+    _draw_program.set_uniform("normal_map", 1);
+    _draw_program.bind_to_pipeline();
 
-  gl::DrawElements(gl::TRIANGLES, _mesh_index_count, gl::UNSIGNED_INT, nullptr);
+    gl::DrawElements(gl::TRIANGLES, _mesh_index_count, gl::UNSIGNED_INT, nullptr);
 }
 
-void app::normal_map_demo::update(const float /*delta_ms*/) {}
+void
+app::normal_map_demo::update(const float /*delta_ms*/)
+{
+}
 
-void app::normal_map_demo::key_event(const int32_t /*key_code*/,
-                                     const int32_t /*action*/,
-                                     const int32_t /*mods*/) {}
+void
+app::normal_map_demo::key_event(const int32_t /*key_code*/, const int32_t /*action*/, const int32_t /*mods*/)
+{
+}
 
-void app::normal_map_demo::init() {
+void
+app::normal_map_demo::init()
+{
 
-  {
-    const GLuint compiled_shaders[] = {
-        make_shader(gl::VERTEX_SHADER, "shaders/cap5/normal_map/shader.vert"),
-        make_shader(gl::FRAGMENT_SHADER,
-                    "shaders/cap5/normal_map/shader.frag")};
+    {
+        const GLuint compiled_shaders[] = { make_shader(gl::VERTEX_SHADER, "shaders/cap5/normal_map/shader.vert"),
+                                            make_shader(gl::FRAGMENT_SHADER, "shaders/cap5/normal_map/shader.frag") };
 
-    _draw_program = gpu_program{compiled_shaders};
-    if (!_draw_program) {
-      XR_LOG_ERR("Failed to compile/link shaders/program.");
-      return;
-    }
-  }
-
-  {
-    geometry_data_t mesh;
-    if (!geometry_factory::load_model(
-            &mesh, c_str_ptr(xr_app_config->model_path("ogre/ogre.obj")),
-            mesh_import_options::remove_points_lines)) {
-      XR_LOG_ERR("Failed to load mesh !");
-      return;
+        _draw_program = gpu_program{ compiled_shaders };
+        if (!_draw_program) {
+            XR_LOG_ERR("Failed to compile/link shaders/program.");
+            return;
+        }
     }
 
-    _vertex_buffer = [&mesh]() {
-      GLuint vbuff{};
-      gl::CreateBuffers(1, &vbuff);
-      gl::NamedBufferStorage(
-          vbuff, bytes_size(raw_ptr(mesh.geometry), mesh.vertex_count),
-          raw_ptr(mesh.geometry), 0);
+    {
+        geometry_data_t mesh;
+        if (!geometry_factory::load_model(&mesh,
+                                          c_str_ptr(xr_app_config->model_path("ogre/ogre.obj")),
+                                          mesh_import_options::remove_points_lines)) {
+            XR_LOG_ERR("Failed to load mesh !");
+            return;
+        }
 
-      return vbuff;
+        _vertex_buffer = [&mesh]() {
+            GLuint vbuff{};
+            gl::CreateBuffers(1, &vbuff);
+            gl::NamedBufferStorage(
+                vbuff, bytes_size(raw_ptr(mesh.geometry), mesh.vertex_count), raw_ptr(mesh.geometry), 0);
+
+            return vbuff;
+        }();
+
+        _index_buffer = [&mesh]() {
+            GLuint ibuff{};
+            gl::CreateBuffers(1, &ibuff);
+            gl::NamedBufferStorage(
+                ibuff, bytes_size(raw_ptr(mesh.indices), mesh.index_count), raw_ptr(mesh.indices), 0);
+
+            return ibuff;
+        }();
+
+        _mesh_index_count = mesh.index_count;
+    }
+
+    _vertex_array = [vbh = raw_handle(_vertex_buffer), ibh = raw_handle(_index_buffer)]() {
+        GLuint vao{};
+        gl::CreateVertexArrays(1, &vao);
+        gl::BindVertexArray(vao);
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibh);
+        gl::VertexArrayVertexBuffer(vao, 0, vbh, 0, sizeof(vertex_pntt));
+
+        gl::EnableVertexArrayAttrib(vao, 0);
+        gl::EnableVertexArrayAttrib(vao, 1);
+        gl::EnableVertexArrayAttrib(vao, 2);
+        gl::EnableVertexArrayAttrib(vao, 3);
+
+        gl::VertexArrayAttribFormat(vao, 0, 3, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pntt, position));
+        gl::VertexArrayAttribFormat(vao, 1, 3, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pntt, normal));
+        gl::VertexArrayAttribFormat(vao, 2, 3, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pntt, tangent));
+        gl::VertexArrayAttribFormat(vao, 3, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(vertex_pntt, texcoords));
+
+        gl::VertexArrayAttribBinding(vao, 0, 0);
+        gl::VertexArrayAttribBinding(vao, 1, 0);
+        gl::VertexArrayAttribBinding(vao, 2, 0);
+        gl::VertexArrayAttribBinding(vao, 3, 0);
+
+        return vao;
     }();
 
-    _index_buffer = [&mesh]() {
-      GLuint ibuff{};
-      gl::CreateBuffers(1, &ibuff);
-      gl::NamedBufferStorage(
-          ibuff, bytes_size(raw_ptr(mesh.indices), mesh.index_count),
-          raw_ptr(mesh.indices), 0);
+    _diffuse_map = []() {
+        GLuint texh{};
+        texture_loader tex_ldr{ c_str_ptr(xr_app_config->texture_path("ogre/ogre_diffuse.png")),
+                                texture_load_options::flip_y };
 
-      return ibuff;
+        if (!tex_ldr)
+            return texh;
+
+        gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
+        gl::TextureStorage2D(texh, 1, gl::RGB8, tex_ldr.width(), tex_ldr.height());
+        gl::TextureSubImage2D(
+            texh, 0, 0, 0, tex_ldr.width(), tex_ldr.height(), gl::RGB, gl::UNSIGNED_BYTE, tex_ldr.data());
+        return texh;
     }();
 
-    _mesh_index_count = mesh.index_count;
-  }
+    _normal_map = []() {
+        GLuint texh{};
+        texture_loader tex_ldr{ c_str_ptr(xr_app_config->texture_path("ogre/ogre_normalmap.png")) };
 
-  _vertex_array =
-      [ vbh = raw_handle(_vertex_buffer), ibh = raw_handle(_index_buffer) ]() {
-    GLuint vao{};
-    gl::CreateVertexArrays(1, &vao);
-    gl::BindVertexArray(vao);
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibh);
-    gl::VertexArrayVertexBuffer(vao, 0, vbh, 0, sizeof(vertex_pntt));
+        if (!tex_ldr)
+            return texh;
 
-    gl::EnableVertexArrayAttrib(vao, 0);
-    gl::EnableVertexArrayAttrib(vao, 1);
-    gl::EnableVertexArrayAttrib(vao, 2);
-    gl::EnableVertexArrayAttrib(vao, 3);
+        gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
+        gl::TextureStorage2D(texh, 1, gl::RGB8, tex_ldr.width(), tex_ldr.height());
+        gl::TextureSubImage2D(
+            texh, 0, 0, 0, tex_ldr.width(), tex_ldr.height(), gl::RGB, gl::UNSIGNED_BYTE, tex_ldr.data());
 
-    gl::VertexArrayAttribFormat(vao, 0, 3, gl::FLOAT, gl::FALSE_,
-                                XR_U32_OFFSETOF(vertex_pntt, position));
-    gl::VertexArrayAttribFormat(vao, 1, 3, gl::FLOAT, gl::FALSE_,
-                                XR_U32_OFFSETOF(vertex_pntt, normal));
-    gl::VertexArrayAttribFormat(vao, 2, 3, gl::FLOAT, gl::FALSE_,
-                                XR_U32_OFFSETOF(vertex_pntt, tangent));
-    gl::VertexArrayAttribFormat(vao, 3, 2, gl::FLOAT, gl::FALSE_,
-                                XR_U32_OFFSETOF(vertex_pntt, texcoords));
+        return texh;
+    }();
 
-    gl::VertexArrayAttribBinding(vao, 0, 0);
-    gl::VertexArrayAttribBinding(vao, 1, 0);
-    gl::VertexArrayAttribBinding(vao, 2, 0);
-    gl::VertexArrayAttribBinding(vao, 3, 0);
+    _sampler = []() {
+        GLuint smph{};
+        gl::CreateSamplers(1, &smph);
+        gl::SamplerParameteri(smph, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
+        gl::SamplerParameteri(smph, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
 
-    return vao;
-  }
-  ();
+        return smph;
+    }();
 
-  _diffuse_map = []() {
-    GLuint         texh{};
-    texture_loader tex_ldr{
-        c_str_ptr(xr_app_config->texture_path("ogre/ogre_diffuse.png")),
-        texture_load_options::flip_y};
-
-    if (!tex_ldr)
-      return texh;
-
-    gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
-    gl::TextureStorage2D(texh, 1, gl::RGB8, tex_ldr.width(), tex_ldr.height());
-    gl::TextureSubImage2D(texh, 0, 0, 0, tex_ldr.width(), tex_ldr.height(),
-                          gl::RGB, gl::UNSIGNED_BYTE, tex_ldr.data());
-    return texh;
-  }();
-
-  _normal_map = []() {
-    GLuint         texh{};
-    texture_loader tex_ldr{
-        c_str_ptr(xr_app_config->texture_path("ogre/ogre_normalmap.png"))};
-
-    if (!tex_ldr)
-      return texh;
-
-    gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
-    gl::TextureStorage2D(texh, 1, gl::RGB8, tex_ldr.width(), tex_ldr.height());
-    gl::TextureSubImage2D(texh, 0, 0, 0, tex_ldr.width(), tex_ldr.height(),
-                          gl::RGB, gl::UNSIGNED_BYTE, tex_ldr.data());
-
-    return texh;
-  }();
-
-  _sampler = []() {
-    GLuint smph{};
-    gl::CreateSamplers(1, &smph);
-    gl::SamplerParameteri(smph, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
-    gl::SamplerParameteri(smph, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
-
-    return smph;
-  }();
-
-  _valid = true;
+    _valid = true;
 }

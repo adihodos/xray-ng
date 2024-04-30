@@ -30,76 +30,81 @@
 
 /// \file   fixed_stack.hpp
 
-#include "xray/xray.hpp"
 #include "xray/base/containers/fixed_vector.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace base {
 
-template <typename T, size_t MaxSize = 8>
-class fixed_stack {
-  /// \name Member types
-  /// @{
-public:
-  using container_type  = fixed_vector<T, MaxSize>;
-  using value_type      = typename container_type::value_type;
-  using size_type       = typename container_type::size_type;
-  using reference       = typename container_type::reference;
-  using const_reference = typename container_type::const_reference;
-  /// @}
+template<typename T, size_t MaxSize = 8>
+class fixed_stack
+{
+    /// \name Member types
+    /// @{
+  public:
+    using container_type = fixed_vector<T, MaxSize>;
+    using value_type = typename container_type::value_type;
+    using size_type = typename container_type::size_type;
+    using reference = typename container_type::reference;
+    using const_reference = typename container_type::const_reference;
+    /// @}
 
-  /// \name Construction
-  /// @{
-public:
-  fixed_stack()  = default;
-  ~fixed_stack() = default;
+    /// \name Construction
+    /// @{
+  public:
+    fixed_stack() = default;
+    ~fixed_stack() = default;
 
-  /// @}
+    /// @}
 
-  /// \name Element access
-  /// @{
-public:
-  reference top() noexcept {
-    assert(!empty());
-    return _m_container.back();
-  }
+    /// \name Element access
+    /// @{
+  public:
+    reference top() noexcept
+    {
+        assert(!empty());
+        return _m_container.back();
+    }
 
-  const_reference top() const noexcept {
-    assert(!empty());
-    return _m_container.back();
-  }
-  /// @}
+    const_reference top() const noexcept
+    {
+        assert(!empty());
+        return _m_container.back();
+    }
+    /// @}
 
-  /// \name Capacity
-  /// @{
-public:
-  bool      empty() const noexcept { return _m_container.empty(); }
-  size_type size() const noexcept { return _m_container.size(); }
+    /// \name Capacity
+    /// @{
+  public:
+    bool empty() const noexcept { return _m_container.empty(); }
+    size_type size() const noexcept { return _m_container.size(); }
 
-  /// @}
+    /// @}
 
-  /// \name Modifiers
-  /// @{
-public:
-  template <typename... Args>
-  void emplace(Args&&... args) {
-    _m_container.emplace_back(std::forward<Args>(args)...);
-  }
+    /// \name Modifiers
+    /// @{
+  public:
+    template<typename... Args>
+    void emplace(Args&&... args)
+    {
+        _m_container.emplace_back(std::forward<Args>(args)...);
+    }
 
-  void push(const T& value) { _m_container.push_back(value); }
-  void push(T&& value) { _m_container.push_back(std::move(value)); }
+    void push(const T& value) { _m_container.push_back(value); }
+    void push(T&& value) { _m_container.push_back(std::move(value)); }
 
-  void pop() {
-    assert(!empty());
-    _m_container.pop_back();
-  }
-  /// @}
+    void pop()
+    {
+        assert(!empty());
+        _m_container.pop_back();
+    }
+    /// @}
 
-private:
-  container_type _m_container;
+  private:
+    container_type _m_container;
 
-private:
-  XRAY_NO_COPY(fixed_stack);
+  private:
+    XRAY_NO_COPY(fixed_stack);
 };
 
 } // namespace base

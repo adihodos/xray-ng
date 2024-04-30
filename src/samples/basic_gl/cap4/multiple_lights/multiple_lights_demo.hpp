@@ -28,55 +28,56 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "light_source.hpp"
 #include "material.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/rendering_fwd.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace app {
 
-struct mesh_draw_info {
-  uint32_t      base_vertex{0};
-  uint32_t      index_start{0};
-  uint32_t      index_end{0};
+struct mesh_draw_info
+{
+    uint32_t base_vertex{ 0 };
+    uint32_t index_start{ 0 };
+    uint32_t index_end{ 0 };
 };
 
-class multiple_lights_demo {
-public:
-  static constexpr uint32_t NUM_LIGHTS = 5;
-  static constexpr uint8_t  NUM_MESHES = 2;
+class multiple_lights_demo
+{
+  public:
+    static constexpr uint32_t NUM_LIGHTS = 5;
+    static constexpr uint8_t NUM_MESHES = 2;
 
-  multiple_lights_demo();
-  ~multiple_lights_demo();
+    multiple_lights_demo();
+    ~multiple_lights_demo();
 
-  void draw(const xray::rendering::draw_context_t& dc) noexcept;
-  void update(const float delta_ms) noexcept;
-  void key_event(const int32_t key_code, const int32_t action,
-                 const int32_t mods) noexcept;
+    void draw(const xray::rendering::draw_context_t& dc) noexcept;
+    void update(const float delta_ms) noexcept;
+    void key_event(const int32_t key_code, const int32_t action, const int32_t mods) noexcept;
 
-  bool valid() const noexcept { return valid_; }
+    bool valid() const noexcept { return valid_; }
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  void init();
+  private:
+    void init();
 
-private:
-  xray::rendering::scoped_buffer vertex_buff_;
-  xray::rendering::scoped_buffer index_buff_;
-  xray::rendering::scoped_vertex_array    layout_;
-  xray::rendering::gpu_program          draw_prog_;
-  mesh_draw_info draw_info_[multiple_lights_demo::NUM_MESHES];
-  light_source2  lights_[NUM_LIGHTS];
-  bool           valid_{false};
-  float         _rot_angle_x{};
-  float         _rot_angle_y{};
+  private:
+    xray::rendering::scoped_buffer vertex_buff_;
+    xray::rendering::scoped_buffer index_buff_;
+    xray::rendering::scoped_vertex_array layout_;
+    xray::rendering::gpu_program draw_prog_;
+    mesh_draw_info draw_info_[multiple_lights_demo::NUM_MESHES];
+    light_source2 lights_[NUM_LIGHTS];
+    bool valid_{ false };
+    float _rot_angle_x{};
+    float _rot_angle_y{};
 
-private:
-  XRAY_NO_COPY(multiple_lights_demo);
+  private:
+    XRAY_NO_COPY(multiple_lights_demo);
 };
 
 } // namespace app

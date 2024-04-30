@@ -36,32 +36,33 @@ namespace base {
 
 /// \brief Helper class to allow usage of unique_ppointer objects with
 /// non pointer resource types.
-template <typename _ResType, _ResType _NullValue>
-struct resource_holder {
-public:
-  resource_holder(_ResType handle) noexcept : _handle_to_resource{handle} {}
+template<typename _ResType, _ResType _NullValue>
+struct resource_holder
+{
+  public:
+    resource_holder(_ResType handle) noexcept
+        : _handle_to_resource{ handle }
+    {
+    }
 
-  resource_holder(std::nullptr_t = nullptr) noexcept
-      : _handle_to_resource{_NullValue} {}
+    resource_holder(std::nullptr_t = nullptr) noexcept
+        : _handle_to_resource{ _NullValue }
+    {
+    }
 
-  operator _ResType() noexcept { return _handle_to_resource; }
+    operator _ResType() noexcept { return _handle_to_resource; }
 
-  explicit operator bool() const noexcept {
-    return _handle_to_resource != _NullValue;
-  }
+    explicit operator bool() const noexcept { return _handle_to_resource != _NullValue; }
 
-  bool operator==(const resource_holder<_ResType, _NullValue>& rhs) const
-      noexcept {
-    return _handle_to_resource == rhs._handle_to_resource;
-  }
+    bool operator==(const resource_holder<_ResType, _NullValue>& rhs) const noexcept
+    {
+        return _handle_to_resource == rhs._handle_to_resource;
+    }
 
-  bool operator!=(const resource_holder<_ResType, _NullValue>& rhs) const
-      noexcept {
-    return !(*this == rhs);
-  }
+    bool operator!=(const resource_holder<_ResType, _NullValue>& rhs) const noexcept { return !(*this == rhs); }
 
-private:
-  _ResType _handle_to_resource;
+  private:
+    _ResType _handle_to_resource;
 };
 
 /// @}

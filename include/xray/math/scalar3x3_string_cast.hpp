@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3x3.hpp"
+#include "xray/xray.hpp"
 #include <cstdio>
 #include <stlsoft/memory/auto_buffer.hpp>
 #include <string>
@@ -37,15 +37,26 @@
 namespace xray {
 namespace math {
 
-template <typename T>
-std::string string_cast(const scalar3x3<T>& s) {
-  stlsoft::auto_buffer<char, 256> tmp_buff{256u};
+template<typename T>
+std::string
+string_cast(const scalar3x3<T>& s)
+{
+    stlsoft::auto_buffer<char, 256> tmp_buff{ 256u };
 
-  snprintf(tmp_buff.data(), tmp_buff.size(),
-           "scalar3x3 [%f, %f, %f] [%f %f %f] [%f %f %f]", s.a00, s.a01, s.a02,
-           s.a10, s.a11, s.a12, s.a20, s.a21, s.a22);
+    snprintf(tmp_buff.data(),
+             tmp_buff.size(),
+             "scalar3x3 [%f, %f, %f] [%f %f %f] [%f %f %f]",
+             s.a00,
+             s.a01,
+             s.a02,
+             s.a10,
+             s.a11,
+             s.a12,
+             s.a20,
+             s.a21,
+             s.a22);
 
-  return static_cast<const char*>(tmp_buff.data());
+    return static_cast<const char*>(tmp_buff.data());
 }
 
 } // namespace math

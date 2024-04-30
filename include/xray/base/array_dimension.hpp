@@ -33,12 +33,13 @@ namespace xray {
 namespace base {
 namespace impl_details {
 
-template <size_t dimension>
-struct dimension_helper_dt {
-  char arr[dimension];
+template<size_t dimension>
+struct dimension_helper_dt
+{
+    char arr[dimension];
 };
 
-template <typename T, size_t dimension>
+template<typename T, size_t dimension>
 const dimension_helper_dt<dimension>*
 dimension_helper_fn(const T (&)[dimension]);
 
@@ -46,13 +47,10 @@ dimension_helper_fn(const T (&)[dimension]);
 } // namespace base
 } // namespace xray
 
-#define XR_COUNTOF(an_array)                                                   \
-  (sizeof(xray::base::impl_details::dimension_helper_fn(an_array)->arr))
+#define XR_COUNTOF(an_array) (sizeof(xray::base::impl_details::dimension_helper_fn(an_array)->arr))
 
-#define XR_U32_COUNTOF(an_array)                                               \
-  (static_cast<uint32_t>(                                                      \
-    (sizeof(xray::base::impl_details::dimension_helper_fn(an_array)->arr))))
+#define XR_U32_COUNTOF(an_array)                                                                                       \
+    (static_cast<uint32_t>((sizeof(xray::base::impl_details::dimension_helper_fn(an_array)->arr))))
 
-#define XR_I32_COUNTOF(an_array)                                               \
-  (static_cast<int32_t>(                                                       \
-    (sizeof(xray::base::impl_details::dimension_helper_fn(an_array)->arr))))
+#define XR_I32_COUNTOF(an_array)                                                                                       \
+    (static_cast<int32_t>((sizeof(xray::base::impl_details::dimension_helper_fn(an_array)->arr))))

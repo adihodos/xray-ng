@@ -28,67 +28,70 @@ using namespace std;
 
 extern xray::base::app_config* xr_app_config;
 
-app::bufferless_draw_demo::bufferless_draw_demo() {
-  gl::CreateBuffers(1, raw_handle_ptr(_vb));
-  gl::NamedBufferStorage(raw_handle(_vb), 4, nullptr, 0);
+app::bufferless_draw_demo::bufferless_draw_demo()
+{
+    gl::CreateBuffers(1, raw_handle_ptr(_vb));
+    gl::NamedBufferStorage(raw_handle(_vb), 4, nullptr, 0);
 
-  gl::CreateVertexArrays(1, raw_handle_ptr(_vao));
-  gl::VertexArrayVertexBuffer(raw_handle(_vao), 0, raw_handle(_vb), 0, 4);
-  gl::VertexArrayAttribFormat(raw_handle(_vao), 0, 1, gl::FLOAT, gl::FALSE_, 0);
-  gl::VertexArrayAttribBinding(raw_handle(_vao), 0, 0);
+    gl::CreateVertexArrays(1, raw_handle_ptr(_vao));
+    gl::VertexArrayVertexBuffer(raw_handle(_vao), 0, raw_handle(_vb), 0, 4);
+    gl::VertexArrayAttribFormat(raw_handle(_vao), 0, 1, gl::FLOAT, gl::FALSE_, 0);
+    gl::VertexArrayAttribBinding(raw_handle(_vao), 0, 0);
 
-  _vs = gpu_program_builder{}
-          .add_file("shaders/misc/bufferless_draw/vs.glsl")
-          .build<render_stage::e::vertex>();
+    _vs = gpu_program_builder{}.add_file("shaders/misc/bufferless_draw/vs.glsl").build<render_stage::e::vertex>();
 
-  if (!_vs) {
-    return;
-  }
+    if (!_vs) {
+        return;
+    }
 
-  _gs = gpu_program_builder{}
-          .add_file("shaders/misc/bufferless_draw/gs.glsl")
-          .build<render_stage::e::geometry>();
+    _gs = gpu_program_builder{}.add_file("shaders/misc/bufferless_draw/gs.glsl").build<render_stage::e::geometry>();
 
-  if (!_gs) {
-    return;
-  }
+    if (!_gs) {
+        return;
+    }
 
-  _fs = gpu_program_builder{}
-          .add_file("shaders/misc/bufferless_draw/fs.glsl")
-          .build<render_stage::e::fragment>();
+    _fs = gpu_program_builder{}.add_file("shaders/misc/bufferless_draw/fs.glsl").build<render_stage::e::fragment>();
 
-  if (!_fs) {
-    return;
-  }
+    if (!_fs) {
+        return;
+    }
 
-  _pipeline = program_pipeline{[]() {
-    GLuint pp{};
-    gl::CreateProgramPipelines(1, &pp);
-    return pp;
-  }()};
+    _pipeline = program_pipeline{ []() {
+        GLuint pp{};
+        gl::CreateProgramPipelines(1, &pp);
+        return pp;
+    }() };
 
-  _pipeline.use_vertex_program(_vs)
-    .use_geometry_program(_gs)
-    .use_fragment_program(_fs);
+    _pipeline.use_vertex_program(_vs).use_geometry_program(_gs).use_fragment_program(_fs);
 
-  _valid = true;
+    _valid = true;
 }
 
 app::bufferless_draw_demo::~bufferless_draw_demo() {}
 
-void app::bufferless_draw_demo::draw(const xray::rendering::draw_context_t&) {
-  const float CLEAR_COLOR[] = {0.0f, 0.0f, 0.0f, 1.0f};
-  gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, CLEAR_COLOR);
-  gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
+void
+app::bufferless_draw_demo::draw(const xray::rendering::draw_context_t&)
+{
+    const float CLEAR_COLOR[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, CLEAR_COLOR);
+    gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
 
-  gl::BindVertexArray(raw_handle(_vao));
-  _pipeline.use();
-  gl::DrawArrays(gl::POINTS, 0, 2);
+    gl::BindVertexArray(raw_handle(_vao));
+    _pipeline.use();
+    gl::DrawArrays(gl::POINTS, 0, 2);
 }
 
-void app::bufferless_draw_demo::update(const float delta_ms) {}
+void
+app::bufferless_draw_demo::update(const float delta_ms)
+{
+}
 
-void app::bufferless_draw_demo::event_handler(
-  const xray::ui::window_event& evt) {}
+void
+app::bufferless_draw_demo::event_handler(const xray::ui::window_event& evt)
+{
+}
 
-void app::bufferless_draw_demo::compose_ui() {}
+void
+app::bufferless_draw_demo::compose_ui()
+{
+}

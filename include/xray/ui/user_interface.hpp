@@ -30,9 +30,9 @@
 
 /// \file   input_event.hpp
 
-#include "xray/xray.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/base/unique_pointer.hpp"
+#include "xray/xray.hpp"
 
 #if defined(XRAY_RENDERER_DIRECTX)
 #include "xray/base/windows/com_ptr.hpp"
@@ -65,95 +65,106 @@ namespace ui {
 
 struct window_event;
 
-struct font_info {
-  std::string path;
-  float       pixel_size;
+struct font_info
+{
+    std::string path;
+    float pixel_size;
 };
 
-struct imcontext_deleter {
-  void operator()(ImGuiContext* p) noexcept {
-    if (p) {
-      ImGui::DestroyContext(p);
+struct imcontext_deleter
+{
+    void operator()(ImGuiContext* p) noexcept
+    {
+        if (p) {
+            ImGui::DestroyContext(p);
+        }
     }
-  }
 };
 
-class user_interface {
-public:
-  static constexpr uint32_t VERTEX_BUFFER_SIZE = 1024 * 512;
-  static constexpr uint32_t INDEX_BUFFER_SIZE  = 1024 * 128;
+class user_interface
+{
+  public:
+    static constexpr uint32_t VERTEX_BUFFER_SIZE = 1024 * 512;
+    static constexpr uint32_t INDEX_BUFFER_SIZE = 1024 * 128;
 
-  user_interface() noexcept;
+    user_interface() noexcept;
 
-  user_interface(const font_info* fonts, const size_t num_fonts);
+    user_interface(const font_info* fonts, const size_t num_fonts);
 
-  ~user_interface() noexcept;
+    ~user_interface() noexcept;
 
-  bool input_event(const window_event& evt);
-  bool wants_input() const noexcept;
+    bool input_event(const window_event& evt);
+    bool wants_input() const noexcept;
 
-  void new_frame(const int32_t wnd_width, const int32_t wnd_height);
-  void tick(const float delta);
-  void draw();
+    void new_frame(const int32_t wnd_width, const int32_t wnd_height);
+    void tick(const float delta);
+    void draw();
 
-  void set_global_font(const char* name);
-  void push_font(const char* name);
-  void pop_font();
+    void set_global_font(const char* name);
+    void push_font(const char* name);
+    void pop_font();
 
-  void set_current() {
-    ImGui::SetCurrentContext(xray::base::raw_ptr(_imcontext));
-    _gui = &ImGui::GetIO();
-  }
+    void set_current()
+    {
+        ImGui::SetCurrentContext(xray::base::raw_ptr(_imcontext));
+        _gui = &ImGui::GetIO();
+    }
 
-private:
-  struct loaded_font {
-    loaded_font() = default;
-    loaded_font(std::string n, const float size, ImFont* f)
-      : name{std::move(n)}, pixel_size{size}, font{f} {}
+  private:
+    struct loaded_font
+    {
+        loaded_font() = default;
+        loaded_font(std::string n, const float size, ImFont* f)
+            : name{ std::move(n) }
+            , pixel_size{ size }
+            , font{ f }
+        {
+        }
 
-    std::string name;
-    float       pixel_size;
-    ImFont*     font;
-  };
+        std::string name;
+        float pixel_size;
+        ImFont* font;
+    };
 
-  loaded_font* find_font(const char* name = nullptr);
-  void         init(const font_info* fonts, const size_t num_fonts);
-  void         load_fonts(const font_info* fonts, const size_t num_fonts);
-  void         setup_key_mappings();
+    loaded_font* find_font(const char* name = nullptr);
+    void init(const font_info* fonts, const size_t num_fonts);
+    void load_fonts(const font_info* fonts, const size_t num_fonts);
+    void setup_key_mappings();
 
-  struct render_context {
-    std::vector<loaded_font> fonts;
+    struct render_context
+    {
+        std::vector<loaded_font> fonts;
 #if defined(XRAY_RENDERER_DIRECTX)
-    ID3D11Device*                                 device;
-    ID3D11DeviceContext*                          context;
-    xray::base::com_ptr<ID3D11Buffer>             vertex_buffer;
-    xray::base::com_ptr<ID3D11Buffer>             index_buffer;
-    xray::base::com_ptr<ID3D11InputLayout>        input_layout;
-    xray::rendering::vertex_shader                vs;
-    xray::rendering::pixel_shader                 ps;
-    xray::base::com_ptr<ID3D11ShaderResourceView> font_texture;
-    xray::base::com_ptr<ID3D11SamplerState>       font_sampler;
-    xray::base::com_ptr<ID3D11BlendState>         blend_state;
-    xray::base::com_ptr<ID3D11RasterizerState>    raster_state;
-    xray::base::com_ptr<ID3D11DepthStencilState>  depth_stencil_state;
+        ID3D11Device* device;
+        ID3D11DeviceContext* context;
+        xray::base::com_ptr<ID3D11Buffer> vertex_buffer;
+        xray::base::com_ptr<ID3D11Buffer> index_buffer;
+        xray::base::com_ptr<ID3D11InputLayout> input_layout;
+        xray::rendering::vertex_shader vs;
+        xray::rendering::pixel_shader ps;
+        xray::base::com_ptr<ID3D11ShaderResourceView> font_texture;
+        xray::base::com_ptr<ID3D11SamplerState> font_sampler;
+        xray::base::com_ptr<ID3D11BlendState> blend_state;
+        xray::base::com_ptr<ID3D11RasterizerState> raster_state;
+        xray::base::com_ptr<ID3D11DepthStencilState> depth_stencil_state;
 #else
-    xray::rendering::scoped_buffer       _vertex_buffer;
-    xray::rendering::scoped_buffer       _index_buffer;
-    xray::rendering::scoped_vertex_array _vertex_arr;
-    xray::rendering::vertex_program      _vs;
-    xray::rendering::fragment_program    _fs;
-    xray::rendering::program_pipeline    _pipeline;
-    xray::rendering::scoped_texture      _font_texture;
-    xray::rendering::scoped_sampler      _font_sampler;
+        xray::rendering::scoped_buffer _vertex_buffer;
+        xray::rendering::scoped_buffer _index_buffer;
+        xray::rendering::scoped_vertex_array _vertex_arr;
+        xray::rendering::vertex_program _vs;
+        xray::rendering::fragment_program _fs;
+        xray::rendering::program_pipeline _pipeline;
+        xray::rendering::scoped_texture _font_texture;
+        xray::rendering::scoped_sampler _font_sampler;
 #endif
-    bool _valid{false};
-  } _rendercontext;
+        bool _valid{ false };
+    } _rendercontext;
 
-  xray::base::unique_pointer<ImGuiContext, imcontext_deleter> _imcontext;
-  ImGuiIO*                                                    _gui;
+    xray::base::unique_pointer<ImGuiContext, imcontext_deleter> _imcontext;
+    ImGuiIO* _gui;
 
-private:
-  XRAY_NO_COPY(user_interface);
+  private:
+    XRAY_NO_COPY(user_interface);
 };
 
 /// @}

@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/xray.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <opengl/opengl.hpp>
@@ -38,55 +38,58 @@
 namespace xray {
 namespace rendering {
 
-class scoped_resource_mapping {
-public:
-  scoped_resource_mapping(const uint32_t resource,
-                          const uint32_t access,
-                          const size_t   length,
-                          const uint32_t offset = 0)
-    : _gl_resource{resource} {
+class scoped_resource_mapping
+{
+  public:
+    scoped_resource_mapping(const uint32_t resource,
+                            const uint32_t access,
+                            const size_t length,
+                            const uint32_t offset = 0)
+        : _gl_resource{ resource }
+    {
 
-    _mapping_ptr = gl::MapNamedBufferRange(resource,
-                                           static_cast<GLintptr>(offset),
-                                           static_cast<GLsizeiptr>(length),
-                                           access);
+        _mapping_ptr =
+            gl::MapNamedBufferRange(resource, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(length), access);
 
-    if (!_mapping_ptr) {
-      XR_LOG_ERR("Failed to map buffer into client memory!");
+        if (!_mapping_ptr) {
+            XR_LOG_ERR("Failed to map buffer into client memory!");
+        }
     }
-  }
 
-  ~scoped_resource_mapping() {
-    if (_mapping_ptr) {
-      const auto result = gl::UnmapNamedBuffer(_gl_resource);
-      if (result != gl::TRUE_)
-        XR_LOG_ERR("Failed to unmap buffer !");
+    ~scoped_resource_mapping()
+    {
+        if (_mapping_ptr) {
+            const auto result = gl::UnmapNamedBuffer(_gl_resource);
+            if (result != gl::TRUE_)
+                XR_LOG_ERR("Failed to unmap buffer !");
+        }
     }
-  }
 
-  scoped_resource_mapping(scoped_resource_mapping&& rval) {
-    std::swap(_mapping_ptr, rval._mapping_ptr);
-    std::swap(_gl_resource, rval._gl_resource);
-  }
+    scoped_resource_mapping(scoped_resource_mapping&& rval)
+    {
+        std::swap(_mapping_ptr, rval._mapping_ptr);
+        std::swap(_gl_resource, rval._gl_resource);
+    }
 
-  scoped_resource_mapping& operator=(scoped_resource_mapping&& rval) {
-    std::swap(_mapping_ptr, rval._mapping_ptr);
-    std::swap(_gl_resource, rval._gl_resource);
-    return *this;
-  }
+    scoped_resource_mapping& operator=(scoped_resource_mapping&& rval)
+    {
+        std::swap(_mapping_ptr, rval._mapping_ptr);
+        std::swap(_gl_resource, rval._gl_resource);
+        return *this;
+    }
 
-  bool valid() const noexcept { return _mapping_ptr != nullptr; }
+    bool valid() const noexcept { return _mapping_ptr != nullptr; }
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-  void* memory() const noexcept { return _mapping_ptr; }
+    void* memory() const noexcept { return _mapping_ptr; }
 
-private:
-  void*    _mapping_ptr{nullptr};
-  uint32_t _gl_resource{0};
+  private:
+    void* _mapping_ptr{ nullptr };
+    uint32_t _gl_resource{ 0 };
 
-private:
-  XRAY_NO_COPY(scoped_resource_mapping);
+  private:
+    XRAY_NO_COPY(scoped_resource_mapping);
 };
 
 } // namespace rendering

@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/xray.hpp"
 #include <cstdio>
 #include <stlsoft/memory/auto_buffer.hpp>
 #include <string>
@@ -37,16 +37,33 @@
 namespace xray {
 namespace math {
 
-template <typename T>
-std::string string_cast(const scalar4x4<T>& s) {
-  stlsoft::auto_buffer<char, 256> tmp_buff{256u};
+template<typename T>
+std::string
+string_cast(const scalar4x4<T>& s)
+{
+    stlsoft::auto_buffer<char, 256> tmp_buff{ 256u };
 
-  snprintf(tmp_buff.data(), tmp_buff.size(),
-           "scalar4x4 [%f %f %f %f] [%f %f %f %f] [%f %f %f %f] [%f %f %f %f]",
-           s.a00, s.a01, s.a02, s.a03, s.a10, s.a11, s.a12, s.a13, s.a20, s.a21,
-           s.a22, s.a23, s.a30, s.a31, s.a32, s.a33);
+    snprintf(tmp_buff.data(),
+             tmp_buff.size(),
+             "scalar4x4 [%f %f %f %f] [%f %f %f %f] [%f %f %f %f] [%f %f %f %f]",
+             s.a00,
+             s.a01,
+             s.a02,
+             s.a03,
+             s.a10,
+             s.a11,
+             s.a12,
+             s.a13,
+             s.a20,
+             s.a21,
+             s.a22,
+             s.a23,
+             s.a30,
+             s.a31,
+             s.a32,
+             s.a33);
 
-  return static_cast<const char*>(tmp_buff.data());
+    return static_cast<const char*>(tmp_buff.data());
 }
 
 } // namespace math

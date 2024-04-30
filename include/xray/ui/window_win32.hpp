@@ -30,10 +30,10 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/window_params.hpp"
+#include "xray/xray.hpp"
 #include <atomic>
 #include <cstdint>
 #include <type_traits>
@@ -44,126 +44,142 @@ namespace ui {
 
 namespace detail {
 
-struct hdc_deleter {
-  HWND _window;
-  hdc_deleter() noexcept = default;
-  explicit hdc_deleter(const HWND wnd) noexcept : _window{wnd} {}
+struct hdc_deleter
+{
+    HWND _window;
+    hdc_deleter() noexcept = default;
+    explicit hdc_deleter(const HWND wnd) noexcept
+        : _window{ wnd }
+    {
+    }
 
-  void operator()(HDC dc) const noexcept { ReleaseDC(_window, dc); }
+    void operator()(HDC dc) const noexcept { ReleaseDC(_window, dc); }
 };
 
-using scoped_window_dc =
-  base::unique_pointer<std::remove_pointer_t<HDC>, hdc_deleter>;
+using scoped_window_dc = base::unique_pointer<std::remove_pointer_t<HDC>, hdc_deleter>;
 
-struct hglrc_deleter {
-  HDC _windowDC;
-  hglrc_deleter() noexcept = default;
-  explicit hglrc_deleter(const HDC windowDC) noexcept : _windowDC{windowDC} {}
+struct hglrc_deleter
+{
+    HDC _windowDC;
+    hglrc_deleter() noexcept = default;
+    explicit hglrc_deleter(const HDC windowDC) noexcept
+        : _windowDC{ windowDC }
+    {
+    }
 
-  void operator()(HGLRC openglContext) const noexcept {
-    wglMakeCurrent(_windowDC, nullptr);
-    if (openglContext)
-      wglDeleteContext(openglContext);
-  }
+    void operator()(HGLRC openglContext) const noexcept
+    {
+        wglMakeCurrent(_windowDC, nullptr);
+        if (openglContext)
+            wglDeleteContext(openglContext);
+    }
 };
 
-using scoped_opengl_context =
-  base::unique_pointer<std::remove_pointer_t<HGLRC>, hglrc_deleter>;
+using scoped_opengl_context = base::unique_pointer<std::remove_pointer_t<HGLRC>, hglrc_deleter>;
 
-struct wnd_deleter {
-  void operator()(HWND wnd) const noexcept {
-    if (wnd)
-      DestroyWindow(wnd);
-  }
+struct wnd_deleter
+{
+    void operator()(HWND wnd) const noexcept
+    {
+        if (wnd)
+            DestroyWindow(wnd);
+    }
 };
 
-using scoped_window =
-  base::unique_pointer<std::remove_pointer_t<HWND>, wnd_deleter>;
+using scoped_window = base::unique_pointer<std::remove_pointer_t<HWND>, wnd_deleter>;
 
 } // namespace detail
 
-class window {
-public:
-  struct {
-    loop_event_delegate       loop;
-    window_event_delegate     window;
-    poll_start_event_delegate poll_start;
-    poll_end_event_delegate   poll_end;
-  } events;
+class window
+{
+  public:
+    struct
+    {
+        loop_event_delegate loop;
+        window_event_delegate window;
+        poll_start_event_delegate poll_start;
+        poll_end_event_delegate poll_end;
+    } events;
 
-  /// \name Construction and destruction.
-  /// @{
-public:
-  using handle_type = HWND;
+    /// \name Construction and destruction.
+    /// @{
+  public:
+    using handle_type = HWND;
 
-  explicit window(const window_params_t& wparam);
+    explicit window(const window_params_t& wparam);
 
-  ~window();
+    ~window();
 
-  /// @}
+    /// @}
 
-  handle_type handle() const noexcept { return _window; }
+    handle_type handle() const noexcept { return _window; }
 
-  void disable_cursor() noexcept;
-  void enable_cursor() noexcept;
+    void disable_cursor() noexcept;
+    void enable_cursor() noexcept;
 
-  /// \name Sanity checks.
-  /// @{
-public:
-  explicit operator bool() const noexcept { return valid(); }
+    /// \name Sanity checks.
+    /// @{
+  public:
+    explicit operator bool() const noexcept { return valid(); }
 
-  bool valid() const noexcept {
+    bool valid() const noexcept
+    {
 #if defined(XRAY_RENDERER_OPENGL)
-    return _glcontext != nullptr;
+        return _glcontext != nullptr;
 #else  /* defined XRAY_RENDERER_OPENGL */
-    return _window != nullptr;
+        return _window != nullptr;
 #endif /* !defined XRAY_RENDERER_OPENGL */
-  }
+    }
 
-  /// @}
+    /// @}
 
-  int32_t width() const noexcept { return _wnd_width; }
-  int32_t height() const noexcept { return _wnd_height; }
+    int32_t width() const noexcept
+    {
+        return _wnd_width;
+    }
+    int32_t height() const noexcept
+    {
+        return _wnd_height;
+    }
 
-  void message_loop();
-  void quit() noexcept { _quit_flag = true; }
+    void message_loop();
+    void quit() noexcept
+    {
+        _quit_flag = true;
+    }
 
-private:
-  static LRESULT WINAPI window_proc_stub(HWND   wnd,
-                                         UINT   msg,
-                                         WPARAM wparam,
-                                         LPARAM lparam);
+  private:
+    static LRESULT WINAPI window_proc_stub(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
-  LRESULT window_proc(UINT message, WPARAM wparam, LPARAM lparam);
+    LRESULT window_proc(UINT message, WPARAM wparam, LPARAM lparam);
 
-  void initialize(const window_params_t* wpar);
+    void initialize(const window_params_t* wpar);
 
-  void
-  event_mouse_button(const uint32_t type, const WPARAM wp, const LPARAM lp);
+    void event_mouse_button(const uint32_t type, const WPARAM wp, const LPARAM lp);
 
-  void event_mouse_wheel(const WPARAM wparam, const LPARAM lparam);
+    void event_mouse_wheel(const WPARAM wparam, const LPARAM lparam);
 
-  void event_key(const uint32_t type, const WPARAM wp, const LPARAM lp);
+    void event_key(const uint32_t type, const WPARAM wp, const LPARAM lp);
 
-  void event_motion_notify(const WPARAM wparam, const LPARAM lparam);
+    void event_motion_notify(const WPARAM wparam, const LPARAM lparam);
 
-  void event_configure(const WPARAM wparam, const LPARAM lparam);
+    void event_configure(const WPARAM wparam, const LPARAM lparam);
 
-private:
-  HWND _window{nullptr};
+  private:
+    HWND _window{ nullptr };
 
 #if defined(XRAY_RENDERER_OPENGL)
-  int32_t                       _pixelformat_id{};
-  detail::scoped_window_dc      _window_dc{};
-  detail::scoped_opengl_context _glcontext{};
+    int32_t _pixelformat_id{};
+    detail::scoped_window_dc _window_dc{};
+    detail::scoped_opengl_context _glcontext{};
 #endif /* defined XRAY_RENDERER_OPENGL */
 
-  int32_t              _wnd_width{-1};
-  int32_t              _wnd_height{-1};
-  std::atomic<int32_t> _quit_flag{false};
+    int32_t _wnd_width{ -1 };
+    int32_t _wnd_height{ -1 };
+    std::atomic<int32_t> _quit_flag{ false };
 
-private:
-  XRAY_NO_COPY(window);
+  private:
+    XRAY_NO_COPY(window);
 };
 
 } // namespace ui

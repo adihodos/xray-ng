@@ -37,80 +37,75 @@
 
 using namespace xray::math;
 
-xray::rendering::aabb_visualizer::aabb_visualizer() {
-  gl::CreateBuffers(1, raw_handle_ptr(_vb));
-  gl::NamedBufferStorage(raw_handle(_vb), 4, nullptr, 0);
+xray::rendering::aabb_visualizer::aabb_visualizer()
+{
+    gl::CreateBuffers(1, raw_handle_ptr(_vb));
+    gl::NamedBufferStorage(raw_handle(_vb), 4, nullptr, 0);
 
-  gl::CreateVertexArrays(1, raw_handle_ptr(_vao));
-  gl::VertexArrayVertexBuffer(raw_handle(_vao), 0, raw_handle(_vb), 0, 4);
-  gl::VertexArrayAttribFormat(raw_handle(_vao), 0, 1, gl::FLOAT, gl::FALSE_, 0);
-  gl::VertexArrayAttribBinding(raw_handle(_vao), 0, 0);
+    gl::CreateVertexArrays(1, raw_handle_ptr(_vao));
+    gl::VertexArrayVertexBuffer(raw_handle(_vao), 0, raw_handle(_vb), 0, 4);
+    gl::VertexArrayAttribFormat(raw_handle(_vao), 0, 1, gl::FLOAT, gl::FALSE_, 0);
+    gl::VertexArrayAttribBinding(raw_handle(_vao), 0, 0);
 
-  _vs = gpu_program_builder{}
-          .add_file("shaders/draw_aabb/vs.glsl")
-          .build<render_stage::e::vertex>();
+    _vs = gpu_program_builder{}.add_file("shaders/draw_aabb/vs.glsl").build<render_stage::e::vertex>();
 
-  if (!_vs)
-    return;
+    if (!_vs)
+        return;
 
-  _gs = gpu_program_builder{}
-          .add_file("shaders/draw_aabb/gs.glsl")
-          .build<render_stage::e::geometry>();
+    _gs = gpu_program_builder{}.add_file("shaders/draw_aabb/gs.glsl").build<render_stage::e::geometry>();
 
-  if (!_gs)
-    return;
+    if (!_gs)
+        return;
 
-  _fs = gpu_program_builder{}
-          .add_file("shaders/draw_aabb/fs.pass.glsl")
-          .build<render_stage::e::fragment>();
+    _fs = gpu_program_builder{}.add_file("shaders/draw_aabb/fs.pass.glsl").build<render_stage::e::fragment>();
 
-  if (!_fs)
-    return;
+    if (!_fs)
+        return;
 
-  _pipeline = program_pipeline{[]() {
-    GLuint pp{};
-    gl::CreateProgramPipelines(1, &pp);
-    return pp;
-  }()};
+    _pipeline = program_pipeline{ []() {
+        GLuint pp{};
+        gl::CreateProgramPipelines(1, &pp);
+        return pp;
+    }() };
 
-  _pipeline.use_vertex_program(_vs)
-    .use_geometry_program(_gs)
-    .use_fragment_program(_fs);
+    _pipeline.use_vertex_program(_vs).use_geometry_program(_gs).use_fragment_program(_fs);
 
-  _valid = true;
+    _valid = true;
 }
 
-void xray::rendering::aabb_visualizer::draw(
-  const xray::rendering::draw_context_t& ctx,
-  const xray::math::aabb3f&              boundingbox,
-  const xray::rendering::rgb_color&      draw_color,
-  const float                            line_width) {
+void
+xray::rendering::aabb_visualizer::draw(const xray::rendering::draw_context_t& ctx,
+                                       const xray::math::aabb3f& boundingbox,
+                                       const xray::rendering::rgb_color& draw_color,
+                                       const float line_width)
+{
 
-  assert(valid());
+    assert(valid());
 
-  gl::BindVertexArray(raw_handle(_vao));
+    gl::BindVertexArray(raw_handle(_vao));
 
-  struct {
-    mat4f     world_view_proj;
-    rgb_color line_start;
-    rgb_color line_end;
-    vec3f     center;
-    float     _pad;
-    float     width;
-    float     height;
-    float     depth;
-  } box_params = {ctx.proj_view_matrix * R4::translate(boundingbox.center()),
-                  draw_color,
-                  draw_color,
-                  boundingbox.center(),
-                  0.0f,
-                  boundingbox.width() * 0.5f,
-                  boundingbox.height() * 0.5f,
-                  boundingbox.depth() * 0.5f};
+    struct
+    {
+        mat4f world_view_proj;
+        rgb_color line_start;
+        rgb_color line_end;
+        vec3f center;
+        float _pad;
+        float width;
+        float height;
+        float depth;
+    } box_params = { ctx.proj_view_matrix * R4::translate(boundingbox.center()),
+                     draw_color,
+                     draw_color,
+                     boundingbox.center(),
+                     0.0f,
+                     boundingbox.width() * 0.5f,
+                     boundingbox.height() * 0.5f,
+                     boundingbox.depth() * 0.5f };
 
-  _gs.set_uniform_block("DrawParams", box_params);
-  _pipeline.use();
+    _gs.set_uniform_block("DrawParams", box_params);
+    _pipeline.use();
 
-  //  scoped_line_width_setting lw{line_width};
-  gl::DrawArrays(gl::POINTS, 0, 1);
+    //  scoped_line_width_setting lw{line_width};
+    gl::DrawArrays(gl::POINTS, 0, 1);
 }

@@ -31,8 +31,8 @@
 ///
 /// \file    rectangle.hpp
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar2.hpp"
+#include "xray/xray.hpp"
 #include <cassert>
 #include <cmath>
 
@@ -42,71 +42,78 @@ namespace math {
 /// \addtogroup __GroupXrayMath_Geometry
 /// @{
 
-template <typename real_type>
-class rectangle {
+template<typename real_type>
+class rectangle
+{
 
-  /// \name   Defined types.
-  /// @{
+    /// \name   Defined types.
+    /// @{
 
-public:
-  using point_type = scalar2<real_type>;
+  public:
+    using point_type = scalar2<real_type>;
 
-  /// @}
+    /// @}
 
-  /// \name   Members.
-  /// @{
+    /// \name   Members.
+    /// @{
 
-public:
-  union {
+  public:
+    union
+    {
 
-    struct {
-      real_type left;
-      real_type top;
-      real_type right;
-      real_type bottom;
+        struct
+        {
+            real_type left;
+            real_type top;
+            real_type right;
+            real_type bottom;
+        };
+
+        struct
+        {
+            point_type top_left;
+            point_type bottom_right;
+        };
     };
 
-    struct {
-      point_type top_left;
-      point_type bottom_right;
-    };
-  };
+    /// @}
 
-  /// @}
+    /// \name   Constructors
+    /// @{
 
-  /// \name   Constructors
-  /// @{
+  public:
+    rectangle() noexcept = default;
 
-public:
-  rectangle() noexcept = default;
+    /// \brief  Construct with 4 values.
+    rectangle(const real_type r_left, const real_type r_top, const real_type r_right, const real_type r_bottom) noexcept
+        : left{ r_left }
+        , top{ r_top }
+        , right{ r_right }
+        , bottom{ r_bottom }
+    {
+        assert(left <= right);
+        assert(top <= bottom);
+    }
 
-  /// \brief  Construct with 4 values.
-  rectangle(const real_type r_left, const real_type r_top,
-            const real_type r_right, const real_type r_bottom) noexcept
-      : left{r_left}, top{r_top}, right{r_right}, bottom{r_bottom} {
-    assert(left <= right);
-    assert(top <= bottom);
-  }
+    /// \brief  Construct with two points.
+    rectangle(const point_type& pt_top_left, const point_type& pt_bottom_right) noexcept
+        : rectangle{ pt_top_left.x, pt_top_left.y, pt_bottom_right.x, pt_bottom_right.y }
+    {
+    }
 
-  /// \brief  Construct with two points.
-  rectangle(const point_type& pt_top_left,
-            const point_type& pt_bottom_right) noexcept
-      : rectangle{pt_top_left.x, pt_top_left.y, pt_bottom_right.x,
-                  pt_bottom_right.y} {}
+    /// @}
 
-  /// @}
+    /// \name   Attributes.
+    /// @{
 
-  /// \name   Attributes.
-  /// @{
+  public:
+    real_type width() const noexcept { return right - left; }
 
-public:
-  real_type width() const noexcept { return right - left; }
+    real_type height() const noexcept { return bottom - top; }
 
-  real_type height() const noexcept { return bottom - top; }
+    real_type area() const noexcept { return width() * height(); }
 
-  real_type area() const noexcept { return width() * height(); }
-
-  /// @}
+    /// @}
 };
 
 /// @}

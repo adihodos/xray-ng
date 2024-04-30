@@ -37,57 +37,55 @@
 
 namespace app {
 
-struct phong_material_component {
-private:
-  phong_material_component()  = delete;
-  ~phong_material_component() = delete;
+struct phong_material_component
+{
+  private:
+    phong_material_component() = delete;
+    ~phong_material_component() = delete;
 
-public:
-  enum class e : uint8_t {
-    emissive,
-    ambient,
-    diffuse,
-    specular,
-    specular_intensity
-  };
+  public:
+    enum class e : uint8_t
+    {
+        emissive,
+        ambient,
+        diffuse,
+        specular,
+        specular_intensity
+    };
 
-  using underlying_type = uint8_t;
+    using underlying_type = uint8_t;
 
-  static const char*
-  qualified_name(const phong_material_component::e member) noexcept;
-  static const char* name(const phong_material_component::e member) noexcept;
+    static const char* qualified_name(const phong_material_component::e member) noexcept;
+    static const char* name(const phong_material_component::e member) noexcept;
 
-  static const char* class_name() noexcept {
-    return "phong_material_component::e";
-  }
+    static const char* class_name() noexcept { return "phong_material_component::e"; }
 
-  static underlying_type
-  to_integer(const phong_material_component::e member) noexcept {
-    return static_cast<underlying_type>(member);
-  }
+    static underlying_type to_integer(const phong_material_component::e member) noexcept
+    {
+        return static_cast<underlying_type>(member);
+    }
 
-  static phong_material_component::e
-  from_integer(const underlying_type ival) noexcept {
-    return static_cast<phong_material_component::e>(ival);
-  }
+    static phong_material_component::e from_integer(const underlying_type ival) noexcept
+    {
+        return static_cast<phong_material_component::e>(ival);
+    }
 
-  using const_iterator         = const e*;
-  using reverse_const_iterator = std::reverse_iterator<const_iterator>;
+    using const_iterator = const e*;
+    using reverse_const_iterator = std::reverse_iterator<const_iterator>;
 
-  static constexpr size_t size = 5u;
-  static const_iterator   cbegin() noexcept { return &_member_entries[0]; }
-  static const_iterator   cend() noexcept { return &_member_entries[5]; }
-  static reverse_const_iterator crbegin() noexcept {
-    return reverse_const_iterator(cend());
-  }
-  static reverse_const_iterator crend() noexcept {
-    return reverse_const_iterator(cbegin());
-  }
-  static bool is_defined(const phong_material_component::e val) noexcept;
+    static constexpr size_t size = 5u;
+    static const_iterator cbegin() noexcept { return &_member_entries[0]; }
+    static const_iterator cend() noexcept { return &_member_entries[5]; }
+    static reverse_const_iterator crbegin() noexcept { return reverse_const_iterator(cend()); }
+    static reverse_const_iterator crend() noexcept { return reverse_const_iterator(cbegin()); }
+    static bool is_defined(const phong_material_component::e val) noexcept;
 
-private:
-  static constexpr const e _member_entries[] = {
-      e::emissive, e::ambient, e::diffuse, e::specular, e::specular_intensity};
+  private:
+    static constexpr const e _member_entries[] = { e::emissive,
+                                                   e::ambient,
+                                                   e::diffuse,
+                                                   e::specular,
+                                                   e::specular_intensity };
 };
 
 } // end ns

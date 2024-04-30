@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/space_traits.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 #include <type_traits>
 
@@ -41,43 +41,45 @@ namespace math {
 
 /// \brief  A line in 2D/3D space. The equation for a point on the ray is
 ///         P = O + t * D, where t is in the (-inf, +inf) range.
-template <typename T, size_t space_dimension>
+template<typename T, size_t space_dimension>
 class line
-  : public std::enable_if<(space_dimension == 2) || (space_dimension == 3),
-                          space_traits<space_dimension, T>>::type {
+    : public std::enable_if<(space_dimension == 2) || (space_dimension == 3), space_traits<space_dimension, T>>::type
+{
 
-public:
-  using space_traits_type = space_traits<space_dimension, T>;
+  public:
+    using space_traits_type = space_traits<space_dimension, T>;
 
-  using point_type  = typename space_traits_type::point_type;
-  using vector_type = typename space_traits_type::vector_type;
+    using point_type = typename space_traits_type::point_type;
+    using vector_type = typename space_traits_type::vector_type;
 
-  point_type origin;    ///< Origin point of the line
-  point_type direction; ///< Unit length direction vector.
+    point_type origin;    ///< Origin point of the line
+    point_type direction; ///< Unit length direction vector.
 
-  line() noexcept = default;
+    line() noexcept = default;
 
-  /// \brief Construct from and origin point and a unit length direction vector.
-  constexpr line(const point_type& org, const vector_type& dir) noexcept
-    : origin{org}, direction{dir} {}
+    /// \brief Construct from and origin point and a unit length direction vector.
+    constexpr line(const point_type& org, const vector_type& dir) noexcept
+        : origin{ org }
+        , direction{ dir }
+    {
+    }
 
-  /// \brief  Return a point on the line, given a value in the (-inf, +inf)
-  /// range.
-  constexpr point_type eval(const T t) const noexcept {
-    return origin + t * direction;
-  }
+    /// \brief  Return a point on the line, given a value in the (-inf, +inf)
+    /// range.
+    constexpr point_type eval(const T t) const noexcept { return origin + t * direction; }
 
-  struct construct;
+    struct construct;
 };
 
-template <typename T, size_t dim>
-struct line<T, dim>::construct {
-  /// \brief  Construct a line originating from p0 and passing through p1.
-  static line<T, dim>
-  from_points(const typename line<T, dim>::point_type& p0,
-              const typename line<T, dim>::point_type& p1) noexcept {
-    return {p0, normalize(p1 - p0)};
-  }
+template<typename T, size_t dim>
+struct line<T, dim>::construct
+{
+    /// \brief  Construct a line originating from p0 and passing through p1.
+    static line<T, dim> from_points(const typename line<T, dim>::point_type& p0,
+                                    const typename line<T, dim>::point_type& p1) noexcept
+    {
+        return { p0, normalize(p1 - p0) };
+    }
 };
 
 /// @}

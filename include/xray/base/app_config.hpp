@@ -40,84 +40,71 @@ namespace base {
 
 ///
 ///  \brief  Simple path management.
-class app_config {
-public:
-  using path_type = platformstl::path_a;
+class app_config
+{
+  public:
+    using path_type = platformstl::path_a;
 
-  explicit app_config(const char* cfg_path);
+    explicit app_config(const char* cfg_path);
 
-  const path_type& root_directory() const noexcept { return paths_.root_path; }
+    const path_type& root_directory() const noexcept { return paths_.root_path; }
 
-  path_type model_path(const char* name) const {
-    return make_path(paths_.model_path, name);
-  }
+    path_type model_path(const char* name) const { return make_path(paths_.model_path, name); }
 
-  path_type shader_path(const char* name) const {
-    return make_path(paths_.shader_path, name);
-  }
+    path_type shader_path(const char* name) const { return make_path(paths_.shader_path, name); }
 
-  path_type texture_path(const char* name) const {
-    return make_path(paths_.texture_path, name);
-  }
+    path_type texture_path(const char* name) const { return make_path(paths_.texture_path, name); }
 
-  path_type shader_config_path(const char* name) const {
-    return make_path(paths_.shader_cfg_path, name);
-  }
+    path_type shader_config_path(const char* name) const { return make_path(paths_.shader_cfg_path, name); }
 
-  path_type camera_config_path(const char* name) const {
-    return make_path(paths_.camera_cfg_path, name);
-  }
+    path_type camera_config_path(const char* name) const { return make_path(paths_.camera_cfg_path, name); }
 
-  path_type objects_config_path(const char* name) const {
-    return make_path(paths_.objects_cfg_path, name);
-  }
+    path_type objects_config_path(const char* name) const { return make_path(paths_.objects_cfg_path, name); }
 
-  const path_type font_path(const char* font_name) const noexcept {
-    return make_path(paths_.fonts_path, font_name);
-  }
+    const path_type font_path(const char* font_name) const noexcept { return make_path(paths_.fonts_path, font_name); }
 
-  const path_type& engine_config_path() const noexcept {
-    return paths_.engine_ini_file;
-  }
+    const path_type& engine_config_path() const noexcept { return paths_.engine_ini_file; }
 
-  const path_type& font_root() const noexcept { return paths_.fonts_path; }
-  const path_type& model_root() const noexcept { return paths_.model_path; }
+    const path_type& font_root() const noexcept { return paths_.fonts_path; }
+    const path_type& model_root() const noexcept { return paths_.model_path; }
 
-  static app_config* instance() noexcept { return _unique_instance; }
+    static app_config* instance() noexcept { return _unique_instance; }
 
-private:
-  static app_config* _unique_instance;
+  private:
+    static app_config* _unique_instance;
 
-  struct paths_data_t {
-    platformstl::path_a root_path;
-    platformstl::path_a shader_path;
-    platformstl::path_a model_path;
-    platformstl::path_a texture_path;
-    platformstl::path_a shader_cfg_path;
-    platformstl::path_a camera_cfg_path;
-    platformstl::path_a objects_cfg_path;
-    platformstl::path_a fonts_path;
-    platformstl::path_a engine_ini_file;
-  } paths_;
+    struct paths_data_t
+    {
+        platformstl::path_a root_path;
+        platformstl::path_a shader_path;
+        platformstl::path_a model_path;
+        platformstl::path_a texture_path;
+        platformstl::path_a shader_cfg_path;
+        platformstl::path_a camera_cfg_path;
+        platformstl::path_a objects_cfg_path;
+        platformstl::path_a fonts_path;
+        platformstl::path_a engine_ini_file;
+    } paths_;
 
-  static path_type make_path(const path_type& prefix, const char* path) {
-    assert(path != nullptr);
+    static path_type make_path(const path_type& prefix, const char* path)
+    {
+        assert(path != nullptr);
 
-    path_type suffix{path};
-    path_type result{prefix};
+        path_type suffix{ path };
+        path_type result{ prefix };
 
-    if (!result.has_sep() && !suffix.has_sep()) {
-      result.push_sep();
+        if (!result.has_sep() && !suffix.has_sep()) {
+            result.push_sep();
+        }
+
+        result.push(suffix);
+        return result;
     }
 
-    result.push(suffix);
-    return result;
-  }
+  private:
+    app_config() = default;
 
-private:
-  app_config() = default;
-
-  XRAY_NO_COPY(app_config);
+    XRAY_NO_COPY(app_config);
 };
 
 /// @}

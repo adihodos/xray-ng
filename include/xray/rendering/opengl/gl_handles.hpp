@@ -28,66 +28,73 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/unique_handle.hpp"
+#include "xray/xray.hpp"
 #include <opengl/opengl.hpp>
 
 namespace xray {
 namespace rendering {
 
-struct gl_object_base {
-  using handle_type = GLuint;
+struct gl_object_base
+{
+    using handle_type = GLuint;
 
-  static bool is_null(const handle_type handle) noexcept { return handle == 0; }
+    static bool is_null(const handle_type handle) noexcept { return handle == 0; }
 
-  static handle_type null() noexcept { return 0; }
+    static handle_type null() noexcept { return 0; }
 };
 
-struct buffer_handle : public gl_object_base {
-  static void destroy(const handle_type handle) noexcept {
-    gl::DeleteBuffers(1, &handle);
-  }
+struct buffer_handle : public gl_object_base
+{
+    static void destroy(const handle_type handle) noexcept { gl::DeleteBuffers(1, &handle); }
 };
 
-struct vertex_array_handle : public gl_object_base {
-  static void destroy(const handle_type handle) noexcept {
-    gl::DeleteVertexArrays(1, &handle);
-  }
+struct vertex_array_handle : public gl_object_base
+{
+    static void destroy(const handle_type handle) noexcept { gl::DeleteVertexArrays(1, &handle); }
 };
 
-struct texture_handle : public gl_object_base {
-  static void destroy(const handle_type tex_handle) noexcept {
-    if (tex_handle)
-      gl::DeleteTextures(1, &tex_handle);
-  }
+struct texture_handle : public gl_object_base
+{
+    static void destroy(const handle_type tex_handle) noexcept
+    {
+        if (tex_handle)
+            gl::DeleteTextures(1, &tex_handle);
+    }
 };
 
-struct sampler_handle : public gl_object_base {
-  static void destroy(const handle_type smp_handle) noexcept {
-    if (smp_handle)
-      gl::DeleteSamplers(1, &smp_handle);
-  }
+struct sampler_handle : public gl_object_base
+{
+    static void destroy(const handle_type smp_handle) noexcept
+    {
+        if (smp_handle)
+            gl::DeleteSamplers(1, &smp_handle);
+    }
 };
 
-struct framebuffer_handle : public gl_object_base {
-  static void destroy(const handle_type fbo) noexcept {
-    if (fbo)
-      gl::DeleteFramebuffers(1, &fbo);
-  }
+struct framebuffer_handle : public gl_object_base
+{
+    static void destroy(const handle_type fbo) noexcept
+    {
+        if (fbo)
+            gl::DeleteFramebuffers(1, &fbo);
+    }
 };
 
-struct renderbuffer_handle : public gl_object_base {
-  static void destroy(const handle_type rbo) noexcept {
-    if (rbo)
-      gl::DeleteRenderbuffers(1, &rbo);
-  }
+struct renderbuffer_handle : public gl_object_base
+{
+    static void destroy(const handle_type rbo) noexcept
+    {
+        if (rbo)
+            gl::DeleteRenderbuffers(1, &rbo);
+    }
 };
 
-using scoped_buffer       = base::unique_handle<buffer_handle>;
+using scoped_buffer = base::unique_handle<buffer_handle>;
 using scoped_vertex_array = base::unique_handle<vertex_array_handle>;
-using scoped_texture      = base::unique_handle<texture_handle>;
-using scoped_sampler      = base::unique_handle<sampler_handle>;
-using scoped_framebuffer  = base::unique_handle<framebuffer_handle>;
+using scoped_texture = base::unique_handle<texture_handle>;
+using scoped_sampler = base::unique_handle<sampler_handle>;
+using scoped_framebuffer = base::unique_handle<framebuffer_handle>;
 using scoped_renderbuffer = base::unique_handle<renderbuffer_handle>;
 
 } // namespace rendering

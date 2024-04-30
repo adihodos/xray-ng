@@ -30,9 +30,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/fast_delegate.hpp"
 #include "xray/ui/key_sym.hpp"
+#include "xray/xray.hpp"
 #include <cstddef>
 #include <cstdint>
 
@@ -41,185 +41,214 @@ namespace ui {
 
 class window;
 
-enum class event_type {
-  key,
-  mouse_button,
-  mouse_motion,
-  mouse_crossing,
-  mouse_wheel,
-  configure
+enum class event_type
+{
+    key,
+    mouse_button,
+    mouse_motion,
+    mouse_crossing,
+    mouse_wheel,
+    configure
 };
 
-enum class event_action_type { press, release };
-
-enum class mouse_button { button1, button2, button3, button4, button5 };
-
-struct modifier_mask {
-  enum {
-    button1 = 1,
-    button2 = 1 << 1,
-    button3 = 1 << 2,
-    button4 = 1 << 3,
-    button5 = 1 << 4,
-    shift   = 1 << 5,
-    control = 1 << 6
-  };
+enum class event_action_type
+{
+    press,
+    release
 };
 
-struct mouse_button_event {
-  ///< Press or release
-  event_action_type type;
-  ///< Pointer to window
-  window* wnd;
-  ///< X pointer position (client coords)
-  int32_t pointer_x;
-  ///< Y pointer position (client coords)
-  int32_t pointer_y;
-  ///< Id of the mouse button
-  mouse_button button;
-  union {
-    ///< Active modifiers
-    uint32_t modifiers;
-    struct {
-      uint32_t button1 : 1;
-      uint32_t button2 : 1;
-      uint32_t button3 : 1;
-      uint32_t button4 : 1;
-      uint32_t button5 : 1;
-      uint32_t shift : 1;
-      uint32_t control : 1;
+enum class mouse_button
+{
+    button1,
+    button2,
+    button3,
+    button4,
+    button5
+};
+
+struct modifier_mask
+{
+    enum
+    {
+        button1 = 1,
+        button2 = 1 << 1,
+        button3 = 1 << 2,
+        button4 = 1 << 3,
+        button5 = 1 << 4,
+        shift = 1 << 5,
+        control = 1 << 6
     };
-  };
 };
 
-struct mouse_wheel_event {
-  ///< Amount of motion.
-  int32_t delta;
-  ///< Pointer to window
-  window* wnd;
-  ///< X pointer position (client coords)
-  int32_t pointer_x;
-  ///< Y pointer position (client coords)
-  int32_t pointer_y;
-  union {
-    ///< Active modifiers
-    uint32_t modifiers;
-    struct {
-      uint32_t button1 : 1;
-      uint32_t button2 : 1;
-      uint32_t button3 : 1;
-      uint32_t button4 : 1;
-      uint32_t button5 : 1;
-      uint32_t shift : 1;
-      uint32_t control : 1;
+struct mouse_button_event
+{
+    ///< Press or release
+    event_action_type type;
+    ///< Pointer to window
+    window* wnd;
+    ///< X pointer position (client coords)
+    int32_t pointer_x;
+    ///< Y pointer position (client coords)
+    int32_t pointer_y;
+    ///< Id of the mouse button
+    mouse_button button;
+    union
+    {
+        ///< Active modifiers
+        uint32_t modifiers;
+        struct
+        {
+            uint32_t button1 : 1;
+            uint32_t button2 : 1;
+            uint32_t button3 : 1;
+            uint32_t button4 : 1;
+            uint32_t button5 : 1;
+            uint32_t shift : 1;
+            uint32_t control : 1;
+        };
     };
-  };
 };
 
-struct mouse_motion_event {
-  ///< Pointer to window
-  window* wnd;
-  ///< X pointer position (client coords)
-  int32_t pointer_x;
-  ///< Y pointer position (client coords)
-  int32_t pointer_y;
-  union {
-    ///< Active modifiers
-    uint32_t modifiers;
-    struct {
-      uint32_t button1 : 1;
-      uint32_t button2 : 1;
-      uint32_t button3 : 1;
-      uint32_t button4 : 1;
-      uint32_t button5 : 1;
-      uint32_t shift : 1;
-      uint32_t control : 1;
+struct mouse_wheel_event
+{
+    ///< Amount of motion.
+    int32_t delta;
+    ///< Pointer to window
+    window* wnd;
+    ///< X pointer position (client coords)
+    int32_t pointer_x;
+    ///< Y pointer position (client coords)
+    int32_t pointer_y;
+    union
+    {
+        ///< Active modifiers
+        uint32_t modifiers;
+        struct
+        {
+            uint32_t button1 : 1;
+            uint32_t button2 : 1;
+            uint32_t button3 : 1;
+            uint32_t button4 : 1;
+            uint32_t button5 : 1;
+            uint32_t shift : 1;
+            uint32_t control : 1;
+        };
     };
-  };
 };
 
-struct key_event {
-  ///< Pointer to window
-  window* wnd;
-  ///< X pointer position (client coords)
-  int32_t pointer_x;
-  ///< Y pointer position (client coords)
-  int32_t pointer_y;
-  ///< Code of key that generated the event.
-  key_sym::e keycode;
-  ///< Press or release
-  event_action_type type;
-  union {
-    ///< Active modifiers
-    uint32_t modifiers;
-    struct {
-      uint32_t button1 : 1;
-      uint32_t button2 : 1;
-      uint32_t button3 : 1;
-      uint32_t button4 : 1;
-      uint32_t button5 : 1;
-      uint32_t shift : 1;
-      uint32_t control : 1;
+struct mouse_motion_event
+{
+    ///< Pointer to window
+    window* wnd;
+    ///< X pointer position (client coords)
+    int32_t pointer_x;
+    ///< Y pointer position (client coords)
+    int32_t pointer_y;
+    union
+    {
+        ///< Active modifiers
+        uint32_t modifiers;
+        struct
+        {
+            uint32_t button1 : 1;
+            uint32_t button2 : 1;
+            uint32_t button3 : 1;
+            uint32_t button4 : 1;
+            uint32_t button5 : 1;
+            uint32_t shift : 1;
+            uint32_t control : 1;
+        };
     };
-  };
-
-  char name[32];
 };
 
-struct window_configure_event {
-  int32_t width;
-  int32_t height;
-  window* wnd;
+struct key_event
+{
+    ///< Pointer to window
+    window* wnd;
+    ///< X pointer position (client coords)
+    int32_t pointer_x;
+    ///< Y pointer position (client coords)
+    int32_t pointer_y;
+    ///< Code of key that generated the event.
+    key_sym::e keycode;
+    ///< Press or release
+    event_action_type type;
+    union
+    {
+        ///< Active modifiers
+        uint32_t modifiers;
+        struct
+        {
+            uint32_t button1 : 1;
+            uint32_t button2 : 1;
+            uint32_t button3 : 1;
+            uint32_t button4 : 1;
+            uint32_t button5 : 1;
+            uint32_t shift : 1;
+            uint32_t control : 1;
+        };
+    };
+
+    char name[32];
 };
 
-struct window_loop_event {
-  int32_t wnd_width;
-  int32_t wnd_height;
-  window* wnd;
+struct window_configure_event
+{
+    int32_t width;
+    int32_t height;
+    window* wnd;
 };
 
-struct window_event {
-  event_type type;
-  union {
-    mouse_button_event     button;
-    mouse_wheel_event      wheel;
-    mouse_motion_event     motion;
-    key_event              key;
-    window_configure_event configure;
-  } event;
-
-  static window_event configure_event(const int32_t width,
-                                      const int32_t height,
-                                      window*       wnd) noexcept {
-    window_event we;
-    we.type                   = event_type::configure;
-    we.event.configure.wnd    = wnd;
-    we.event.configure.width  = width;
-    we.event.configure.height = height;
-
-    return we;
-  }
+struct window_loop_event
+{
+    int32_t wnd_width;
+    int32_t wnd_height;
+    window* wnd;
 };
 
-inline bool is_input_event(const window_event& we) noexcept {
-  return we.type == event_type::key || we.type == event_type::mouse_button ||
-         we.type == event_type::mouse_motion ||
-         we.type == event_type::mouse_crossing ||
-         we.type == event_type::mouse_wheel;
+struct window_event
+{
+    event_type type;
+    union
+    {
+        mouse_button_event button;
+        mouse_wheel_event wheel;
+        mouse_motion_event motion;
+        key_event key;
+        window_configure_event configure;
+    } event;
+
+    static window_event configure_event(const int32_t width, const int32_t height, window* wnd) noexcept
+    {
+        window_event we;
+        we.type = event_type::configure;
+        we.event.configure.wnd = wnd;
+        we.event.configure.width = width;
+        we.event.configure.height = height;
+
+        return we;
+    }
+};
+
+inline bool
+is_input_event(const window_event& we) noexcept
+{
+    return we.type == event_type::key || we.type == event_type::mouse_button || we.type == event_type::mouse_motion ||
+           we.type == event_type::mouse_crossing || we.type == event_type::mouse_wheel;
 }
 
-struct poll_start_event {};
-struct poll_end_event {
-  int32_t surface_width;
-  int32_t surface_height;
+struct poll_start_event
+{};
+struct poll_end_event
+{
+    int32_t surface_width;
+    int32_t surface_height;
 };
 
 using loop_event_delegate = base::fast_delegate<void(const window_loop_event&)>;
 using window_event_delegate = base::fast_delegate<void(const window_event&)>;
-using poll_start_event_delegate =
-  base::fast_delegate<void(const poll_start_event&)>;
-using poll_end_event_delegate =
-  base::fast_delegate<void(const poll_end_event&)>;
+using poll_start_event_delegate = base::fast_delegate<void(const poll_start_event&)>;
+using poll_end_event_delegate = base::fast_delegate<void(const poll_end_event&)>;
 
 } // namespace ui
 } // namespace xray

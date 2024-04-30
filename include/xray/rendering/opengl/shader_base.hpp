@@ -28,46 +28,48 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/unique_handle.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 #include <opengl/opengl.hpp>
 
 namespace xray {
 namespace rendering {
 
-enum class shader_type : uint8_t {
-  first,
-  vertex = first,
-  tesselation_control,
-  tesselation_eval,
-  geometry,
-  fragment,
-  compute,
-  last
+enum class shader_type : uint8_t
+{
+    first,
+    vertex = first,
+    tesselation_control,
+    tesselation_eval,
+    geometry,
+    fragment,
+    compute,
+    last
 };
 
-struct shader_handle {
-  using handle_type = GLuint;
+struct shader_handle
+{
+    using handle_type = GLuint;
 
-  static bool is_null(const handle_type handle) noexcept { return handle == 0; }
+    static bool is_null(const handle_type handle) noexcept { return handle == 0; }
 
-  static void destroy(const handle_type handle) noexcept {
-    if (!is_null(handle))
-      gl::DeleteShader(handle);
-  }
+    static void destroy(const handle_type handle) noexcept
+    {
+        if (!is_null(handle))
+            gl::DeleteShader(handle);
+    }
 
-  static handle_type null() noexcept { return 0; }
+    static handle_type null() noexcept { return 0; }
 };
 
 using scoped_shader_handle = xray::base::unique_handle<shader_handle>;
 
-GLuint make_shader(const uint32_t     shader_type,
-                   const char* const* src_code_strings,
-                   const uint32_t     strings_count) noexcept;
+GLuint
+make_shader(const uint32_t shader_type, const char* const* src_code_strings, const uint32_t strings_count) noexcept;
 
-GLuint make_shader(const uint32_t shader_type,
-                   const char*    source_file) noexcept;
+GLuint
+make_shader(const uint32_t shader_type, const char* source_file) noexcept;
 
 } // namespace rendering
 } // namespace xray

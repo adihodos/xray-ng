@@ -28,9 +28,9 @@
 
 /// \file com_ptr.hpp
 
-#include <unknwn.h>
-#include "xray/xray.hpp"
 #include "xray/base/unique_pointer.hpp"
+#include "xray/xray.hpp"
+#include <unknwn.h>
 
 namespace xray {
 namespace base {
@@ -38,8 +38,10 @@ namespace base {
 /// \addtogroup __GroupXrayBase
 /// @{
 
-struct com_deleter {
-    void operator()(IUnknown* com_ptr) const noexcept {
+struct com_deleter
+{
+    void operator()(IUnknown* com_ptr) const noexcept
+    {
         if (com_ptr)
             com_ptr->Release();
     }

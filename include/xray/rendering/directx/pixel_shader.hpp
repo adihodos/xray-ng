@@ -30,8 +30,8 @@
 
 /// \file gpu_shader.hpp
 
-#include "xray/xray.hpp"
 #include "xray/rendering/directx/gpu_shader.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 #include <d3d11.h>
 
@@ -41,31 +41,31 @@ namespace rendering {
 /// \addtogroup __GroupXrayRendering_Directx
 /// @{
 
-struct pixel_shader_traits {
-  using interface_type = ID3D11PixelShader;
-  using handle_type    = ID3D11PixelShader*;
+struct pixel_shader_traits
+{
+    using interface_type = ID3D11PixelShader;
+    using handle_type = ID3D11PixelShader*;
 
-  static constexpr const char* const target = "ps_5_0";
+    static constexpr const char* const target = "ps_5_0";
 
-  static handle_type create(ID3D11Device* device,
-                            ID3D10Blob*   compiled_bytecode) {
-    ID3D11PixelShader* ps{};
-    device->CreatePixelShader(compiled_bytecode->GetBufferPointer(),
-                              compiled_bytecode->GetBufferSize(), nullptr, &ps);
-    return ps;
-  }
+    static handle_type create(ID3D11Device* device, ID3D10Blob* compiled_bytecode)
+    {
+        ID3D11PixelShader* ps{};
+        device->CreatePixelShader(
+            compiled_bytecode->GetBufferPointer(), compiled_bytecode->GetBufferSize(), nullptr, &ps);
+        return ps;
+    }
 
-  static void bind(ID3D11DeviceContext* context, ID3D11PixelShader* shader) {
-    context->PSSetShader(shader, nullptr, 0);
-  }
+    static void bind(ID3D11DeviceContext* context, ID3D11PixelShader* shader)
+    {
+        context->PSSetShader(shader, nullptr, 0);
+    }
 
-  static constexpr auto set_constant_buffers =
-      &ID3D11DeviceContext::PSSetConstantBuffers;
+    static constexpr auto set_constant_buffers = &ID3D11DeviceContext::PSSetConstantBuffers;
 
-  static constexpr auto set_resource_views =
-      &ID3D11DeviceContext::PSSetShaderResources;
+    static constexpr auto set_resource_views = &ID3D11DeviceContext::PSSetShaderResources;
 
-  static constexpr auto set_samplers = &ID3D11DeviceContext::PSSetSamplers;
+    static constexpr auto set_samplers = &ID3D11DeviceContext::PSSetSamplers;
 };
 
 using pixel_shader = gpu_shader<pixel_shader_traits>;

@@ -28,10 +28,10 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/rendering/colors/color_cast.hpp"
 #include "xray/rendering/colors/hsv_color.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
@@ -39,22 +39,22 @@ namespace rendering {
 struct rgb_color;
 struct hsv_color;
 
-hsv_color rgb_to_hsv(const rgb_color& rgb) noexcept;
+hsv_color
+rgb_to_hsv(const rgb_color& rgb) noexcept;
 
-rgb_color hsv_to_rgb(const hsv_color& hsv) noexcept;
+rgb_color
+hsv_to_rgb(const hsv_color& hsv) noexcept;
 
-template <>
-struct color_caster<rgb_color, hsv_color> {
-  static rgb_color cast(const hsv_color& hsv) noexcept {
-    return hsv_to_rgb(hsv);
-  }
+template<>
+struct color_caster<rgb_color, hsv_color>
+{
+    static rgb_color cast(const hsv_color& hsv) noexcept { return hsv_to_rgb(hsv); }
 };
 
-template <>
-struct color_caster<hsv_color, rgb_color> {
-  static hsv_color cast(const rgb_color& rgb) noexcept {
-    return rgb_to_hsv(rgb);
-  }
+template<>
+struct color_caster<hsv_color, rgb_color>
+{
+    static hsv_color cast(const rgb_color& rgb) noexcept { return rgb_to_hsv(rgb); }
 };
 
 } // namespace rendering

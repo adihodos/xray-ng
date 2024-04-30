@@ -31,10 +31,10 @@
 ///
 /// \file    axis_aligned_bounding_box3.hpp
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/xray.hpp"
 #include <cassert>
 #include <cmath>
 #include <limits>
@@ -45,56 +45,57 @@ namespace math {
 /// \addtogroup __GroupXrayMath_Geometry
 /// @{
 
-template <typename real_type>
-struct axis_aligned_bounding_box3 {
+template<typename real_type>
+struct axis_aligned_bounding_box3
+{
 
-  using point_type = scalar3<real_type>;
-  using class_type = axis_aligned_bounding_box3<real_type>;
+    using point_type = scalar3<real_type>;
+    using class_type = axis_aligned_bounding_box3<real_type>;
 
-  point_type min;
-  point_type max;
+    point_type min;
+    point_type max;
 
-  axis_aligned_bounding_box3() noexcept = default;
+    axis_aligned_bounding_box3() noexcept = default;
 
-  constexpr axis_aligned_bounding_box3(const real_type xmin,
-                                       const real_type ymin,
-                                       const real_type zmin,
-                                       const real_type xmax,
-                                       const real_type ymax,
-                                       const real_type zmax) noexcept
-    : min{xmin, ymin, zmin}, max{xmax, ymax, zmax} {}
+    constexpr axis_aligned_bounding_box3(const real_type xmin,
+                                         const real_type ymin,
+                                         const real_type zmin,
+                                         const real_type xmax,
+                                         const real_type ymax,
+                                         const real_type zmax) noexcept
+        : min{ xmin, ymin, zmin }
+        , max{ xmax, ymax, zmax }
+    {
+    }
 
-  constexpr axis_aligned_bounding_box3(const point_type& min,
-                                       const point_type& max) noexcept
-    : axis_aligned_bounding_box3{min.x, min.y, min.z, max.x, max.y, max.z} {}
+    constexpr axis_aligned_bounding_box3(const point_type& min, const point_type& max) noexcept
+        : axis_aligned_bounding_box3{ min.x, min.y, min.z, max.x, max.y, max.z }
+    {
+    }
 
-  point_type center() const noexcept { return (max + min) / real_type{2}; }
+    point_type center() const noexcept { return (max + min) / real_type{ 2 }; }
 
-  real_type width() const noexcept { return std::abs(max.x - min.x); }
+    real_type width() const noexcept { return std::abs(max.x - min.x); }
 
-  real_type height() const noexcept { return std::abs(max.y - min.y); }
+    real_type height() const noexcept { return std::abs(max.y - min.y); }
 
-  real_type depth() const noexcept { return std::abs(max.z - min.z); }
+    real_type depth() const noexcept { return std::abs(max.z - min.z); }
 
-  real_type max_dimension() const noexcept {
-    return std::max(width(), std::max(height(), depth()));
-  }
+    real_type max_dimension() const noexcept { return std::max(width(), std::max(height(), depth())); }
 
-  struct stdc;
-  //   ///< The identity bounding box.
-  //   static const axis_aligned_bounding_box3<real_type> identity;
-  // };
+    struct stdc;
+    //   ///< The identity bounding box.
+    //   static const axis_aligned_bounding_box3<real_type> identity;
+    // };
 };
 
-template <typename T>
-struct axis_aligned_bounding_box3<T>::stdc {
-  static constexpr axis_aligned_bounding_box3<T> identity{
-    std::numeric_limits<T>::max(),
-    std::numeric_limits<T>::max(),
-    std::numeric_limits<T>::max(),
-    std::numeric_limits<T>::min(),
-    std::numeric_limits<T>::min(),
-    std::numeric_limits<T>::min()};
+template<typename T>
+struct axis_aligned_bounding_box3<T>::stdc
+{
+    static constexpr axis_aligned_bounding_box3<T> identity{
+        std::numeric_limits<T>::max(), std::numeric_limits<T>::max(), std::numeric_limits<T>::max(),
+        std::numeric_limits<T>::min(), std::numeric_limits<T>::min(), std::numeric_limits<T>::min()
+    };
 };
 
 // template <typename T>

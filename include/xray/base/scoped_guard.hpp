@@ -30,8 +30,8 @@
 
 /// \file   scoped_guard.hpp
 
-#include <utility>
 #include "xray/xray.hpp"
+#include <utility>
 
 namespace xray {
 namespace base {
@@ -43,57 +43,68 @@ namespace base {
 /// Allow conditional execution of code when going out of a scope.
 /// Largely based on the implementation presented here :
 /// http://channel9.msdn.com/Shows/Going+Deep/C-and-Beyond-2012-Andrei-Alexandrescu-Systematic-Error-Handling-in-C
-template <typename fun_type>
-class scoped_guard {
-public:
-  typedef scoped_guard<fun_type> class_type;
+template<typename fun_type>
+class scoped_guard
+{
+  public:
+    typedef scoped_guard<fun_type> class_type;
 
-public:
-  explicit scoped_guard(fun_type action) noexcept : action_{std::move(action)} {
-  }
+  public:
+    explicit scoped_guard(fun_type action) noexcept
+        : action_{ std::move(action) }
+    {
+    }
 
-  scoped_guard(class_type&& rhs) noexcept : action_{std::move(rhs.action_)},
-                                            active_{rhs.active_} {
-    rhs.dismiss();
-  }
+    scoped_guard(class_type&& rhs) noexcept
+        : action_{ std::move(rhs.action_) }
+        , active_{ rhs.active_ }
+    {
+        rhs.dismiss();
+    }
 
-  ~scoped_guard() noexcept {
-    if (active_)
-      action_();
-  }
+    ~scoped_guard() noexcept
+    {
+        if (active_)
+            action_();
+    }
 
-  void dismiss() noexcept { active_ = false; }
+    void dismiss() noexcept { active_ = false; }
 
-private:
-  fun_type action_;
-  bool active_{true};
+  private:
+    fun_type action_;
+    bool active_{ true };
 
-private:
-  scoped_guard() = delete;
-  scoped_guard(const class_type&) = delete;
-  class_type& operator=(const class_type&) = delete;
-  class_type& operator=(class_type&&) = delete;
+  private:
+    scoped_guard() = delete;
+    scoped_guard(const class_type&) = delete;
+    class_type& operator=(const class_type&) = delete;
+    class_type& operator=(class_type&&) = delete;
 };
 
-template <typename fun_type>
-scoped_guard<fun_type> make_scope_guard(fun_type action) noexcept {
-  return scoped_guard<fun_type>(std::move(action));
+template<typename fun_type>
+scoped_guard<fun_type>
+make_scope_guard(fun_type action) noexcept
+{
+    return scoped_guard<fun_type>(std::move(action));
 }
 
 namespace detail {
-enum class scoped_guard_helper {};
+enum class scoped_guard_helper
+{
+};
 
-template <typename fun_type>
-scoped_guard<fun_type> operator+(scoped_guard_helper, fun_type&& fn) noexcept {
-  return make_scope_guard<fun_type>(std::forward<fun_type>(fn));
+template<typename fun_type>
+scoped_guard<fun_type>
+operator+(scoped_guard_helper, fun_type&& fn) noexcept
+{
+    return make_scope_guard<fun_type>(std::forward<fun_type>(fn));
 }
 }
 
 /// @}
 
-}  // namespace base
-}  // namespace xray
+} // namespace base
+} // namespace xray
 
-#define XRAY_SCOPE_EXIT                                                        \
-  auto XRAY_ANONYMOUS_VARIABLE(XRAY_SCOPE_EXIT_STATE) =                        \
-      ::xray::base::detail::scoped_guard_helper{} + [&]()
+#define XRAY_SCOPE_EXIT                                                                                                \
+    auto XRAY_ANONYMOUS_VARIABLE(XRAY_SCOPE_EXIT_STATE) = ::xray::base::detail::scoped_guard_helper{} + [&]()

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/windows/com_ptr.hpp"
+#include "xray/xray.hpp"
 #include <d3d10.h>
 
 namespace xray {
@@ -13,8 +13,9 @@ inline namespace directx10 {
 namespace directx10 {
 #endif
 
-struct rasterizer_state : public D3D10_RASTERIZER_DESC {
-  rasterizer_state() noexcept;
+struct rasterizer_state : public D3D10_RASTERIZER_DESC
+{
+    rasterizer_state() noexcept;
 };
 
 using scoped_rasterizer_state = base::com_ptr<ID3D10RasterizerState>;

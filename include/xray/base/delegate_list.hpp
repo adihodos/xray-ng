@@ -26,12 +26,12 @@
 
 #pragma once
 
-#include <cstddef>
-#include <algorithm>
-#include <vector>
-#include <utility>
-#include "xray/xray.hpp"
 #include "xray/base/fast_delegate.hpp"
+#include "xray/xray.hpp"
+#include <algorithm>
+#include <cstddef>
+#include <utility>
+#include <vector>
 
 namespace xray {
 namespace base {
@@ -42,18 +42,17 @@ namespace base {
 /// \brief  Stores a list of delegates. When operator() is called, the call
 ///         is actually forwarded to all delegates registered in the list.
 template<typename return_type, typename... args_type>
-class delegate_list {
-public :
+class delegate_list
+{
+  public:
+    using delegate_type = fast_delegate<return_type(args_type...)>;
+    using class_type = delegate_list<return_type, args_type...>;
 
-    using delegate_type     = fast_delegate<return_type (args_type...)>;
-    using class_type        = delegate_list<return_type, args_type...>;
-
-public :
-
+  public:
     /// \brief  Calls all the delegates with the supplied arguments.
-    void operator()(args_type... args) {
-        for (size_t del_idx = size_t{}, del_count = delegates_.size();
-             del_idx < del_count; ++del_idx) {
+    void operator()(args_type... args)
+    {
+        for (size_t del_idx = size_t{}, del_count = delegates_.size(); del_idx < del_count; ++del_idx) {
 
             auto& del_ref = delegates_[del_idx];
             del_ref(std::forward<args_type>(args)...);
@@ -61,29 +60,31 @@ public :
     }
 
     /// \brief  Adds a new delegate to the list.
-    class_type& operator+=(const delegate_type& del) {
+    class_type& operator+=(const delegate_type& del)
+    {
         delegates_.push_back(del);
         return *this;
     }
 
     /// \brief  Adds a new delegate to the list.
-    class_type& operator+=(delegate_type&& del) {
+    class_type& operator+=(delegate_type&& del)
+    {
         delegates_.emplace_back(std::move(del));
         return *this;
     }
 
     /// \brief  Removes a delegate from the list.
-    class_type& operator-=(const delegate_type& del_to_remove) {
+    class_type& operator-=(const delegate_type& del_to_remove)
+    {
         using namespace std;
-        auto itr_rem = remove(begin(delegates_), end(delegates_),
-                              del_to_remove);
+        auto itr_rem = remove(begin(delegates_), end(delegates_), del_to_remove);
         delegates_.erase(itr_rem, end(delegates_));
 
         return *this;
     }
 
-private :
-    std::vector<delegate_type>  delegates_;
+  private:
+    std::vector<delegate_type> delegates_;
 };
 
 /// @}

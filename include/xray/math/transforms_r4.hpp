@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace math {
@@ -38,20 +38,23 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-struct R4 {
+struct R4
+{
 
-  /// \brief      Constructs an affine matrix for a translation in R3.
-  template <typename T>
-  static scalar4x4<T> translate(const T x, const T y, const T z) noexcept;
+    /// \brief      Constructs an affine matrix for a translation in R3.
+    template<typename T>
+    static scalar4x4<T> translate(const T x, const T y, const T z) noexcept;
 
-  /// \brief      Constructs an affine matrix for a translation in R3.
-  template <typename T>
-  static scalar4x4<T> translate(const scalar3<T>& vec) noexcept;
+    /// \brief      Constructs an affine matrix for a translation in R3.
+    template<typename T>
+    static scalar4x4<T> translate(const scalar3<T>& vec) noexcept;
 };
 
-template <typename T>
-scalar4x4<T> R4::translate(const T x, const T y, const T z) noexcept {
-  // clang-format off
+template<typename T>
+scalar4x4<T>
+R4::translate(const T x, const T y, const T z) noexcept
+{
+    // clang-format off
 
   return {
     T(1), T{},  T{},  x,

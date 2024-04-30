@@ -28,10 +28,10 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/scene/camera_controller.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace xray {
@@ -47,78 +47,84 @@ class camera;
 /// \addtogroup __GroupXrayMath
 /// @{
 
-struct camera_lens_parameters {
-  float fov{math::radians(65.0f)};
-  float nearplane{0.1f};
-  float farplane{500.0f};
-  float aspect_ratio{4.0f / 3.0f};
+struct camera_lens_parameters
+{
+    float fov{ math::radians(65.0f) };
+    float nearplane{ 0.1f };
+    float farplane{ 500.0f };
+    float aspect_ratio{ 4.0f / 3.0f };
 };
 
-class fps_camera_controller : public camera_controller {
-public:
-  static constexpr float MOVE_SPEED   = 1.0f;
-  static constexpr float ROTATE_SPEED = 0.1f;
-  static constexpr float LENS_SPEED   = 0.05f;
+class fps_camera_controller : public camera_controller
+{
+  public:
+    static constexpr float MOVE_SPEED = 1.0f;
+    static constexpr float ROTATE_SPEED = 0.1f;
+    static constexpr float LENS_SPEED = 0.05f;
 
-  fps_camera_controller(camera* cam, const char* config_file = nullptr);
+    fps_camera_controller(camera* cam, const char* config_file = nullptr);
 
-  void move_up() noexcept;
-  void move_down() noexcept;
+    void move_up() noexcept;
+    void move_down() noexcept;
 
-  void move_forward() noexcept;
-  void move_backward() noexcept;
+    void move_forward() noexcept;
+    void move_backward() noexcept;
 
-  void move_left() noexcept;
-  void move_right() noexcept;
+    void move_left() noexcept;
+    void move_right() noexcept;
 
-  void yaw_left() noexcept;
-  void yaw_right() noexcept;
+    void yaw_left() noexcept;
+    void yaw_right() noexcept;
 
-  void pitch_up() noexcept;
-  void pitch_down() noexcept;
+    void pitch_up() noexcept;
+    void pitch_down() noexcept;
 
-  void roll_left() noexcept;
-  void roll_right() noexcept;
+    void roll_left() noexcept;
+    void roll_right() noexcept;
 
-  void zoom_in() noexcept;
-  void zoom_out() noexcept;
+    void zoom_in() noexcept;
+    void zoom_out() noexcept;
 
-  void set_lens_parameters(const camera_lens_parameters& lparam) noexcept {
-    _lensparams      = lparam;
-    _syncstatus.lens = 0;
-  }
+    void set_lens_parameters(const camera_lens_parameters& lparam) noexcept
+    {
+        _lensparams = lparam;
+        _syncstatus.lens = 0;
+    }
 
-  void reset_orientation() noexcept;
+    void reset_orientation() noexcept;
 
-  virtual void input_event(const ui::window_event& input_evt) override;
-  virtual void update() override;
+    virtual void input_event(const ui::window_event& input_evt) override;
+    virtual void update() override;
 
-private:
-  void pitch(const float delta) noexcept;
-  void yaw(const float delta) noexcept;
-  void roll(const float delta) noexcept;
-  void update_view_transform();
+  private:
+    void pitch(const float delta) noexcept;
+    void yaw(const float delta) noexcept;
+    void roll(const float delta) noexcept;
+    void update_view_transform();
 
-  xray::math::vec3f      _right{xray::math::vec3f::stdc::unit_x};
-  xray::math::vec3f      _up{xray::math::vec3f::stdc::unit_y};
-  xray::math::vec3f      _dir{xray::math::vec3f::stdc::unit_z};
-  xray::math::vec3f      _position{xray::math::vec3f::stdc::zero};
-  camera_lens_parameters _lensparams{};
-  struct {
-    float move_speed{1.0f};
-    float roll_speed{0.2f};
-    float yaw_speed{0.05f};
-    float pitch_speed{0.05f};
-    float lens_speed{0.05f};
-  } _viewparams{};
-  union {
-    struct {
-      uint8_t view : 1;
-      uint8_t lens : 1;
-    };
+    xray::math::vec3f _right{ xray::math::vec3f::stdc::unit_x };
+    xray::math::vec3f _up{ xray::math::vec3f::stdc::unit_y };
+    xray::math::vec3f _dir{ xray::math::vec3f::stdc::unit_z };
+    xray::math::vec3f _position{ xray::math::vec3f::stdc::zero };
+    camera_lens_parameters _lensparams{};
+    struct
+    {
+        float move_speed{ 1.0f };
+        float roll_speed{ 0.2f };
+        float yaw_speed{ 0.05f };
+        float pitch_speed{ 0.05f };
+        float lens_speed{ 0.05f };
+    } _viewparams{};
+    union
+    {
+        struct
+        {
+            uint8_t view : 1;
+            uint8_t lens : 1;
+        };
 
-    uint8_t state;
-  } mutable _syncstatus;
+        uint8_t state;
+    } mutable _syncstatus;
 };
 
 /// @}

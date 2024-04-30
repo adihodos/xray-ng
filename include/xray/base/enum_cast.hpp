@@ -34,38 +34,38 @@
 namespace xray {
 namespace base {
 
-template <typename IntA, typename IntB>
-struct is_same_signed {
-  static_assert(std::is_arithmetic<IntA>::value &&
-                    std::is_arithmetic<IntB>::value,
-                "Both types must be integer/floating point types!");
+template<typename IntA, typename IntB>
+struct is_same_signed
+{
+    static_assert(std::is_arithmetic<IntA>::value && std::is_arithmetic<IntB>::value,
+                  "Both types must be integer/floating point types!");
 
-  enum {
-    value = (std::is_signed<IntA>::value && std::is_signed<IntB>::value) ||
-            (std::is_unsigned<IntA>::value && std::is_unsigned<IntB>::value)
-  };
+    enum
+    {
+        value = (std::is_signed<IntA>::value && std::is_signed<IntB>::value) ||
+                (std::is_unsigned<IntA>::value && std::is_unsigned<IntB>::value)
+    };
 };
 
-struct enum_helper {
+struct enum_helper
+{
 
-  template <typename enum_class>
-  static constexpr auto
-  to_underlying_type(const enum_class enum_member) noexcept {
-    return static_cast<typename std::underlying_type<enum_class>::type>(
-        enum_member);
-  }
+    template<typename enum_class>
+    static constexpr auto to_underlying_type(const enum_class enum_member) noexcept
+    {
+        return static_cast<typename std::underlying_type<enum_class>::type>(enum_member);
+    }
 
-  template <typename EnumType, typename IntType>
-  static constexpr typename std::enable_if<
-      std::is_integral<IntType>::value &&
-          (sizeof(typename std::underlying_type<EnumType>::type) >=
-           sizeof(IntType)) &&
-          is_same_signed<typename std::underlying_type<EnumType>::type,
-                         IntType>::value,
-      EnumType>::type
-  from_underlying_type(IntType int_val) noexcept {
-    return static_cast<EnumType>(int_val);
-  }
+    template<typename EnumType, typename IntType>
+    static constexpr
+        typename std::enable_if<std::is_integral<IntType>::value &&
+                                    (sizeof(typename std::underlying_type<EnumType>::type) >= sizeof(IntType)) &&
+                                    is_same_signed<typename std::underlying_type<EnumType>::type, IntType>::value,
+                                EnumType>::type
+        from_underlying_type(IntType int_val) noexcept
+    {
+        return static_cast<EnumType>(int_val);
+    }
 };
 
 } // namespace base

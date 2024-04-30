@@ -28,8 +28,8 @@
 
 namespace xray {
 
-using scalar_lowp           = float;
-using scalar_mediump        = double;
-using scalar_highp          = long double;
+using scalar_lowp = float;
+using scalar_mediump = double;
+using scalar_highp = long double;
 
-}   // namespace xray
+} // namespace xray

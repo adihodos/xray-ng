@@ -37,33 +37,34 @@
 
 using namespace std;
 
-void app::mesh_lister::build_list(const char* root_path) {
-  assert(root_path != nullptr);
-  build_list_impl(root_path);
-  sort(begin(_mesh_list),
-       end(_mesh_list),
-       [](const model_load_info& m0, const model_load_info& m1) {
-         return m0.name < m1.name;
-       });
+void
+app::mesh_lister::build_list(const char* root_path)
+{
+    assert(root_path != nullptr);
+    build_list_impl(root_path);
+    sort(begin(_mesh_list), end(_mesh_list), [](const model_load_info& m0, const model_load_info& m1) {
+        return m0.name < m1.name;
+    });
 }
 
-void app::mesh_lister::build_list_impl(const char* root_path) {
-  platformstl::readdir_sequence rddir{
-    root_path,
-    platformstl::readdir_sequence::files |
-      platformstl::readdir_sequence::directories |
-      platformstl::readdir_sequence::fullPath};
+void
+app::mesh_lister::build_list_impl(const char* root_path)
+{
+    platformstl::readdir_sequence rddir{ root_path,
+                                         platformstl::readdir_sequence::files |
+                                             platformstl::readdir_sequence::directories |
+                                             platformstl::readdir_sequence::fullPath };
 
-  for_each(begin(rddir), end(rddir), [this](const char* dir_entry) {
-    if (platformstl::filesystem_traits<char>::is_directory(dir_entry)) {
-      build_list(dir_entry);
-      return;
-    }
+    for_each(begin(rddir), end(rddir), [this](const char* dir_entry) {
+        if (platformstl::filesystem_traits<char>::is_directory(dir_entry)) {
+            build_list(dir_entry);
+            return;
+        }
 
-    using stlsoft::c_str_data;
-    platformstl::path_a p{dir_entry};
-    if (strcmp(c_str_data(p.get_ext()), "bin") == 0) {
-      _mesh_list.emplace_back(c_str_data(p.pop_ext().get_file()), dir_entry);
-    }
-  });
+        using stlsoft::c_str_data;
+        platformstl::path_a p{ dir_entry };
+        if (strcmp(c_str_data(p.get_ext()), "bin") == 0) {
+            _mesh_list.emplace_back(c_str_data(p.pop_ext().get_file()), dir_entry);
+        }
+    });
 }

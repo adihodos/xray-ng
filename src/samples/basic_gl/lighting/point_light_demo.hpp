@@ -30,7 +30,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "light_source.hpp"
@@ -38,52 +37,56 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace app {
 
-class point_light_demo : public demo_base {
-public:
-  point_light_demo(const init_context_t* init_ctx);
+class point_light_demo : public demo_base
+{
+  public:
+    point_light_demo(const init_context_t* init_ctx);
 
-  ~point_light_demo();
+    ~point_light_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
-  virtual void poll_start(const xray::ui::poll_start_event& ps) override;
-  virtual void poll_end(const xray::ui::poll_end_event& pe) override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void update(const float delta_ms) override;
+    virtual void event_handler(const xray::ui::window_event& evt) override;
+    virtual void compose_ui() override;
+    virtual void poll_start(const xray::ui::poll_start_event& ps) override;
+    virtual void poll_end(const xray::ui::poll_end_event& pe) override;
 
-private:
-  void init();
+  private:
+    void init();
 
-private:
-  xray::rendering::scoped_buffer       _vertices;
-  xray::rendering::scoped_buffer       _indices;
-  xray::rendering::scoped_buffer       _instance_data_ssbo;
-  xray::rendering::scoped_vertex_array _vao;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
-  xray::rendering::scoped_sampler      _sampler;
+  private:
+    xray::rendering::scoped_buffer _vertices;
+    xray::rendering::scoped_buffer _indices;
+    xray::rendering::scoped_buffer _instance_data_ssbo;
+    xray::rendering::scoped_vertex_array _vao;
+    xray::rendering::vertex_program _vs;
+    xray::rendering::fragment_program _fs;
+    xray::rendering::program_pipeline _pipeline;
+    xray::rendering::scoped_sampler _sampler;
 
-  struct {
-    point_light_source light;
-  } _scene;
+    struct
+    {
+        point_light_source light;
+    } _scene;
 
-  struct {
-    xray::math::vec3f lightpos{0.0f, 10.0f, 0.0f};
-    float             specular_intensity{10.0f};
-    bool              rotate_x{false};
-    bool              rotate_y{true};
-    bool              rotate_z{false};
-    bool              drawnormals{false};
-    float             rotate_speed{0.01f};
-  } _demo_opts;
+    struct
+    {
+        xray::math::vec3f lightpos{ 0.0f, 10.0f, 0.0f };
+        float specular_intensity{ 10.0f };
+        bool rotate_x{ false };
+        bool rotate_y{ true };
+        bool rotate_z{ false };
+        bool drawnormals{ false };
+        float rotate_speed{ 0.01f };
+    } _demo_opts;
 
-private:
-  XRAY_NO_COPY(point_light_demo);
+  private:
+    XRAY_NO_COPY(point_light_demo);
 };
 
 } // namespace app

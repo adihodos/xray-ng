@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/xray.hpp"
 #include <cstdio>
 #include <stlsoft/memory/auto_buffer.hpp>
 #include <string>
@@ -43,13 +43,14 @@
 namespace xray {
 namespace math {
 
-template <typename T>
-std::string string_cast(const scalar3<T>& s) {
-  stlsoft::auto_buffer<char, 256u> tmp_buff{256u};
-  snprintf(
-    tmp_buff.data(), tmp_buff.size(), "scalar3 [%f, %f, %f]", s.x, s.y, s.z);
+template<typename T>
+std::string
+string_cast(const scalar3<T>& s)
+{
+    stlsoft::auto_buffer<char, 256u> tmp_buff{ 256u };
+    snprintf(tmp_buff.data(), tmp_buff.size(), "scalar3 [%f, %f, %f]", s.x, s.y, s.z);
 
-  return static_cast<const char*>(tmp_buff.data());
+    return static_cast<const char*>(tmp_buff.data());
 }
 
 } // namespace math
@@ -84,20 +85,22 @@ namespace fmt {
 //     val.z);
 // }
 
-template <typename T>
-struct formatter<xray::math::scalar3<T>> : nested_formatter<T> {
+template<typename T>
+struct formatter<xray::math::scalar3<T>> : nested_formatter<T>
+{
 
-  // Formats value using the parsed format specification stored in this
-  // formatter and writes the output to ctx.out().
-  auto format(const xray::math::scalar3<T>& value, format_context& ctx) const {
-    return this->write_padded(ctx, [=](auto out) {
-      return fmt::format_to(out,
-                            "scalar3 [ .x = {}, .y = {}, .z = {} ]",
-                            this->nested(value.x),
-                            this->nested(value.y),
-                            this->nested(value.z));
-    });
-  }
+    // Formats value using the parsed format specification stored in this
+    // formatter and writes the output to ctx.out().
+    auto format(const xray::math::scalar3<T>& value, format_context& ctx) const
+    {
+        return this->write_padded(ctx, [=](auto out) {
+            return fmt::format_to(out,
+                                  "scalar3 [ .x = {}, .y = {}, .z = {} ]",
+                                  this->nested(value.x),
+                                  this->nested(value.y),
+                                  this->nested(value.z));
+        });
+    }
 };
 
 } // namespace fmt

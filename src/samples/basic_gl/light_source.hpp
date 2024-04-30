@@ -28,61 +28,64 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
 /// \brief  A light source.
-struct light_source {
-  xray::math::vec3f position;
+struct light_source
+{
+    xray::math::vec3f position;
 
-  ///<  Padding to mirror the GLSL layout.
-  float pad1;
+    ///<  Padding to mirror the GLSL layout.
+    float pad1;
 
-  ///< Ambient component.
-  xray::rendering::rgb_color ka;
+    ///< Ambient component.
+    xray::rendering::rgb_color ka;
 
-  ///< Diffuse component.
-  xray::rendering::rgb_color kd;
+    ///< Diffuse component.
+    xray::rendering::rgb_color kd;
 
-  ///< Specular component.
-  xray::rendering::rgb_color ke;
+    ///< Specular component.
+    xray::rendering::rgb_color ke;
 };
 
-struct point_light_source {
-  xray::math::vec3f position;
-  float             range;
-  ///< Ambient component.
-  xray::rendering::rgb_color ka;
+struct point_light_source
+{
+    xray::math::vec3f position;
+    float range;
+    ///< Ambient component.
+    xray::rendering::rgb_color ka;
 
-  ///< Diffuse component.
-  xray::rendering::rgb_color kd;
+    ///< Diffuse component.
+    xray::rendering::rgb_color kd;
 
-  ///< Specular component.
-  xray::rendering::rgb_color ks;
+    ///< Specular component.
+    xray::rendering::rgb_color ks;
 };
 
-struct light_source2 {
-  xray::math::vec3f position;
+struct light_source2
+{
+    xray::math::vec3f position;
 
-  ///<  Padding to mirror the GLSL layout.
-  float pad1;
+    ///<  Padding to mirror the GLSL layout.
+    float pad1;
 
-  ///<  Light intensity.
-  xray::math::vec3f intensity;
+    ///<  Light intensity.
+    xray::math::vec3f intensity;
 
-  float pad2;
+    float pad2;
 
-  ///< Ambient component.
-  xray::rendering::rgb_color ka;
+    ///< Ambient component.
+    xray::rendering::rgb_color ka;
 
-  ///< Diffuse component.
-  xray::rendering::rgb_color kd;
+    ///< Diffuse component.
+    xray::rendering::rgb_color kd;
 
-  ///< Specular component.
-  xray::rendering::rgb_color ks;
+    ///< Specular component.
+    xray::rendering::rgb_color ks;
 };
 
 // struct directional_light {
@@ -93,25 +96,28 @@ struct light_source2 {
 //  xray::rendering::rgb_color ks;
 //};
 
-struct light_source3 {
-  xray::math::vec3f position;
-  float             pad1;
-  xray::math::vec3f intensity;
+struct light_source3
+{
+    xray::math::vec3f position;
+    float pad1;
+    xray::math::vec3f intensity;
 };
 
-struct light_source4 {
-  xray::rendering::rgb_color color;
-  xray::math::vec3f          position;
+struct light_source4
+{
+    xray::rendering::rgb_color color;
+    xray::math::vec3f position;
 };
 
-struct spotlight {
-  xray::math::vec3f          position;
-  float                      cutoff_angle;
-  xray::math::vec3f          direction;
-  float                      light_power;
-  xray::rendering::rgb_color ka;
-  xray::rendering::rgb_color kd;
-  xray::rendering::rgb_color ks;
+struct spotlight
+{
+    xray::math::vec3f position;
+    float cutoff_angle;
+    xray::math::vec3f direction;
+    float light_power;
+    xray::rendering::rgb_color ka;
+    xray::rendering::rgb_color kd;
+    xray::rendering::rgb_color ks;
 };
 
 } // namespace app

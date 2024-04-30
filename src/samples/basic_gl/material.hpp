@@ -28,94 +28,99 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
-struct material {
-  material() = default;
+struct material
+{
+    material() = default;
 
-  constexpr material(const xray::rendering::rgb_color& ke_,
-                     const xray::rendering::rgb_color& ka_,
-                     const xray::rendering::rgb_color& kd_,
-                     const xray::rendering::rgb_color& ks_)
-      : ke{ke_}, ka{ka_}, kd{kd_}, ks{ks_} {}
+    constexpr material(const xray::rendering::rgb_color& ke_,
+                       const xray::rendering::rgb_color& ka_,
+                       const xray::rendering::rgb_color& kd_,
+                       const xray::rendering::rgb_color& ks_)
+        : ke{ ke_ }
+        , ka{ ka_ }
+        , kd{ kd_ }
+        , ks{ ks_ }
+    {
+    }
 
-  ///<  Emissive component.
-  xray::rendering::rgb_color ke;
+    ///<  Emissive component.
+    xray::rendering::rgb_color ke;
 
-  ///<  Ambient component.
-  xray::rendering::rgb_color ka;
+    ///<  Ambient component.
+    xray::rendering::rgb_color ka;
 
-  ///<  Diffuse component.
-  xray::rendering::rgb_color kd;
+    ///<  Diffuse component.
+    xray::rendering::rgb_color kd;
 
-  ///<  Specular component.
-  xray::rendering::rgb_color ks;
+    ///<  Specular component.
+    xray::rendering::rgb_color ks;
 
-  struct stdc;
+    struct stdc;
 };
 
-struct material::stdc {
-  static constexpr material copper{{0.0f, 0.0f, 0.0f},
-                                   {0.2295f, 0.08825f, 0.0275f},
-                                   {0.5508f, 0.2118f, 0.066f},
-                                   {0.580594f, 0.223257f, 0.0695701f, 51.2f}};
-  static constexpr material gold{{0.0f, 0.0f, 0.0f},
-                                 {0.24725f, 0.2245f, 0.0645f},
-                                 {0.34615f, 0.3143f, 0.0903f},
-                                 {0.797357f, 0.723991f, 0.208006f, 83.2f}};
+struct material::stdc
+{
+    static constexpr material copper{ { 0.0f, 0.0f, 0.0f },
+                                      { 0.2295f, 0.08825f, 0.0275f },
+                                      { 0.5508f, 0.2118f, 0.066f },
+                                      { 0.580594f, 0.223257f, 0.0695701f, 51.2f } };
+    static constexpr material gold{ { 0.0f, 0.0f, 0.0f },
+                                    { 0.24725f, 0.2245f, 0.0645f },
+                                    { 0.34615f, 0.3143f, 0.0903f },
+                                    { 0.797357f, 0.723991f, 0.208006f, 83.2f } };
 
-  static constexpr material brass{
-      {0.0f, 0.0f, 0.0f, 0.0f},
-      {0.329412f, 0.223529f, 0.027451f, 1.0f},
-      {0.780392f, 0.568627f, 0.113725f, 1.0f},
-      {0.992157f, 0.941176f, 0.807843f, 128.0f * 0.21794872f}};
+    static constexpr material brass{ { 0.0f, 0.0f, 0.0f, 0.0f },
+                                     { 0.329412f, 0.223529f, 0.027451f, 1.0f },
+                                     { 0.780392f, 0.568627f, 0.113725f, 1.0f },
+                                     { 0.992157f, 0.941176f, 0.807843f, 128.0f * 0.21794872f } };
 
-  static constexpr material chrome{
-      {0.0f, 0.0f, 0.0f, 0.0f},
-      {0.25f, 0.25f, 0.25f, 1.0f},
-      {0.4f, 0.4f, 0.4f, 1.0f},
-      {0.774597f, 0.774597f, 0.774597f, 128.0f * 0.6f}};
+    static constexpr material chrome{ { 0.0f, 0.0f, 0.0f, 0.0f },
+                                      { 0.25f, 0.25f, 0.25f, 1.0f },
+                                      { 0.4f, 0.4f, 0.4f, 1.0f },
+                                      { 0.774597f, 0.774597f, 0.774597f, 128.0f * 0.6f } };
 
-  static constexpr material silver{
-      {0.0f, 0.0f, 0.0f, 0.0f},
-      {0.19225f, 0.19225f, 0.19225f, 1.0f},
-      {0.50754f, 0.50754f, 0.50754f, 1.0f},
-      {0.508273f, 0.508273f, 0.508273f, 128.0f * 0.4f}};
+    static constexpr material silver{ { 0.0f, 0.0f, 0.0f, 0.0f },
+                                      { 0.19225f, 0.19225f, 0.19225f, 1.0f },
+                                      { 0.50754f, 0.50754f, 0.50754f, 1.0f },
+                                      { 0.508273f, 0.508273f, 0.508273f, 128.0f * 0.4f } };
 
-  static constexpr material green_plastic{
-      {0.0f, 0.0f, 0.0f, 0.0f},
-      {0.0f, 0.0f, 0.0f, 1.0f},
-      {0.1f, 0.35f, 0.1f, 1.0f},
-      {0.45f, 0.55f, 0.45f, 128.0f * 0.25f}};
+    static constexpr material green_plastic{ { 0.0f, 0.0f, 0.0f, 0.0f },
+                                             { 0.0f, 0.0f, 0.0f, 1.0f },
+                                             { 0.1f, 0.35f, 0.1f, 1.0f },
+                                             { 0.45f, 0.55f, 0.45f, 128.0f * 0.25f } };
 
-  static constexpr material red_plastic{{0.0f, 0.0f, 0.0f, 0.0f},
-                                        {0.0f, 0.0f, 0.0f, 1.0f},
-                                        {0.5f, 0.0f, 0.0f, 1.0f},
-                                        {0.7f, 0.6f, 0.6f, 128.0f * 0.25f}};
+    static constexpr material red_plastic{ { 0.0f, 0.0f, 0.0f, 0.0f },
+                                           { 0.0f, 0.0f, 0.0f, 1.0f },
+                                           { 0.5f, 0.0f, 0.0f, 1.0f },
+                                           { 0.7f, 0.6f, 0.6f, 128.0f * 0.25f } };
 };
 
-struct material_ad {
-  material_ad() = default;
+struct material_ad
+{
+    material_ad() = default;
 
-  constexpr material_ad(const xray::rendering::rgb_color& ka_,
-                        const xray::rendering::rgb_color& kd_)
-      : ka{ka_}, kd{kd_} {}
+    constexpr material_ad(const xray::rendering::rgb_color& ka_, const xray::rendering::rgb_color& kd_)
+        : ka{ ka_ }
+        , kd{ kd_ }
+    {
+    }
 
-  xray::rendering::rgb_color ka;
-  xray::rendering::rgb_color kd;
+    xray::rendering::rgb_color ka;
+    xray::rendering::rgb_color kd;
 
-  struct stdc;
+    struct stdc;
 };
 
-struct material_ad::stdc {
-  static constexpr material_ad copper{{0.2295f, 0.08825f, 0.0275f},
-                                      {0.5508f, 0.2118f, 0.066f}};
+struct material_ad::stdc
+{
+    static constexpr material_ad copper{ { 0.2295f, 0.08825f, 0.0275f }, { 0.5508f, 0.2118f, 0.066f } };
 
-  static constexpr material_ad gold{{0.24725f, 0.2245f, 0.0645f},
-                                    {0.34615f, 0.3143f, 0.0903f}};
+    static constexpr material_ad gold{ { 0.24725f, 0.2245f, 0.0645f }, { 0.34615f, 0.3143f, 0.0903f } };
 };
 
 } // namespace app

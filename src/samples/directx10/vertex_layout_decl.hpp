@@ -1,7 +1,7 @@
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/windows/com_ptr.hpp"
+#include "xray/xray.hpp"
 #include <d3d10.h>
 
 namespace xray {

@@ -34,28 +34,35 @@
 
 namespace app {
 
-template <typename T>
-inline const void* offset_cast(const uint32_t off) noexcept {
-  static_assert(
-      std::is_same<T, uint8_t>::value || std::is_same<T, uint16_t>::value ||
-          std::is_same<T, uint32_t>::value,
-      "Only uint8_t, uint16_t and uint32_t supported for index buffers!");
+template<typename T>
+inline const void*
+offset_cast(const uint32_t off) noexcept
+{
+    static_assert(std::is_same<T, uint8_t>::value || std::is_same<T, uint16_t>::value ||
+                      std::is_same<T, uint32_t>::value,
+                  "Only uint8_t, uint16_t and uint32_t supported for index buffers!");
 
-  return static_cast<const char*>(nullptr) + off * sizeof(T);
+    return static_cast<const char*>(nullptr) + off * sizeof(T);
 }
 
-template <typename Container>
-inline size_t bytes_size(const Container& c) noexcept {
-  return c.size() * sizeof(c[0]);
+template<typename Container>
+inline size_t
+bytes_size(const Container& c) noexcept
+{
+    return c.size() * sizeof(c[0]);
 }
 
-template <typename T, size_t N>
-inline constexpr size_t bytes_size(const T (&/*arr_ref*/)[N]) noexcept {
-  return N * sizeof(T);
+template<typename T, size_t N>
+inline constexpr size_t
+bytes_size(const T (&/*arr_ref*/)[N]) noexcept
+{
+    return N * sizeof(T);
 }
 
-template <typename T>
-inline constexpr size_t bytes_size(const T* data, const size_t count) noexcept {
-  return count * sizeof(data[0]);
+template<typename T>
+inline constexpr size_t
+bytes_size(const T* data, const size_t count) noexcept
+{
+    return count * sizeof(data[0]);
 }
 }

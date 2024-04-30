@@ -29,8 +29,8 @@
 ///
 /// \file syscall_wrapper.hpp
 
-#include <cerrno>
 #include "xray/xray.hpp"
+#include <cerrno>
 
 namespace xray {
 namespace base {
@@ -39,7 +39,9 @@ namespace base {
 /// @{
 
 template<typename fn_type, typename... fn_args>
-inline auto syscall_wrapper(fn_type fn, fn_args... args) noexcept {
+inline auto
+syscall_wrapper(fn_type fn, fn_args... args) noexcept
+{
     auto ret_code = fn(std::forward<fn_args>(args)...);
 
 #if defined(XRAY_OS_IS_POSIX_FAMILY)

@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
@@ -40,24 +40,30 @@ namespace rendering {
 
 ///
 /// A vertex format, consisting of position and texture coordinates.
-struct vertex_pt {
+struct vertex_pt
+{
 
-  vertex_pt() noexcept {}
+    vertex_pt() noexcept {}
 
-  vertex_pt(const float px, const float py, const float pz, const float tu,
-            const float tv) noexcept
-      : position{px, py, pz}, texcoord{tu, tv} {}
+    vertex_pt(const float px, const float py, const float pz, const float tu, const float tv) noexcept
+        : position{ px, py, pz }
+        , texcoord{ tu, tv }
+    {
+    }
 
-  vertex_pt(const math::vec3f& pos, const math::vec2f& texc) noexcept
-      : position{pos}, texcoord{texc} {}
+    vertex_pt(const math::vec3f& pos, const math::vec2f& texc) noexcept
+        : position{ pos }
+        , texcoord{ texc }
+    {
+    }
 
-  static const char* name() noexcept { return "vertex_pt"; }
+    static const char* name() noexcept { return "vertex_pt"; }
 
-  ///< Position in space.
-  math::vec3f position;
+    ///< Position in space.
+    math::vec3f position;
 
-  ///< Texture coordinates.
-  math::vec2f texcoord;
+    ///< Texture coordinates.
+    math::vec2f texcoord;
 };
 
 /// @}

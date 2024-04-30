@@ -28,87 +28,98 @@
 
 #include "xray/rendering/colors/rgb_color.hpp"
 
-xray::rendering::rgb_color& xray::rendering::rgb_color::
-operator+=(const rgb_color& rhs) noexcept {
-  r += rhs.r;
-  g += rhs.g;
-  b += rhs.b;
-  a += rhs.a;
-  return *this;
+xray::rendering::rgb_color&
+xray::rendering::rgb_color::operator+=(const rgb_color& rhs) noexcept
+{
+    r += rhs.r;
+    g += rhs.g;
+    b += rhs.b;
+    a += rhs.a;
+    return *this;
 }
 
-xray::rendering::rgb_color& xray::rendering::rgb_color::
-operator-=(const rgb_color& rhs) noexcept {
-  r -= rhs.r;
-  g -= rhs.g;
-  b -= rhs.b;
-  a -= rhs.a;
-  return *this;
+xray::rendering::rgb_color&
+xray::rendering::rgb_color::operator-=(const rgb_color& rhs) noexcept
+{
+    r -= rhs.r;
+    g -= rhs.g;
+    b -= rhs.b;
+    a -= rhs.a;
+    return *this;
 }
 
-xray::rendering::rgb_color& xray::rendering::rgb_color::
-operator*=(float const k) noexcept {
-  r *= k;
-  g *= k;
-  b *= k;
-  a *= k;
-  return *this;
+xray::rendering::rgb_color&
+xray::rendering::rgb_color::operator*=(float const k) noexcept
+{
+    r *= k;
+    g *= k;
+    b *= k;
+    a *= k;
+    return *this;
 }
 
-xray::rendering::rgb_color& xray::rendering::rgb_color::
-operator*=(const rgb_color& other) noexcept {
-  r *= other.r;
-  g *= other.g;
-  b *= other.b;
-  a *= other.a;
-  return *this;
+xray::rendering::rgb_color&
+xray::rendering::rgb_color::operator*=(const rgb_color& other) noexcept
+{
+    r *= other.r;
+    g *= other.g;
+    b *= other.b;
+    a *= other.a;
+    return *this;
 }
 
-xray::rendering::rgb_color& xray::rendering::rgb_color::
-operator/=(const float scalar) noexcept {
-  float k = 1.0f / scalar;
-  r *= k;
-  g *= k;
-  b *= k;
-  a *= k;
-  return *this;
+xray::rendering::rgb_color&
+xray::rendering::rgb_color::operator/=(const float scalar) noexcept
+{
+    float k = 1.0f / scalar;
+    r *= k;
+    g *= k;
+    b *= k;
+    a *= k;
+    return *this;
 }
 
-xray::rendering::rgb_color xray::rendering::
-operator+(const rgb_color& lhs, const rgb_color& rhs) noexcept {
-  rgb_color result(lhs);
-  result += rhs;
-  return result;
+xray::rendering::rgb_color
+xray::rendering::operator+(const rgb_color& lhs, const rgb_color& rhs) noexcept
+{
+    rgb_color result(lhs);
+    result += rhs;
+    return result;
 }
 
-xray::rendering::rgb_color xray::rendering::
-operator-(const rgb_color& lhs, const rgb_color& rhs) noexcept {
-  rgb_color result(lhs);
-  result -= rhs;
-  return result;
+xray::rendering::rgb_color
+xray::rendering::operator-(const rgb_color& lhs, const rgb_color& rhs) noexcept
+{
+    rgb_color result(lhs);
+    result -= rhs;
+    return result;
 }
 
-xray::rendering::rgb_color xray::rendering::
-operator*(const rgb_color& lhs, const rgb_color& rhs) noexcept {
-  rgb_color result(lhs);
-  result *= rhs;
-  return result;
+xray::rendering::rgb_color
+xray::rendering::operator*(const rgb_color& lhs, const rgb_color& rhs) noexcept
+{
+    rgb_color result(lhs);
+    result *= rhs;
+    return result;
 }
 
-xray::rendering::rgb_color xray::rendering::operator*(const rgb_color& lhs,
-                                                      const float k) noexcept {
-  rgb_color result(lhs);
-  result *= k;
-  return result;
+xray::rendering::rgb_color
+xray::rendering::operator*(const rgb_color& lhs, const float k) noexcept
+{
+    rgb_color result(lhs);
+    result *= k;
+    return result;
 }
 
-xray::rendering::rgb_color xray::rendering::
-operator*(const float k, const rgb_color& rhs) noexcept {
-  return rhs * k;
+xray::rendering::rgb_color
+xray::rendering::operator*(const float k, const rgb_color& rhs) noexcept
+{
+    return rhs * k;
 }
 
-xray::rendering::rgb_color xray::rendering::
-operator/(const rgb_color& lhs, const float scalar) noexcept {
-  const float inv = 1.0f / scalar;
-  return lhs * inv;
+xray::rendering::rgb_color
+xray::rendering::operator/(const rgb_color& lhs, const float scalar) noexcept
+{
+    const float inv = 1.0f / scalar;
+    return lhs * inv;
 }

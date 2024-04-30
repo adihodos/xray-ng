@@ -34,31 +34,27 @@
 namespace xray {
 namespace base {
 
-class random_number_generator {
-public:
-  random_number_generator() = default;
+class random_number_generator
+{
+  public:
+    random_number_generator() = default;
 
-  float next_float(const float rmin, const float rmax) noexcept {
-    return next(rmin, rmax);
-  }
+    float next_float(const float rmin, const float rmax) noexcept { return next(rmin, rmax); }
 
-  uint32_t next_uint(const uint32_t rmin, const uint32_t rmax) noexcept {
-    return next(rmin, rmax);
-  }
+    uint32_t next_uint(const uint32_t rmin, const uint32_t rmax) noexcept { return next(rmin, rmax); }
 
-  int32_t next_int(const int32_t rmin, const int32_t rmax) noexcept {
-    return next(rmin, rmax);
-  }
+    int32_t next_int(const int32_t rmin, const int32_t rmax) noexcept { return next(rmin, rmax); }
 
-  template <typename T>
-  T next(const T rmin, const T rmax) noexcept {
-    return static_cast<T>(rmin + (rmax - rmin) * _distribution(_engine));
-  }
+    template<typename T>
+    T next(const T rmin, const T rmax) noexcept
+    {
+        return static_cast<T>(rmin + (rmax - rmin) * _distribution(_engine));
+    }
 
-private:
-  std::random_device                     _rdevice{};
-  std::mt19937                           _engine{_rdevice()};
-  std::uniform_real_distribution<double> _distribution{0.0f, 1.0f};
+  private:
+    std::random_device _rdevice{};
+    std::mt19937 _engine{ _rdevice() };
+    std::uniform_real_distribution<double> _distribution{ 0.0f, 1.0f };
 };
 
 } // namespace base

@@ -30,7 +30,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "xray/base/maybe.hpp"
@@ -45,75 +44,78 @@
 #include "xray/rendering/opengl/program_pipeline.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace app {
 
-class mesh_demo : public demo_base {
-public:
-  mesh_demo(const init_context_t& init_ctx);
+class mesh_demo : public demo_base
+{
+  public:
+    mesh_demo(const init_context_t& init_ctx);
 
-  ~mesh_demo();
+    ~mesh_demo();
 
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void event_handler(const xray::ui::window_event& evt) override;
+    virtual void loop_event(const xray::ui::window_loop_event&) override;
 
-private:
-  struct mesh_info {
-    uint32_t             vertices;
-    uint32_t             indices;
-    size_t               vertex_bytes;
-    size_t               index_bytes;
-    xray::math::aabb3f   bbox;
-    xray::math::sphere3f bsphere;
-  };
+  private:
+    struct mesh_info
+    {
+        uint32_t vertices;
+        uint32_t indices;
+        size_t vertex_bytes;
+        size_t index_bytes;
+        xray::math::aabb3f bbox;
+        xray::math::sphere3f bsphere;
+    };
 
-  void init();
-  void draw(const float surface_width, const float surface_height);
-  void draw_ui(const int32_t surface_width, const int32_t surface_height);
-  xray::base::maybe<mesh_info> load_mesh(const char* model_path);
+    void init();
+    void draw(const float surface_width, const float surface_height);
+    void draw_ui(const int32_t surface_width, const int32_t surface_height);
+    xray::base::maybe<mesh_info> load_mesh(const char* model_path);
 
-private:
-  xray::rendering::aabb_visualizer                _abbdraw;
-  xray::rendering::scoped_buffer                  _vb;
-  xray::rendering::scoped_buffer                  _ib;
-  xray::rendering::scoped_vertex_array            _vao;
-  uint32_t                                        _vertexcount{};
-  uint32_t                                        _indexcount{};
-  xray::rendering::basic_mesh                     _mesh;
-  xray::rendering::vertex_program                 _vs;
-  xray::rendering::fragment_program               _fs;
-  xray::rendering::program_pipeline               _pipeline;
-  xray::rendering::scoped_texture                 _objtex;
-  xray::rendering::scoped_texture                 _greentexture;
-  xray::rendering::scoped_sampler                 _sampler;
-  xray::rendering::vertex_program                 _vsnormals;
-  xray::rendering::geometry_program               _gsnormals;
-  xray::rendering::fragment_program               _fsnormals;
-  xray::math::aabb3f                              _bbox;
-  xray::scene::camera                             _camera;
-  xray::scene::camera_controller_spherical_coords _camcontrol{
-    &_camera, "config/misc/mesh_demo/cam_controller_spherical.conf"};
-  xray::base::maybe<mesh_info> _mesh_info{xray::base::nothing{}};
-  bool                         _mesh_loaded{false};
-  int32_t                      _sel_id{-1};
+  private:
+    xray::rendering::aabb_visualizer _abbdraw;
+    xray::rendering::scoped_buffer _vb;
+    xray::rendering::scoped_buffer _ib;
+    xray::rendering::scoped_vertex_array _vao;
+    uint32_t _vertexcount{};
+    uint32_t _indexcount{};
+    xray::rendering::basic_mesh _mesh;
+    xray::rendering::vertex_program _vs;
+    xray::rendering::fragment_program _fs;
+    xray::rendering::program_pipeline _pipeline;
+    xray::rendering::scoped_texture _objtex;
+    xray::rendering::scoped_texture _greentexture;
+    xray::rendering::scoped_sampler _sampler;
+    xray::rendering::vertex_program _vsnormals;
+    xray::rendering::geometry_program _gsnormals;
+    xray::rendering::fragment_program _fsnormals;
+    xray::math::aabb3f _bbox;
+    xray::scene::camera _camera;
+    xray::scene::camera_controller_spherical_coords _camcontrol{
+        &_camera,
+        "config/misc/mesh_demo/cam_controller_spherical.conf"
+    };
+    xray::base::maybe<mesh_info> _mesh_info{ xray::base::nothing{} };
+    bool _mesh_loaded{ false };
+    int32_t _sel_id{ -1 };
 
-  struct {
-    bool                       drawnormals{false};
-    bool                       draw_boundingbox{false};
-    bool                       draw_wireframe{false};
-    xray::rendering::rgb_color start_color{
-      xray::rendering::color_palette::web::red};
-    xray::rendering::rgb_color end_color{
-      xray::rendering::color_palette::web::medium_spring_green};
-    float normal_len{0.1f};
-  } _drawparams{};
+    struct
+    {
+        bool drawnormals{ false };
+        bool draw_boundingbox{ false };
+        bool draw_wireframe{ false };
+        xray::rendering::rgb_color start_color{ xray::rendering::color_palette::web::red };
+        xray::rendering::rgb_color end_color{ xray::rendering::color_palette::web::medium_spring_green };
+        float normal_len{ 0.1f };
+    } _drawparams{};
 
-  xray::rendering::vertex_ripple_parameters _rippledata{
-    0.6f, 3.0f, 16.0f, 16.0f};
+    xray::rendering::vertex_ripple_parameters _rippledata{ 0.6f, 3.0f, 16.0f, 16.0f };
 
-private:
-  XRAY_NO_COPY(mesh_demo);
+  private:
+    XRAY_NO_COPY(mesh_demo);
 };
 
 } // namespace app

@@ -30,8 +30,8 @@
 
 /// \file com_ptr.hpp
 
-#include "xray/xray.hpp"
 #include "xray/base/unique_pointer.hpp"
+#include "xray/xray.hpp"
 #include <pdh.h>
 #include <windows.h>
 
@@ -42,30 +42,34 @@ namespace win32 {
 /// \addtogroup __GroupXrayBase
 /// @{
 
-struct event_handle {
-  using handle_type = HANDLE;
+struct event_handle
+{
+    using handle_type = HANDLE;
 
-  static handle_type null() noexcept { return nullptr; }
+    static handle_type null() noexcept { return nullptr; }
 
-  static bool is_null(const handle_type h) noexcept { return h == null(); }
+    static bool is_null(const handle_type h) noexcept { return h == null(); }
 
-  static void destroy(const handle_type h) noexcept {
-    if (h)
-      CloseHandle(h);
-  }
+    static void destroy(const handle_type h) noexcept
+    {
+        if (h)
+            CloseHandle(h);
+    }
 };
 
-struct pdh_query_handle {
-  using handle_type = HQUERY;
+struct pdh_query_handle
+{
+    using handle_type = HQUERY;
 
-  static handle_type null() noexcept { return nullptr; }
+    static handle_type null() noexcept { return nullptr; }
 
-  static bool is_null(const handle_type h) noexcept { return h == null(); }
+    static bool is_null(const handle_type h) noexcept { return h == null(); }
 
-  static void destroy(const handle_type h) noexcept {
-    if (h)
-      PdhCloseQuery(h);
-  }
+    static void destroy(const handle_type h) noexcept
+    {
+        if (h)
+            PdhCloseQuery(h);
+    }
 };
 
 /// @}

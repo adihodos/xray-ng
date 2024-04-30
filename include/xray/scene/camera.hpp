@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/xray.hpp"
 #include "xray/xray_types.hpp"
 
 namespace xray {
@@ -39,47 +39,46 @@ namespace scene {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-class camera {
-public:
-  camera() noexcept = default;
+class camera
+{
+  public:
+    camera() noexcept = default;
 
-  const math::vec3f& origin() const noexcept { return origin_; }
+    const math::vec3f& origin() const noexcept { return origin_; }
 
-  const math::vec3f& direction() const noexcept { return direction_; }
+    const math::vec3f& direction() const noexcept { return direction_; }
 
-  const math::vec3f& right() const noexcept { return right_; }
+    const math::vec3f& right() const noexcept { return right_; }
 
-  const math::vec3f& up() const noexcept { return up_; }
+    const math::vec3f& up() const noexcept { return up_; }
 
-  void               set_view_matrix(const math::mat4f& view);
-  const math::mat4f& view() const noexcept;
+    void set_view_matrix(const math::mat4f& view);
+    const math::mat4f& view() const noexcept;
 
-  void               set_projection(const math::mat4f& projection) noexcept;
-  const math::mat4f& projection() const noexcept;
+    void set_projection(const math::mat4f& projection) noexcept;
+    const math::mat4f& projection() const noexcept;
 
-  const math::mat4f& projection_view() const noexcept;
+    const math::mat4f& projection_view() const noexcept;
 
-  void look_at(const math::vec3f& eye_pos,
-               const math::vec3f& target,
-               const math::vec3f& world_up) noexcept;
+    void look_at(const math::vec3f& eye_pos, const math::vec3f& target, const math::vec3f& world_up) noexcept;
 
-  //void set_fov(const float fov_rads) noexcept;
-  //void set_near_far(const float nearplane, const float farplane);
+    // void set_fov(const float fov_rads) noexcept;
+    // void set_near_far(const float nearplane, const float farplane);
 
-private:
-  void invalidate() noexcept { updated_ = false; }
+  private:
+    void invalidate() noexcept { updated_ = false; }
 
-  void update() const noexcept;
+    void update() const noexcept;
 
-private:
-  math::vec3f         right_{math::vec3f::stdc::zero};
-  math::vec3f         up_{math::vec3f::stdc::zero};
-  math::vec3f         direction_{math::vec3f::stdc::zero};
-  math::vec3f         origin_{math::vec3f::stdc::zero};
-  mutable math::mat4f view_{math::mat4f::stdc::identity};
-  mutable math::mat4f projection_{math::mat4f::stdc::identity};
-  mutable math::mat4f projection_view_{math::mat4f::stdc::identity};
-  mutable bool        updated_{false};
+  private:
+    math::vec3f right_{ math::vec3f::stdc::zero };
+    math::vec3f up_{ math::vec3f::stdc::zero };
+    math::vec3f direction_{ math::vec3f::stdc::zero };
+    math::vec3f origin_{ math::vec3f::stdc::zero };
+    mutable math::mat4f view_{ math::mat4f::stdc::identity };
+    mutable math::mat4f projection_{ math::mat4f::stdc::identity };
+    mutable math::mat4f projection_view_{ math::mat4f::stdc::identity };
+    mutable bool updated_{ false };
 };
 
 /// @}

@@ -40,32 +40,38 @@ namespace xray {
 namespace base {
 namespace detail {
 
-struct tag_pod_copy_memcpy {};
+struct tag_pod_copy_memcpy
+{};
 
-struct tag_pod_copy_assign {};
+struct tag_pod_copy_assign
+{};
 
-template <typename T, typename U>
-void copy_pod_range_impl(const U* input, const size_t count, T* output,
-                         tag_pod_copy_memcpy) noexcept {
-  memcpy(output, input, count * sizeof(T));
+template<typename T, typename U>
+void
+copy_pod_range_impl(const U* input, const size_t count, T* output, tag_pod_copy_memcpy) noexcept
+{
+    memcpy(output, input, count * sizeof(T));
 }
 
-template <typename T, typename U>
-void copy_pod_range_impl(const U* input, const size_t count, T* output,
-                         tag_pod_copy_assign) noexcept {
-  for (size_t idx = 0; idx < count; ++idx) {
-    output[idx] = input[idx];
-  }
+template<typename T, typename U>
+void
+copy_pod_range_impl(const U* input, const size_t count, T* output, tag_pod_copy_assign) noexcept
+{
+    for (size_t idx = 0; idx < count; ++idx) {
+        output[idx] = input[idx];
+    }
 }
 
-template <bool same_size = true>
-struct copy_type {
-  typedef tag_pod_copy_memcpy tag;
+template<bool same_size = true>
+struct copy_type
+{
+    typedef tag_pod_copy_memcpy tag;
 };
 
-template <>
-struct copy_type<false> {
-  typedef tag_pod_copy_assign tag;
+template<>
+struct copy_type<false>
+{
+    typedef tag_pod_copy_assign tag;
 };
 
 } // namespace detail
@@ -74,13 +80,14 @@ struct copy_type<false> {
 /// @{
 
 /// Copy PODs from an input range to an output range.
-template <typename T, typename U>
-void copy_pod_range(const U* input, const size_t count, T* output) noexcept {
-  static_assert(std::is_pod<T>::value, "Only POD types supported!");
-  static_assert(std::is_pod<U>::value, "Only POD types supported!");
+template<typename T, typename U>
+void
+copy_pod_range(const U* input, const size_t count, T* output) noexcept
+{
+    static_assert(std::is_pod<T>::value, "Only POD types supported!");
+    static_assert(std::is_pod<U>::value, "Only POD types supported!");
 
-  copy_pod_range_impl(input, count, output,
-                      detail::copy_type<sizeof(T) == sizeof(U)>::tag());
+    copy_pod_range_impl(input, count, output, detail::copy_type<sizeof(T) == sizeof(U)>::tag());
 }
 
 /// @}

@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/quaternion.hpp"
+#include "xray/xray.hpp"
 #include <cstdio>
 #include <stlsoft/memory/auto_buffer.hpp>
 #include <string>
@@ -37,18 +37,14 @@
 namespace xray {
 namespace math {
 
-template <typename T>
-std::string string_cast(const quaternion<T>& q) {
-  stlsoft::auto_buffer<char, 256u> tmp_buff{256u};
-  snprintf(tmp_buff.data(),
-           tmp_buff.size(),
-           "quaternion [%f, (%f, %f, %f)]",
-           q.w,
-           q.x,
-           q.y,
-           q.z);
+template<typename T>
+std::string
+string_cast(const quaternion<T>& q)
+{
+    stlsoft::auto_buffer<char, 256u> tmp_buff{ 256u };
+    snprintf(tmp_buff.data(), tmp_buff.size(), "quaternion [%f, (%f, %f, %f)]", q.w, q.x, q.y, q.z);
 
-  return static_cast<const char*>(tmp_buff.data());
+    return static_cast<const char*>(tmp_buff.data());
 }
 
 } // namespace math

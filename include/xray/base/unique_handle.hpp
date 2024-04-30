@@ -37,30 +37,30 @@
 namespace xray {
 namespace base {
 
-template <typename H>
+template<typename H>
 class unique_handle;
 
 /// \brief      Returns the handle owned by a unique_handle object.
-template <typename H>
+template<typename H>
 typename H::handle_type
 unique_handle_get(const unique_handle<H>& holder) noexcept;
 
 /// \brief      Releases ownership of the handle to the caller.
-template <typename H>
+template<typename H>
 inline typename H::handle_type
 unique_handle_release(unique_handle<H>&) noexcept;
 
 /// \brief      Resets the handle owned to the the specified one. The old handle
 ///             is destroyed.
-template <typename H>
+template<typename H>
 inline void
-unique_handle_reset(unique_handle<H>&,
-                    typename H::handle_type new_handle = H::null()) noexcept;
+unique_handle_reset(unique_handle<H>&, typename H::handle_type new_handle = H::null()) noexcept;
 
 /// \brief      Returns a pointer to the owned handle. The object must not own a
 ///             a valid handle before this call is made.
-template <typename H>
-inline typename H::handle_type* unique_handle_ptr(unique_handle<H>&) noexcept;
+template<typename H>
+inline typename H::handle_type*
+unique_handle_ptr(unique_handle<H>&) noexcept;
 
 /// \class      unique_handle
 ///
@@ -117,177 +117,194 @@ inline typename H::handle_type* unique_handle_ptr(unique_handle<H>&) noexcept;
 /// }
 ///
 /// \endcode
-template <typename HType>
-class unique_handle {
+template<typename HType>
+class unique_handle
+{
 
-  /// \name Defined types
-  /// @{
+    /// \name Defined types
+    /// @{
 
-public:
-  using handle_type = typename HType::handle_type;
-  using class_type  = unique_handle<HType>;
+  public:
+    using handle_type = typename HType::handle_type;
+    using class_type = unique_handle<HType>;
 
-  /// @}
+    /// @}
 
-  /// \name Construction/destruction
-  /// @{
+    /// \name Construction/destruction
+    /// @{
 
-public:
-  /// \brief      Default constructor, handle is null (invalid).
-  unique_handle() noexcept : handle_{HType::null()} {}
-
-  /// \brief      Construct by taking ownership of an existing handle.
-  explicit unique_handle(const handle_type& raw_handle) noexcept
-      : handle_{raw_handle} {}
-
-  ~unique_handle() noexcept { HType::destroy(handle_); }
-
-  /// @}
-
-  /// \name Special constructors/operators
-  /// @{
-
-public:
-  unique_handle(const unique_handle<HType>&) = delete;
-  unique_handle<HType>& operator=(const unique_handle<HType>&) = delete;
-
-  /// \brief      Construct from a temporary object of the same type.
-  unique_handle(unique_handle<HType>&& rhs) noexcept : handle_{rhs.handle_} {
-    rhs.handle_ = HType::null();
-  }
-
-  /// \brief      Assign from a temporary object of the same type. The
-  ///             previously owned handle will be destroyed.
-  unique_handle<HType>& operator=(unique_handle<HType>&& rhs) noexcept {
-    if (this != &rhs) {
-      HType::destroy(handle_);
-      handle_     = rhs.handle_;
-      rhs.handle_ = HType::null();
+  public:
+    /// \brief      Default constructor, handle is null (invalid).
+    unique_handle() noexcept
+        : handle_{ HType::null() }
+    {
     }
 
-    return *this;
-  }
-
-  /// \brief      Assigns a new handle for ownership.
-  ///             The previously owned handle is destroyed.
-  unique_handle<HType>& operator=(const handle_type& new_handle) noexcept {
-    if (handle_ != new_handle) {
-      HType::destroy(handle_);
-      handle_ = new_handle;
+    /// \brief      Construct by taking ownership of an existing handle.
+    explicit unique_handle(const handle_type& raw_handle) noexcept
+        : handle_{ raw_handle }
+    {
     }
 
-    return *this;
-  }
+    ~unique_handle() noexcept { HType::destroy(handle_); }
 
-  /// @}
+    /// @}
 
-  /// \name Sanity checking
-  /// @{
+    /// \name Special constructors/operators
+    /// @{
 
-  /// \brief      Test if handle is valid.
-  explicit operator bool() const noexcept { return !HType::is_null(handle_); }
+  public:
+    unique_handle(const unique_handle<HType>&) = delete;
+    unique_handle<HType>& operator=(const unique_handle<HType>&) = delete;
 
-  /// @}
+    /// \brief      Construct from a temporary object of the same type.
+    unique_handle(unique_handle<HType>&& rhs) noexcept
+        : handle_{ rhs.handle_ }
+    {
+        rhs.handle_ = HType::null();
+    }
 
-  /// \name   Friend accessor and helper functions.
-  /// @{
+    /// \brief      Assign from a temporary object of the same type. The
+    ///             previously owned handle will be destroyed.
+    unique_handle<HType>& operator=(unique_handle<HType>&& rhs) noexcept
+    {
+        if (this != &rhs) {
+            HType::destroy(handle_);
+            handle_ = rhs.handle_;
+            rhs.handle_ = HType::null();
+        }
 
-public:
-  template <typename H>
-  friend typename H::handle_type
-  unique_handle_get(const unique_handle<H>& holder) noexcept;
+        return *this;
+    }
 
-  template <typename H>
-  friend typename H::handle_type
-  unique_handle_release(unique_handle<H>&) noexcept;
+    /// \brief      Assigns a new handle for ownership.
+    ///             The previously owned handle is destroyed.
+    unique_handle<HType>& operator=(const handle_type& new_handle) noexcept
+    {
+        if (handle_ != new_handle) {
+            HType::destroy(handle_);
+            handle_ = new_handle;
+        }
 
-  template <typename H>
-  friend void unique_handle_reset(unique_handle<H>&,
-                                  typename H::handle_type) noexcept;
+        return *this;
+    }
 
-  template <typename H>
-  friend void swap(unique_handle<H>&, unique_handle<H>&) noexcept;
+    /// @}
 
-  template <typename H>
-  friend typename H::handle_type* unique_handle_ptr(unique_handle<H>&) noexcept;
+    /// \name Sanity checking
+    /// @{
 
-  /// @}
+    /// \brief      Test if handle is valid.
+    explicit operator bool() const noexcept { return !HType::is_null(handle_); }
 
-private:
-  void swap(class_type& rhs) noexcept {
-    auto tmph   = handle_;
-    handle_     = rhs.handle_;
-    rhs.handle_ = tmph;
-  }
+    /// @}
 
-  /// \name Private data members.
-  /// @{
-private:
-  handle_type handle_; ///<   Owned handle to some resource.
+    /// \name   Friend accessor and helper functions.
+    /// @{
 
-  /// @}
+  public:
+    template<typename H>
+    friend typename H::handle_type unique_handle_get(const unique_handle<H>& holder) noexcept;
+
+    template<typename H>
+    friend typename H::handle_type unique_handle_release(unique_handle<H>&) noexcept;
+
+    template<typename H>
+    friend void unique_handle_reset(unique_handle<H>&, typename H::handle_type) noexcept;
+
+    template<typename H>
+    friend void swap(unique_handle<H>&, unique_handle<H>&) noexcept;
+
+    template<typename H>
+    friend typename H::handle_type* unique_handle_ptr(unique_handle<H>&) noexcept;
+
+    /// @}
+
+  private:
+    void swap(class_type& rhs) noexcept
+    {
+        auto tmph = handle_;
+        handle_ = rhs.handle_;
+        rhs.handle_ = tmph;
+    }
+
+    /// \name Private data members.
+    /// @{
+  private:
+    handle_type handle_; ///<   Owned handle to some resource.
+
+    /// @}
 };
 
-template <typename HType>
+template<typename HType>
 inline typename HType::handle_type
-unique_handle_get(const unique_handle<HType>& holder) noexcept {
-  return holder.handle_;
+unique_handle_get(const unique_handle<HType>& holder) noexcept
+{
+    return holder.handle_;
 }
 
-template <typename HType>
+template<typename HType>
 inline typename HType::handle_type
-unique_handle_release(unique_handle<HType>& holder) noexcept {
-  auto owned_handle = holder.handle_;
-  holder.handle_    = HType::null();
-  return owned_handle;
+unique_handle_release(unique_handle<HType>& holder) noexcept
+{
+    auto owned_handle = holder.handle_;
+    holder.handle_ = HType::null();
+    return owned_handle;
 }
 
-template <typename HType>
+template<typename HType>
 inline void
-unique_handle_reset(unique_handle<HType>&       holder,
-                    typename HType::handle_type new_handle) noexcept {
-  HType::destroy(holder.handle_);
-  holder.handle_ = new_handle;
+unique_handle_reset(unique_handle<HType>& holder, typename HType::handle_type new_handle) noexcept
+{
+    HType::destroy(holder.handle_);
+    holder.handle_ = new_handle;
 }
 
-template <typename HType>
+template<typename HType>
 inline typename HType::handle_type*
-unique_handle_ptr(unique_handle<HType>& holder) noexcept {
-  assert(!holder);
-  return &holder.handle_;
+unique_handle_ptr(unique_handle<HType>& holder) noexcept
+{
+    assert(!holder);
+    return &holder.handle_;
 }
 
-template <typename H>
-inline bool operator==(const unique_handle<H>& lhs,
-                       const unique_handle<H>& rhs) noexcept {
-  return raw_handle(lhs) == raw_handle(rhs);
+template<typename H>
+inline bool
+operator==(const unique_handle<H>& lhs, const unique_handle<H>& rhs) noexcept
+{
+    return raw_handle(lhs) == raw_handle(rhs);
 }
 
-template <typename H>
-inline bool operator!=(const unique_handle<H>& lhs,
-                       const unique_handle<H>& rhs) noexcept {
-  return !(lhs == rhs);
+template<typename H>
+inline bool
+operator!=(const unique_handle<H>& lhs, const unique_handle<H>& rhs) noexcept
+{
+    return !(lhs == rhs);
 }
 
 /// \brief      Accessor shim for unique_handle objects. Returns the owned
 /// handle.
-template <typename HType>
+template<typename HType>
 inline typename HType::handle_type
-raw_handle(const unique_handle<HType>& holder) noexcept {
-  return unique_handle_get(holder);
+raw_handle(const unique_handle<HType>& holder) noexcept
+{
+    return unique_handle_get(holder);
 }
 
 /// \brief      Accessor shim to get a pointer to the handle of a unique_handle
 ///             object.
-template <typename HType>
+template<typename HType>
 inline typename HType::handle_type*
-raw_handle_ptr(unique_handle<HType>& holder) noexcept {
-  return unique_handle_ptr(holder);
+raw_handle_ptr(unique_handle<HType>& holder) noexcept
+{
+    return unique_handle_ptr(holder);
 }
 
-template <typename H>
-inline void swap(unique_handle<H>& lhs, unique_handle<H>& rhs) noexcept {
-  lhs.swap(rhs);
+template<typename H>
+inline void
+swap(unique_handle<H>& lhs, unique_handle<H>& rhs) noexcept
+{
+    lhs.swap(rhs);
 }
 
 } // namespace base

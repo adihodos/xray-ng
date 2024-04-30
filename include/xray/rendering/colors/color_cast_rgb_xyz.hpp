@@ -28,30 +28,30 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/rendering/colors/color_cast.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/colors/xyz_color.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
 
-xyz_color rgb_to_xyz(const rgb_color& rgb) noexcept;
+xyz_color
+rgb_to_xyz(const rgb_color& rgb) noexcept;
 
-rgb_color xyz_to_rgb(const xyz_color& xyz) noexcept;
+rgb_color
+xyz_to_rgb(const xyz_color& xyz) noexcept;
 
-template <>
-struct color_caster<rgb_color, xyz_color> {
-  static rgb_color cast(const xyz_color& hsv) noexcept {
-    return xyz_to_rgb(hsv);
-  }
+template<>
+struct color_caster<rgb_color, xyz_color>
+{
+    static rgb_color cast(const xyz_color& hsv) noexcept { return xyz_to_rgb(hsv); }
 };
 
-template <>
-struct color_caster<xyz_color, rgb_color> {
-  static xyz_color cast(const rgb_color& rgb) noexcept {
-    return rgb_to_xyz(rgb);
-  }
+template<>
+struct color_caster<xyz_color, rgb_color>
+{
+    static xyz_color cast(const rgb_color& rgb) noexcept { return rgb_to_xyz(rgb); }
 };
 
 } // namespace rendering

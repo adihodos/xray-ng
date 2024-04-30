@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "light_source.hpp"
 #include "material.hpp"
@@ -36,50 +35,52 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
-class spotlight_demo : public demo_base {
-public:
-  static constexpr uint32_t NUM_LIGHTS{3u};
+class spotlight_demo : public demo_base
+{
+  public:
+    static constexpr uint32_t NUM_LIGHTS{ 3u };
 
-  spotlight_demo();
+    spotlight_demo();
 
-  virtual ~spotlight_demo();
+    virtual ~spotlight_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
 
-  virtual void update(const float delta_ms) override;
+    virtual void update(const float delta_ms) override;
 
-  virtual void key_event(const int32_t key_code, const int32_t action,
-                         const int32_t mods) override;
+    virtual void key_event(const int32_t key_code, const int32_t action, const int32_t mods) override;
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  void init();
+  private:
+    void init();
 
-private:
-  struct mesh_draw_data {
-    uint32_t          index_offset{};
-    uint32_t          index_count{};
-    uint32_t          base_vertex{};
-    bool              front_ccw{};
-    material          mat{};
-    xray::math::vec3f translation{xray::math::vec3f::stdc::zero};
-    xray::math::vec2f rotation_xy{xray::math::vec2f::stdc::zero};
-  };
+  private:
+    struct mesh_draw_data
+    {
+        uint32_t index_offset{};
+        uint32_t index_count{};
+        uint32_t base_vertex{};
+        bool front_ccw{};
+        material mat{};
+        xray::math::vec3f translation{ xray::math::vec3f::stdc::zero };
+        xray::math::vec2f rotation_xy{ xray::math::vec2f::stdc::zero };
+    };
 
-  xray::rendering::scoped_buffer       _vertex_buffer;
-  xray::rendering::scoped_buffer       _index_buffer;
-  xray::rendering::scoped_vertex_array _vertex_array_obj;
-  xray::rendering::gpu_program         _draw_prog;
-  spotlight                            _lights[NUM_LIGHTS];
-  mesh_draw_data                       _meshes[2];
-  bool                                 _rotate_mesh{true};
+    xray::rendering::scoped_buffer _vertex_buffer;
+    xray::rendering::scoped_buffer _index_buffer;
+    xray::rendering::scoped_vertex_array _vertex_array_obj;
+    xray::rendering::gpu_program _draw_prog;
+    spotlight _lights[NUM_LIGHTS];
+    mesh_draw_data _meshes[2];
+    bool _rotate_mesh{ true };
 
-private:
-  XRAY_NO_COPY(spotlight_demo);
+  private:
+    XRAY_NO_COPY(spotlight_demo);
 };
 
 } // namespace app

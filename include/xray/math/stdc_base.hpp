@@ -38,7 +38,7 @@ namespace math {
 /// @{
 
 /// \brief Frequently used constants for math types.
-template <typename T>
+template<typename T>
 struct stdc;
 
 /// @}

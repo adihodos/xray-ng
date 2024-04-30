@@ -34,31 +34,38 @@
 namespace xray {
 namespace rendering {
 
-struct rgba_u32_color {
-public:
-  union {
-    struct {
-      uint8_t a;
-      uint8_t b;
-      uint8_t g;
-      uint8_t r;
+struct rgba_u32_color
+{
+  public:
+    union
+    {
+        struct
+        {
+            uint8_t a;
+            uint8_t b;
+            uint8_t g;
+            uint8_t r;
+        };
+
+        uint32_t value;
+        uint8_t components[4];
     };
 
-    uint32_t value;
-    uint8_t  components[4];
-  };
+    rgba_u32_color() noexcept = default;
 
-  rgba_u32_color() noexcept = default;
+    explicit rgba_u32_color(const uint32_t rgba_col) noexcept
+        : value{ rgba_col }
+    {
+    }
 
-  explicit rgba_u32_color(const uint32_t rgba_col) noexcept : value{rgba_col} {}
+    rgba_u32_color(const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha = 255u) noexcept
+        : a{ alpha }
+        , b{ blue }
+        , g{ green }
+        , r{ red }
 
-  rgba_u32_color(const uint8_t red, const uint8_t green, const uint8_t blue,
-                 const uint8_t alpha = 255u) noexcept : a{alpha},
-                                                        b{blue},
-                                                        g{green},
-                                                        r{red}
-
-  {}
+    {
+    }
 };
 
 } // namespace rendering

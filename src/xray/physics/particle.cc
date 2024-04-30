@@ -33,36 +33,37 @@
 using namespace xray::math;
 using namespace xray::physics;
 
-void xray::physics::particle::compute_loads(const float drag_coefficient,
-                                            const vec3f wind_dir,
-                                            const float wind_speed) {
-  forces = vec3f::stdc::zero;
+void
+xray::physics::particle::compute_loads(const float drag_coefficient, const vec3f wind_dir, const float wind_speed)
+{
+    forces = vec3f::stdc::zero;
 
-  if (collided) {
-    forces += impact_forces;
-    return;
-  }
+    if (collided) {
+        forces += impact_forces;
+        return;
+    }
 
-  forces += gravity;
+    forces += gravity;
 
-  const vec3f vdrag{-normalize(velocity)};
-  const auto  fdrag = 0.5f * air_density<float> * speed * speed *
-                     (pi<float> * radius * radius) * drag_coefficient;
-  forces += vdrag * fdrag;
+    const vec3f vdrag{ -normalize(velocity) };
+    const auto fdrag = 0.5f * air_density<float> * speed * speed * (pi<float> * radius * radius) * drag_coefficient;
+    forces += vdrag * fdrag;
 
-  const auto fwind = 0.5f * air_density<float> * wind_speed * wind_speed *
-                     (pi<float> * radius * radius) * drag_coefficient;
+    const auto fwind =
+        0.5f * air_density<float> * wind_speed * wind_speed * (pi<float> * radius * radius) * drag_coefficient;
 
-  forces += fwind * wind_dir;
+    forces += fwind * wind_dir;
 }
 
-void xray::physics::particle::update_body_euler(const float dt) {
-  const auto a  = forces / mass;
-  const auto dv = a * dt;
-  velocity += dv;
+void
+xray::physics::particle::update_body_euler(const float dt)
+{
+    const auto a = forces / mass;
+    const auto dv = a * dt;
+    velocity += dv;
 
-  const auto ds = velocity * dt;
-  position += ds;
+    const auto ds = velocity * dt;
+    position += ds;
 
-  speed = length(velocity);
+    speed = length(velocity);
 }

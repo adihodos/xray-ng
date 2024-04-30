@@ -38,12 +38,13 @@ namespace base {
 
 /// \brief      Automatically set a POD type to 0 when creating an object
 ///             of this type.
-template <typename pod_type>
-struct pod_zero : public pod_type {
+template<typename pod_type>
+struct pod_zero : public pod_type
+{
 
-  static_assert(std::is_pod<pod_type>::value, "Only POD types allowed!");
+    static_assert(std::is_pod<pod_type>::value, "Only POD types allowed!");
 
-  pod_zero() noexcept { memset(this, 0, sizeof(*this)); }
+    pod_zero() noexcept { memset(this, 0, sizeof(*this)); }
 };
 
 } // namespace base

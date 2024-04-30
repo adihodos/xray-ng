@@ -5,9 +5,10 @@
 
 namespace app {
 
-struct resize_context_t {
-  uint32_t surface_width;
-  uint32_t surface_height;
+struct resize_context_t
+{
+    uint32_t surface_width;
+    uint32_t surface_height;
 };
 
 } // namespace app

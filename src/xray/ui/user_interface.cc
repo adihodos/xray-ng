@@ -28,70 +28,72 @@ using namespace xray::ui;
 using namespace xray::math;
 using namespace std;
 
-struct font_img_data {
-  uint8_t* pixels{};
-  int32_t  width{};
-  int32_t  height{};
-  int32_t  bpp{};
+struct font_img_data
+{
+    uint8_t* pixels{};
+    int32_t width{};
+    int32_t height{};
+    int32_t bpp{};
 };
 
-xray::ui::user_interface::user_interface() noexcept : _gui{&ImGui::GetIO()} {
-  init(nullptr, 0);
+xray::ui::user_interface::user_interface() noexcept
+    : _gui{ &ImGui::GetIO() }
+{
+    init(nullptr, 0);
 }
 
-xray::ui::user_interface::user_interface(const font_info* fonts,
-                                         const size_t     num_fonts) {
-  init(fonts, num_fonts);
+xray::ui::user_interface::user_interface(const font_info* fonts, const size_t num_fonts)
+{
+    init(fonts, num_fonts);
 }
 
 #if defined(XRAY_RENDERER_OPENGL)
-static constexpr const char* IMGUI_VERTEX_SHADER =
-  "#version 450 core \n"
-  "\n"
-  "layout (row_major) uniform; \n"
-  "layout (location = 0) in vec2 vs_in_pos;\n"
-  "layout (location = 1) in vec2 vs_in_uv;\n"
-  "layout (location = 2) in vec4 vs_in_col;\n"
-  "\n"
-  "out PS_IN {\n"
-  "   layout (location = 0) vec2 frag_uv;\n"
-  "   layout (location = 1) vec4 frag_col;\n"
-  "} vs_out;\n"
-  "\n"
-  "layout (binding = 0) uniform matrix_pack {\n"
-  "   mat4 projection;\n"
-  "};\n"
-  "\n"
-  "out gl_PerVertex {\n"
-  "   vec4 gl_Position;\n"
-  "};\n"
-  "\n"
-  "void main() {\n"
-  "   gl_Position = projection * vec4(vs_in_pos, 0.0f, 1.0f);\n"
-  "   vs_out.frag_uv = vs_in_uv;\n"
-  "   vs_out.frag_col = vs_in_col;\n"
-  "}";
+static constexpr const char* IMGUI_VERTEX_SHADER = "#version 450 core \n"
+                                                   "\n"
+                                                   "layout (row_major) uniform; \n"
+                                                   "layout (location = 0) in vec2 vs_in_pos;\n"
+                                                   "layout (location = 1) in vec2 vs_in_uv;\n"
+                                                   "layout (location = 2) in vec4 vs_in_col;\n"
+                                                   "\n"
+                                                   "out PS_IN {\n"
+                                                   "   layout (location = 0) vec2 frag_uv;\n"
+                                                   "   layout (location = 1) vec4 frag_col;\n"
+                                                   "} vs_out;\n"
+                                                   "\n"
+                                                   "layout (binding = 0) uniform matrix_pack {\n"
+                                                   "   mat4 projection;\n"
+                                                   "};\n"
+                                                   "\n"
+                                                   "out gl_PerVertex {\n"
+                                                   "   vec4 gl_Position;\n"
+                                                   "};\n"
+                                                   "\n"
+                                                   "void main() {\n"
+                                                   "   gl_Position = projection * vec4(vs_in_pos, 0.0f, 1.0f);\n"
+                                                   "   vs_out.frag_uv = vs_in_uv;\n"
+                                                   "   vs_out.frag_col = vs_in_col;\n"
+                                                   "}";
 
 static constexpr const char* IMGUI_FRAGMENT_SHADER =
-  "#version 450 core \n"
-  "\n"
-  "in PS_IN {\n"
-  "   layout (location = 0) vec2 frag_uv;\n"
-  "   layout (location = 1) vec4 frag_col;\n"
-  "} ps_in;\n"
-  "\n"
-  "layout (location = 0) out vec4 frag_color;\n"
-  "\n"
-  "uniform sampler2D font_texture;\n"
-  "\n"
-  "void main() {\n"
-  "   frag_color = ps_in.frag_col * texture2D(font_texture, ps_in.frag_uv); "
-  "\n"
-  "}";
+    "#version 450 core \n"
+    "\n"
+    "in PS_IN {\n"
+    "   layout (location = 0) vec2 frag_uv;\n"
+    "   layout (location = 1) vec4 frag_col;\n"
+    "} ps_in;\n"
+    "\n"
+    "layout (location = 0) out vec4 frag_color;\n"
+    "\n"
+    "uniform sampler2D font_texture;\n"
+    "\n"
+    "void main() {\n"
+    "   frag_color = ps_in.frag_col * texture2D(font_texture, ps_in.frag_uv); "
+    "\n"
+    "}";
 
 #else
 
-extern ID3D11Device*        xr_render_device;
+extern ID3D11Device* xr_render_device;
 extern ID3D11DeviceContext* xr_render_device_context;
 
 static constexpr const char IMGUI_SHADER[] = "#pragma pack_matrix(row_major)\n \
@@ -127,755 +129,693 @@ float4 ps_main(in const nk_ps_in ps_in) : SV_TARGET { \
     return ps_in.color * font_tex.Sample(font_sampler, ps_in.uv); \
 }";
 
-static constexpr auto IMGUI_SHADER_LEN =
-  static_cast<uint32_t>(sizeof(IMGUI_SHADER));
+static constexpr auto IMGUI_SHADER_LEN = static_cast<uint32_t>(sizeof(IMGUI_SHADER));
 
 #endif
 
-void xray::ui::user_interface::init(const font_info* fonts,
-                                    const size_t     num_fonts) {
-  _imcontext =
-    unique_pointer<ImGuiContext, imcontext_deleter>{ImGui::CreateContext()};
-  // _imcontext->IO.Fonts = new ImFontAtlas();
+void
+xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
+{
+    _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ ImGui::CreateContext() };
+    // _imcontext->IO.Fonts = new ImFontAtlas();
 
-  set_current();
-  _gui = &ImGui::GetIO();
+    set_current();
+    _gui = &ImGui::GetIO();
 
 #if defined(XRAY_RENDERER_DIRECTX)
 
-  _rendercontext.device  = xr_render_device;
-  _rendercontext.context = xr_render_device_context;
+    _rendercontext.device = xr_render_device;
+    _rendercontext.context = xr_render_device_context;
 
-  {
-    D3D11_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth           = user_interface::VERTEX_BUFFER_SIZE;
-    buffer_desc.BindFlags           = D3D11_BIND_VERTEX_BUFFER;
-    buffer_desc.CPUAccessFlags      = D3D11_CPU_ACCESS_WRITE;
-    buffer_desc.MiscFlags           = 0;
-    buffer_desc.StructureByteStride = 0;
-    buffer_desc.Usage               = D3D11_USAGE_DYNAMIC;
+    {
+        D3D11_BUFFER_DESC buffer_desc;
+        buffer_desc.ByteWidth = user_interface::VERTEX_BUFFER_SIZE;
+        buffer_desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        buffer_desc.MiscFlags = 0;
+        buffer_desc.StructureByteStride = 0;
+        buffer_desc.Usage = D3D11_USAGE_DYNAMIC;
 
-    _rendercontext.device->CreateBuffer(
-      &buffer_desc, nullptr, raw_ptr_ptr(_rendercontext.vertex_buffer));
-    if (!_rendercontext.vertex_buffer)
-      return;
-  }
+        _rendercontext.device->CreateBuffer(&buffer_desc, nullptr, raw_ptr_ptr(_rendercontext.vertex_buffer));
+        if (!_rendercontext.vertex_buffer)
+            return;
+    }
 
-  {
-    D3D11_BUFFER_DESC buffer_desc;
-    buffer_desc.BindFlags           = D3D11_BIND_INDEX_BUFFER;
-    buffer_desc.ByteWidth           = user_interface::INDEX_BUFFER_SIZE;
-    buffer_desc.CPUAccessFlags      = D3D11_CPU_ACCESS_WRITE;
-    buffer_desc.MiscFlags           = 0;
-    buffer_desc.StructureByteStride = 0;
-    buffer_desc.Usage               = D3D11_USAGE_DYNAMIC;
+    {
+        D3D11_BUFFER_DESC buffer_desc;
+        buffer_desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        buffer_desc.ByteWidth = user_interface::INDEX_BUFFER_SIZE;
+        buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        buffer_desc.MiscFlags = 0;
+        buffer_desc.StructureByteStride = 0;
+        buffer_desc.Usage = D3D11_USAGE_DYNAMIC;
 
-    _rendercontext.device->CreateBuffer(
-      &buffer_desc, nullptr, raw_ptr_ptr(_rendercontext.index_buffer));
-    if (!_rendercontext.index_buffer)
-      return;
-  }
+        _rendercontext.device->CreateBuffer(&buffer_desc, nullptr, raw_ptr_ptr(_rendercontext.index_buffer));
+        if (!_rendercontext.index_buffer)
+            return;
+    }
 
-  {
-    load_fonts(fonts, num_fonts);
-    font_img_data font_img;
-    _gui->Fonts->GetTexDataAsRGBA32(
-      &font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
-    if (!font_img.pixels)
-      return;
+    {
+        load_fonts(fonts, num_fonts);
+        font_img_data font_img;
+        _gui->Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
+        if (!font_img.pixels)
+            return;
 
-    D3D11_TEXTURE2D_DESC tex_desc;
-    tex_desc.ArraySize          = 1;
-    tex_desc.BindFlags          = D3D11_BIND_SHADER_RESOURCE;
-    tex_desc.CPUAccessFlags     = 0;
-    tex_desc.Format             = DXGI_FORMAT_R8G8B8A8_UNORM;
-    tex_desc.Height             = static_cast<uint32_t>(font_img.height);
-    tex_desc.Width              = static_cast<uint32_t>(font_img.width);
-    tex_desc.MipLevels          = 1;
-    tex_desc.MiscFlags          = 0;
-    tex_desc.SampleDesc.Count   = 1;
-    tex_desc.SampleDesc.Quality = 0;
-    tex_desc.Usage              = D3D11_USAGE_IMMUTABLE;
+        D3D11_TEXTURE2D_DESC tex_desc;
+        tex_desc.ArraySize = 1;
+        tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        tex_desc.CPUAccessFlags = 0;
+        tex_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        tex_desc.Height = static_cast<uint32_t>(font_img.height);
+        tex_desc.Width = static_cast<uint32_t>(font_img.width);
+        tex_desc.MipLevels = 1;
+        tex_desc.MiscFlags = 0;
+        tex_desc.SampleDesc.Count = 1;
+        tex_desc.SampleDesc.Quality = 0;
+        tex_desc.Usage = D3D11_USAGE_IMMUTABLE;
 
-    D3D11_SUBRESOURCE_DATA tex_data;
-    tex_data.pSysMem          = font_img.pixels;
-    tex_data.SysMemPitch      = font_img.width * 4;
-    tex_data.SysMemSlicePitch = font_img.width * font_img.height * 4;
+        D3D11_SUBRESOURCE_DATA tex_data;
+        tex_data.pSysMem = font_img.pixels;
+        tex_data.SysMemPitch = font_img.width * 4;
+        tex_data.SysMemSlicePitch = font_img.width * font_img.height * 4;
 
-    com_ptr<ID3D11Texture2D> font_texture;
-    _rendercontext.device->CreateTexture2D(
-      &tex_desc, &tex_data, raw_ptr_ptr(font_texture));
+        com_ptr<ID3D11Texture2D> font_texture;
+        _rendercontext.device->CreateTexture2D(&tex_desc, &tex_data, raw_ptr_ptr(font_texture));
 
-    if (!font_texture)
-      return;
+        if (!font_texture)
+            return;
 
-    _rendercontext.device->CreateShaderResourceView(
-      raw_ptr(font_texture), nullptr, raw_ptr_ptr(_rendercontext.font_texture));
+        _rendercontext.device->CreateShaderResourceView(
+            raw_ptr(font_texture), nullptr, raw_ptr_ptr(_rendercontext.font_texture));
 
-    if (!_rendercontext.font_texture)
-      return;
+        if (!_rendercontext.font_texture)
+            return;
 
-    _gui->Fonts->TexID =
-      static_cast<void*>(raw_ptr(_rendercontext.font_texture));
-  }
+        _gui->Fonts->TexID = static_cast<void*>(raw_ptr(_rendercontext.font_texture));
+    }
 
-  {
-    pod_zero<D3D11_SAMPLER_DESC> sampler_desc;
-    sampler_desc.Filter         = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_WRAP;
-    sampler_desc.AddressV       = D3D11_TEXTURE_ADDRESS_WRAP;
-    sampler_desc.AddressW       = D3D11_TEXTURE_ADDRESS_WRAP;
-    sampler_desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+    {
+        pod_zero<D3D11_SAMPLER_DESC> sampler_desc;
+        sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+        sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+        sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+        sampler_desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
 
-    _rendercontext.device->CreateSamplerState(
-      &sampler_desc, raw_ptr_ptr(_rendercontext.font_sampler));
-    if (!_rendercontext.font_sampler)
-      return;
-  }
+        _rendercontext.device->CreateSamplerState(&sampler_desc, raw_ptr_ptr(_rendercontext.font_sampler));
+        if (!_rendercontext.font_sampler)
+            return;
+    }
 
-  {
-    _rendercontext.vs = vertex_shader{
-      _rendercontext.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "vs_main"};
-    if (!_rendercontext.vs)
-      return;
+    {
+        _rendercontext.vs = vertex_shader{ _rendercontext.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "vs_main" };
+        if (!_rendercontext.vs)
+            return;
 
-    _rendercontext.ps = pixel_shader{
-      _rendercontext.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "ps_main"};
-    if (!_rendercontext.ps)
-      return;
-  }
+        _rendercontext.ps = pixel_shader{ _rendercontext.device, IMGUI_SHADER, IMGUI_SHADER_LEN, "ps_main" };
+        if (!_rendercontext.ps)
+            return;
+    }
 
-  {
-    pod_zero<D3D11_BLEND_DESC> desc;
-    desc.AlphaToCoverageEnable                 = false;
-    desc.RenderTarget[0].BlendEnable           = true;
-    desc.RenderTarget[0].SrcBlend              = D3D11_BLEND_SRC_ALPHA;
-    desc.RenderTarget[0].DestBlend             = D3D11_BLEND_INV_SRC_ALPHA;
-    desc.RenderTarget[0].BlendOp               = D3D11_BLEND_OP_ADD;
-    desc.RenderTarget[0].SrcBlendAlpha         = D3D11_BLEND_INV_SRC_ALPHA;
-    desc.RenderTarget[0].DestBlendAlpha        = D3D11_BLEND_ZERO;
-    desc.RenderTarget[0].BlendOpAlpha          = D3D11_BLEND_OP_ADD;
-    desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    {
+        pod_zero<D3D11_BLEND_DESC> desc;
+        desc.AlphaToCoverageEnable = false;
+        desc.RenderTarget[0].BlendEnable = true;
+        desc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+        desc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+        desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+        desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
-    _rendercontext.device->CreateBlendState(
-      &desc, raw_ptr_ptr(_rendercontext.blend_state));
-    if (!_rendercontext.blend_state)
-      return;
-  }
+        _rendercontext.device->CreateBlendState(&desc, raw_ptr_ptr(_rendercontext.blend_state));
+        if (!_rendercontext.blend_state)
+            return;
+    }
 
-  {
-    CD3D11_DEPTH_STENCIL_DESC dss_desc{CD3D11_DEFAULT{}};
-    dss_desc.DepthEnable   = false;
-    dss_desc.StencilEnable = false;
+    {
+        CD3D11_DEPTH_STENCIL_DESC dss_desc{ CD3D11_DEFAULT{} };
+        dss_desc.DepthEnable = false;
+        dss_desc.StencilEnable = false;
 
-    _rendercontext.device->CreateDepthStencilState(
-      &dss_desc, raw_ptr_ptr(_rendercontext.depth_stencil_state));
-    if (!_rendercontext.depth_stencil_state)
-      return;
-  }
+        _rendercontext.device->CreateDepthStencilState(&dss_desc, raw_ptr_ptr(_rendercontext.depth_stencil_state));
+        if (!_rendercontext.depth_stencil_state)
+            return;
+    }
 
-  {
-    pod_zero<D3D11_RASTERIZER_DESC> desc;
-    desc.FillMode        = D3D11_FILL_SOLID;
-    desc.CullMode        = D3D11_CULL_NONE;
-    desc.ScissorEnable   = true;
-    desc.DepthClipEnable = true;
+    {
+        pod_zero<D3D11_RASTERIZER_DESC> desc;
+        desc.FillMode = D3D11_FILL_SOLID;
+        desc.CullMode = D3D11_CULL_NONE;
+        desc.ScissorEnable = true;
+        desc.DepthClipEnable = true;
 
-    _rendercontext.device->CreateRasterizerState(
-      &desc, raw_ptr_ptr(_rendercontext.raster_state));
+        _rendercontext.device->CreateRasterizerState(&desc, raw_ptr_ptr(_rendercontext.raster_state));
 
-    if (!_rendercontext.raster_state)
-      return;
-  }
+        if (!_rendercontext.raster_state)
+            return;
+    }
 
-  {
-    const D3D11_INPUT_ELEMENT_DESC vertex_fmt_desc[] = {
-      {"POSITION",
-       0,
-       DXGI_FORMAT_R32G32_FLOAT,
-       0,
-       0,
-       D3D11_INPUT_PER_VERTEX_DATA,
-       0},
-      {"COLOR",
-       0,
-       DXGI_FORMAT_R8G8B8A8_UNORM,
-       0,
-       XR_U32_OFFSETOF(ImDrawVert, col),
-       D3D11_INPUT_PER_VERTEX_DATA,
-       0},
-      {"TEXCOORD",
-       0,
-       DXGI_FORMAT_R32G32_FLOAT,
-       0,
-       XR_U32_OFFSETOF(ImDrawVert, uv),
-       D3D11_INPUT_PER_VERTEX_DATA,
-       0}};
+    {
+        const D3D11_INPUT_ELEMENT_DESC vertex_fmt_desc[] = {
+            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "COLOR",
+              0,
+              DXGI_FORMAT_R8G8B8A8_UNORM,
+              0,
+              XR_U32_OFFSETOF(ImDrawVert, col),
+              D3D11_INPUT_PER_VERTEX_DATA,
+              0 },
+            { "TEXCOORD",
+              0,
+              DXGI_FORMAT_R32G32_FLOAT,
+              0,
+              XR_U32_OFFSETOF(ImDrawVert, uv),
+              D3D11_INPUT_PER_VERTEX_DATA,
+              0 }
+        };
 
-    auto signature_bytecode = _rendercontext.vs.bytecode();
+        auto signature_bytecode = _rendercontext.vs.bytecode();
 
-    _rendercontext.device->CreateInputLayout(
-      vertex_fmt_desc,
-      3,
-      signature_bytecode->GetBufferPointer(),
-      signature_bytecode->GetBufferSize(),
-      raw_ptr_ptr(_rendercontext.input_layout));
+        _rendercontext.device->CreateInputLayout(vertex_fmt_desc,
+                                                 3,
+                                                 signature_bytecode->GetBufferPointer(),
+                                                 signature_bytecode->GetBufferSize(),
+                                                 raw_ptr_ptr(_rendercontext.input_layout));
 
-    if (!_rendercontext.input_layout)
-      return;
-  }
+        if (!_rendercontext.input_layout)
+            return;
+    }
 
 #else
 
-  _rendercontext._vertex_buffer = []() {
-    GLuint vbuff{};
-    gl::CreateBuffers(1, &vbuff);
-    gl::NamedBufferStorage(
-      vbuff, user_interface::VERTEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
+    _rendercontext._vertex_buffer = []() {
+        GLuint vbuff{};
+        gl::CreateBuffers(1, &vbuff);
+        gl::NamedBufferStorage(vbuff, user_interface::VERTEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
 
-    return vbuff;
-  }();
+        return vbuff;
+    }();
 
-  if (!_rendercontext._vertex_buffer) {
-    XR_LOG_ERR("Failed to create vertex buffer!");
-    return;
-  }
+    if (!_rendercontext._vertex_buffer) {
+        XR_LOG_ERR("Failed to create vertex buffer!");
+        return;
+    }
 
-  _rendercontext._index_buffer = []() {
-    GLuint ibuff{};
-    gl::CreateBuffers(1, &ibuff);
-    gl::NamedBufferStorage(
-      ibuff, user_interface::INDEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
-    return ibuff;
-  }();
+    _rendercontext._index_buffer = []() {
+        GLuint ibuff{};
+        gl::CreateBuffers(1, &ibuff);
+        gl::NamedBufferStorage(ibuff, user_interface::INDEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
+        return ibuff;
+    }();
 
-  if (!_rendercontext._index_buffer)
-    return;
+    if (!_rendercontext._index_buffer)
+        return;
 
-  _rendercontext._vertex_arr = [vbh = raw_handle(_rendercontext._vertex_buffer),
-                                ibh =
-                                  raw_handle(_rendercontext._index_buffer)]() {
-    GLuint vao{};
-    gl::CreateVertexArrays(1, &vao);
+    _rendercontext._vertex_arr = [vbh = raw_handle(_rendercontext._vertex_buffer),
+                                  ibh = raw_handle(_rendercontext._index_buffer)]() {
+        GLuint vao{};
+        gl::CreateVertexArrays(1, &vao);
 
-    gl::VertexArrayVertexBuffer(vao, 0, vbh, 0, sizeof(ImDrawVert));
-    gl::VertexArrayElementBuffer(vao, ibh);
+        gl::VertexArrayVertexBuffer(vao, 0, vbh, 0, sizeof(ImDrawVert));
+        gl::VertexArrayElementBuffer(vao, ibh);
 
-    gl::EnableVertexArrayAttrib(vao, 0);
-    gl::EnableVertexArrayAttrib(vao, 1);
-    gl::EnableVertexArrayAttrib(vao, 2);
+        gl::EnableVertexArrayAttrib(vao, 0);
+        gl::EnableVertexArrayAttrib(vao, 1);
+        gl::EnableVertexArrayAttrib(vao, 2);
 
-    gl::VertexArrayAttribFormat(
-      vao, 0, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(ImDrawVert, pos));
-    gl::VertexArrayAttribFormat(
-      vao, 1, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(ImDrawVert, uv));
-    gl::VertexArrayAttribFormat(vao,
-                                2,
-                                4,
-                                gl::UNSIGNED_BYTE,
-                                gl::TRUE_,
-                                XR_U32_OFFSETOF(ImDrawVert, col));
+        gl::VertexArrayAttribFormat(vao, 0, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(ImDrawVert, pos));
+        gl::VertexArrayAttribFormat(vao, 1, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(ImDrawVert, uv));
+        gl::VertexArrayAttribFormat(vao, 2, 4, gl::UNSIGNED_BYTE, gl::TRUE_, XR_U32_OFFSETOF(ImDrawVert, col));
 
-    gl::VertexArrayAttribBinding(vao, 0, 0);
-    gl::VertexArrayAttribBinding(vao, 1, 0);
-    gl::VertexArrayAttribBinding(vao, 2, 0);
+        gl::VertexArrayAttribBinding(vao, 0, 0);
+        gl::VertexArrayAttribBinding(vao, 1, 0);
+        gl::VertexArrayAttribBinding(vao, 2, 0);
 
-    return vao;
-  }();
+        return vao;
+    }();
 
-  _rendercontext._vs = gpu_program_builder{}
-                         .add_string(IMGUI_VERTEX_SHADER)
-                         .build<render_stage::e::vertex>();
+    _rendercontext._vs = gpu_program_builder{}.add_string(IMGUI_VERTEX_SHADER).build<render_stage::e::vertex>();
 
-  if (!_rendercontext._vs) {
-    XR_LOG_ERR("Failed to create vertex shader!");
-    return;
-  }
+    if (!_rendercontext._vs) {
+        XR_LOG_ERR("Failed to create vertex shader!");
+        return;
+    }
 
-  _rendercontext._fs = gpu_program_builder{}
-                         .add_string(IMGUI_FRAGMENT_SHADER)
-                         .build<render_stage::e::fragment>();
+    _rendercontext._fs = gpu_program_builder{}.add_string(IMGUI_FRAGMENT_SHADER).build<render_stage::e::fragment>();
 
-  if (!_rendercontext._vs || !_rendercontext._fs) {
-    XR_LOG_ERR("Failed to create vertex/fragment shaders!");
-    return;
-  }
+    if (!_rendercontext._vs || !_rendercontext._fs) {
+        XR_LOG_ERR("Failed to create vertex/fragment shaders!");
+        return;
+    }
 
-  _rendercontext._pipeline = program_pipeline{[]() {
-    GLuint phandle{};
-    gl::CreateProgramPipelines(1, &phandle);
-    return phandle;
-  }()};
+    _rendercontext._pipeline = program_pipeline{ []() {
+        GLuint phandle{};
+        gl::CreateProgramPipelines(1, &phandle);
+        return phandle;
+    }() };
 
-  _rendercontext._pipeline.use_vertex_program(_rendercontext._vs)
-    .use_fragment_program(_rendercontext._fs);
+    _rendercontext._pipeline.use_vertex_program(_rendercontext._vs).use_fragment_program(_rendercontext._fs);
 
-  load_fonts(fonts, num_fonts);
-  _rendercontext._font_texture = [this]() {
-    GLuint texh{};
+    load_fonts(fonts, num_fonts);
+    _rendercontext._font_texture = [this]() {
+        GLuint texh{};
 
-    font_img_data font_img;
-    _gui->Fonts->GetTexDataAsRGBA32(
-      &font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
+        font_img_data font_img;
+        _gui->Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
 
-    gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
-    gl::TextureStorage2D(texh, 1, gl::RGBA8, font_img.width, font_img.height);
-    gl::TextureSubImage2D(texh,
-                          0,
-                          0,
-                          0,
-                          font_img.width,
-                          font_img.height,
-                          gl::RGBA,
-                          gl::UNSIGNED_BYTE,
-                          font_img.pixels);
+        gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
+        gl::TextureStorage2D(texh, 1, gl::RGBA8, font_img.width, font_img.height);
+        gl::TextureSubImage2D(
+            texh, 0, 0, 0, font_img.width, font_img.height, gl::RGBA, gl::UNSIGNED_BYTE, font_img.pixels);
 
-    XR_DBG_MSG("Fonts {}", _gui->Fonts->Fonts.size());
+        XR_DBG_MSG("Fonts {}", _gui->Fonts->Fonts.size());
 
-    return texh;
-  }();
+        return texh;
+    }();
 
-  _gui->Fonts->TexID =
-    reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
+    _gui->Fonts->TexID = reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
 
-  _rendercontext._font_sampler = []() {
-    GLuint smph{};
-    gl::CreateSamplers(1, &smph);
-    gl::SamplerParameteri(smph, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
-    gl::SamplerParameteri(smph, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
+    _rendercontext._font_sampler = []() {
+        GLuint smph{};
+        gl::CreateSamplers(1, &smph);
+        gl::SamplerParameteri(smph, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
+        gl::SamplerParameteri(smph, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
 
-    return smph;
-  }();
+        return smph;
+    }();
 
 #endif
 
-  setup_key_mappings();
-  _rendercontext._valid = true;
+    setup_key_mappings();
+    _rendercontext._valid = true;
 }
 
-void xray::ui::user_interface::load_fonts(const font_info* fonts,
-                                          const size_t     num_fonts) {
-  //
-  // Default fonts that always get loaded (Proggy and FontAwesome)
-  auto default_font = _gui->Fonts->AddFontDefault();
-  _rendercontext.fonts.push_back({"Default", 13.0f, default_font});
+void
+xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fonts)
+{
+    //
+    // Default fonts that always get loaded (Proggy and FontAwesome)
+    auto default_font = _gui->Fonts->AddFontDefault();
+    _rendercontext.fonts.push_back({ "Default", 13.0f, default_font });
 
-  ImFontConfig config;
-  config.MergeMode                   = true;
-  static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
-  auto                 font_awesome  = _gui->Fonts->AddFontFromFileTTF(
-    app_config::instance()
-      ->font_path("fontawesome/fontawesome-webfont.ttf")
-      .c_str(),
-    13.0f,
-    &config,
-    icon_ranges);
-  assert(font_awesome != nullptr);
-  _rendercontext.fonts.push_back({"fontawesome", 13.0f, font_awesome});
-
-  for_each(fonts, fonts + num_fonts, [this](const font_info& fi) {
     ImFontConfig config;
-    config.OversampleH         = 3;
-    config.OversampleV         = 1;
-    config.GlyphExtraSpacing.x = 1.0f;
+    config.MergeMode = true;
+    static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+    auto font_awesome = _gui->Fonts->AddFontFromFileTTF(
+        app_config::instance()->font_path("fontawesome/fontawesome-webfont.ttf").c_str(), 13.0f, &config, icon_ranges);
+    assert(font_awesome != nullptr);
+    _rendercontext.fonts.push_back({ "fontawesome", 13.0f, font_awesome });
 
-    auto fnt =
-      _gui->Fonts->AddFontFromFileTTF(fi.path.c_str(),
-                                      fi.pixel_size,
-                                      &config,
-                                      _gui->Fonts->GetGlyphRangesDefault());
+    for_each(fonts, fonts + num_fonts, [this](const font_info& fi) {
+        ImFontConfig config;
+        config.OversampleH = 3;
+        config.OversampleV = 1;
+        config.GlyphExtraSpacing.x = 1.0f;
 
-    if (!fnt) {
-      XR_DBG_MSG("Failed to load font {}", fi.path);
-      return;
-    }
+        auto fnt = _gui->Fonts->AddFontFromFileTTF(
+            fi.path.c_str(), fi.pixel_size, &config, _gui->Fonts->GetGlyphRangesDefault());
 
-    platformstl::path_a fpath{fi.path};
-      _rendercontext.fonts.emplace_back(
-        std::string{fpath.pop_ext().get_file().data()}, fi.pixel_size, fnt);
-  });
+        if (!fnt) {
+            XR_DBG_MSG("Failed to load font {}", fi.path);
+            return;
+        }
 
-  sort(begin(_rendercontext.fonts),
-       end(_rendercontext.fonts),
-       [](const loaded_font& f0, const loaded_font& f1) {
-         if (f0.name < f1.name) {
-           return true;
-         }
+        platformstl::path_a fpath{ fi.path };
+        _rendercontext.fonts.emplace_back(std::string{ fpath.pop_ext().get_file().data() }, fi.pixel_size, fnt);
+    });
 
-         if (f0.name > f1.name) {
-           return false;
-         }
+    sort(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& f0, const loaded_font& f1) {
+        if (f0.name < f1.name) {
+            return true;
+        }
 
-         return f0.pixel_size <= f1.pixel_size;
-       });
+        if (f0.name > f1.name) {
+            return false;
+        }
 
-  for_each(begin(_rendercontext.fonts),
-           end(_rendercontext.fonts),
-           [](const loaded_font& fi) {
-             XR_DBG_MSG("added font {}, size {} ...", fi.name, fi.pixel_size);
-           });
+        return f0.pixel_size <= f1.pixel_size;
+    });
+
+    for_each(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& fi) {
+        XR_DBG_MSG("added font {}, size {} ...", fi.name, fi.pixel_size);
+    });
 }
 
-xray::ui::user_interface::~user_interface() noexcept {
-  set_current();
-  ImGui::Shutdown();
+xray::ui::user_interface::~user_interface() noexcept
+{
+    set_current();
+    ImGui::Shutdown();
 }
 
-void xray::ui::user_interface::draw() {
-  ImGui::Render();
-  auto draw_data = ImGui::GetDrawData();
+void
+xray::ui::user_interface::draw()
+{
+    ImGui::Render();
+    auto draw_data = ImGui::GetDrawData();
 
 #if defined(XRAY_RENDERER_DIRECTX)
-  auto dc = _rendercontext.context;
+    auto dc = _rendercontext.context;
 
-  {
-    scoped_resource_mapping vb_map{
-      dc, raw_ptr(_rendercontext.vertex_buffer), D3D11_MAP_WRITE_DISCARD};
-    if (!vb_map)
-      return;
+    {
+        scoped_resource_mapping vb_map{ dc, raw_ptr(_rendercontext.vertex_buffer), D3D11_MAP_WRITE_DISCARD };
+        if (!vb_map)
+            return;
 
-    scoped_resource_mapping ib_map{
-      dc, raw_ptr(_rendercontext.index_buffer), D3D11_MAP_WRITE_DISCARD};
-    if (!ib_map)
-      return;
+        scoped_resource_mapping ib_map{ dc, raw_ptr(_rendercontext.index_buffer), D3D11_MAP_WRITE_DISCARD };
+        if (!ib_map)
+            return;
 
-    auto vertices = static_cast<ImDrawVert*>(vb_map.memory());
-    auto indices  = static_cast<ImDrawIdx*>(ib_map.memory());
+        auto vertices = static_cast<ImDrawVert*>(vb_map.memory());
+        auto indices = static_cast<ImDrawIdx*>(ib_map.memory());
+
+        for (int32_t i = 0; i < draw_data->CmdListsCount; ++i) {
+            const auto cmd_lst = draw_data->CmdLists[i];
+
+            memcpy(vertices, &cmd_lst->VtxBuffer[0], cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]));
+            memcpy(indices, &cmd_lst->IdxBuffer[0], cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]));
+
+            vertices += cmd_lst->VtxBuffer.size();
+            indices += cmd_lst->IdxBuffer.size();
+        }
+    }
+
+    auto& gui = ImGui::GetIO();
+    {
+        const auto proj_matrix =
+            projections_lh::orthographic(0.0f, gui.DisplaySize.x, 0.0f, gui.DisplaySize.y, 0.0f, 1.0f);
+
+        _rendercontext.vs.set_uniform_block("matrix_pack", proj_matrix);
+        _rendercontext.ps.set_sampler("font_sampler", raw_ptr(_rendercontext.font_sampler));
+        _rendercontext.vs.bind(dc);
+    }
+
+    const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
+    scoped_blend_state blend_state{ dc, raw_ptr(_rendercontext.blend_state), blend_factor, 0xffffffff };
+
+    scoped_depth_stencil_state ds_state{ dc, raw_ptr(_rendercontext.depth_stencil_state), 0 };
+    scoped_rasterizer_state raster_state{ dc, raw_ptr(_rendercontext.raster_state) };
+    scoped_scissor_rects scissor_rects{ dc, nullptr, 0 };
+
+    D3D11_VIEWPORT viewport;
+    viewport.Width = gui.DisplaySize.x;
+    viewport.Height = gui.DisplaySize.y;
+    viewport.MaxDepth = 1.0f;
+    viewport.MinDepth = 0.0f;
+    viewport.TopLeftX = viewport.TopLeftY = 0.0f;
+
+    scoped_viewport viewports{ dc, &viewport, 1 };
+
+    {
+        ID3D11Buffer* bound_vbs[] = { raw_ptr(_rendercontext.vertex_buffer) };
+        const uint32_t strides = static_cast<uint32_t>(sizeof(ImDrawVert));
+        const uint32_t offsets = 0;
+        dc->IASetVertexBuffers(0, 1, bound_vbs, &strides, &offsets);
+        dc->IASetIndexBuffer(raw_ptr(_rendercontext.index_buffer),
+                             sizeof(ImDrawIdx) == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT,
+                             0);
+        dc->IASetInputLayout(raw_ptr(_rendercontext.input_layout));
+        dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    }
+
+    uint32_t vertex_offset{};
+    uint32_t index_offset{};
 
     for (int32_t i = 0; i < draw_data->CmdListsCount; ++i) {
-      const auto cmd_lst = draw_data->CmdLists[i];
+        const auto cmd_list = draw_data->CmdLists[i];
 
-      memcpy(vertices,
-             &cmd_lst->VtxBuffer[0],
-             cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]));
-      memcpy(indices,
-             &cmd_lst->IdxBuffer[0],
-             cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]));
+        for (int32_t n = 0; n < cmd_list->CmdBuffer.size(); ++n) {
+            const auto cmd = &cmd_list->CmdBuffer[n];
 
-      vertices += cmd_lst->VtxBuffer.size();
-      indices += cmd_lst->IdxBuffer.size();
+            const D3D11_RECT scissor_rc{ static_cast<LONG>(cmd->ClipRect.x),
+                                         static_cast<LONG>(cmd->ClipRect.y),
+                                         static_cast<LONG>(cmd->ClipRect.z),
+                                         static_cast<LONG>(cmd->ClipRect.w) };
+
+            dc->RSSetScissorRects(1, &scissor_rc);
+            _rendercontext.ps.set_resource_view("font_tex", static_cast<ID3D11ShaderResourceView*>(cmd->TextureId));
+            _rendercontext.ps.bind(dc);
+            dc->DrawIndexed(cmd->ElemCount, index_offset, vertex_offset);
+            index_offset += cmd->ElemCount;
+        }
+
+        vertex_offset += cmd_list->VtxBuffer.size();
     }
-  }
-
-  auto& gui = ImGui::GetIO();
-  {
-    const auto proj_matrix = projections_lh::orthographic(
-      0.0f, gui.DisplaySize.x, 0.0f, gui.DisplaySize.y, 0.0f, 1.0f);
-
-    _rendercontext.vs.set_uniform_block("matrix_pack", proj_matrix);
-    _rendercontext.ps.set_sampler("font_sampler",
-                                  raw_ptr(_rendercontext.font_sampler));
-    _rendercontext.vs.bind(dc);
-  }
-
-  const float        blend_factor[4] = {0.f, 0.f, 0.f, 0.f};
-  scoped_blend_state blend_state{
-    dc, raw_ptr(_rendercontext.blend_state), blend_factor, 0xffffffff};
-
-  scoped_depth_stencil_state ds_state{
-    dc, raw_ptr(_rendercontext.depth_stencil_state), 0};
-  scoped_rasterizer_state raster_state{dc,
-                                       raw_ptr(_rendercontext.raster_state)};
-  scoped_scissor_rects    scissor_rects{dc, nullptr, 0};
-
-  D3D11_VIEWPORT viewport;
-  viewport.Width    = gui.DisplaySize.x;
-  viewport.Height   = gui.DisplaySize.y;
-  viewport.MaxDepth = 1.0f;
-  viewport.MinDepth = 0.0f;
-  viewport.TopLeftX = viewport.TopLeftY = 0.0f;
-
-  scoped_viewport viewports{dc, &viewport, 1};
-
-  {
-    ID3D11Buffer*  bound_vbs[] = {raw_ptr(_rendercontext.vertex_buffer)};
-    const uint32_t strides     = static_cast<uint32_t>(sizeof(ImDrawVert));
-    const uint32_t offsets     = 0;
-    dc->IASetVertexBuffers(0, 1, bound_vbs, &strides, &offsets);
-    dc->IASetIndexBuffer(raw_ptr(_rendercontext.index_buffer),
-                         sizeof(ImDrawIdx) == 2 ? DXGI_FORMAT_R16_UINT
-                                                : DXGI_FORMAT_R32_UINT,
-                         0);
-    dc->IASetInputLayout(raw_ptr(_rendercontext.input_layout));
-    dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  }
-
-  uint32_t vertex_offset{};
-  uint32_t index_offset{};
-
-  for (int32_t i = 0; i < draw_data->CmdListsCount; ++i) {
-    const auto cmd_list = draw_data->CmdLists[i];
-
-    for (int32_t n = 0; n < cmd_list->CmdBuffer.size(); ++n) {
-      const auto cmd = &cmd_list->CmdBuffer[n];
-
-      const D3D11_RECT scissor_rc{static_cast<LONG>(cmd->ClipRect.x),
-                                  static_cast<LONG>(cmd->ClipRect.y),
-                                  static_cast<LONG>(cmd->ClipRect.z),
-                                  static_cast<LONG>(cmd->ClipRect.w)};
-
-      dc->RSSetScissorRects(1, &scissor_rc);
-      _rendercontext.ps.set_resource_view(
-        "font_tex", static_cast<ID3D11ShaderResourceView*>(cmd->TextureId));
-      _rendercontext.ps.bind(dc);
-      dc->DrawIndexed(cmd->ElemCount, index_offset, vertex_offset);
-      index_offset += cmd->ElemCount;
-    }
-
-    vertex_offset += cmd_list->VtxBuffer.size();
-  }
 
 #else
 
-  const auto fb_width =
-    static_cast<int32_t>(_gui->DisplaySize.x * _gui->DisplayFramebufferScale.x);
-  const auto fb_height =
-    static_cast<int32_t>(_gui->DisplaySize.y * _gui->DisplayFramebufferScale.y);
-  if (fb_width == 0 || fb_height == 0)
-    return;
-
-  draw_data->ScaleClipRects(_gui->DisplayFramebufferScale);
-
-  struct opengl_state_save_restore {
-    GLint last_blend_src;
-    GLint last_blend_dst;
-    GLint last_blend_eq_rgb;
-    GLint last_blend_eq_alpha;
-    GLint last_viewport[4];
-    GLint blend_enabled;
-    GLint cullface_enabled;
-    GLint depth_enabled;
-    GLint scissors_enabled;
-
-    opengl_state_save_restore() {
-      gl::GetIntegerv(gl::BLEND_SRC, &last_blend_src);
-      gl::GetIntegerv(gl::BLEND_DST, &last_blend_dst);
-      gl::GetIntegerv(gl::BLEND_EQUATION_RGB, &last_blend_eq_rgb);
-      gl::GetIntegerv(gl::BLEND_EQUATION_ALPHA, &last_blend_eq_alpha);
-      gl::GetIntegerv(gl::VIEWPORT, last_viewport);
-      blend_enabled    = gl::IsEnabled(gl::BLEND);
-      cullface_enabled = gl::IsEnabled(gl::CULL_FACE);
-      depth_enabled    = gl::IsEnabled(gl::DEPTH_TEST);
-      scissors_enabled = gl::IsEnabled(gl::SCISSOR_TEST);
-    }
-
-    ~opengl_state_save_restore() {
-      gl::BlendEquationSeparate(last_blend_eq_rgb, last_blend_eq_alpha);
-      gl::BlendFunc(last_blend_src, last_blend_dst);
-      blend_enabled ? gl::Enable(gl::BLEND) : gl::Disable(gl::BLEND);
-      cullface_enabled ? gl::Enable(gl::CULL_FACE) : gl::Disable(gl::CULL_FACE);
-      depth_enabled ? gl::Enable(gl::DEPTH_TEST) : gl::Disable(gl::DEPTH_TEST);
-      scissors_enabled ? gl::Enable(gl::SCISSOR_TEST)
-                       : gl::Disable(gl::SCISSOR_TEST);
-      gl::Viewport(
-        last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
-    }
-  } state_save_restore{};
-
-  gl::Enable(gl::BLEND);
-  gl::BlendEquation(gl::FUNC_ADD);
-  gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-  gl::Disable(gl::CULL_FACE);
-  gl::Disable(gl::DEPTH_TEST);
-  gl::Enable(gl::SCISSOR_TEST);
-
-  gl::Viewport(0, 0, fb_width, fb_height);
-
-  const auto projection_mtx =
-    projections_rh::orthographic(0.0f,
-                                 static_cast<float>(fb_width),
-                                 0.0f,
-                                 static_cast<float>(fb_height),
-                                 -1.0f,
-                                 +1.0f);
-
-  _rendercontext._vs.set_uniform_block("matrix_pack", projection_mtx);
-  _rendercontext._fs.set_uniform("font_texture", 0);
-  _rendercontext._pipeline.use();
-  gl::BindVertexArray(raw_handle(_rendercontext._vertex_arr));
-
-  {
-    const GLuint bound_samplers[] = {raw_handle(_rendercontext._font_sampler)};
-    gl::BindSamplers(0, 1, bound_samplers);
-  }
-
-  for (int32_t lst_idx = 0; lst_idx < draw_data->CmdListsCount; ++lst_idx) {
-    const auto       cmd_lst         = draw_data->CmdLists[lst_idx];
-    const ImDrawIdx* idx_buff_offset = nullptr;
-
-    {
-      scoped_resource_mapping vb_map{raw_handle(_rendercontext._vertex_buffer),
-                                     gl::MAP_WRITE_BIT,
-                                     user_interface::VERTEX_BUFFER_SIZE};
-
-      if (!vb_map)
+    const auto fb_width = static_cast<int32_t>(_gui->DisplaySize.x * _gui->DisplayFramebufferScale.x);
+    const auto fb_height = static_cast<int32_t>(_gui->DisplaySize.y * _gui->DisplayFramebufferScale.y);
+    if (fb_width == 0 || fb_height == 0)
         return;
 
-      const auto vertex_bytes =
-        cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]);
-      assert(vertex_bytes <= user_interface::VERTEX_BUFFER_SIZE);
-      memcpy(vb_map.memory(), &cmd_lst->VtxBuffer[0], vertex_bytes);
-    }
+    draw_data->ScaleClipRects(_gui->DisplayFramebufferScale);
+
+    struct opengl_state_save_restore
+    {
+        GLint last_blend_src;
+        GLint last_blend_dst;
+        GLint last_blend_eq_rgb;
+        GLint last_blend_eq_alpha;
+        GLint last_viewport[4];
+        GLint blend_enabled;
+        GLint cullface_enabled;
+        GLint depth_enabled;
+        GLint scissors_enabled;
+
+        opengl_state_save_restore()
+        {
+            gl::GetIntegerv(gl::BLEND_SRC, &last_blend_src);
+            gl::GetIntegerv(gl::BLEND_DST, &last_blend_dst);
+            gl::GetIntegerv(gl::BLEND_EQUATION_RGB, &last_blend_eq_rgb);
+            gl::GetIntegerv(gl::BLEND_EQUATION_ALPHA, &last_blend_eq_alpha);
+            gl::GetIntegerv(gl::VIEWPORT, last_viewport);
+            blend_enabled = gl::IsEnabled(gl::BLEND);
+            cullface_enabled = gl::IsEnabled(gl::CULL_FACE);
+            depth_enabled = gl::IsEnabled(gl::DEPTH_TEST);
+            scissors_enabled = gl::IsEnabled(gl::SCISSOR_TEST);
+        }
+
+        ~opengl_state_save_restore()
+        {
+            gl::BlendEquationSeparate(last_blend_eq_rgb, last_blend_eq_alpha);
+            gl::BlendFunc(last_blend_src, last_blend_dst);
+            blend_enabled ? gl::Enable(gl::BLEND) : gl::Disable(gl::BLEND);
+            cullface_enabled ? gl::Enable(gl::CULL_FACE) : gl::Disable(gl::CULL_FACE);
+            depth_enabled ? gl::Enable(gl::DEPTH_TEST) : gl::Disable(gl::DEPTH_TEST);
+            scissors_enabled ? gl::Enable(gl::SCISSOR_TEST) : gl::Disable(gl::SCISSOR_TEST);
+            gl::Viewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
+        }
+    } state_save_restore{};
+
+    gl::Enable(gl::BLEND);
+    gl::BlendEquation(gl::FUNC_ADD);
+    gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+    gl::Disable(gl::CULL_FACE);
+    gl::Disable(gl::DEPTH_TEST);
+    gl::Enable(gl::SCISSOR_TEST);
+
+    gl::Viewport(0, 0, fb_width, fb_height);
+
+    const auto projection_mtx = projections_rh::orthographic(
+        0.0f, static_cast<float>(fb_width), 0.0f, static_cast<float>(fb_height), -1.0f, +1.0f);
+
+    _rendercontext._vs.set_uniform_block("matrix_pack", projection_mtx);
+    _rendercontext._fs.set_uniform("font_texture", 0);
+    _rendercontext._pipeline.use();
+    gl::BindVertexArray(raw_handle(_rendercontext._vertex_arr));
 
     {
-      scoped_resource_mapping ib_map{raw_handle(_rendercontext._index_buffer),
-                                     gl::MAP_WRITE_BIT,
-                                     user_interface::INDEX_BUFFER_SIZE};
-
-      if (!ib_map)
-        return;
-
-      const auto index_bytes =
-        cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]);
-      assert(index_bytes <= user_interface::INDEX_BUFFER_SIZE);
-      memcpy(ib_map.memory(), &cmd_lst->IdxBuffer[0], index_bytes);
+        const GLuint bound_samplers[] = { raw_handle(_rendercontext._font_sampler) };
+        gl::BindSamplers(0, 1, bound_samplers);
     }
 
-    for (auto cmd_itr = cmd_lst->CmdBuffer.begin(),
-              cmd_end = cmd_lst->CmdBuffer.end();
-         cmd_itr != cmd_end;
-         ++cmd_itr) {
+    for (int32_t lst_idx = 0; lst_idx < draw_data->CmdListsCount; ++lst_idx) {
+        const auto cmd_lst = draw_data->CmdLists[lst_idx];
+        const ImDrawIdx* idx_buff_offset = nullptr;
 
-      const GLuint textures_to_bind[] = {
-        (GLuint) (intptr_t) cmd_itr->TextureId};
-      gl::BindTextures(0, 1, textures_to_bind);
+        {
+            scoped_resource_mapping vb_map{ raw_handle(_rendercontext._vertex_buffer),
+                                            gl::MAP_WRITE_BIT,
+                                            user_interface::VERTEX_BUFFER_SIZE };
 
-      gl::Scissor(
-        static_cast<int32_t>(cmd_itr->ClipRect.x),
-        fb_height - static_cast<int32_t>(cmd_itr->ClipRect.w),
-        static_cast<int32_t>(cmd_itr->ClipRect.z - cmd_itr->ClipRect.x),
-        static_cast<int32_t>(cmd_itr->ClipRect.w - cmd_itr->ClipRect.y));
+            if (!vb_map)
+                return;
 
-      gl::DrawElements(gl::TRIANGLES,
-                       cmd_itr->ElemCount,
-                       sizeof(ImDrawIdx) == 2 ? gl::UNSIGNED_SHORT
-                                              : gl::UNSIGNED_INT,
-                       idx_buff_offset);
+            const auto vertex_bytes = cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]);
+            assert(vertex_bytes <= user_interface::VERTEX_BUFFER_SIZE);
+            memcpy(vb_map.memory(), &cmd_lst->VtxBuffer[0], vertex_bytes);
+        }
 
-      idx_buff_offset += cmd_itr->ElemCount;
+        {
+            scoped_resource_mapping ib_map{ raw_handle(_rendercontext._index_buffer),
+                                            gl::MAP_WRITE_BIT,
+                                            user_interface::INDEX_BUFFER_SIZE };
+
+            if (!ib_map)
+                return;
+
+            const auto index_bytes = cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]);
+            assert(index_bytes <= user_interface::INDEX_BUFFER_SIZE);
+            memcpy(ib_map.memory(), &cmd_lst->IdxBuffer[0], index_bytes);
+        }
+
+        for (auto cmd_itr = cmd_lst->CmdBuffer.begin(), cmd_end = cmd_lst->CmdBuffer.end(); cmd_itr != cmd_end;
+             ++cmd_itr) {
+
+            const GLuint textures_to_bind[] = { (GLuint)(intptr_t)cmd_itr->TextureId };
+            gl::BindTextures(0, 1, textures_to_bind);
+
+            gl::Scissor(static_cast<int32_t>(cmd_itr->ClipRect.x),
+                        fb_height - static_cast<int32_t>(cmd_itr->ClipRect.w),
+                        static_cast<int32_t>(cmd_itr->ClipRect.z - cmd_itr->ClipRect.x),
+                        static_cast<int32_t>(cmd_itr->ClipRect.w - cmd_itr->ClipRect.y));
+
+            gl::DrawElements(gl::TRIANGLES,
+                             cmd_itr->ElemCount,
+                             sizeof(ImDrawIdx) == 2 ? gl::UNSIGNED_SHORT : gl::UNSIGNED_INT,
+                             idx_buff_offset);
+
+            idx_buff_offset += cmd_itr->ElemCount;
+        }
     }
-  }
 
 #endif
 }
 
-void xray::ui::user_interface::new_frame(const int32_t wnd_width,
-                                         const int32_t wnd_height) {
-  _gui->DisplaySize =
-    ImVec2{static_cast<float>(wnd_width), static_cast<float>(wnd_height)};
-  ImGui::NewFrame();
+void
+xray::ui::user_interface::new_frame(const int32_t wnd_width, const int32_t wnd_height)
+{
+    _gui->DisplaySize = ImVec2{ static_cast<float>(wnd_width), static_cast<float>(wnd_height) };
+    ImGui::NewFrame();
 }
 
-bool xray::ui::user_interface::input_event(
-  const xray::ui::window_event& in_evt) {
+bool
+xray::ui::user_interface::input_event(const xray::ui::window_event& in_evt)
+{
 
-  if (in_evt.type == event_type::key) {
-    const auto& ke = in_evt.event.key;
-    _gui->KeysDown[key_sym::to_integer(ke.keycode)] =
-      ke.type == event_action_type::press;
-    return true;
-  }
-
-  if (in_evt.type == event_type::mouse_button) {
-    const auto& mb      = in_evt.event.button;
-    bool        handled = true;
-
-    switch (mb.button) {
-    case mouse_button::button1:
-      _gui->MouseDown[0] = mb.type == event_action_type::press;
-      break;
-
-    case mouse_button::button3:
-      _gui->MouseDown[1] = mb.type == event_action_type::press;
-      break;
-
-    default:
-      handled = false;
-      break;
+    if (in_evt.type == event_type::key) {
+        const auto& ke = in_evt.event.key;
+        _gui->KeysDown[key_sym::to_integer(ke.keycode)] = ke.type == event_action_type::press;
+        return true;
     }
 
-    return handled;
-  }
+    if (in_evt.type == event_type::mouse_button) {
+        const auto& mb = in_evt.event.button;
+        bool handled = true;
 
-  if (in_evt.type == event_type::mouse_motion) {
-    const auto& mm   = in_evt.event.motion;
-    _gui->MousePos.x = static_cast<float>(mm.pointer_x);
-    _gui->MousePos.y = static_cast<float>(mm.pointer_y);
+        switch (mb.button) {
+            case mouse_button::button1:
+                _gui->MouseDown[0] = mb.type == event_action_type::press;
+                break;
 
-    return true;
-  }
+            case mouse_button::button3:
+                _gui->MouseDown[1] = mb.type == event_action_type::press;
+                break;
 
-  if (in_evt.type == event_type::mouse_wheel) {
-    const auto& mw = in_evt.event.wheel;
-    _gui->MouseWheel += mw.delta > 0 ? -1.0f : +1.0f;
-    return true;
-  }
+            default:
+                handled = false;
+                break;
+        }
 
-  return false;
+        return handled;
+    }
+
+    if (in_evt.type == event_type::mouse_motion) {
+        const auto& mm = in_evt.event.motion;
+        _gui->MousePos.x = static_cast<float>(mm.pointer_x);
+        _gui->MousePos.y = static_cast<float>(mm.pointer_y);
+
+        return true;
+    }
+
+    if (in_evt.type == event_type::mouse_wheel) {
+        const auto& mw = in_evt.event.wheel;
+        _gui->MouseWheel += mw.delta > 0 ? -1.0f : +1.0f;
+        return true;
+    }
+
+    return false;
 }
 
-void xray::ui::user_interface::tick(const float delta) {
-  ImGui::GetIO().DeltaTime = delta / 1000.0f;
+void
+xray::ui::user_interface::tick(const float delta)
+{
+    ImGui::GetIO().DeltaTime = delta / 1000.0f;
 }
 
-bool xray::ui::user_interface::wants_input() const noexcept {
-  return _gui->WantCaptureKeyboard || _gui->WantCaptureMouse;
+bool
+xray::ui::user_interface::wants_input() const noexcept
+{
+    return _gui->WantCaptureKeyboard || _gui->WantCaptureMouse;
 }
 
-void xray::ui::user_interface::setup_key_mappings() {
-  _gui->KeyMap[ImGuiKey_Tab]        = key_sym::to_integer(key_sym::e::tab);
-  _gui->KeyMap[ImGuiKey_LeftArrow]  = key_sym::to_integer(key_sym::e::left);
-  _gui->KeyMap[ImGuiKey_RightArrow] = key_sym::to_integer(key_sym::e::right);
-  _gui->KeyMap[ImGuiKey_UpArrow]    = key_sym::to_integer(key_sym::e::up);
-  _gui->KeyMap[ImGuiKey_DownArrow]  = key_sym::to_integer(key_sym::e::down);
-  _gui->KeyMap[ImGuiKey_PageUp]     = key_sym::to_integer(key_sym::e::page_up);
-  _gui->KeyMap[ImGuiKey_PageDown]  = key_sym::to_integer(key_sym::e::page_down);
-  _gui->KeyMap[ImGuiKey_Home]      = key_sym::to_integer(key_sym::e::home);
-  _gui->KeyMap[ImGuiKey_End]       = key_sym::to_integer(key_sym::e::end);
-  _gui->KeyMap[ImGuiKey_Delete]    = key_sym::to_integer(key_sym::e::del);
-  _gui->KeyMap[ImGuiKey_Backspace] = key_sym::to_integer(key_sym::e::backspace);
-  _gui->KeyMap[ImGuiKey_Enter]     = key_sym::to_integer(key_sym::e::enter);
-  _gui->KeyMap[ImGuiKey_Escape]    = key_sym::to_integer(key_sym::e::escape);
-  _gui->KeyMap[ImGuiKey_A]         = 'A';
-  _gui->KeyMap[ImGuiKey_C]         = 'C';
-  _gui->KeyMap[ImGuiKey_V]         = 'V';
-  _gui->KeyMap[ImGuiKey_X]         = 'X';
-  _gui->KeyMap[ImGuiKey_Y]         = 'Y';
-  _gui->KeyMap[ImGuiKey_Z]         = 'Z';
-  _gui->RenderDrawListsFn          = nullptr;
+void
+xray::ui::user_interface::setup_key_mappings()
+{
+    _gui->KeyMap[ImGuiKey_Tab] = key_sym::to_integer(key_sym::e::tab);
+    _gui->KeyMap[ImGuiKey_LeftArrow] = key_sym::to_integer(key_sym::e::left);
+    _gui->KeyMap[ImGuiKey_RightArrow] = key_sym::to_integer(key_sym::e::right);
+    _gui->KeyMap[ImGuiKey_UpArrow] = key_sym::to_integer(key_sym::e::up);
+    _gui->KeyMap[ImGuiKey_DownArrow] = key_sym::to_integer(key_sym::e::down);
+    _gui->KeyMap[ImGuiKey_PageUp] = key_sym::to_integer(key_sym::e::page_up);
+    _gui->KeyMap[ImGuiKey_PageDown] = key_sym::to_integer(key_sym::e::page_down);
+    _gui->KeyMap[ImGuiKey_Home] = key_sym::to_integer(key_sym::e::home);
+    _gui->KeyMap[ImGuiKey_End] = key_sym::to_integer(key_sym::e::end);
+    _gui->KeyMap[ImGuiKey_Delete] = key_sym::to_integer(key_sym::e::del);
+    _gui->KeyMap[ImGuiKey_Backspace] = key_sym::to_integer(key_sym::e::backspace);
+    _gui->KeyMap[ImGuiKey_Enter] = key_sym::to_integer(key_sym::e::enter);
+    _gui->KeyMap[ImGuiKey_Escape] = key_sym::to_integer(key_sym::e::escape);
+    _gui->KeyMap[ImGuiKey_A] = 'A';
+    _gui->KeyMap[ImGuiKey_C] = 'C';
+    _gui->KeyMap[ImGuiKey_V] = 'V';
+    _gui->KeyMap[ImGuiKey_X] = 'X';
+    _gui->KeyMap[ImGuiKey_Y] = 'Y';
+    _gui->KeyMap[ImGuiKey_Z] = 'Z';
+    _gui->RenderDrawListsFn = nullptr;
 }
 
 xray::ui::user_interface::loaded_font*
-xray::ui::user_interface::find_font(const char* name) {
-  if (name == nullptr) {
-    name = "Default";
-  }
+xray::ui::user_interface::find_font(const char* name)
+{
+    if (name == nullptr) {
+        name = "Default";
+    }
 
-  auto fentry =
-    find_if(begin(_rendercontext.fonts),
-            end(_rendercontext.fonts),
-            [name](const loaded_font& fi) { return fi.name == name; });
+    auto fentry = find_if(begin(_rendercontext.fonts), end(_rendercontext.fonts), [name](const loaded_font& fi) {
+        return fi.name == name;
+    });
 
-  if (fentry == end(_rendercontext.fonts)) {
-    XR_DBG_MSG("Trying to set non existent font {}", name);
-    return nullptr;
-  }
+    if (fentry == end(_rendercontext.fonts)) {
+        XR_DBG_MSG("Trying to set non existent font {}", name);
+        return nullptr;
+    }
 
-  return &*fentry;
+    return &*fentry;
 }
 
-void xray::ui::user_interface::set_global_font(const char* name) {
-  auto fnt_entry = find_font(name);
-  if (fnt_entry) {
-    _gui->FontDefault = fnt_entry->font;
-  }
+void
+xray::ui::user_interface::set_global_font(const char* name)
+{
+    auto fnt_entry = find_font(name);
+    if (fnt_entry) {
+        _gui->FontDefault = fnt_entry->font;
+    }
 }
 
-void xray::ui::user_interface::push_font(const char* name) {
-  auto fnt_entry = find_font(name);
-  if (fnt_entry) {
-    ImGui::PushFont(fnt_entry->font);
-  }
+void
+xray::ui::user_interface::push_font(const char* name)
+{
+    auto fnt_entry = find_font(name);
+    if (fnt_entry) {
+        ImGui::PushFont(fnt_entry->font);
+    }
 }
 
-void xray::ui::user_interface::pop_font() { ImGui::PopFont(); }
+void
+xray::ui::user_interface::pop_font()
+{
+    ImGui::PopFont();
+}

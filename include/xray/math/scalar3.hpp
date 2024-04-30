@@ -38,90 +38,102 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-template <typename T>
-struct scalar3 {
+template<typename T>
+struct scalar3
+{
 
-  union {
+    union
+    {
 
-    struct {
-      T x;
-      T y;
-      T z;
+        struct
+        {
+            T x;
+            T y;
+            T z;
+        };
+
+        struct
+        {
+            T u;
+            T v;
+            T w;
+        };
+
+        struct
+        {
+            T s;
+            T t;
+            T p;
+        };
+
+        T components[3];
     };
 
-    struct {
-      T u;
-      T v;
-      T w;
-    };
+    using class_type = scalar3<T>;
 
-    struct {
-      T s;
-      T t;
-      T p;
-    };
+    scalar3() noexcept = default;
 
-    T components[3];
-  };
+    explicit constexpr scalar3(const T val) noexcept
+        : scalar3<T>{ val, val, val }
+    {
+    }
 
-  using class_type = scalar3<T>;
+    constexpr scalar3(const T xval, const T yval, const T zval) noexcept
+        : x{ xval }
+        , y{ yval }
+        , z{ zval }
+    {
+    }
 
-  scalar3() noexcept = default;
+    /// \name Self assign math operators
+    /// @{
 
-  explicit constexpr scalar3(const T val) noexcept
-    : scalar3<T>{val, val, val} {}
+    inline scalar3<T>& operator+=(const scalar3<T>& rhs) noexcept;
+    inline scalar3<T>& operator-=(const scalar3<T>& rhs) noexcept;
+    inline scalar3<T>& operator*=(const T scalar) noexcept;
+    inline scalar3<T>& operator/=(const T scalar) noexcept;
 
-  constexpr scalar3(const T xval, const T yval, const T zval) noexcept
-    : x{xval}, y{yval}, z{zval} {}
+    /// @}
 
-  /// \name Self assign math operators
-  /// @{
+    /// \name Standard constants for R3 vectors.
+    /// @{
 
-  inline scalar3<T>& operator+=(const scalar3<T>& rhs) noexcept;
-  inline scalar3<T>& operator-=(const scalar3<T>& rhs) noexcept;
-  inline scalar3<T>& operator*=(const T scalar) noexcept;
-  inline scalar3<T>& operator/=(const T scalar) noexcept;
+  public:
+    struct stdc;
 
-  /// @}
-
-  /// \name Standard constants for R3 vectors.
-  /// @{
-
-public:
-  struct stdc;
-
-  /// @}
+    /// @}
 };
 
-template <typename T>
-struct scalar3<T>::stdc {
-  static constexpr const scalar3<T> unit_x{T(1.0), T(0.0), T(0.0)};
-  static constexpr const scalar3<T> unit_y{T(0.0), T(1.0), T(0.0)};
-  static constexpr const scalar3<T> unit_z{T(0.0), T(0.0), T(1.0)};
-  static constexpr const scalar3<T> zero{T(0.0), T(0.0), T(0.0)};
-  static constexpr const scalar3<T> one{T(1.0), T(1.0), T(1.0)};
+template<typename T>
+struct scalar3<T>::stdc
+{
+    static constexpr const scalar3<T> unit_x{ T(1.0), T(0.0), T(0.0) };
+    static constexpr const scalar3<T> unit_y{ T(0.0), T(1.0), T(0.0) };
+    static constexpr const scalar3<T> unit_z{ T(0.0), T(0.0), T(1.0) };
+    static constexpr const scalar3<T> zero{ T(0.0), T(0.0), T(0.0) };
+    static constexpr const scalar3<T> one{ T(1.0), T(1.0), T(1.0) };
 };
 
-template <typename T>
+template<typename T>
 constexpr const scalar3<T> scalar3<T>::stdc::unit_x;
 
-template <typename T>
+template<typename T>
 constexpr const scalar3<T> scalar3<T>::stdc::unit_y;
 
-template <typename T>
+template<typename T>
 constexpr const scalar3<T> scalar3<T>::stdc::unit_z;
 
-template <typename T>
+template<typename T>
 constexpr const scalar3<T> scalar3<T>::stdc::zero;
 
-template <typename T>
+template<typename T>
 constexpr const scalar3<T> scalar3<T>::stdc::one;
 
-using vec3f    = scalar3<scalar_lowp>;
-using vec3d    = scalar3<scalar_mediump>;
-using vec3i8   = scalar3<int8_t>;
-using vec3ui8  = scalar3<uint8_t>;
-using vec3i32  = scalar3<int32_t>;
+using vec3f = scalar3<scalar_lowp>;
+using vec3d = scalar3<scalar_mediump>;
+using vec3i8 = scalar3<int8_t>;
+using vec3ui8 = scalar3<uint8_t>;
+using vec3i32 = scalar3<int32_t>;
 using vec3ui32 = scalar3<uint32_t>;
 
 /// @}

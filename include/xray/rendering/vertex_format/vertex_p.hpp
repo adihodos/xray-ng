@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
@@ -43,30 +43,39 @@ namespace rendering {
 
 ///
 /// Vertex format, consisting of a point.
-struct vertex_p {
+struct vertex_p
+{
 
-  vertex_p() noexcept {}
+    vertex_p() noexcept {}
 
-  vertex_p(const float px, const float py, const float pz) noexcept
-      : position{px, py, pz} {}
+    vertex_p(const float px, const float py, const float pz) noexcept
+        : position{ px, py, pz }
+    {
+    }
 
-  vertex_p(const math::vec3f& pos) noexcept : position{pos} {}
+    vertex_p(const math::vec3f& pos) noexcept
+        : position{ pos }
+    {
+    }
 
-  ///< Position in space.
-  math::vec3f position;
+    ///< Position in space.
+    math::vec3f position;
 };
 
-template <>
-struct vertex_format_traits<xray::rendering::vertex_format::p> {
-  using vertex_type = xray::rendering::vertex_p;
-  static constexpr size_t   bytes_size{sizeof(vertex_p)};
-  static constexpr uint32_t components{1};
+template<>
+struct vertex_format_traits<xray::rendering::vertex_format::p>
+{
+    using vertex_type = xray::rendering::vertex_p;
+    static constexpr size_t bytes_size{ sizeof(vertex_p) };
+    static constexpr uint32_t components{ 1 };
 
-  static const vertex_format_entry_desc* description() {
-    static constexpr vertex_format_entry_desc vdesc[] = {
-        {3, component_type::float_, XR_U32_OFFSETOF(vertex_p, position)}};
-    return vdesc;
-  }
+    static const vertex_format_entry_desc* description()
+    {
+        static constexpr vertex_format_entry_desc vdesc[] = {
+            { 3, component_type::float_, XR_U32_OFFSETOF(vertex_p, position) }
+        };
+        return vdesc;
+    }
 };
 
 /// @}

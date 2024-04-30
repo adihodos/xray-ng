@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
@@ -43,20 +43,31 @@ namespace rendering {
 
 ///
 /// A vertex format, consisting of position and color.
-struct vertex_pc {
+struct vertex_pc
+{
 
-  vertex_pc() noexcept {}
+    vertex_pc() noexcept {}
 
-  vertex_pc(const float px, const float py, const float pz, const float red,
-            const float green, const float blue,
-            const float alpha = 1.0f) noexcept
-      : position{px, py, pz}, color{red, green, blue, alpha} {}
+    vertex_pc(const float px,
+              const float py,
+              const float pz,
+              const float red,
+              const float green,
+              const float blue,
+              const float alpha = 1.0f) noexcept
+        : position{ px, py, pz }
+        , color{ red, green, blue, alpha }
+    {
+    }
 
-  vertex_pc(const math::vec3f& pos, const rendering::rgb_color& clr) noexcept
-      : position{pos}, color{clr} {}
+    vertex_pc(const math::vec3f& pos, const rendering::rgb_color& clr) noexcept
+        : position{ pos }
+        , color{ clr }
+    {
+    }
 
-  math::vec3f          position;
-  rendering::rgb_color color;
+    math::vec3f position;
+    rendering::rgb_color color;
 };
 
 /// @}

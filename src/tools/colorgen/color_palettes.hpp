@@ -28,16 +28,17 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/xray.hpp"
 
 /*  This file was automatically generated at 2016-02-05 14:33:02.496000. Do not edit ! */
 
 namespace xray {
 namespace rendering {
 
-class color_palette {
-public :
+class color_palette
+{
+  public:
     // clang-format off
 	struct flat {
 		static constexpr rgb_color alizarin = {0.9059f, 0.2980f, 0.2353f, 1.0f};
@@ -958,5 +959,5 @@ static constexpr rgb_color
     // clang-format on
 };
 
-}   // namespace rendering
-}   // namespace xray
+} // namespace rendering
+} // namespace xray

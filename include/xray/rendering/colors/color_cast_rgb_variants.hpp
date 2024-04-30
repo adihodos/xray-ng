@@ -28,44 +28,49 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/rendering/colors/color_cast.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/colors/rgb_variants.hpp"
+#include "xray/xray.hpp"
 #include <cmath>
 #include <cstdint>
 
 namespace xray {
 namespace rendering {
 
-template <>
-struct color_caster<rgb_color, rgba_u32_color> {
+template<>
+struct color_caster<rgb_color, rgba_u32_color>
+{
 
-  static rgb_color cast(const rgba_u32_color& rgba) noexcept {
+    static rgb_color cast(const rgba_u32_color& rgba) noexcept
+    {
 
-    const auto red   = static_cast<uint8_t>((rgba.value >> 24) & 0xFF);
-    const auto green = static_cast<uint8_t>((rgba.value >> 16) & 0xFF);
-    const auto blue  = static_cast<uint8_t>((rgba.value >> 8) & 0xFF);
-    const auto alpha = static_cast<uint8_t>(rgba.value & 0xFF);
+        const auto red = static_cast<uint8_t>((rgba.value >> 24) & 0xFF);
+        const auto green = static_cast<uint8_t>((rgba.value >> 16) & 0xFF);
+        const auto blue = static_cast<uint8_t>((rgba.value >> 8) & 0xFF);
+        const auto alpha = static_cast<uint8_t>(rgba.value & 0xFF);
 
-    return {
-        static_cast<float>(red) / 255.0f, static_cast<float>(green) / 255.0f,
-        static_cast<float>(blue) / 255.0f, static_cast<float>(alpha) / 255.0f};
-  }
+        return { static_cast<float>(red) / 255.0f,
+                 static_cast<float>(green) / 255.0f,
+                 static_cast<float>(blue) / 255.0f,
+                 static_cast<float>(alpha) / 255.0f };
+    }
 };
 
-template <>
-struct color_caster<rgba_u32_color, rgb_color> {
+template<>
+struct color_caster<rgba_u32_color, rgb_color>
+{
 
-  static rgba_u32_color cast(const rgb_color& rgb) noexcept {
+    static rgba_u32_color cast(const rgb_color& rgb) noexcept
+    {
 
-    const auto red   = static_cast<uint32_t>(std::ceil(255.0f * rgb.r)) << 24;
-    const auto green = static_cast<uint32_t>(std::ceil(255.0f * rgb.g)) << 16;
-    const auto blue  = static_cast<uint32_t>(std::ceil(255.0f * rgb.b)) << 8;
-    const auto alpha = static_cast<uint32_t>(std::ceil(255.0f * rgb.a));
+        const auto red = static_cast<uint32_t>(std::ceil(255.0f * rgb.r)) << 24;
+        const auto green = static_cast<uint32_t>(std::ceil(255.0f * rgb.g)) << 16;
+        const auto blue = static_cast<uint32_t>(std::ceil(255.0f * rgb.b)) << 8;
+        const auto alpha = static_cast<uint32_t>(std::ceil(255.0f * rgb.a));
 
-    return rgba_u32_color{red | green | blue | alpha};
-  }
+        return rgba_u32_color{ red | green | blue | alpha };
+    }
 };
 
 } // namespace rendering

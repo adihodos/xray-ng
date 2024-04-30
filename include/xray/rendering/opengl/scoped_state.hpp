@@ -34,72 +34,76 @@
 namespace xray {
 namespace rendering {
 
-struct scoped_triangle_winding {
-public:
-  explicit scoped_triangle_winding(const GLint new_winding) noexcept {
-    gl::GetIntegerv(gl::FRONT_FACE, &_old_winding);
-    gl::FrontFace(new_winding);
-  }
+struct scoped_triangle_winding
+{
+  public:
+    explicit scoped_triangle_winding(const GLint new_winding) noexcept
+    {
+        gl::GetIntegerv(gl::FRONT_FACE, &_old_winding);
+        gl::FrontFace(new_winding);
+    }
 
-  ~scoped_triangle_winding() { gl::FrontFace(_old_winding); }
+    ~scoped_triangle_winding() { gl::FrontFace(_old_winding); }
 
-private:
-  GLint _old_winding{};
+  private:
+    GLint _old_winding{};
 
-private:
-  XRAY_NO_COPY(scoped_triangle_winding);
+  private:
+    XRAY_NO_COPY(scoped_triangle_winding);
 };
 
-struct scoped_vertex_array_binding {
-public:
-  explicit scoped_vertex_array_binding(const GLuint vertex_array) noexcept {
-    gl::GetIntegerv(gl::VERTEX_ARRAY_BINDING, &_old_binding);
-    gl::BindVertexArray(vertex_array);
-  }
+struct scoped_vertex_array_binding
+{
+  public:
+    explicit scoped_vertex_array_binding(const GLuint vertex_array) noexcept
+    {
+        gl::GetIntegerv(gl::VERTEX_ARRAY_BINDING, &_old_binding);
+        gl::BindVertexArray(vertex_array);
+    }
 
-  ~scoped_vertex_array_binding() { gl::BindVertexArray(_old_binding); }
+    ~scoped_vertex_array_binding() { gl::BindVertexArray(_old_binding); }
 
-private:
-  GLint _old_binding{};
+  private:
+    GLint _old_binding{};
 
-private:
-  XRAY_NO_COPY(scoped_vertex_array_binding);
+  private:
+    XRAY_NO_COPY(scoped_vertex_array_binding);
 };
 
-struct scoped_element_array_binding {
-public:
-  explicit scoped_element_array_binding(const GLuint elem_arr) noexcept {
-    gl::GetIntegerv(gl::ELEMENT_ARRAY_BUFFER_BINDING, &_old_binding);
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, elem_arr);
-  }
+struct scoped_element_array_binding
+{
+  public:
+    explicit scoped_element_array_binding(const GLuint elem_arr) noexcept
+    {
+        gl::GetIntegerv(gl::ELEMENT_ARRAY_BUFFER_BINDING, &_old_binding);
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, elem_arr);
+    }
 
-  ~scoped_element_array_binding() {
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, _old_binding);
-  }
+    ~scoped_element_array_binding() { gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, _old_binding); }
 
-private:
-  GLint _old_binding{};
+  private:
+    GLint _old_binding{};
 
-private:
-  XRAY_NO_COPY(scoped_element_array_binding);
+  private:
+    XRAY_NO_COPY(scoped_element_array_binding);
 };
 
-struct scoped_indirect_draw_buffer_binding {
-public:
-  explicit scoped_indirect_draw_buffer_binding(const GLuint elem_arr) noexcept {
-    gl::GetIntegerv(gl::DRAW_INDIRECT_BUFFER_BINDING, &_old_binding);
-    gl::BindBuffer(gl::DRAW_INDIRECT_BUFFER, elem_arr);
-  }
+struct scoped_indirect_draw_buffer_binding
+{
+  public:
+    explicit scoped_indirect_draw_buffer_binding(const GLuint elem_arr) noexcept
+    {
+        gl::GetIntegerv(gl::DRAW_INDIRECT_BUFFER_BINDING, &_old_binding);
+        gl::BindBuffer(gl::DRAW_INDIRECT_BUFFER, elem_arr);
+    }
 
-  ~scoped_indirect_draw_buffer_binding() {
-    gl::BindBuffer(gl::DRAW_INDIRECT_BUFFER, _old_binding);
-  }
+    ~scoped_indirect_draw_buffer_binding() { gl::BindBuffer(gl::DRAW_INDIRECT_BUFFER, _old_binding); }
 
-private:
-  GLint _old_binding{};
+  private:
+    GLint _old_binding{};
 
-private:
-  XRAY_NO_COPY(scoped_indirect_draw_buffer_binding);
+  private:
+    XRAY_NO_COPY(scoped_indirect_draw_buffer_binding);
 };
 
 // struct scoped_

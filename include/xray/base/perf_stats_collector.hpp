@@ -30,8 +30,8 @@
 
 /// \file com_ptr.hpp
 
-#include "xray/xray.hpp"
 #include "xray/base/unique_handle.hpp"
+#include "xray/xray.hpp"
 #include <atomic>
 #include <platformstl/synch/util/features.h>
 #include <thread>
@@ -49,73 +49,88 @@ namespace base {
 /// \addtogroup __GroupXrayBase
 /// @{
 
-class stats_thread {
-public:
-  stats_thread();
-  ~stats_thread() noexcept;
+class stats_thread
+{
+  public:
+    stats_thread();
+    ~stats_thread() noexcept;
 
-  struct process_stats_info {
-    double   cpu_usage;
-    uint32_t working_set;
-    uint32_t thread_count;
-    uint32_t virtual_bytes;
-    uint32_t vbytes_peak;
-    uint32_t work_set_peak;
-  };
-
-  void signal_stop() {
-#if defined(XRAY_OS_IS_WINDOWS)
-    SetEvent(xray::base::raw_handle(_events[1]));
-#endif
-  }
-  process_stats_info process_stats() const noexcept;
-  bool initialized() const noexcept { return _initialized.load(); }
-
-private:
-  struct thread_event {
-    enum value { collect_query, shutdown };
-  };
-
-  struct counter_type {
-    enum {
-      cpu_usage,
-      working_set,
-      thread_count,
-      virtual_bytes,
-      virtual_bytes_peak,
-      working_set_peak,
-      last
+    struct process_stats_info
+    {
+        double cpu_usage;
+        uint32_t working_set;
+        uint32_t thread_count;
+        uint32_t virtual_bytes;
+        uint32_t vbytes_peak;
+        uint32_t work_set_peak;
     };
-  };
 
-  struct process_statistics {
+    void signal_stop()
+    {
 #if defined(XRAY_OS_IS_WINDOWS)
-    std::vector<HCOUNTER> counters;
+        SetEvent(xray::base::raw_handle(_events[1]));
 #endif
-    std::vector<double> values;
-#if defined(XRAY_OS_IS_WINDOWS)
-    xray::base::unique_handle<xray::base::win32::pdh_query_handle> query;
-#endif
-
-    process_statistics() {
-#if defined(XRAY_OS_IS_WINDOWS)
-      counters.resize(counter_type::last);
-#endif
-      values.resize(counter_type::last);
     }
-  };
+    process_stats_info process_stats() const noexcept;
+    bool initialized() const noexcept
+    {
+        return _initialized.load();
+    }
 
-  void run();
+  private:
+    struct thread_event
+    {
+        enum value
+        {
+            collect_query,
+            shutdown
+        };
+    };
+
+    struct counter_type
+    {
+        enum
+        {
+            cpu_usage,
+            working_set,
+            thread_count,
+            virtual_bytes,
+            virtual_bytes_peak,
+            working_set_peak,
+            last
+        };
+    };
+
+    struct process_statistics
+    {
+#if defined(XRAY_OS_IS_WINDOWS)
+        std::vector<HCOUNTER> counters;
+#endif
+        std::vector<double> values;
+#if defined(XRAY_OS_IS_WINDOWS)
+        xray::base::unique_handle<xray::base::win32::pdh_query_handle> query;
+#endif
+
+        process_statistics()
+        {
+#if defined(XRAY_OS_IS_WINDOWS)
+            counters.resize(counter_type::last);
+#endif
+            values.resize(counter_type::last);
+        }
+    };
+
+    void run();
 
 #if defined(XRAY_OS_IS_WINDOWS)
-  xray::base::unique_handle<xray::base::win32::event_handle> _events[2];
+    xray::base::unique_handle<xray::base::win32::event_handle> _events[2];
 #endif
-  process_statistics _proc_stats;
-  std::atomic<bool>  _initialized{false};
-  std::thread        _collector_thread;
+    process_statistics _proc_stats;
+    std::atomic<bool> _initialized{ false };
+    std::thread _collector_thread;
 
-private:
-  XRAY_NO_COPY(stats_thread);
+  private:
+    XRAY_NO_COPY(stats_thread);
 };
 
 /// @}

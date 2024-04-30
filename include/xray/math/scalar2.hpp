@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/shims/stl_type_traits_shims.hpp"
+#include "xray/xray.hpp"
 #include "xray/xray_types.hpp"
 #include <cstdint>
 
@@ -41,76 +41,88 @@ namespace math {
 
 /// \class scalar2
 /// \brief  Two component vector/point in R2.
-template <typename T>
-struct scalar2 {
-  static_assert(base::std_is_arithmetic<T>,
-                "template parameter must be an arithmetic type !");
+template<typename T>
+struct scalar2
+{
+    static_assert(base::std_is_arithmetic<T>, "template parameter must be an arithmetic type !");
 
-  union {
+    union
+    {
 
-    struct {
-      T x;
-      T y;
+        struct
+        {
+            T x;
+            T y;
+        };
+
+        struct
+        {
+            T u;
+            T v;
+        };
+
+        struct
+        {
+            T s;
+            T t;
+        };
+
+        T components[2];
     };
 
-    struct {
-      T u;
-      T v;
-    };
+    using class_type = scalar2<T>;
 
-    struct {
-      T s;
-      T t;
-    };
+    scalar2() noexcept = default;
 
-    T components[2];
-  };
+    constexpr scalar2(const T xval, const T yval) noexcept
+        : x{ xval }
+        , y{ yval }
+    {
+    }
 
-  using class_type = scalar2<T>;
+    explicit constexpr scalar2(const T val) noexcept
+        : scalar2<T>{ val, val }
+    {
+    }
 
-  scalar2() noexcept = default;
+    /// \name Member operators
+    /// @{
 
-  constexpr scalar2(const T xval, const T yval) noexcept : x{xval}, y{yval} {}
+    inline class_type& operator+=(const class_type& rhs) noexcept;
+    inline class_type& operator-=(const class_type& rhs) noexcept;
+    inline class_type& operator*=(const T scalar) noexcept;
+    inline class_type& operator/=(const T scalar) noexcept;
 
-  explicit constexpr scalar2(const T val) noexcept : scalar2<T>{val, val} {}
+    /// @}
 
-  /// \name Member operators
-  /// @{
-
-  inline class_type& operator+=(const class_type& rhs) noexcept;
-  inline class_type& operator-=(const class_type& rhs) noexcept;
-  inline class_type& operator*=(const T scalar) noexcept;
-  inline class_type& operator/=(const T scalar) noexcept;
-
-  /// @}
-
-  /// \brief      Standard constants for R2 vectors.
-  struct stdc;
+    /// \brief      Standard constants for R2 vectors.
+    struct stdc;
 };
 
-template <typename T>
-struct scalar2<T>::stdc {
-  static constexpr const scalar2<T> unit_x{T(1.0), T(0.0)};
-  static constexpr const scalar2<T> unit_y{T(0.0), T(1.0)};
-  static constexpr const scalar2<T> zero{T(0.0), T(0.0)};
-  static constexpr const scalar2<T> one{T(1), T(1)};
+template<typename T>
+struct scalar2<T>::stdc
+{
+    static constexpr const scalar2<T> unit_x{ T(1.0), T(0.0) };
+    static constexpr const scalar2<T> unit_y{ T(0.0), T(1.0) };
+    static constexpr const scalar2<T> zero{ T(0.0), T(0.0) };
+    static constexpr const scalar2<T> one{ T(1), T(1) };
 };
 
-template <typename T>
+template<typename T>
 constexpr const scalar2<T> scalar2<T>::stdc::unit_x;
 
-template <typename T>
+template<typename T>
 constexpr const scalar2<T> scalar2<T>::stdc::unit_y;
 
-template <typename T>
+template<typename T>
 constexpr const scalar2<T> scalar2<T>::stdc::zero;
 
-template <typename T>
+template<typename T>
 constexpr const scalar2<T> scalar2<T>::stdc::one;
 
-using vec2f    = scalar2<scalar_lowp>;
-using vec2d    = scalar2<scalar_mediump>;
-using vec2i32  = scalar2<int32_t>;
+using vec2f = scalar2<scalar_lowp>;
+using vec2d = scalar2<scalar_mediump>;
+using vec2i32 = scalar2<int32_t>;
 using vec2ui32 = scalar2<uint32_t>;
 
 /// @}

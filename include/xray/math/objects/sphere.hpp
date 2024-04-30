@@ -31,8 +31,8 @@
 ///
 /// \file    sphere.hpp
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace math {
@@ -40,37 +40,43 @@ namespace math {
 /// \addtogroup __GroupXrayMath_Geometry
 /// @{
 
-template <typename real_type>
-class sphere {
-public:
-  using point_type = scalar3<real_type>;
-  using class_type = sphere<real_type>;
+template<typename real_type>
+class sphere
+{
+  public:
+    using point_type = scalar3<real_type>;
+    using class_type = sphere<real_type>;
 
-  point_type center;
-  real_type  radius;
+    point_type center;
+    real_type radius;
 
-  sphere() noexcept = default;
+    sphere() noexcept = default;
 
-  ///< \brief Construct from the components of a point and a radius.
-  sphere(const real_type cx, const real_type cy, const real_type cz,
-         const real_type sph_radius) noexcept
-      : center{cx, cy, cz}, radius{sph_radius} {}
+    ///< \brief Construct from the components of a point and a radius.
+    sphere(const real_type cx, const real_type cy, const real_type cz, const real_type sph_radius) noexcept
+        : center{ cx, cy, cz }
+        , radius{ sph_radius }
+    {
+    }
 
-  ///< \brief Construct from a point and a radius.
-  sphere(const point_type& center_pt, const real_type sph_radius) noexcept
-      : center{center_pt}, radius{sph_radius} {}
+    ///< \brief Construct from a point and a radius.
+    sphere(const point_type& center_pt, const real_type sph_radius) noexcept
+        : center{ center_pt }
+        , radius{ sph_radius }
+    {
+    }
 
-  real_type squared_radius() const noexcept { return radius * radius; }
+    real_type squared_radius() const noexcept { return radius * radius; }
 
-  struct stdc {
-    ///<    Sphere centered at the origin, with a radius of 1.
-    static const sphere<real_type> unity;
-  };
+    struct stdc
+    {
+        ///<    Sphere centered at the origin, with a radius of 1.
+        static const sphere<real_type> unity;
+    };
 };
 
-template <typename real_type>
-const sphere<real_type> sphere<real_type>::stdc::unity{
-    scalar3<real_type>::stdc::zero, real_type{1}};
+template<typename real_type>
+const sphere<real_type> sphere<real_type>::stdc::unity{ scalar3<real_type>::stdc::zero, real_type{ 1 } };
 
 /// \name   Helper typedefs
 /// @{

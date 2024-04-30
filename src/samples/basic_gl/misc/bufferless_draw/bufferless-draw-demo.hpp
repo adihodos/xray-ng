@@ -30,39 +30,40 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace app {
 
-class bufferless_draw_demo : public demo_base {
-public:
-  bufferless_draw_demo();
+class bufferless_draw_demo : public demo_base
+{
+  public:
+    bufferless_draw_demo();
 
-  ~bufferless_draw_demo();
+    ~bufferless_draw_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void update(const float delta_ms) override;
+    virtual void event_handler(const xray::ui::window_event& evt) override;
+    virtual void compose_ui() override;
 
-private:
-  void init();
+  private:
+    void init();
 
-private:
-  xray::rendering::scoped_buffer       _vb;
-  xray::rendering::scoped_vertex_array _vao;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::geometry_program    _gs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
+  private:
+    xray::rendering::scoped_buffer _vb;
+    xray::rendering::scoped_vertex_array _vao;
+    xray::rendering::vertex_program _vs;
+    xray::rendering::geometry_program _gs;
+    xray::rendering::fragment_program _fs;
+    xray::rendering::program_pipeline _pipeline;
 
-private:
-  XRAY_NO_COPY(bufferless_draw_demo);
+  private:
+    XRAY_NO_COPY(bufferless_draw_demo);
 };
 
 } // namespace app

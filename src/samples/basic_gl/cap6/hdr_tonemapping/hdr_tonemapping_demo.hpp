@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "fwd_app.hpp"
 #include "scene_loader.hpp"
@@ -38,64 +37,74 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/scene/point_light.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
 struct mesh_create_info;
 
-class hdr_tonemap : public demo_base {
-public:
-  enum { edge_detect_none, edge_detect_sobel, edge_detect_frei_chen };
+class hdr_tonemap : public demo_base
+{
+  public:
+    enum
+    {
+        edge_detect_none,
+        edge_detect_sobel,
+        edge_detect_frei_chen
+    };
 
-  hdr_tonemap(const init_context_t& init_ctx);
+    hdr_tonemap(const init_context_t& init_ctx);
 
-  ~hdr_tonemap();
+    ~hdr_tonemap();
 
-  void compose_ui();
+    void compose_ui();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
 
-  virtual void update(const float delta_ms) override;
+    virtual void update(const float delta_ms) override;
 
-  virtual void key_event(const int32_t key_code, const int32_t action,
-                         const int32_t mods) override;
+    virtual void key_event(const int32_t key_code, const int32_t action, const int32_t mods) override;
 
-  virtual void resize_event(const resize_context_t& resize_ctx) override;
+    virtual void resize_event(const resize_context_t& resize_ctx) override;
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  void init(const init_context_t& ini_ctx);
-  void create_framebuffer(const GLsizei r_width, const GLsizei r_height);
+  private:
+    void init(const init_context_t& ini_ctx);
+    void create_framebuffer(const GLsizei r_width, const GLsizei r_height);
 
-  // xray::rendering::geometry_object load_model(const mesh_create_info& mci);
+    // xray::rendering::geometry_object load_model(const mesh_create_info& mci);
 
-  enum { MAX_LIGHTS = 8u };
-  enum { MAX_OBJECTS = 2u };
+    enum
+    {
+        MAX_LIGHTS = 8u
+    };
+    enum
+    {
+        MAX_OBJECTS = 2u
+    };
 
-private:
-  struct fbo_data {
-    xray::rendering::scoped_framebuffer  fbo_object;
-    xray::rendering::scoped_renderbuffer fbo_depth;
-    xray::rendering::scoped_texture      fbo_texture;
-    xray::rendering::scoped_sampler      fbo_sampler;
-  } _fbo;
+  private:
+    struct fbo_data
+    {
+        xray::rendering::scoped_framebuffer fbo_object;
+        xray::rendering::scoped_renderbuffer fbo_depth;
+        xray::rendering::scoped_texture fbo_texture;
+        xray::rendering::scoped_sampler fbo_sampler;
+    } _fbo;
 
-  xray::base::fixed_vector<xray::rendering::geometry_object, MAX_OBJECTS>
-      _obj_geometries;
-  xray::base::fixed_vector<xray::rendering::mesh_graphics_rep, MAX_OBJECTS>
-      _obj_graphics;
-  xray::base::fixed_vector<phong_material, MAX_OBJECTS> _obj_materials;
+    xray::base::fixed_vector<xray::rendering::geometry_object, MAX_OBJECTS> _obj_geometries;
+    xray::base::fixed_vector<xray::rendering::mesh_graphics_rep, MAX_OBJECTS> _obj_graphics;
+    xray::base::fixed_vector<phong_material, MAX_OBJECTS> _obj_materials;
 
-  xray::base::fixed_vector<xray::scene::point_light, MAX_LIGHTS>
-      _lights[MAX_LIGHTS];
+    xray::base::fixed_vector<xray::scene::point_light, MAX_LIGHTS> _lights[MAX_LIGHTS];
 
-  xray::rendering::vertex_program              _vs_phong;
-  xray::rendering::fragment_program            _fs_phong;
-  xray::rendering::gpu_program_pipeline_handle _pipeline;
+    xray::rendering::vertex_program _vs_phong;
+    xray::rendering::fragment_program _fs_phong;
+    xray::rendering::gpu_program_pipeline_handle _pipeline;
 
-private:
-  XRAY_NO_COPY(hdr_tonemap);
+  private:
+    XRAY_NO_COPY(hdr_tonemap);
 };
 
 } // namespace app

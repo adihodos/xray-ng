@@ -40,21 +40,21 @@ namespace base {
 /// \addtogroup __GroupXray_Base
 /// @{
 
-/// When going out of scope, applies a user defined functor object to 
+/// When going out of scope, applies a user defined functor object to
 /// each element in an associative container.
-/// \code 
+/// \code
 ///  //
 ///  // Suppose we have a pool of resources (file descriptors, sockets, etc)
 ///  class resource_manager {
-///  private :    
+///  private :
 ///  typedef std::map<some_key_t, int> sock_pool_t;
 ///
 ///  struct sock_dtor {
 ///      void operator()(int sock_fd) const {
 ///          if (sock_fd != INVALID_SOCKET)
-///              close(sock_fd);   
-///      } 
-///  }; 
+///              close(sock_fd);
+///      }
+///  };
 ///
 ///  sequence_container_veneer<sock_pool_t, sock_dtor> sock_pool_;
 ///  ...
@@ -66,88 +66,86 @@ namespace base {
 /// \note The "veneer" concept is described in detail in this paper :
 ///  http://synesis.com.au/resources/articles/cpp/veneers.pdf
 template<typename container_type, typename element_destructor_fn>
-class associative_container_veneer : public container_type {
-public :
-    typedef container_type                                  base_class;
+class associative_container_veneer : public container_type
+{
+  public:
+    typedef container_type base_class;
 
-    typedef typename base_class::allocator_type             allocator_type;
+    typedef typename base_class::allocator_type allocator_type;
 
-    typedef typename base_class::size_type                  size_type;
+    typedef typename base_class::size_type size_type;
 
-    typedef typename base_class::key_compare                key_compare;
+    typedef typename base_class::key_compare key_compare;
 
-    typedef typename base_class::value_type                 value_type;
+    typedef typename base_class::value_type value_type;
 
-    typedef associative_container_veneer
-    <
-        container_type, element_destructor_fn
-    >                                                       class_type;
+    typedef associative_container_veneer<container_type, element_destructor_fn> class_type;
 
-public :
+  public:
     /// \name Constructors
     /// @{
 
     /// Default constructor.
-    associative_container_veneer() 
-        :       base_class{} 
-    {}
+    associative_container_veneer()
+        : base_class{}
+    {
+    }
 
     /// Construct using a specified comparison function.
-    explicit associative_container_veneer(
-        const key_compare& comp)
-        :       base_class{comp} 
-    {}
+    explicit associative_container_veneer(const key_compare& comp)
+        : base_class{ comp }
+    {
+    }
 
     /// Construct with user specified comparator and allocator.
-    associative_container_veneer(
-        const key_compare&              comp,
-        const allocator_type&           alloc = allocator_type())
-        :       base_class{comp, alloc} 
-    {}
+    associative_container_veneer(const key_compare& comp, const allocator_type& alloc = allocator_type())
+        : base_class{ comp, alloc }
+    {
+    }
 
     /// Copy constructor.
-    associative_container_veneer(
-        const class_type& rhs)
-        :       base_class{rhs} 
-    {}
+    associative_container_veneer(const class_type& rhs)
+        : base_class{ rhs }
+    {
+    }
 
     /// Construct from rvalue (C++11 only).
-    associative_container_veneer(
-        class_type&& rhs)
-        :       base_class{std::forward<base_class>(rhs)} 
-    {}
+    associative_container_veneer(class_type&& rhs)
+        : base_class{ std::forward<base_class>(rhs) }
+    {
+    }
 
     /// Construct from existing range of elements.
     template<typename input_iterator>
-    associative_container_veneer(
-        input_iterator              first,
-        input_iterator              last)
-        :       base_class{first, last} 
-    {}
+    associative_container_veneer(input_iterator first, input_iterator last)
+        : base_class{ first, last }
+    {
+    }
 
     /// Construct from existing range, with specified comparator and allocator.
     template<typename input_iterator>
-    associative_container_veneer(
-        input_iterator              first,
-        input_iterator              last,
-        const key_compare&          comp,
-        const allocator_type&       alloc = allocator_type())
-        :       base_class{first, last, comp, alloc} 
-    {}
+    associative_container_veneer(input_iterator first,
+                                 input_iterator last,
+                                 const key_compare& comp,
+                                 const allocator_type& alloc = allocator_type())
+        : base_class{ first, last, comp, alloc }
+    {
+    }
 
     /// Construct using initializer list syntax (C++11 only).
-    associative_container_veneer(
-        std::initializer_list<value_type>       init_list,
-        const key_compare&                      comp = key_compare(),
-        const allocator_type&                   alloc = allocator_type())
-        :       base_class{init_list, comp, alloc} 
-    {}
+    associative_container_veneer(std::initializer_list<value_type> init_list,
+                                 const key_compare& comp = key_compare(),
+                                 const allocator_type& alloc = allocator_type())
+        : base_class{ init_list, comp, alloc }
+    {
+    }
 
     /// @}
 
     /// Destructs the elements, calling the element destruction functor for
     /// each element.
-    ~associative_container_veneer() {
+    ~associative_container_veneer()
+    {
         base_class* this_ptr = static_cast<base_class*>(this);
         typename base_class::iterator itr_first = this_ptr->begin();
         typename base_class::iterator itr_last = this_ptr->end();
@@ -161,29 +159,31 @@ public :
     /// @{
 
     /// Self assign operator.
-    class_type& operator=(const class_type& rhs) {
+    class_type& operator=(const class_type& rhs)
+    {
         base_class::operator=(rhs);
         return *this;
     }
 
     /// Assign from rvalue (C++11) only.
-    class_type& operator=(class_type&& rhs) {
+    class_type& operator=(class_type&& rhs)
+    {
         base_class::operator=(std::forward<base_class>(rhs));
         return *this;
     }
 
     /// Assign from an initializer list (C++11 only).
-    class_type& operator=(std::initializer_list<value_type> init_lst) {
+    class_type& operator=(std::initializer_list<value_type> init_lst)
+    {
         base_class::operator=(init_lst);
         return *this;
     }
 
     /// @}
 
-private :
-
-    void*   operator new(size_t);
-    void    operator delete(void*, size_t);
+  private:
+    void* operator new(size_t);
+    void operator delete(void*, size_t);
 };
 
 } // namespace base

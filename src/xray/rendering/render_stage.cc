@@ -29,8 +29,8 @@
 //
 //  All code in this file was automatically generated, DO NOT EDIT !!!
 
-#include "xray/xray.hpp"
 #include "xray/rendering/render_stage.hpp"
+#include "xray/xray.hpp"
 #include <algorithm>
 
 namespace xray {
@@ -39,68 +39,72 @@ namespace rendering {
 constexpr const render_stage::e render_stage::_member_entries[];
 
 const char*
-render_stage::qualified_name(const render_stage::e member) noexcept {
-  switch (member) {
-  case render_stage::e::vertex:
-    return "render_stage::e::vertex";
-    break;
-  case render_stage::e::tess_control:
-    return "render_stage::e::tess_control";
-    break;
-  case render_stage::e::tess_eval:
-    return "render_stage::e::tess_eval";
-    break;
-  case render_stage::e::geometry:
-    return "render_stage::e::geometry";
-    break;
-  case render_stage::e::fragment:
-    return "render_stage::e::fragment";
-    break;
-  case render_stage::e::compute:
-    return "render_stage::e::compute";
-    break;
+render_stage::qualified_name(const render_stage::e member) noexcept
+{
+    switch (member) {
+        case render_stage::e::vertex:
+            return "render_stage::e::vertex";
+            break;
+        case render_stage::e::tess_control:
+            return "render_stage::e::tess_control";
+            break;
+        case render_stage::e::tess_eval:
+            return "render_stage::e::tess_eval";
+            break;
+        case render_stage::e::geometry:
+            return "render_stage::e::geometry";
+            break;
+        case render_stage::e::fragment:
+            return "render_stage::e::fragment";
+            break;
+        case render_stage::e::compute:
+            return "render_stage::e::compute";
+            break;
 
-  default:
-    assert(false && "Unknown enum member!");
-    break;
-  }
+        default:
+            assert(false && "Unknown enum member!");
+            break;
+    }
 
-  return "unknown enum member";
+    return "unknown enum member";
 }
 
-const char* render_stage::name(const render_stage::e member) noexcept {
-  switch (member) {
-  case render_stage::e::vertex:
-    return "vertex";
-    break;
-  case render_stage::e::tess_control:
-    return "tess_control";
-    break;
-  case render_stage::e::tess_eval:
-    return "tess_eval";
-    break;
-  case render_stage::e::geometry:
-    return "geometry";
-    break;
-  case render_stage::e::fragment:
-    return "fragment";
-    break;
-  case render_stage::e::compute:
-    return "compute";
-    break;
+const char*
+render_stage::name(const render_stage::e member) noexcept
+{
+    switch (member) {
+        case render_stage::e::vertex:
+            return "vertex";
+            break;
+        case render_stage::e::tess_control:
+            return "tess_control";
+            break;
+        case render_stage::e::tess_eval:
+            return "tess_eval";
+            break;
+        case render_stage::e::geometry:
+            return "geometry";
+            break;
+        case render_stage::e::fragment:
+            return "fragment";
+            break;
+        case render_stage::e::compute:
+            return "compute";
+            break;
 
-  default:
-    assert(false && "Unknown enum member");
-    break;
-  }
+        default:
+            assert(false && "Unknown enum member");
+            break;
+    }
 
-  return "unknown enum member";
+    return "unknown enum member";
 }
 
-bool render_stage::is_defined(const render_stage::e val) noexcept {
-  using namespace std;
-  return find(render_stage::cbegin(), render_stage::cend(), val) !=
-         render_stage::cend();
+bool
+render_stage::is_defined(const render_stage::e val) noexcept
+{
+    using namespace std;
+    return find(render_stage::cbegin(), render_stage::cend(), val) != render_stage::cend();
 }
 
 } // namespace rendering

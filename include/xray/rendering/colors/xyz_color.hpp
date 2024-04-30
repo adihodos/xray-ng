@@ -33,23 +33,28 @@
 namespace xray {
 namespace rendering {
 
-struct xyz_color {
-  union {
-    struct {
-      float x;
-      float y;
-      float z;
+struct xyz_color
+{
+    union
+    {
+        struct
+        {
+            float x;
+            float y;
+            float z;
+        };
+
+        float components[3];
     };
 
-    float components[3];
-  };
+    xyz_color() noexcept = default;
 
-  xyz_color() noexcept = default;
-
-  constexpr xyz_color(const float x_val, const float y_val,
-                      const float z_val) noexcept : x{x_val},
-                                                    y{y_val},
-                                                    z{z_val} {}
+    constexpr xyz_color(const float x_val, const float y_val, const float z_val) noexcept
+        : x{ x_val }
+        , y{ y_val }
+        , z{ z_val }
+    {
+    }
 };
 
 } // namespace rendering

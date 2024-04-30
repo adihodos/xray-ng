@@ -82,623 +82,633 @@ using namespace xray::ui;
 using namespace xray::rendering;
 using namespace std;
 
-xray::base::app_config* xr_app_config{nullptr};
+xray::base::app_config* xr_app_config{ nullptr };
 
 namespace app {
 
-struct DemoInfo {
-  std::string_view shortDesc;
-  std::string_view detailedDesc;
-  fast_delegate<tl::optional<demo_bundle_t>(const init_context_t&)> createFn;
+struct DemoInfo
+{
+    std::string_view shortDesc;
+    std::string_view detailedDesc;
+    fast_delegate<tl::optional<demo_bundle_t>(const init_context_t&)> createFn;
 };
 
-template <typename... Ts>
+template<typename... Ts>
 struct RegisteredDemosList;
 
-template <typename T, typename... Rest>
-struct RegisteredDemosList<T, Rest...> {
-  static void registerDemo(vector<DemoInfo>& demoList) {
-    demoList.emplace_back(
-      T::short_desc(), T::detailed_desc(), make_delegate(T::create));
+template<typename T, typename... Rest>
+struct RegisteredDemosList<T, Rest...>
+{
+    static void registerDemo(vector<DemoInfo>& demoList)
+    {
+        demoList.emplace_back(T::short_desc(), T::detailed_desc(), make_delegate(T::create));
 
-    RegisteredDemosList<Rest...>::registerDemo(demoList);
-  }
+        RegisteredDemosList<Rest...>::registerDemo(demoList);
+    }
 };
 
-template <>
-struct RegisteredDemosList<> {
-  static void registerDemo(vector<DemoInfo>&) {}
+template<>
+struct RegisteredDemosList<>
+{
+    static void registerDemo(vector<DemoInfo>&) {}
 };
 
-enum class demo_type : int32_t {
-  none,
-  colored_circle,
-  fractal,
-  texture_array,
-  mesh,
-  bufferless_draw,
-  lighting_directional,
-  lighting_point,
-  procedural_city,
-  instanced_drawing,
-  geometric_shapes,
-  // terrain_basic
+enum class demo_type : int32_t
+{
+    none,
+    colored_circle,
+    fractal,
+    texture_array,
+    mesh,
+    bufferless_draw,
+    lighting_directional,
+    lighting_point,
+    procedural_city,
+    instanced_drawing,
+    geometric_shapes,
+    // terrain_basic
 };
 
-class main_app {
-public:
-  explicit main_app(xray::ui::window* wnd);
-  ~main_app() {}
+class main_app
+{
+  public:
+    explicit main_app(xray::ui::window* wnd);
+    ~main_app() {}
 
-  bool valid() const noexcept { return _initialized; }
+    bool valid() const noexcept { return _initialized; }
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  bool demo_running() const noexcept { return _demo != nullptr; }
-  void run_demo(const demo_type type);
-  void hookup_event_delegates();
-  void demo_quit();
+  private:
+    bool demo_running() const noexcept { return _demo != nullptr; }
+    void run_demo(const demo_type type);
+    void hookup_event_delegates();
+    void demo_quit();
 
-  const DemoInfo& get_demo_info(const size_t idx) const {
-    assert(idx < _registeredDemos.size());
-    return _registeredDemos[idx];
-  }
+    const DemoInfo& get_demo_info(const size_t idx) const
+    {
+        assert(idx < _registeredDemos.size());
+        return _registeredDemos[idx];
+    }
 
-  /// \group Event handlers
-  /// @{
+    /// \group Event handlers
+    /// @{
 
-  void loop_event(const xray::ui::window_loop_event& loop_evt);
+    void loop_event(const xray::ui::window_loop_event& loop_evt);
 
-  void event_handler(const xray::ui::window_event& wnd_evt);
+    void event_handler(const xray::ui::window_event& wnd_evt);
 
-  void poll_start(const xray::ui::poll_start_event&);
+    void poll_start(const xray::ui::poll_start_event&);
 
-  void poll_end(const xray::ui::poll_end_event&);
+    void poll_end(const xray::ui::poll_end_event&);
 
-  /// @}
+    /// @}
 
-  void draw(const xray::ui::window_loop_event& loop_evt);
+    void draw(const xray::ui::window_loop_event& loop_evt);
 
-private:
-  xray::ui::window*                                    _window;
-  xray::base::unique_pointer<xray::ui::user_interface> _ui{};
-  xray::base::unique_pointer<demo_base>                _demo;
-  xray::rendering::rgb_color                           _clear_color{
-    xray::rendering::color_palette::material::orange700};
-  xray::base::timer_highp _timer;
-  vector<DemoInfo>        _registeredDemos;
-  bool                    _initialized{false};
+  private:
+    xray::ui::window* _window;
+    xray::base::unique_pointer<xray::ui::user_interface> _ui{};
+    xray::base::unique_pointer<demo_base> _demo;
+    xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::orange700 };
+    xray::base::timer_highp _timer;
+    vector<DemoInfo> _registeredDemos;
+    bool _initialized{ false };
 
-  XRAY_NO_COPY(main_app);
+    XRAY_NO_COPY(main_app);
 };
 
-main_app::main_app(xray::ui::window* wnd) : _window{wnd} {
+main_app::main_app(xray::ui::window* wnd)
+    : _window{ wnd }
+{
 
-  platformstl::readdir_sequence rddir{
-    xr_app_config->font_root(),
-    platformstl::readdir_sequence::fullPath |
-      platformstl ::readdir_sequence::directories |
-      platformstl::readdir_sequence::files};
+    platformstl::readdir_sequence rddir{ xr_app_config->font_root(),
+                                         platformstl::readdir_sequence::fullPath |
+                                             platformstl ::readdir_sequence::directories |
+                                             platformstl::readdir_sequence::files };
 
-  using namespace std;
-  vector<xray::ui::font_info> fonts{};
-  for_each(begin(rddir), end(rddir), [&fonts](const char* dir_entry) {
-    using fs = platformstl::filesystem_traits<char>;
+    using namespace std;
+    vector<xray::ui::font_info> fonts{};
+    for_each(begin(rddir), end(rddir), [&fonts](const char* dir_entry) {
+        using fs = platformstl::filesystem_traits<char>;
 
-    if (!fs::is_file(dir_entry))
-      return;
+        if (!fs::is_file(dir_entry))
+            return;
 
-    platformstl::path file_p{dir_entry};
-    if (!file_p.get_ext().compare(".ttf") && !file_p.get_ext().compare("otf"))
-      return;
+        platformstl::path file_p{ dir_entry };
+        if (!file_p.get_ext().compare(".ttf") && !file_p.get_ext().compare("otf"))
+            return;
 
-    fonts.push_back(xray::ui::font_info{dir_entry, 18.0f});
-  });
-
-  _ui = xray::base::make_unique<xray::ui::user_interface>(fonts.data(),
-                                                          fonts.size());
-
-  hookup_event_delegates();
-
-  RegisteredDemosList<fractal_demo, directional_light_demo>::registerDemo(
-    _registeredDemos);
-
-  rangelib::r_for_each(
-    rangelib::make_sequence_range(_registeredDemos), [](const DemoInfo& demo) {
-      XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc);
+        fonts.push_back(xray::ui::font_info{ dir_entry, 18.0f });
     });
 
-  _ui->set_global_font("Roboto-Regular");
-  _timer.start();
+    _ui = xray::base::make_unique<xray::ui::user_interface>(fonts.data(), fonts.size());
+
+    hookup_event_delegates();
+
+    RegisteredDemosList<fractal_demo, directional_light_demo>::registerDemo(_registeredDemos);
+
+    rangelib::r_for_each(rangelib::make_sequence_range(_registeredDemos),
+                         [](const DemoInfo& demo) { XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc); });
+
+    _ui->set_global_font("Roboto-Regular");
+    _timer.start();
 }
 
-void main_app::poll_start(const xray::ui::poll_start_event&) {}
-
-void main_app::poll_end(const xray::ui::poll_end_event&) {}
-
-void main_app::demo_quit() {
-  assert(demo_running());
-  _demo = nullptr;
-  hookup_event_delegates();
+void
+main_app::poll_start(const xray::ui::poll_start_event&)
+{
 }
 
-void main_app::hookup_event_delegates() {
-  _window->events.loop       = make_delegate(*this, &main_app::loop_event);
-  _window->events.poll_start = make_delegate(*this, &main_app::poll_start);
-  _window->events.poll_end   = make_delegate(*this, &main_app::poll_end);
-  _window->events.window     = make_delegate(*this, &main_app::event_handler);
+void
+main_app::poll_end(const xray::ui::poll_end_event&)
+{
 }
 
-void main_app::event_handler(const xray::ui::window_event& wnd_evt) {
-  assert(!demo_running());
+void
+main_app::demo_quit()
+{
+    assert(demo_running());
+    _demo = nullptr;
+    hookup_event_delegates();
+}
 
-  if (is_input_event(wnd_evt)) {
+void
+main_app::hookup_event_delegates()
+{
+    _window->events.loop = make_delegate(*this, &main_app::loop_event);
+    _window->events.poll_start = make_delegate(*this, &main_app::poll_start);
+    _window->events.poll_end = make_delegate(*this, &main_app::poll_end);
+    _window->events.window = make_delegate(*this, &main_app::event_handler);
+}
 
-    if (wnd_evt.event.key.keycode == xray::ui::key_sym::e::escape &&
-        wnd_evt.event.key.type == event_action_type::press &&
-        !_ui->wants_input()) {
-      _window->quit();
-      return;
+void
+main_app::event_handler(const xray::ui::window_event& wnd_evt)
+{
+    assert(!demo_running());
+
+    if (is_input_event(wnd_evt)) {
+
+        if (wnd_evt.event.key.keycode == xray::ui::key_sym::e::escape &&
+            wnd_evt.event.key.type == event_action_type::press && !_ui->wants_input()) {
+            _window->quit();
+            return;
+        }
+
+        _ui->input_event(wnd_evt);
+    }
+}
+
+void
+main_app::loop_event(const xray::ui::window_loop_event& levt)
+{
+    _timer.update_and_reset();
+    _ui->tick(_timer.elapsed_millis());
+    _ui->new_frame(levt.wnd_width, levt.wnd_height);
+
+    {
+        ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
+
+        if (ImGui::Begin("Run a demo",
+                         nullptr,
+                         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_ShowBorders |
+                             ImGuiWindowFlags_NoCollapse)) {
+
+            int32_t selectedItem{};
+            const bool wasClicked = ImGui::Combo(
+                "Available demos",
+                &selectedItem,
+                [](void* obj, int idx, const char** str) {
+                    const DemoInfo& demo = static_cast<const main_app*>(obj)->get_demo_info(static_cast<size_t>(idx));
+                    *str = demo.shortDesc.data();
+                    return true;
+                },
+
+                this,
+                static_cast<int>(_registeredDemos.size()));
+
+            if (wasClicked) {
+                const init_context_t initContext{ _window->width(),
+                                                  _window->height(),
+                                                  xr_app_config,
+                                                  xray::base::raw_ptr(_ui),
+                                                  make_delegate(*this, &main_app::demo_quit) };
+
+                _registeredDemos[static_cast<size_t>(selectedItem)]
+                    .createFn(initContext)
+                    .map([this](demo_bundle_t bundle) {
+                        auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
+                        this->_demo = std::move(demoObj);
+                        this->_window->events.window = winEvtHandler;
+                        this->_window->events.loop = pollEvtHandler;
+                    });
+            }
+        }
+
+        ImGui::End();
     }
 
-    _ui->input_event(wnd_evt);
-  }
+    const xray::math::vec4f viewport{
+        0.0f, 0.0f, static_cast<float>(levt.wnd_width), static_cast<float>(levt.wnd_height)
+    };
+
+    gl::ViewportIndexedfv(0, viewport.components);
+    gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
+    gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
+    _ui->draw();
 }
 
-void main_app::loop_event(const xray::ui::window_loop_event& levt) {
-  _timer.update_and_reset();
-  _ui->tick(_timer.elapsed_millis());
-  _ui->new_frame(levt.wnd_width, levt.wnd_height);
-
-  {
-    ImGui::SetNextWindowPos({0.0f, 0.0f}, ImGuiCond_Appearing);
-
-    if (ImGui::Begin("Run a demo",
-                     nullptr,
-                     ImGuiWindowFlags_AlwaysAutoResize |
-                       ImGuiWindowFlags_ShowBorders |
-                       ImGuiWindowFlags_NoCollapse)) {
-
-      int32_t    selectedItem{};
-      const bool wasClicked = ImGui::Combo(
-        "Available demos",
-        &selectedItem,
-        [](void* obj, int idx, const char** str) {
-          const DemoInfo& demo =
-            static_cast<const main_app*>(obj)->get_demo_info(
-              static_cast<size_t>(idx));
-          *str = demo.shortDesc.data();
-          return true;
-        },
-
-        this,
-        static_cast<int>(_registeredDemos.size()));
-
-      if (wasClicked) {
-        const init_context_t initContext{
-          _window->width(),
-          _window->height(),
-          xr_app_config,
-          xray::base::raw_ptr(_ui),
-          make_delegate(*this, &main_app::demo_quit)};
-
-        _registeredDemos[static_cast<size_t>(selectedItem)]
-          .createFn(initContext)
-          .map([this](demo_bundle_t bundle) {
-            auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
-            this->_demo                                   = std::move(demoObj);
-            this->_window->events.window                  = winEvtHandler;
-            this->_window->events.loop                    = pollEvtHandler;
-          });
-      }
-    }
-
-    ImGui::End();
-  }
-
-  const xray::math::vec4f viewport{0.0f,
-                                   0.0f,
-                                   static_cast<float>(levt.wnd_width),
-                                   static_cast<float>(levt.wnd_height)};
-
-  gl::ViewportIndexedfv(0, viewport.components);
-  gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
-  gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
-  _ui->draw();
+void
+main_app::run_demo(const demo_type type)
+{
+    // auto make_demo_fn =
+    //   [this, w = _window](const demo_type dtype) -> unique_pointer<demo_base> {
+    //   const init_context_t init_context{
+    //     w->width(),
+    //     w->height(),
+    //     xr_app_config,
+    //     xray::base::raw_ptr(_ui),
+    //     make_delegate(*this, &main_app::demo_quit)};
+    //
+    //   switch (dtype) {
+    //
+    //     //    case demo_type::colored_circle:
+    //     //      return xray::base::make_unique<colored_circle_demo>();
+    //     //      break;
+    //
+    //   case demo_type::fractal:
+    //     return xray::base::make_unique<fractal_demo>(init_context);
+    //     break;
+    //
+    //   case demo_type::texture_array:
+    //     return xray::base::make_unique<texture_array_demo>(init_context);
+    //     break;
+    //
+    //   case demo_type::mesh:
+    //     return xray::base::make_unique<mesh_demo>(init_context);
+    //     break;
+    //
+    //     //    case demo_type::bufferless_draw:
+    //     //      return xray::base::make_unique<bufferless_draw_demo>();
+    //     //      break;
+    //
+    //   case demo_type::lighting_directional:
+    //     return xray::base::make_unique<directional_light_demo>(init_context);
+    //     break;
+    //
+    //     //    case demo_type::procedural_city:
+    //     //      return
+    //     //      xray::base::make_unique<procedural_city_demo>(init_context);
+    //     //      break;
+    //
+    //   case demo_type::instanced_drawing:
+    //     return xray::base::make_unique<instanced_drawing_demo>(init_context);
+    //     break;
+    //
+    //     //    case demo_type::geometric_shapes:
+    //     //      return
+    //     //      xray::base::make_unique<geometric_shapes_demo>(init_context);
+    //     //      break;
+    //
+    //     //    case demo_type::lighting_point:
+    //     //      return
+    //     xray::base::make_unique<point_light_demo>(&init_context);
+    //     //      break;
+    //
+    //     // case demo_type::terrain_basic:
+    //     //   return xray::base::make_unique<terrain_demo>(init_context);
+    //     //   break;
+    //
+    //   default:
+    //     break;
+    //   }
+    //
+    //   return nullptr;
+    // };
+    //
+    // _demo = make_demo_fn(type);
+    // if (!_demo) {
+    //   return;
+    // }
+    //
+    // _window->events.loop       = make_delegate(*_demo, &demo_base::loop_event);
+    // _window->events.poll_start = make_delegate(*_demo, &demo_base::poll_start);
+    // _window->events.poll_end   = make_delegate(*_demo, &demo_base::poll_end);
+    // _window->events.window     = make_delegate(*_demo,
+    // &demo_base::event_handler);
 }
 
-void main_app::run_demo(const demo_type type) {
-  // auto make_demo_fn =
-  //   [this, w = _window](const demo_type dtype) -> unique_pointer<demo_base> {
-  //   const init_context_t init_context{
-  //     w->width(),
-  //     w->height(),
-  //     xr_app_config,
-  //     xray::base::raw_ptr(_ui),
-  //     make_delegate(*this, &main_app::demo_quit)};
-  //
-  //   switch (dtype) {
-  //
-  //     //    case demo_type::colored_circle:
-  //     //      return xray::base::make_unique<colored_circle_demo>();
-  //     //      break;
-  //
-  //   case demo_type::fractal:
-  //     return xray::base::make_unique<fractal_demo>(init_context);
-  //     break;
-  //
-  //   case demo_type::texture_array:
-  //     return xray::base::make_unique<texture_array_demo>(init_context);
-  //     break;
-  //
-  //   case demo_type::mesh:
-  //     return xray::base::make_unique<mesh_demo>(init_context);
-  //     break;
-  //
-  //     //    case demo_type::bufferless_draw:
-  //     //      return xray::base::make_unique<bufferless_draw_demo>();
-  //     //      break;
-  //
-  //   case demo_type::lighting_directional:
-  //     return xray::base::make_unique<directional_light_demo>(init_context);
-  //     break;
-  //
-  //     //    case demo_type::procedural_city:
-  //     //      return
-  //     //      xray::base::make_unique<procedural_city_demo>(init_context);
-  //     //      break;
-  //
-  //   case demo_type::instanced_drawing:
-  //     return xray::base::make_unique<instanced_drawing_demo>(init_context);
-  //     break;
-  //
-  //     //    case demo_type::geometric_shapes:
-  //     //      return
-  //     //      xray::base::make_unique<geometric_shapes_demo>(init_context);
-  //     //      break;
-  //
-  //     //    case demo_type::lighting_point:
-  //     //      return
-  //     xray::base::make_unique<point_light_demo>(&init_context);
-  //     //      break;
-  //
-  //     // case demo_type::terrain_basic:
-  //     //   return xray::base::make_unique<terrain_demo>(init_context);
-  //     //   break;
-  //
-  //   default:
-  //     break;
-  //   }
-  //
-  //   return nullptr;
-  // };
-  //
-  // _demo = make_demo_fn(type);
-  // if (!_demo) {
-  //   return;
-  // }
-  //
-  // _window->events.loop       = make_delegate(*_demo, &demo_base::loop_event);
-  // _window->events.poll_start = make_delegate(*_demo, &demo_base::poll_start);
-  // _window->events.poll_end   = make_delegate(*_demo, &demo_base::poll_end);
-  // _window->events.window     = make_delegate(*_demo,
-  // &demo_base::event_handler);
-}
+void
+debug_proc(GLenum source,
+           GLenum type,
+           GLuint id,
+           GLenum severity,
+           GLsizei /*length*/,
+           const GLchar* message,
+           const void* /*userParam*/)
+{
 
-void debug_proc(GLenum source,
-                GLenum type,
-                GLuint id,
-                GLenum severity,
-                GLsizei /*length*/,
-                const GLchar* message,
-                const void* /*userParam*/) {
+    auto msg_source = [source]() {
+        switch (source) {
+            case gl::DEBUG_SOURCE_API:
+                return "API";
+                break;
 
-  auto msg_source = [source]() {
-    switch (source) {
-    case gl::DEBUG_SOURCE_API:
-      return "API";
-      break;
+            case gl::DEBUG_SOURCE_APPLICATION:
+                return "APPLICATION";
+                break;
 
-    case gl::DEBUG_SOURCE_APPLICATION:
-      return "APPLICATION";
-      break;
+            case gl::DEBUG_SOURCE_OTHER:
+                return "OTHER";
+                break;
 
-    case gl::DEBUG_SOURCE_OTHER:
-      return "OTHER";
-      break;
+            case gl::DEBUG_SOURCE_SHADER_COMPILER:
+                return "SHADER COMPILER";
+                break;
 
-    case gl::DEBUG_SOURCE_SHADER_COMPILER:
-      return "SHADER COMPILER";
-      break;
+            case gl::DEBUG_SOURCE_THIRD_PARTY:
+                return "THIRD PARTY";
+                break;
 
-    case gl::DEBUG_SOURCE_THIRD_PARTY:
-      return "THIRD PARTY";
-      break;
+            case gl::DEBUG_SOURCE_WINDOW_SYSTEM:
+                return "WINDOW SYSTEM";
+                break;
 
-    case gl::DEBUG_SOURCE_WINDOW_SYSTEM:
-      return "WINDOW SYSTEM";
-      break;
+            default:
+                return "UNKNOWN";
+                break;
+        }
+    }();
 
-    default:
-      return "UNKNOWN";
-      break;
-    }
-  }();
+    const auto msg_type = [type]() {
+        switch (type) {
+            case gl::DEBUG_TYPE_ERROR:
+                return "ERROR";
+                break;
 
-  const auto msg_type = [type]() {
-    switch (type) {
-    case gl::DEBUG_TYPE_ERROR:
-      return "ERROR";
-      break;
+            case gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+                return "DEPRECATED BEHAVIOUR";
+                break;
 
-    case gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-      return "DEPRECATED BEHAVIOUR";
-      break;
+            case gl::DEBUG_TYPE_MARKER:
+                return "MARKER";
+                break;
 
-    case gl::DEBUG_TYPE_MARKER:
-      return "MARKER";
-      break;
+            case gl::DEBUG_TYPE_OTHER:
+                return "OTHER";
+                break;
 
-    case gl::DEBUG_TYPE_OTHER:
-      return "OTHER";
-      break;
+            case gl::DEBUG_TYPE_PERFORMANCE:
+                return "PERFORMANCE";
+                break;
 
-    case gl::DEBUG_TYPE_PERFORMANCE:
-      return "PERFORMANCE";
-      break;
+            case gl::DEBUG_TYPE_POP_GROUP:
+                return "POP GROUP";
+                break;
 
-    case gl::DEBUG_TYPE_POP_GROUP:
-      return "POP GROUP";
-      break;
+            case gl::DEBUG_TYPE_PORTABILITY:
+                return "PORTABILITY";
+                break;
 
-    case gl::DEBUG_TYPE_PORTABILITY:
-      return "PORTABILITY";
-      break;
+            case gl::DEBUG_TYPE_PUSH_GROUP:
+                return "PUSH GROUP";
+                break;
 
-    case gl::DEBUG_TYPE_PUSH_GROUP:
-      return "PUSH GROUP";
-      break;
+            case gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+                return "UNDEFINED BEHAVIOUR";
+                break;
 
-    case gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-      return "UNDEFINED BEHAVIOUR";
-      break;
+            default:
+                return "UNKNOWN";
+                break;
+        }
+    }();
 
-    default:
-      return "UNKNOWN";
-      break;
-    }
-  }();
+    auto msg_severity = [severity]() {
+        switch (severity) {
+            case gl::DEBUG_SEVERITY_HIGH:
+                return "HIGH";
+                break;
 
-  auto msg_severity = [severity]() {
-    switch (severity) {
-    case gl::DEBUG_SEVERITY_HIGH:
-      return "HIGH";
-      break;
+            case gl::DEBUG_SEVERITY_LOW:
+                return "LOW";
+                break;
 
-    case gl::DEBUG_SEVERITY_LOW:
-      return "LOW";
-      break;
+            case gl::DEBUG_SEVERITY_MEDIUM:
+                return "MEDIUM";
+                break;
 
-    case gl::DEBUG_SEVERITY_MEDIUM:
-      return "MEDIUM";
-      break;
+            case gl::DEBUG_SEVERITY_NOTIFICATION:
+                return "NOTIFICATION";
+                break;
 
-    case gl::DEBUG_SEVERITY_NOTIFICATION:
-      return "NOTIFICATION";
-      break;
+            default:
+                return "UNKNOWN";
+                break;
+        }
+    }();
 
-    default:
-      return "UNKNOWN";
-      break;
-    }
-  }();
-
-  XR_LOG_DEBUG("OpenGL debug message\n[MESSAGE] : {}\n[SOURCE] : {}\n[TYPE] : "
-               "{}\n[SEVERITY] "
-               ": {}\n[ID] : {}",
-               message,
-               msg_source,
-               msg_type,
-               msg_severity,
-               id);
+    XR_LOG_DEBUG("OpenGL debug message\n[MESSAGE] : {}\n[SOURCE] : {}\n[TYPE] : "
+                 "{}\n[SEVERITY] "
+                 ": {}\n[ID] : {}",
+                 message,
+                 msg_source,
+                 msg_type,
+                 msg_severity,
+                 id);
 }
 
 } // namespace app
 
-class heightmap_generator {
-public:
-  void generate(const int32_t width, const int32_t height) {
-    this->seed(width, height);
-    smooth_terrain(32);
-    smooth_terrain(128);
-  }
-
-private:
-  xray::math::vec3f make_point(const float x, const float z) {
-    return {x,
-            _rng.next_float(0.0f, 1.0f) > 0.3f
-              ? std::abs(std::sin(x * z) * _roughness)
-              : 0.0f,
-            z};
-  }
-
-  float get_point(const int32_t x, const int32_t z) const {
-    const auto xp = (x + _width) % _width;
-    const auto zp = (z + _height) % _height;
-
-    return _points[zp * _width + xp].y;
-  }
-
-  void set_point(const int32_t x, const int32_t z, const float value) {
-    const auto xp = (x + _width) % _width;
-    const auto zp = (z + _height) % _height;
-
-    _points[zp * _width + xp].y = value;
-  }
-
-  void point_from_square(const int32_t x,
-                         const int32_t z,
-                         const int32_t size,
-                         const float   value) {
-    const auto hs = size / 2;
-    const auto a  = get_point(x - hs, z - hs);
-    const auto b  = get_point(x + hs, z - hs);
-    const auto c  = get_point(x - hs, z + hs);
-    const auto d  = get_point(x + hs, z + hs);
-
-    set_point(x, z, (a + b + c + d) / 4.0f + value);
-  }
-
-  void point_from_diamond(const int32_t x,
-                          const int32_t z,
-                          const int32_t size,
-                          const float   value) {
-    const auto hs = size / 2;
-    const auto a  = get_point(x - hs, z);
-    const auto b  = get_point(x + hs, z);
-    const auto c  = get_point(x, z - hs);
-    const auto d  = get_point(x, z + hs);
-
-    set_point(x, z, (a + b + c + d) / 4.0f + value);
-  }
-
-  void diamond_square(const int32_t step_size, const float scale) {
-    const auto half_step = step_size / 2;
-
-    for (int32_t z = half_step; z < _height + half_step; z += half_step) {
-      for (int32_t x = half_step; x < _width + half_step; x += half_step) {
-        point_from_square(x, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
-      }
+class heightmap_generator
+{
+  public:
+    void generate(const int32_t width, const int32_t height)
+    {
+        this->seed(width, height);
+        smooth_terrain(32);
+        smooth_terrain(128);
     }
 
-    for (int32_t z = 0; z < _height; z += step_size) {
-      for (int32_t x = 0; x < _width; x += step_size) {
-        point_from_diamond(
-          x + half_step, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
-        point_from_diamond(
-          x, z + half_step, step_size, _rng.next_float(0.0f, 1.0f) * scale);
-      }
+  private:
+    xray::math::vec3f make_point(const float x, const float z)
+    {
+        return { x, _rng.next_float(0.0f, 1.0f) > 0.3f ? std::abs(std::sin(x * z) * _roughness) : 0.0f, z };
     }
-  }
 
-  void seed(const int32_t new_width, const int32_t new_height) {
-    _width  = new_width;
-    _height = new_height;
+    float get_point(const int32_t x, const int32_t z) const
+    {
+        const auto xp = (x + _width) % _width;
+        const auto zp = (z + _height) % _height;
 
-    _points.clear();
-    for (int32_t z = 0; z < _height; ++z) {
-      for (int32_t x = 0; x < _width; ++x) {
-        _points.push_back({static_cast<float>(x),
-                           _rng.next_float(0.0f, 1.0f) * _roughness,
-                           static_cast<float>(z)});
-      }
+        return _points[zp * _width + xp].y;
     }
-  }
 
-  void smooth_terrain(const int32_t pass_size) {
-    auto sample_size  = pass_size;
-    auto scale_factor = 1.0f;
+    void set_point(const int32_t x, const int32_t z, const float value)
+    {
+        const auto xp = (x + _width) % _width;
+        const auto zp = (z + _height) % _height;
 
-    while (sample_size > 1) {
-      diamond_square(sample_size, scale_factor);
-      sample_size /= 2;
-      scale_factor /= 2.0f;
+        _points[zp * _width + xp].y = value;
     }
-  }
 
-  float                               _roughness{255.0f};
-  int32_t                             _width;
-  int32_t                             _height;
-  xray::base::random_number_generator _rng;
-  std::vector<xray::math::vec3f>      _points;
+    void point_from_square(const int32_t x, const int32_t z, const int32_t size, const float value)
+    {
+        const auto hs = size / 2;
+        const auto a = get_point(x - hs, z - hs);
+        const auto b = get_point(x + hs, z - hs);
+        const auto c = get_point(x - hs, z + hs);
+        const auto d = get_point(x + hs, z + hs);
+
+        set_point(x, z, (a + b + c + d) / 4.0f + value);
+    }
+
+    void point_from_diamond(const int32_t x, const int32_t z, const int32_t size, const float value)
+    {
+        const auto hs = size / 2;
+        const auto a = get_point(x - hs, z);
+        const auto b = get_point(x + hs, z);
+        const auto c = get_point(x, z - hs);
+        const auto d = get_point(x, z + hs);
+
+        set_point(x, z, (a + b + c + d) / 4.0f + value);
+    }
+
+    void diamond_square(const int32_t step_size, const float scale)
+    {
+        const auto half_step = step_size / 2;
+
+        for (int32_t z = half_step; z < _height + half_step; z += half_step) {
+            for (int32_t x = half_step; x < _width + half_step; x += half_step) {
+                point_from_square(x, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
+            }
+        }
+
+        for (int32_t z = 0; z < _height; z += step_size) {
+            for (int32_t x = 0; x < _width; x += step_size) {
+                point_from_diamond(x + half_step, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
+                point_from_diamond(x, z + half_step, step_size, _rng.next_float(0.0f, 1.0f) * scale);
+            }
+        }
+    }
+
+    void seed(const int32_t new_width, const int32_t new_height)
+    {
+        _width = new_width;
+        _height = new_height;
+
+        _points.clear();
+        for (int32_t z = 0; z < _height; ++z) {
+            for (int32_t x = 0; x < _width; ++x) {
+                _points.push_back(
+                    { static_cast<float>(x), _rng.next_float(0.0f, 1.0f) * _roughness, static_cast<float>(z) });
+            }
+        }
+    }
+
+    void smooth_terrain(const int32_t pass_size)
+    {
+        auto sample_size = pass_size;
+        auto scale_factor = 1.0f;
+
+        while (sample_size > 1) {
+            diamond_square(sample_size, scale_factor);
+            sample_size /= 2;
+            scale_factor /= 2.0f;
+        }
+    }
+
+    float _roughness{ 255.0f };
+    int32_t _width;
+    int32_t _height;
+    xray::base::random_number_generator _rng;
+    std::vector<xray::math::vec3f> _points;
 };
 
-void setup_quill() {
-  // quill::configure([]() {
-  //   quill::Config cfg{};
-  //   cfg.enable_console_colours = true;
-  //   cfg.backend_thread_name    = "Xray logging thread";
-  //   cfg.default_logger_name    = "xray-default logger";
-  //   return cfg;
-  // }());
-  //
-  // // Starts the logging backend thread
-  // quill::start();
-  //
-  // // Create a file logger
-  // quill::Logger* logger = quill::create_logger(
-  //   "file_logger", quill::file_handler("example.log", []() {
-  //     quill::FileHandlerConfig cfg;
-  //     cfg.set_open_mode('w');
-  //     cfg.set_pattern(
-  //       "[%(time)] [%(thread)] [%(file_name):%(line_number)] [%(logger)] "
-  //       "[%(log_level)] - %(message)",
-  //       "%H:%M:%S.%Qms");
-  //     return cfg;
-  //   }()));
-  //
-  // logger->set_log_level(quill::LogLevel::TraceL3);
-  //
-  // // enable a backtrace that will get flushed when we log CRITICAL
-  // logger->init_backtrace(2u, quill::LogLevel::Critical);
-  //
-  // LOG_BACKTRACE(logger, "Backtrace log {}", 1);
-  // LOG_BACKTRACE(logger, "Backtrace log {}", 2);
-  //
-  // LOG_INFO(logger, "Welcome to Quill!");
-  // LOG_ERROR(logger, "An error message. error code {}", 123);
-  // LOG_WARNING(logger, "A warning message.");
-  // LOG_CRITICAL(logger, "A critical error. Doing ur mom as usual ...");
-  // LOG_DEBUG(logger, "Debugging foo {}", 1234);
-  // LOG_TRACE_L1(logger, "{:>30}", "right aligned");
-  // LOG_TRACE_L2(logger, "Positional arguments are {1} {0} ", "too",
-  // "supported"); LOG_TRACE_L3(logger, "Support for floats {:03.2f}", 1.23456);
+void
+setup_quill()
+{
+    // quill::configure([]() {
+    //   quill::Config cfg{};
+    //   cfg.enable_console_colours = true;
+    //   cfg.backend_thread_name    = "Xray logging thread";
+    //   cfg.default_logger_name    = "xray-default logger";
+    //   return cfg;
+    // }());
+    //
+    // // Starts the logging backend thread
+    // quill::start();
+    //
+    // // Create a file logger
+    // quill::Logger* logger = quill::create_logger(
+    //   "file_logger", quill::file_handler("example.log", []() {
+    //     quill::FileHandlerConfig cfg;
+    //     cfg.set_open_mode('w');
+    //     cfg.set_pattern(
+    //       "[%(time)] [%(thread)] [%(file_name):%(line_number)] [%(logger)] "
+    //       "[%(log_level)] - %(message)",
+    //       "%H:%M:%S.%Qms");
+    //     return cfg;
+    //   }()));
+    //
+    // logger->set_log_level(quill::LogLevel::TraceL3);
+    //
+    // // enable a backtrace that will get flushed when we log CRITICAL
+    // logger->init_backtrace(2u, quill::LogLevel::Critical);
+    //
+    // LOG_BACKTRACE(logger, "Backtrace log {}", 1);
+    // LOG_BACKTRACE(logger, "Backtrace log {}", 2);
+    //
+    // LOG_INFO(logger, "Welcome to Quill!");
+    // LOG_ERROR(logger, "An error message. error code {}", 123);
+    // LOG_WARNING(logger, "A warning message.");
+    // LOG_CRITICAL(logger, "A critical error. Doing ur mom as usual ...");
+    // LOG_DEBUG(logger, "Debugging foo {}", 1234);
+    // LOG_TRACE_L1(logger, "{:>30}", "right aligned");
+    // LOG_TRACE_L2(logger, "Positional arguments are {1} {0} ", "too",
+    // "supported"); LOG_TRACE_L3(logger, "Support for floats {:03.2f}", 1.23456);
 }
 
-int main(int argc, char** argv) {
-  using namespace xray::ui;
-  using namespace xray::base;
+int
+main(int argc, char** argv)
+{
+    using namespace xray::ui;
+    using namespace xray::base;
 
-  setup_quill();
+    setup_quill();
 
-  XR_LOG_INFO("Starting up ...");
+    XR_LOG_INFO("Starting up ...");
 
-  const int num_threads = oneapi::tbb::info::default_concurrency();
-  XR_LOG_INFO("Default concurency {}", num_threads);
-  // tbb::task_scheduler_init tbb_initializer{};
+    const int num_threads = oneapi::tbb::info::default_concurrency();
+    XR_LOG_INFO("Default concurency {}", num_threads);
+    // tbb::task_scheduler_init tbb_initializer{};
 
-  app_config app_cfg{"config/app_config.conf"};
-  xr_app_config = &app_cfg;
+    app_config app_cfg{ "config/app_config.conf" };
+    xr_app_config = &app_cfg;
 
-  XR_LOG_INFO("Configured paths");
-  XR_LOG_INFO("Root {}", xr_app_config->root_directory().c_str());
-  XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").c_str());
-  XR_LOG_INFO("Models {}", xr_app_config->model_path("").c_str());
-  XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").c_str());
-  XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").c_str());
+    XR_LOG_INFO("Configured paths");
+    XR_LOG_INFO("Root {}", xr_app_config->root_directory().c_str());
+    XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").c_str());
+    XR_LOG_INFO("Models {}", xr_app_config->model_path("").c_str());
+    XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").c_str());
+    XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").c_str());
 
-  const window_params_t wnd_params{"OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false};
+    const window_params_t wnd_params{ "OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false };
 
-  window main_window{wnd_params};
-  if (!main_window) {
-    XR_LOG_ERR("Failed to initialize application window!");
-    return EXIT_FAILURE;
-  }
+    window main_window{ wnd_params };
+    if (!main_window) {
+        XR_LOG_ERR("Failed to initialize application window!");
+        return EXIT_FAILURE;
+    }
 
-  gl::DebugMessageCallback(app::debug_proc, nullptr);
-  //
-  // turn off these so we don't get spammed
-  gl::DebugMessageControl(gl::DONT_CARE,
-                          gl::DONT_CARE,
-                          gl::DEBUG_SEVERITY_NOTIFICATION,
-                          0,
-                          nullptr,
-                          gl::FALSE_);
+    gl::DebugMessageCallback(app::debug_proc, nullptr);
+    //
+    // turn off these so we don't get spammed
+    gl::DebugMessageControl(gl::DONT_CARE, gl::DONT_CARE, gl::DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, gl::FALSE_);
 
-  app::main_app app{&main_window};
-  main_window.message_loop();
+    app::main_app app{ &main_window };
+    main_window.message_loop();
 
-  XR_LOG_INFO("Shutting down ...");
-  return EXIT_SUCCESS;
+    XR_LOG_INFO("Shutting down ...");
+    return EXIT_SUCCESS;
 }

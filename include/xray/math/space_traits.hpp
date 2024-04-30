@@ -36,7 +36,7 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-template <size_t R, typename T>
+template<size_t R, typename T>
 struct space_traits;
 
 /// @}

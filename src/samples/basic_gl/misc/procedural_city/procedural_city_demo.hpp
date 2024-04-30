@@ -30,7 +30,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
@@ -42,114 +41,120 @@
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/fps_camera_controller.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 #include <random>
 
 namespace app {
 
-class random_engine {
-public:
-  random_engine() {}
+class random_engine
+{
+  public:
+    random_engine() {}
 
-  void set_float_range(const float minval, const float maxval) noexcept {
-    _f32distribution = std::uniform_real_distribution<float>{minval, maxval};
-  }
+    void set_float_range(const float minval, const float maxval) noexcept
+    {
+        _f32distribution = std::uniform_real_distribution<float>{ minval, maxval };
+    }
 
-  void set_integer_range(const int32_t minval, const int32_t maxval) noexcept {
-    _i32distribution = std::uniform_int_distribution<int32_t>{minval, maxval};
-  }
+    void set_integer_range(const int32_t minval, const int32_t maxval) noexcept
+    {
+        _i32distribution = std::uniform_int_distribution<int32_t>{ minval, maxval };
+    }
 
-  float   next_float() noexcept { return _f32distribution(_engine); }
-  int32_t next_int() noexcept { return _i32distribution(_engine); }
+    float next_float() noexcept { return _f32distribution(_engine); }
+    int32_t next_int() noexcept { return _i32distribution(_engine); }
 
-private:
-  std::random_device                     _device{};
-  std::mt19937                           _engine{_device()};
-  std::uniform_real_distribution<float>  _f32distribution{0.0f, 1.0f};
-  std::uniform_int_distribution<int32_t> _i32distribution{0, 1};
+  private:
+    std::random_device _device{};
+    std::mt19937 _engine{ _device() };
+    std::uniform_real_distribution<float> _f32distribution{ 0.0f, 1.0f };
+    std::uniform_int_distribution<int32_t> _i32distribution{ 0, 1 };
 };
 
-class simple_fluid {
-public:
-  simple_fluid() noexcept;
+class simple_fluid
+{
+  public:
+    simple_fluid() noexcept;
 
-  struct parameters {
-    float   cellwidth{0.8f};
-    float   delta{0.0f};
-    float   timefactor{0.05f};
-    float   wavespeed{3.25f};
-    float   dampingfactor{0.4f};
-    float   wavemagnitude{0.935f};
-    float   min_disturb_delta{2.5f};
-    float   disturb_delta{0.0f};
-    float   k1{};
-    float   k2{};
-    float   k3{};
-    int32_t xquads{255};
-    int32_t zquads{255};
+    struct parameters
+    {
+        float cellwidth{ 0.8f };
+        float delta{ 0.0f };
+        float timefactor{ 0.05f };
+        float wavespeed{ 3.25f };
+        float dampingfactor{ 0.4f };
+        float wavemagnitude{ 0.935f };
+        float min_disturb_delta{ 2.5f };
+        float disturb_delta{ 0.0f };
+        float k1{};
+        float k2{};
+        float k3{};
+        int32_t xquads{ 255 };
+        int32_t zquads{ 255 };
 
-    void check_numerical_constraints() const noexcept;
-    void compute_coefficients() noexcept;
-  } _params{};
+        void check_numerical_constraints() const noexcept;
+        void compute_coefficients() noexcept;
+    } _params{};
 
-  explicit operator bool() const noexcept { return static_cast<bool>(_mesh); }
+    explicit operator bool() const noexcept { return static_cast<bool>(_mesh); }
 
-  void update(const float delta_ms, random_engine& re);
+    void update(const float delta_ms, random_engine& re);
 
-  void regen_surface(const parameters& p);
+    void regen_surface(const parameters& p);
 
-  void disturb(const int32_t row_idx,
-               const int32_t col_idx,
-               const float   wave_magnitude);
+    void disturb(const int32_t row_idx, const int32_t col_idx, const float wave_magnitude);
 
-  void draw(const xray::rendering::draw_context_t&);
+    void draw(const xray::rendering::draw_context_t&);
 
-  const xray::rendering::basic_mesh& mesh() const noexcept { return _mesh; }
-  GLuint texture() const noexcept { return xray::base::raw_handle(_fluid_tex); }
+    const xray::rendering::basic_mesh& mesh() const noexcept { return _mesh; }
+    GLuint texture() const noexcept { return xray::base::raw_handle(_fluid_tex); }
 
-private:
-  xray::rendering::basic_mesh              _mesh;
-  std::vector<xray::rendering::vertex_pnt> _vertexpool;
-  xray::rendering::vertex_pnt*             _current_sol{};
-  xray::rendering::vertex_pnt*             _prev_sol{};
-  xray::rendering::scoped_texture          _fluid_tex{};
+  private:
+    xray::rendering::basic_mesh _mesh;
+    std::vector<xray::rendering::vertex_pnt> _vertexpool;
+    xray::rendering::vertex_pnt* _current_sol{};
+    xray::rendering::vertex_pnt* _prev_sol{};
+    xray::rendering::scoped_texture _fluid_tex{};
 };
 
-class procedural_city_demo : public demo_base {
-public:
-  procedural_city_demo(const init_context_t& inictx);
+class procedural_city_demo : public demo_base
+{
+  public:
+    procedural_city_demo(const init_context_t& inictx);
 
-  ~procedural_city_demo();
+    ~procedural_city_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
-  virtual void update(const float delta_ms) override;
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void compose_ui() override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void update(const float delta_ms) override;
+    virtual void event_handler(const xray::ui::window_event& evt) override;
+    virtual void compose_ui() override;
 
-private:
-  void init();
+  private:
+    void init();
 
-private:
-  xray::rendering::surface_normal_visualizer _drawnormals{};
-  xray::rendering::basic_mesh                _mesh;
-  xray::rendering::scoped_buffer             _instancedata;
-  xray::rendering::vertex_program            _vs;
-  xray::rendering::fragment_program          _fs;
-  xray::rendering::program_pipeline          _pipeline;
-  xray::rendering::scoped_texture            _objtex;
-  xray::rendering::scoped_sampler            _sampler;
-  xray::scene::camera                        _camera;
-  xray::scene::fps_camera_controller         _camcontrol{&_camera};
-  random_engine                              _rand{};
-  simple_fluid                               _fluid{};
-  struct {
-    bool draw_fluid{true};
-    bool freeze_fluid{false};
-    bool draw_buildings{false};
-  } _demo_options;
+  private:
+    xray::rendering::surface_normal_visualizer _drawnormals{};
+    xray::rendering::basic_mesh _mesh;
+    xray::rendering::scoped_buffer _instancedata;
+    xray::rendering::vertex_program _vs;
+    xray::rendering::fragment_program _fs;
+    xray::rendering::program_pipeline _pipeline;
+    xray::rendering::scoped_texture _objtex;
+    xray::rendering::scoped_sampler _sampler;
+    xray::scene::camera _camera;
+    xray::scene::fps_camera_controller _camcontrol{ &_camera };
+    random_engine _rand{};
+    simple_fluid _fluid{};
+    struct
+    {
+        bool draw_fluid{ true };
+        bool freeze_fluid{ false };
+        bool draw_buildings{ false };
+    } _demo_options;
 
-private:
-  XRAY_NO_COPY(procedural_city_demo);
+  private:
+    XRAY_NO_COPY(procedural_city_demo);
 };
 
 } // namespace app

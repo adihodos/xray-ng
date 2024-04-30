@@ -44,22 +44,23 @@ class camera;
 /// \addtogroup __GroupXrayMath
 /// @{
 
-class camera_controller {
-public:
-  camera_controller(camera* cam);
+class camera_controller
+{
+  public:
+    camera_controller(camera* cam);
 
-  virtual ~camera_controller();
+    virtual ~camera_controller();
 
-  void set_camera(camera* cam) noexcept { cam_ = cam; }
+    void set_camera(camera* cam) noexcept { cam_ = cam; }
 
-  const camera* cam() const noexcept { return cam_; }
+    const camera* cam() const noexcept { return cam_; }
 
-  virtual void input_event(const ui::window_event& input_evt) = 0;
+    virtual void input_event(const ui::window_event& input_evt) = 0;
 
-  virtual void update() = 0;
+    virtual void update() = 0;
 
-protected:
-  camera* cam_;
+  protected:
+    camera* cam_;
 };
 
 /// @}

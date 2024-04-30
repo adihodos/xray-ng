@@ -30,11 +30,11 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/xray.hpp"
 
 #include <cstdint>
 #include <string_view>
@@ -44,65 +44,70 @@
 
 namespace app {
 
-struct fractal_params {
-  float    width{0.0f};
-  float    height{0.0f};
-  float    shape_re{0.0f};
-  float    shape_im{0.0f};
-  uint32_t iterations{0};
+struct fractal_params
+{
+    float width{ 0.0f };
+    float height{ 0.0f };
+    float shape_re{ 0.0f };
+    float shape_im{ 0.0f };
+    uint32_t iterations{ 0 };
 };
 
-class fractal_demo : public demo_base {
-public:
-  fractal_demo(const init_context_t&                ctx,
-               xray::rendering::scoped_buffer       vb,
-               xray::rendering::scoped_buffer       ib,
-               xray::rendering::scoped_vertex_array layout,
-               xray::rendering::vertex_program      vs,
-               xray::rendering::fragment_program    fs,
-               xray::rendering::program_pipeline    pp)
-    : demo_base{ctx}
-    , _quad_vb{std::move(vb)}
-    , _quad_ib{std::move(ib)}
-    , _quad_layout{std::move(layout)}
-    , _vs{std::move(vs)}
-    , _fs{std::move(fs)}
-    , _pipeline{std::move(pp)} {}
+class fractal_demo : public demo_base
+{
+  public:
+    fractal_demo(const init_context_t& ctx,
+                 xray::rendering::scoped_buffer vb,
+                 xray::rendering::scoped_buffer ib,
+                 xray::rendering::scoped_vertex_array layout,
+                 xray::rendering::vertex_program vs,
+                 xray::rendering::fragment_program fs,
+                 xray::rendering::program_pipeline pp)
+        : demo_base{ ctx }
+        , _quad_vb{ std::move(vb) }
+        , _quad_ib{ std::move(ib) }
+        , _quad_layout{ std::move(layout) }
+        , _vs{ std::move(vs) }
+        , _fs{ std::move(fs) }
+        , _pipeline{ std::move(pp) }
+    {
+    }
 
-  ~fractal_demo();
+    ~fractal_demo();
 
-  XRAY_DEFAULT_MOVE(fractal_demo);
+    XRAY_DEFAULT_MOVE(fractal_demo);
 
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void event_handler(const xray::ui::window_event& evt) override;
+    virtual void loop_event(const xray::ui::window_loop_event&) override;
 
-  static std::string_view short_desc() noexcept { return "Julia fractal."; }
+    static std::string_view short_desc() noexcept { return "Julia fractal."; }
 
-  static std::string_view detailed_desc() noexcept {
-    return "Julia fractal eplorer. Navigate the awesome and mesmerizing Julia "
-           "fractal.";
-  }
+    static std::string_view detailed_desc() noexcept
+    {
+        return "Julia fractal eplorer. Navigate the awesome and mesmerizing Julia "
+               "fractal.";
+    }
 
-  static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
+    static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
 
-private:
-  void init();
-  void draw(const int32_t surface_w, const int32_t surface_h);
-  void draw_ui(const int32_t surface_w, const int32_t surface_h);
+  private:
+    void init();
+    void draw(const int32_t surface_w, const int32_t surface_h);
+    void draw_ui(const int32_t surface_w, const int32_t surface_h);
 
-private:
-  int32_t                              _shape_idx{0u};
-  int32_t                              _iterations{256};
-  fractal_params                       _fp{};
-  xray::rendering::scoped_buffer       _quad_vb;
-  xray::rendering::scoped_buffer       _quad_ib;
-  xray::rendering::scoped_vertex_array _quad_layout;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
+  private:
+    int32_t _shape_idx{ 0u };
+    int32_t _iterations{ 256 };
+    fractal_params _fp{};
+    xray::rendering::scoped_buffer _quad_vb;
+    xray::rendering::scoped_buffer _quad_ib;
+    xray::rendering::scoped_vertex_array _quad_layout;
+    xray::rendering::vertex_program _vs;
+    xray::rendering::fragment_program _fs;
+    xray::rendering::program_pipeline _pipeline;
 
-private:
-  XRAY_NO_COPY(fractal_demo);
+  private:
+    XRAY_NO_COPY(fractal_demo);
 };
 
 } // namespace app

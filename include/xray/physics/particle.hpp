@@ -28,16 +28,16 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/physics/constants.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace xray {
 
 namespace math {
 
-template <typename T>
+template<typename T>
 class plane;
 
 } // namespace math
@@ -47,29 +47,29 @@ namespace physics {
 /// \addtogroup __GroupXrayPhysics
 /// @{
 
-class particle {
-public:
-  float             mass{1.0f};
-  float             speed{};
-  float             radius{};
-  xray::math::vec3f position{xray::math::vec3f::stdc::zero};
-  xray::math::vec3f velocity{xray::math::vec3f::stdc::zero};
-  xray::math::vec3f forces{xray::math::vec3f::stdc::zero};
-  xray::math::vec3f gravity{0.0f, mass* gravity_acceleration<float>, 0.0f};
-  xray::math::vec3f previous_pos{xray::math::vec3f::stdc::zero};
-  xray::math::vec3f impact_forces;
-  bool              collided{false};
+class particle
+{
+  public:
+    float mass{ 1.0f };
+    float speed{};
+    float radius{};
+    xray::math::vec3f position{ xray::math::vec3f::stdc::zero };
+    xray::math::vec3f velocity{ xray::math::vec3f::stdc::zero };
+    xray::math::vec3f forces{ xray::math::vec3f::stdc::zero };
+    xray::math::vec3f gravity{ 0.0f, mass* gravity_acceleration<float>, 0.0f };
+    xray::math::vec3f previous_pos{ xray::math::vec3f::stdc::zero };
+    xray::math::vec3f impact_forces;
+    bool collided{ false };
 
-  void set_mass(const float m) noexcept {
-    mass      = m;
-    gravity.y = mass * gravity_acceleration<float>;
-  }
+    void set_mass(const float m) noexcept
+    {
+        mass = m;
+        gravity.y = mass * gravity_acceleration<float>;
+    }
 
-  void compute_loads(const float             drag_coefficient,
-                     const xray::math::vec3f wind_dir,
-                     const float             wind_speed);
+    void compute_loads(const float drag_coefficient, const xray::math::vec3f wind_dir, const float wind_speed);
 
-  void update_body_euler(const float dt);
+    void update_body_euler(const float dt);
 };
 
 /// @}

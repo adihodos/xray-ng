@@ -30,10 +30,10 @@
 
 #include <cmath>
 
-#include "xray/xray.hpp"
 #include "xray/math/math_base.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/scalar4.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace math {
@@ -41,71 +41,83 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-template <typename real_type>
-inline bool operator==(const scalar4<real_type>& lhs,
-                       const scalar4<real_type>& rhs) noexcept {
-  return is_equal(lhs.x, rhs.x) && is_equal(lhs.y, rhs.y) &&
-         is_equal(lhs.z, rhs.z) && is_equal(lhs.w, rhs.w);
+template<typename real_type>
+inline bool
+operator==(const scalar4<real_type>& lhs, const scalar4<real_type>& rhs) noexcept
+{
+    return is_equal(lhs.x, rhs.x) && is_equal(lhs.y, rhs.y) && is_equal(lhs.z, rhs.z) && is_equal(lhs.w, rhs.w);
 }
 
-template <typename real_type>
-inline bool operator!=(const scalar4<real_type>& lhs,
-                       const scalar4<real_type>& rhs) noexcept {
-  return !(lhs == rhs);
+template<typename real_type>
+inline bool
+operator!=(const scalar4<real_type>& lhs, const scalar4<real_type>& rhs) noexcept
+{
+    return !(lhs == rhs);
 }
 
-template <typename real_type>
-inline scalar4<real_type> operator-(const scalar4<real_type>& vec) noexcept {
-  return {-vec.x, -vec.y, -vec.z, -vec.w};
+template<typename real_type>
+inline scalar4<real_type>
+operator-(const scalar4<real_type>& vec) noexcept
+{
+    return { -vec.x, -vec.y, -vec.z, -vec.w };
 }
 
-template <typename real_type>
-inline scalar4<real_type> operator+(const scalar4<real_type>& lhs,
-                                    const scalar4<real_type>& rhs) noexcept {
-  return {lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z, lhs.w + rhs.w};
+template<typename real_type>
+inline scalar4<real_type>
+operator+(const scalar4<real_type>& lhs, const scalar4<real_type>& rhs) noexcept
+{
+    return { lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z, lhs.w + rhs.w };
 }
 
-template <typename real_type>
-inline scalar4<real_type> operator-(const scalar4<real_type>& lhs,
-                                    const scalar4<real_type>& rhs) noexcept {
-  return {lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w};
+template<typename real_type>
+inline scalar4<real_type>
+operator-(const scalar4<real_type>& lhs, const scalar4<real_type>& rhs) noexcept
+{
+    return { lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w };
 }
 
-template <typename real_type>
-inline scalar4<real_type> operator*(const real_type           k,
-                                    const scalar4<real_type>& vec) noexcept {
-  scalar4<real_type> res{vec};
-  res *= k;
-  return res;
+template<typename real_type>
+inline scalar4<real_type>
+operator*(const real_type k, const scalar4<real_type>& vec) noexcept
+{
+    scalar4<real_type> res{ vec };
+    res *= k;
+    return res;
 }
 
-template <typename real_type, typename real_type>
-inline scalar4<real_type> operator*(const scalar4<real_type>& vec,
-                                    const real_type           k) noexcept {
-  return k * vec;
+template<typename real_type, typename real_type>
+inline scalar4<real_type>
+operator*(const scalar4<real_type>& vec, const real_type k) noexcept
+{
+    return k * vec;
 }
 
-template <typename real_type>
-inline scalar4<real_type> operator/(const scalar4<real_type>& vec,
-                                    const real_type           k) noexcept {
-  assert(!is_zero(k));
-  scalar4<real_type> res{vec};
-  res /= k;
-  return res;
+template<typename real_type>
+inline scalar4<real_type>
+operator/(const scalar4<real_type>& vec, const real_type k) noexcept
+{
+    assert(!is_zero(k));
+    scalar4<real_type> res{ vec };
+    res /= k;
+    return res;
 }
 
 /// \brief Returns a vector whose components have the maximum values of the
 /// components of the two input vectors.
-template <typename T>
-scalar4<T> max(const scalar4<T>& a, const scalar4<T>& b) noexcept {
-  return {max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w)};
+template<typename T>
+scalar4<T>
+max(const scalar4<T>& a, const scalar4<T>& b) noexcept
+{
+    return { max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w) };
 }
 
 /// \brief Returns a vector whose components have the minimum values of the
 /// components of the two input vectors.
-template <typename T>
-scalar4<T> min(const scalar4<T>& a, const scalar4<T>& b) noexcept {
-  return {min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w)};
+template<typename T>
+scalar4<T>
+min(const scalar4<T>& a, const scalar4<T>& b) noexcept
+{
+    return { min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w) };
 }
 
 /// @}

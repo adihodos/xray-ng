@@ -33,12 +33,14 @@
 namespace xray {
 namespace rendering {
 
-template <typename output_color, typename input_color>
+template<typename output_color, typename input_color>
 struct color_caster;
 
-template <typename output_color, typename input_color>
-inline output_color color_cast(const input_color& in_color) noexcept {
-  return color_caster<output_color, input_color>::cast(in_color);
+template<typename output_color, typename input_color>
+inline output_color
+color_cast(const input_color& in_color) noexcept
+{
+    return color_caster<output_color, input_color>::cast(in_color);
 }
 
 } // namespace rendering

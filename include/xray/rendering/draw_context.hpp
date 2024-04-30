@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace xray {
@@ -40,14 +40,15 @@ class camera;
 
 namespace rendering {
 
-struct draw_context_t {
-  uint32_t             window_width;
-  uint32_t             window_height;
-  math::mat4f          view_matrix;
-  math::mat4f          projection_matrix;
-  math::mat4f          proj_view_matrix;
-  const scene::camera* active_camera;
-  void*                renderer;
+struct draw_context_t
+{
+    uint32_t window_width;
+    uint32_t window_height;
+    math::mat4f view_matrix;
+    math::mat4f projection_matrix;
+    math::mat4f proj_view_matrix;
+    const scene::camera* active_camera;
+    void* renderer;
 };
 
 } // namespace rendering

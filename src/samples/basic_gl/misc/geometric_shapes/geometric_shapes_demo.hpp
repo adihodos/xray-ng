@@ -30,7 +30,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "light_source.hpp"
@@ -46,88 +45,97 @@
 #include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/scene/fps_camera_controller.hpp"
 #include "xray/ui/user_interface.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 #include <vector>
 
 namespace app {
 
-class geometric_shapes_demo : public demo_base {
-public:
-  geometric_shapes_demo(const init_context_t& init_ctx);
+class geometric_shapes_demo : public demo_base
+{
+  public:
+    geometric_shapes_demo(const init_context_t& init_ctx);
 
-  ~geometric_shapes_demo();
+    ~geometric_shapes_demo();
 
-  virtual void event_handler(const xray::ui::window_event& evt) override;
-  virtual void poll_start(const xray::ui::poll_start_event&) override;
-  virtual void poll_end(const xray::ui::poll_end_event&) override;
-  virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void event_handler(const xray::ui::window_event& evt) override;
+    virtual void poll_start(const xray::ui::poll_start_event&) override;
+    virtual void poll_end(const xray::ui::poll_end_event&) override;
+    virtual void loop_event(const xray::ui::window_loop_event&) override;
 
-private:
-  void init();
-  void update(const float delta);
-  void draw();
-  void draw_ui(const int32_t wnd_width, const int32_t wnd_height);
+  private:
+    void init();
+    void update(const float delta);
+    void draw();
+    void draw_ui(const int32_t wnd_width, const int32_t wnd_height);
 
-private:
-  struct gpu_instance_info {
-    xray::math::mat4f          world_view_proj;
-    xray::math::mat4f          view;
-    xray::math::mat4f          normals;
-    xray::rendering::rgb_color color;
-    uint32_t                   tex_id;
-    uint32_t                   _pad[3];
-  };
+  private:
+    struct gpu_instance_info
+    {
+        xray::math::mat4f world_view_proj;
+        xray::math::mat4f view;
+        xray::math::mat4f normals;
+        xray::rendering::rgb_color color;
+        uint32_t tex_id;
+        uint32_t _pad[3];
+    };
 
-  struct particle_graphics {
-    xray::math::vec3f          starting_pos;
-    xray::rendering::rgb_color color;
-  };
+    struct particle_graphics
+    {
+        xray::math::vec3f starting_pos;
+        xray::rendering::rgb_color color;
+    };
 
-  struct object_instances {
-    static constexpr uint32_t instance_count{64u};
-    static constexpr auto     time_step        = 0.005f;
-    static constexpr auto     wind_speed       = 10.0f;
-    static constexpr auto     drag_coefficient = 0.6f;
+    struct object_instances
+    {
+        static constexpr uint32_t instance_count{ 64u };
+        static constexpr auto time_step = 0.005f;
+        static constexpr auto wind_speed = 10.0f;
+        static constexpr auto drag_coefficient = 0.6f;
 
-    std::vector<xray::physics::particle> instances;
-    std::vector<particle_graphics>       pgraphics;
-    xray::rendering::scoped_buffer       buffer_transforms;
-    xray::rendering::scoped_buffer       buffer_texture_ids;
-  } _obj_instances;
+        std::vector<xray::physics::particle> instances;
+        std::vector<particle_graphics> pgraphics;
+        xray::rendering::scoped_buffer buffer_transforms;
+        xray::rendering::scoped_buffer buffer_texture_ids;
+    } _obj_instances;
 
-  struct render_state {
-    uint32_t                             index_count{};
-    uint32_t                             index_count_sphere{};
-    xray::rendering::scoped_buffer       vertices_sphere;
-    xray::rendering::scoped_buffer       indices_sphere;
-    xray::rendering::scoped_buffer       vertices;
-    xray::rendering::scoped_buffer       indices;
-    xray::rendering::scoped_buffer       indirect_draw_cmd_buffer;
-    xray::rendering::scoped_buffer       instances_ssbo;
-    xray::rendering::scoped_buffer       draw_ids;
-    xray::rendering::scoped_vertex_array vertexarray;
-    xray::rendering::vertex_program      vs;
-    xray::rendering::vertex_program      vs_instancing;
-    xray::rendering::geometry_program    gs;
-    xray::rendering::fragment_program    fs;
-    xray::rendering::program_pipeline    pipeline;
-    xray::rendering::scoped_texture      textures;
-    xray::rendering::scoped_sampler      sampler;
-  } _render;
+    struct render_state
+    {
+        uint32_t index_count{};
+        uint32_t index_count_sphere{};
+        xray::rendering::scoped_buffer vertices_sphere;
+        xray::rendering::scoped_buffer indices_sphere;
+        xray::rendering::scoped_buffer vertices;
+        xray::rendering::scoped_buffer indices;
+        xray::rendering::scoped_buffer indirect_draw_cmd_buffer;
+        xray::rendering::scoped_buffer instances_ssbo;
+        xray::rendering::scoped_buffer draw_ids;
+        xray::rendering::scoped_vertex_array vertexarray;
+        xray::rendering::vertex_program vs;
+        xray::rendering::vertex_program vs_instancing;
+        xray::rendering::geometry_program gs;
+        xray::rendering::fragment_program fs;
+        xray::rendering::program_pipeline pipeline;
+        xray::rendering::scoped_texture textures;
+        xray::rendering::scoped_sampler sampler;
+    } _render;
 
-  struct {
-    xray::scene::camera camera;
-    //    xray::scene::fps_camera_controller cam_control{&camera};
-    xray::scene::camera_controller_spherical_coords cam_control{
-      &camera, "config/misc/geometric_shapes/cam_controller_spherical.conf"};
-    light_source lights[4];
-  } _scene;
+    struct
+    {
+        xray::scene::camera camera;
+        //    xray::scene::fps_camera_controller cam_control{&camera};
+        xray::scene::camera_controller_spherical_coords cam_control{
+            &camera,
+            "config/misc/geometric_shapes/cam_controller_spherical.conf"
+        };
+        light_source lights[4];
+    } _scene;
 
-  xray::base::unique_pointer<xray::ui::imgui_backend> _ui;
-  xray::base::timer_highp                             _timer;
+    xray::base::unique_pointer<xray::ui::imgui_backend> _ui;
+    xray::base::timer_highp _timer;
 
-private:
-  XRAY_NO_COPY(geometric_shapes_demo);
+  private:
+    XRAY_NO_COPY(geometric_shapes_demo);
 };
 
 } // namespace app

@@ -40,10 +40,11 @@ namespace base {
 /// \addtogroup __GroupXrayBase
 /// @{
 
-template <typename C>
+template<typename C>
 inline const typename platformstl::basic_path<C>::char_type*
-c_str_ptr(const platformstl::basic_path<C>& path) noexcept {
-  return path.c_str();
+c_str_ptr(const platformstl::basic_path<C>& path) noexcept
+{
+    return path.c_str();
 }
 
 /// @}

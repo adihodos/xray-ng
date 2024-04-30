@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "light_source.hpp"
 #include "material.hpp"
@@ -37,51 +36,54 @@
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
-struct fog_params {
-  xray::rendering::rgb_color color;
-  float                      d_min;
-  float                      d_max;
-  float                      intensity;
+struct fog_params
+{
+    xray::rendering::rgb_color color;
+    float d_min;
+    float d_max;
+    float intensity;
 };
 
-class fog_demo : public demo_base {
-public:
-  fog_demo();
+class fog_demo : public demo_base
+{
+  public:
+    fog_demo();
 
-  virtual ~fog_demo();
+    virtual ~fog_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
 
-  virtual void update(const float delta_ms) override;
+    virtual void update(const float delta_ms) override;
 
-  virtual void key_event(const int32_t key_code, const int32_t action,
-                         const int32_t mods) override;
+    virtual void key_event(const int32_t key_code, const int32_t action, const int32_t mods) override;
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  static constexpr uint32_t NUM_MESHES{4u};
-  void                      init();
+  private:
+    static constexpr uint32_t NUM_MESHES{ 4u };
+    void init();
 
-private:
-  struct mesh_draw_info {
-    xray::math::vec3f translation;
-    material          mat;
-  };
+  private:
+    struct mesh_draw_info
+    {
+        xray::math::vec3f translation;
+        material mat;
+    };
 
-  xray::rendering::scoped_buffer       _vertex_buffer;
-  xray::rendering::scoped_buffer       _index_buffer;
-  xray::rendering::scoped_vertex_array _vertex_array;
-  xray::rendering::gpu_program         _draw_prog;
-  uint32_t                             _mesh_index_count;
-  mesh_draw_info                       _meshes[NUM_MESHES];
-  light_source                         _light;
-  bool                                 _linear_fog{true};
+    xray::rendering::scoped_buffer _vertex_buffer;
+    xray::rendering::scoped_buffer _index_buffer;
+    xray::rendering::scoped_vertex_array _vertex_array;
+    xray::rendering::gpu_program _draw_prog;
+    uint32_t _mesh_index_count;
+    mesh_draw_info _meshes[NUM_MESHES];
+    light_source _light;
+    bool _linear_fog{ true };
 
-private:
-  XRAY_NO_COPY(fog_demo);
+  private:
+    XRAY_NO_COPY(fog_demo);
 };
 }

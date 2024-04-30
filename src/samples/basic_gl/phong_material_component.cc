@@ -35,69 +35,70 @@
 
 namespace app {
 
-constexpr const phong_material_component::e
-    phong_material_component::_member_entries[];
+constexpr const phong_material_component::e phong_material_component::_member_entries[];
 
-const char* phong_material_component::qualified_name(
-    const phong_material_component::e member) noexcept {
-  switch (member) {
-  case phong_material_component::e::emissive:
-    return "phong_material_component::e::emissive";
-    break;
-  case phong_material_component::e::ambient:
-    return "phong_material_component::e::ambient";
-    break;
-  case phong_material_component::e::diffuse:
-    return "phong_material_component::e::diffuse";
-    break;
-  case phong_material_component::e::specular:
-    return "phong_material_component::e::specular";
-    break;
-  case phong_material_component::e::specular_intensity:
-    return "phong_material_component::e::specular_intensity";
-    break;
+const char*
+phong_material_component::qualified_name(const phong_material_component::e member) noexcept
+{
+    switch (member) {
+        case phong_material_component::e::emissive:
+            return "phong_material_component::e::emissive";
+            break;
+        case phong_material_component::e::ambient:
+            return "phong_material_component::e::ambient";
+            break;
+        case phong_material_component::e::diffuse:
+            return "phong_material_component::e::diffuse";
+            break;
+        case phong_material_component::e::specular:
+            return "phong_material_component::e::specular";
+            break;
+        case phong_material_component::e::specular_intensity:
+            return "phong_material_component::e::specular_intensity";
+            break;
 
-  default:
-    assert(false && "Unknown enum member!");
-    break;
-  }
+        default:
+            assert(false && "Unknown enum member!");
+            break;
+    }
 
-  return "unknown enum member";
+    return "unknown enum member";
 }
 
-const char* phong_material_component::name(
-    const phong_material_component::e member) noexcept {
-  switch (member) {
-  case phong_material_component::e::emissive:
-    return "emissive";
-    break;
-  case phong_material_component::e::ambient:
-    return "ambient";
-    break;
-  case phong_material_component::e::diffuse:
-    return "diffuse";
-    break;
-  case phong_material_component::e::specular:
-    return "specular";
-    break;
-  case phong_material_component::e::specular_intensity:
-    return "specular_intensity";
-    break;
+const char*
+phong_material_component::name(const phong_material_component::e member) noexcept
+{
+    switch (member) {
+        case phong_material_component::e::emissive:
+            return "emissive";
+            break;
+        case phong_material_component::e::ambient:
+            return "ambient";
+            break;
+        case phong_material_component::e::diffuse:
+            return "diffuse";
+            break;
+        case phong_material_component::e::specular:
+            return "specular";
+            break;
+        case phong_material_component::e::specular_intensity:
+            return "specular_intensity";
+            break;
 
-  default:
-    assert(false && "Unknown enum member");
-    break;
-  }
+        default:
+            assert(false && "Unknown enum member");
+            break;
+    }
 
-  return "unknown enum member";
+    return "unknown enum member";
 }
 
-bool phong_material_component::is_defined(
-    const phong_material_component::e val) noexcept {
-  using namespace std;
-  return find(phong_material_component::cbegin(),
-              phong_material_component::cend(),
-              val) != phong_material_component::cend();
+bool
+phong_material_component::is_defined(const phong_material_component::e val) noexcept
+{
+    using namespace std;
+    return find(phong_material_component::cbegin(), phong_material_component::cend(), val) !=
+           phong_material_component::cend();
 }
 
 } // end ns

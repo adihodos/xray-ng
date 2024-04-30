@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
@@ -40,39 +40,48 @@ namespace rendering {
 
 ///
 /// A vertex format, consisting of position and normal vector.
-struct vertex_pn {
+struct vertex_pn
+{
 
-  vertex_pn() noexcept {}
+    vertex_pn() noexcept {}
 
-  vertex_pn(const float px, const float py, const float pz, const float nx,
-            const float ny, const float nz) noexcept
-      : position{px, py, pz}, normal{nx, ny, nz} {}
+    vertex_pn(const float px, const float py, const float pz, const float nx, const float ny, const float nz) noexcept
+        : position{ px, py, pz }
+        , normal{ nx, ny, nz }
+    {
+    }
 
-  vertex_pn(const math::vec3f& pos, const math::vec3f& norm) noexcept
-      : position{pos}, normal{norm} {}
+    vertex_pn(const math::vec3f& pos, const math::vec3f& norm) noexcept
+        : position{ pos }
+        , normal{ norm }
+    {
+    }
 
-  static const char* name() noexcept { return "vertex_pn"; }
+    static const char* name() noexcept { return "vertex_pn"; }
 
-  ///< Position in space.
-  math::vec3f position;
+    ///< Position in space.
+    math::vec3f position;
 
-  ///< Normal at vertex.
-  math::vec3f normal;
+    ///< Normal at vertex.
+    math::vec3f normal;
 };
 
-template <>
-struct vertex_format_traits<xray::rendering::vertex_format::pn> {
-  using vertex_type = xray::rendering::vertex_pn;
-  static constexpr size_t   bytes_size{sizeof(vertex_pn)};
-  static constexpr uint32_t components{2};
+template<>
+struct vertex_format_traits<xray::rendering::vertex_format::pn>
+{
+    using vertex_type = xray::rendering::vertex_pn;
+    static constexpr size_t bytes_size{ sizeof(vertex_pn) };
+    static constexpr uint32_t components{ 2 };
 
-  static const vertex_format_entry_desc* description() {
-    static constexpr vertex_format_entry_desc vdesc[] = {
-        {3, component_type::float_, XR_U32_OFFSETOF(vertex_pn, position)},
-        {3, component_type::float_, XR_U32_OFFSETOF(vertex_pn, normal)}};
+    static const vertex_format_entry_desc* description()
+    {
+        static constexpr vertex_format_entry_desc vdesc[] = {
+            { 3, component_type::float_, XR_U32_OFFSETOF(vertex_pn, position) },
+            { 3, component_type::float_, XR_U32_OFFSETOF(vertex_pn, normal) }
+        };
 
-    return vdesc;
-  }
+        return vdesc;
+    }
 };
 
 /// @}

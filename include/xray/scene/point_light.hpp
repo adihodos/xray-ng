@@ -28,26 +28,27 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace scene {
 
 /// \brief  A point light source.
-struct alignas(16) point_light {
-  ///< Ambient component.
-  xray::rendering::rgb_color ka;
+struct alignas(16) point_light
+{
+    ///< Ambient component.
+    xray::rendering::rgb_color ka;
 
-  ///< Diffuse component.
-  xray::rendering::rgb_color kd;
+    ///< Diffuse component.
+    xray::rendering::rgb_color kd;
 
-  ///< Specular component.
-  xray::rendering::rgb_color ks;
+    ///< Specular component.
+    xray::rendering::rgb_color ks;
 
-  ///< Light position.
-  xray::math::vec3f position;
+    ///< Light position.
+    xray::math::vec3f position;
 };
 
 } // namespace scene

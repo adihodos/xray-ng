@@ -37,27 +37,25 @@
 
 namespace app {
 
-struct model_load_info {
-  std::string name;
-  std::string path;
+struct model_load_info
+{
+    std::string name;
+    std::string path;
 };
 
-class mesh_lister {
-public:
-  void build_list(const std::string& root_path) {
-    build_list(root_path.c_str());
-  }
+class mesh_lister
+{
+  public:
+    void build_list(const std::string& root_path) { build_list(root_path.c_str()); }
 
-  void build_list(const char* root_path);
+    void build_list(const char* root_path);
 
-  const std::vector<model_load_info>& mesh_list() const noexcept {
-    return _mesh_list;
-  }
+    const std::vector<model_load_info>& mesh_list() const noexcept { return _mesh_list; }
 
-private:
-  void build_list_impl(const char* root_path);
+  private:
+    void build_list_impl(const char* root_path);
 
-  std::vector<model_load_info> _mesh_list;
+    std::vector<model_load_info> _mesh_list;
 };
 
 } // namespace app

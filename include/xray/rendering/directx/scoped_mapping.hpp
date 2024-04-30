@@ -40,28 +40,30 @@ namespace rendering {
 /// \addtogroup __GroupXrayRendering_Directx
 /// @{
 
-struct scoped_resource_mapping {
-public:
-  scoped_resource_mapping(ID3D11DeviceContext* dc, ID3D11Resource* res,
-                          const D3D11_MAP map_type,
-                          const uint32_t  subres_idx = 0);
+struct scoped_resource_mapping
+{
+  public:
+    scoped_resource_mapping(ID3D11DeviceContext* dc,
+                            ID3D11Resource* res,
+                            const D3D11_MAP map_type,
+                            const uint32_t subres_idx = 0);
 
-  ~scoped_resource_mapping();
+    ~scoped_resource_mapping();
 
-  void* memory() noexcept { return _mapping.pData; }
+    void* memory() noexcept { return _mapping.pData; }
 
-  const void* memory() const noexcept { return _mapping.pData; }
+    const void* memory() const noexcept { return _mapping.pData; }
 
-  explicit operator bool() const noexcept { return _mapping.pData != nullptr; }
+    explicit operator bool() const noexcept { return _mapping.pData != nullptr; }
 
-private:
-  ID3D11DeviceContext*     _devctx;
-  ID3D11Resource*          _resource;
-  uint32_t                 _subresource{};
-  D3D11_MAPPED_SUBRESOURCE _mapping{nullptr, 0, 0};
+  private:
+    ID3D11DeviceContext* _devctx;
+    ID3D11Resource* _resource;
+    uint32_t _subresource{};
+    D3D11_MAPPED_SUBRESOURCE _mapping{ nullptr, 0, 0 };
 
-private:
-  XRAY_NO_COPY(scoped_resource_mapping);
+  private:
+    XRAY_NO_COPY(scoped_resource_mapping);
 };
 
 /// @}

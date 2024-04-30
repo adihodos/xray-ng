@@ -30,10 +30,10 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/unique_handle.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/render_stage.hpp"
+#include "xray/xray.hpp"
 #include <cstring>
 #include <opengl/opengl.hpp>
 #include <utility>
@@ -41,89 +41,92 @@
 namespace xray {
 namespace rendering {
 
-struct gpu_program_pipeline_handle {
-  using handle_type = GLuint;
+struct gpu_program_pipeline_handle
+{
+    using handle_type = GLuint;
 
-  static bool is_null(const handle_type handle) noexcept { return handle == 0; }
+    static bool is_null(const handle_type handle) noexcept { return handle == 0; }
 
-  static void destroy(const handle_type handle) noexcept {
-    if (!is_null(handle))
-      gl::DeleteProgramPipelines(1, &handle);
-  }
+    static void destroy(const handle_type handle) noexcept
+    {
+        if (!is_null(handle))
+            gl::DeleteProgramPipelines(1, &handle);
+    }
 
-  static handle_type null() noexcept { return 0; }
+    static handle_type null() noexcept { return 0; }
 };
 
-using scoped_program_pipeline_handle =
-  xray::base::unique_handle<gpu_program_pipeline_handle>;
+using scoped_program_pipeline_handle = xray::base::unique_handle<gpu_program_pipeline_handle>;
 
-class program_pipeline {
-public:
-  program_pipeline() noexcept { memset(_programs, 0, sizeof(_programs)); }
+class program_pipeline
+{
+  public:
+    program_pipeline() noexcept { memset(_programs, 0, sizeof(_programs)); }
 
-  explicit program_pipeline(const GLuint existing_handle) noexcept
-    : _pipeline{existing_handle} {
-    memset(_programs, 0, sizeof(_programs));
-  }
+    explicit program_pipeline(const GLuint existing_handle) noexcept
+        : _pipeline{ existing_handle }
+    {
+        memset(_programs, 0, sizeof(_programs));
+    }
 
-  program_pipeline(program_pipeline&& rval) noexcept
-    : _pipeline{std::move(rval._pipeline)} {
-    memcpy(_programs, rval._programs, sizeof(_programs));
-  }
+    program_pipeline(program_pipeline&& rval) noexcept
+        : _pipeline{ std::move(rval._pipeline) }
+    {
+        memcpy(_programs, rval._programs, sizeof(_programs));
+    }
 
-  program_pipeline& operator=(program_pipeline&& rval) noexcept {
-    _pipeline = std::move(rval._pipeline);
-    memcpy(_programs, rval._programs, sizeof(_programs));
-    return *this;
-  }
+    program_pipeline& operator=(program_pipeline&& rval) noexcept
+    {
+        _pipeline = std::move(rval._pipeline);
+        memcpy(_programs, rval._programs, sizeof(_programs));
+        return *this;
+    }
 
-  program_pipeline& use_vertex_program(vertex_program& vertex_prg) noexcept {
-    return use_stage(
-      vertex_prg, render_stage::e::vertex, gl::VERTEX_SHADER_BIT);
-  }
+    program_pipeline& use_vertex_program(vertex_program& vertex_prg) noexcept
+    {
+        return use_stage(vertex_prg, render_stage::e::vertex, gl::VERTEX_SHADER_BIT);
+    }
 
-  program_pipeline& use_fragment_program(fragment_program& frag_prg) noexcept {
-    return use_stage(
-      frag_prg, render_stage::e::fragment, gl::FRAGMENT_SHADER_BIT);
-  }
+    program_pipeline& use_fragment_program(fragment_program& frag_prg) noexcept
+    {
+        return use_stage(frag_prg, render_stage::e::fragment, gl::FRAGMENT_SHADER_BIT);
+    }
 
-  program_pipeline&
-  use_geometry_program(geometry_program& geometry_prg) noexcept {
-    return use_stage(
-      geometry_prg, render_stage::e::geometry, gl::GEOMETRY_SHADER_BIT);
-  }
+    program_pipeline& use_geometry_program(geometry_program& geometry_prg) noexcept
+    {
+        return use_stage(geometry_prg, render_stage::e::geometry, gl::GEOMETRY_SHADER_BIT);
+    }
 
-  program_pipeline& disable_stage(const render_stage::e stage) noexcept {
-    static constexpr GLbitfield STAGE_TO_BITFIELD[] = {
-      gl::VERTEX_SHADER_BIT,
-      gl::TESS_CONTROL_SHADER_BIT,
-      gl::TESS_EVALUATION_SHADER_BIT,
-      gl::GEOMETRY_SHADER_BIT,
-      gl::FRAGMENT_SHADER_BIT};
+    program_pipeline& disable_stage(const render_stage::e stage) noexcept
+    {
+        static constexpr GLbitfield STAGE_TO_BITFIELD[] = { gl::VERTEX_SHADER_BIT,
+                                                            gl::TESS_CONTROL_SHADER_BIT,
+                                                            gl::TESS_EVALUATION_SHADER_BIT,
+                                                            gl::GEOMETRY_SHADER_BIT,
+                                                            gl::FRAGMENT_SHADER_BIT };
 
-    gl::UseProgramStages(base::raw_handle(_pipeline),
-                         STAGE_TO_BITFIELD[render_stage::to_integer(stage)],
-                         0);
+        gl::UseProgramStages(base::raw_handle(_pipeline), STAGE_TO_BITFIELD[render_stage::to_integer(stage)], 0);
 
-    _programs[render_stage::to_integer(stage)] = nullptr;
-    return *this;
-  }
+        _programs[render_stage::to_integer(stage)] = nullptr;
+        return *this;
+    }
 
-  void use(const bool flushProgramUniforms = true);
+    void use(const bool flushProgramUniforms = true);
 
-private:
-  program_pipeline& use_stage(detail::gpu_program_base& prg,
-                              const render_stage::e     stage,
-                              const GLbitfield          gl_stage) noexcept {
-    gl::UseProgramStages(base::raw_handle(_pipeline), gl_stage, prg.handle());
-    _programs[render_stage::to_integer(stage)] = &prg;
-    return *this;
-  }
+  private:
+    program_pipeline& use_stage(detail::gpu_program_base& prg,
+                                const render_stage::e stage,
+                                const GLbitfield gl_stage) noexcept
+    {
+        gl::UseProgramStages(base::raw_handle(_pipeline), gl_stage, prg.handle());
+        _programs[render_stage::to_integer(stage)] = &prg;
+        return *this;
+    }
 
-  scoped_program_pipeline_handle _pipeline;
-  detail::gpu_program_base*      _programs[render_stage::size];
+    scoped_program_pipeline_handle _pipeline;
+    detail::gpu_program_base* _programs[render_stage::size];
 
-  XRAY_NO_COPY(program_pipeline);
+    XRAY_NO_COPY(program_pipeline);
 };
 
 } // namespace rendering

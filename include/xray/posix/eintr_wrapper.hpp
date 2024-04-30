@@ -43,12 +43,12 @@
 ///  }
 /// \code
 #ifndef HANDLE_SYSCALL_EINTR
-#define HANDLE_SYSCALL_EINTR(syscall_and_args) \
-    ({                                                                      \
-      decltype(syscall_and_args) r__eintr_result__;                         \
-      do {                                                                  \
-        r__eintr_result__ = (syscall_and_args);                             \
-      } while ((r__eintr_result__) == -1 && (errno == EINTR));              \
-      r__eintr_result__;                                                    \
+#define HANDLE_SYSCALL_EINTR(syscall_and_args)                                                                         \
+    ({                                                                                                                 \
+        decltype(syscall_and_args) r__eintr_result__;                                                                  \
+        do {                                                                                                           \
+            r__eintr_result__ = (syscall_and_args);                                                                    \
+        } while ((r__eintr_result__) == -1 && (errno == EINTR));                                                       \
+        r__eintr_result__;                                                                                             \
     })
 #endif

@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace math {
@@ -46,54 +46,61 @@ namespace math {
  * 			constant D, any point P(X, Y, Z) in the plane verifies the equation
  * 			aX + bY + cZ + D = 0.
  */
-template <typename T>
-class plane {
-public:
-  plane() noexcept = default;
+template<typename T>
+class plane
+{
+  public:
+    plane() noexcept = default;
 
-  /**
-   * @brief Construct from normal and offset.
-   */
-  constexpr plane(const scalar3<T>& n, const T off) noexcept
-    : normal{n}, offset(off) {}
+    /**
+     * @brief Construct from normal and offset.
+     */
+    constexpr plane(const scalar3<T>& n, const T off) noexcept
+        : normal{ n }
+        , offset(off)
+    {
+    }
 
-  /**
-   * \brief   Construct with an origin point and a specified normal vector.
-   * \param   normal  The plane's normal. Must be a vector3 object
-   * 					of unit length.
-   * \param   origin  The origin point of the plane.
-   */
-  constexpr plane(const scalar3<T>& n, const scalar3<T>& origin) noexcept
-    : normal{normal}, offset{-dot(n, origin)} {}
+    /**
+     * \brief   Construct with an origin point and a specified normal vector.
+     * \param   normal  The plane's normal. Must be a vector3 object
+     * 					of unit length.
+     * \param   origin  The origin point of the plane.
+     */
+    constexpr plane(const scalar3<T>& n, const scalar3<T>& origin) noexcept
+        : normal{ normal }
+        , offset{ -dot(n, origin) }
+    {
+    }
 
-  /**
-   * \brief   Makes a plane from three non-collinear points.
-   * \param   p0  First point.
-   * \param   p1  Second point.
-   * \param   p2  Third point.
-   */
-  static plane<T> from_points(const scalar3<T>& p0,
-                              const scalar3<T>& p1,
-                              const scalar3<T>& p2) noexcept {
-    return {normalize(cross(p1 - p0, p2 - p0)), p0};
-  }
+    /**
+     * \brief   Makes a plane from three non-collinear points.
+     * \param   p0  First point.
+     * \param   p1  Second point.
+     * \param   p2  Third point.
+     */
+    static plane<T> from_points(const scalar3<T>& p0, const scalar3<T>& p1, const scalar3<T>& p2) noexcept
+    {
+        return { normalize(cross(p1 - p0, p2 - p0)), p0 };
+    }
 
-  /**
-   * \brief     Makes a plane that is parallel with two direction vectors and
-   *            has the specified point as its origin. The direction vectors
-   *            must not be parallel.
-   * \param   d0      The first direction vector.
-   * \param   d1      The second direction vector.
-   * \param   origin  The origin point.
-   */
-  static plane<T> from_directions_and_point(const scalar3<T>& d0,
-                                            const scalar3<T>& d1,
-                                            const scalar3<T>& origin) noexcept {
-    return {normalize(cross(d0, d1)), origin};
-  }
+    /**
+     * \brief     Makes a plane that is parallel with two direction vectors and
+     *            has the specified point as its origin. The direction vectors
+     *            must not be parallel.
+     * \param   d0      The first direction vector.
+     * \param   d1      The second direction vector.
+     * \param   origin  The origin point.
+     */
+    static plane<T> from_directions_and_point(const scalar3<T>& d0,
+                                              const scalar3<T>& d1,
+                                              const scalar3<T>& origin) noexcept
+    {
+        return { normalize(cross(d0, d1)), origin };
+    }
 
-  scalar3<T> normal;
-  T          offset;
+    scalar3<T> normal;
+    T offset;
 };
 
 using planef32 = plane<float>;
@@ -103,9 +110,11 @@ using planef64 = plane<double>;
 /// If the result is positive, the point is on the same side as the plane's
 /// normal vector. If negative, the point is on the opposite side. When equal to
 /// zero, the point is on the plane itself.
-template <typename T>
-inline T signed_distance(const scalar3<T>& p, const plane<T>& plane) noexcept {
-  return dot(plane.normal, p) + plane.offset;
+template<typename T>
+inline T
+signed_distance(const scalar3<T>& p, const plane<T>& plane) noexcept
+{
+    return dot(plane.normal, p) + plane.offset;
 }
 
 /// @}

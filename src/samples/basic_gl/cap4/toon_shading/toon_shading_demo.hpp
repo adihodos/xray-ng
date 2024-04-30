@@ -39,37 +39,37 @@
 
 namespace app {
 
-class toon_shading_demo {
-public:
-  toon_shading_demo();
-  ~toon_shading_demo();
+class toon_shading_demo
+{
+  public:
+    toon_shading_demo();
+    ~toon_shading_demo();
 
-  void draw(const xray::rendering::draw_context_t &dc) noexcept;
-  void update(const float delta_ms) noexcept;
-  void key_event(const int32_t key_code, const int32_t action,
-                 const int32_t mods) noexcept;
+    void draw(const xray::rendering::draw_context_t& dc) noexcept;
+    void update(const float delta_ms) noexcept;
+    void key_event(const int32_t key_code, const int32_t action, const int32_t mods) noexcept;
 
-  bool valid() const noexcept { return _valid; }
+    bool valid() const noexcept { return _valid; }
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  static const uint32_t NUM_LIGHTS = 1;
+  private:
+    static const uint32_t NUM_LIGHTS = 1;
 
-  void init();
+    void init();
 
-private:
-  xray::rendering::scoped_buffer _vertex_buffer;
-  xray::rendering::scoped_buffer _index_buffer;
-  xray::rendering::scoped_vertex_array _vertex_array_obj;
-  xray::rendering::gpu_program _draw_prog;
-  light_source3 _lights[NUM_LIGHTS];
-  uint32_t _mesh_index_cnt{};
-  bool _valid{};
-  float _light_angle{};
+  private:
+    xray::rendering::scoped_buffer _vertex_buffer;
+    xray::rendering::scoped_buffer _index_buffer;
+    xray::rendering::scoped_vertex_array _vertex_array_obj;
+    xray::rendering::gpu_program _draw_prog;
+    light_source3 _lights[NUM_LIGHTS];
+    uint32_t _mesh_index_cnt{};
+    bool _valid{};
+    float _light_angle{};
 
-private:
-  XRAY_NO_COPY(toon_shading_demo);
+  private:
+    XRAY_NO_COPY(toon_shading_demo);
 };
 
 } // namespace app

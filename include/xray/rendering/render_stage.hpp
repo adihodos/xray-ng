@@ -39,50 +39,53 @@
 namespace xray {
 namespace rendering {
 
-struct render_stage {
-private:
-  render_stage()  = delete;
-  ~render_stage() = delete;
+struct render_stage
+{
+  private:
+    render_stage() = delete;
+    ~render_stage() = delete;
 
-public:
-  enum class e { vertex, tess_control, tess_eval, geometry, fragment, compute };
+  public:
+    enum class e
+    {
+        vertex,
+        tess_control,
+        tess_eval,
+        geometry,
+        fragment,
+        compute
+    };
 
-  using underlying_type = std::underlying_type<render_stage::e>::type;
+    using underlying_type = std::underlying_type<render_stage::e>::type;
 
-  static const char* qualified_name(const render_stage::e member) noexcept;
-  static const char* name(const render_stage::e member) noexcept;
+    static const char* qualified_name(const render_stage::e member) noexcept;
+    static const char* name(const render_stage::e member) noexcept;
 
-  static const char* class_name() noexcept { return "render_stage::e"; }
+    static const char* class_name() noexcept { return "render_stage::e"; }
 
-  static underlying_type to_integer(const render_stage::e member) noexcept {
-    return static_cast<underlying_type>(member);
-  }
+    static underlying_type to_integer(const render_stage::e member) noexcept
+    {
+        return static_cast<underlying_type>(member);
+    }
 
-  static render_stage::e from_integer(const underlying_type ival) noexcept {
-    return static_cast<render_stage::e>(ival);
-  }
+    static render_stage::e from_integer(const underlying_type ival) noexcept
+    {
+        return static_cast<render_stage::e>(ival);
+    }
 
-  using const_iterator         = const e*;
-  using reverse_const_iterator = std::reverse_iterator<const_iterator>;
+    using const_iterator = const e*;
+    using reverse_const_iterator = std::reverse_iterator<const_iterator>;
 
-  static constexpr size_t size = 6u;
-  static const_iterator   cbegin() noexcept { return &_member_entries[0]; }
-  static const_iterator   cend() noexcept { return &_member_entries[6]; }
-  static reverse_const_iterator crbegin() noexcept {
-    return reverse_const_iterator(cend());
-  }
-  static reverse_const_iterator crend() noexcept {
-    return reverse_const_iterator(cbegin());
-  }
-  static bool is_defined(const render_stage::e val) noexcept;
+    static constexpr size_t size = 6u;
+    static const_iterator cbegin() noexcept { return &_member_entries[0]; }
+    static const_iterator cend() noexcept { return &_member_entries[6]; }
+    static reverse_const_iterator crbegin() noexcept { return reverse_const_iterator(cend()); }
+    static reverse_const_iterator crend() noexcept { return reverse_const_iterator(cbegin()); }
+    static bool is_defined(const render_stage::e val) noexcept;
 
-private:
-  static constexpr const e _member_entries[] = {e::vertex,
-                                                e::tess_control,
-                                                e::tess_eval,
-                                                e::geometry,
-                                                e::fragment,
-                                                e::compute};
+  private:
+    static constexpr const e _member_entries[] = { e::vertex,   e::tess_control, e::tess_eval,
+                                                   e::geometry, e::fragment,     e::compute };
 };
 
 } // namespace rendering

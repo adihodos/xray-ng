@@ -39,22 +39,22 @@ namespace math {
 /// \addtogroup __GroupXrayMath_Utility
 /// @{
 
-template <typename scalar_type>
+template<typename scalar_type>
 constexpr scalar_type epsilon = scalar_type(1.0e-6);
 
-template <typename scalar_type>
+template<typename scalar_type>
 constexpr scalar_type pi = scalar_type(3.14159265);
 
-template <typename scalar_type>
+template<typename scalar_type>
 constexpr scalar_type two_pi = scalar_type(6.2831853);
 
-template <typename scalar_type>
+template<typename scalar_type>
 constexpr scalar_type half_pi = scalar_type(1.5707963);
 
-template <typename scalar_type>
+template<typename scalar_type>
 constexpr scalar_type pi_over_180 = scalar_type(0.0174532925);
 
-template <typename scalar_type>
+template<typename scalar_type>
 constexpr scalar_type one_eighty_over_pi = scalar_type(57.29577957);
 
 /// @}

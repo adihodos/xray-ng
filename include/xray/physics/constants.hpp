@@ -37,10 +37,10 @@ namespace physics {
 /// \addtogroup __GroupXrayPhysics
 /// @{
 
-template <typename T>
+template<typename T>
 constexpr T gravity_acceleration = T(-9.8);
 
-template <typename T>
+template<typename T>
 constexpr T air_density = T(1.23);
 
 /// @}

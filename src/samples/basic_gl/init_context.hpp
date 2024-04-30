@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/fast_delegate.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace xray {
@@ -44,12 +44,13 @@ class user_interface;
 
 namespace app {
 
-struct init_context_t {
-  int32_t                           surface_width;
-  int32_t                           surface_height;
-  xray::base::app_config*           cfg;
-  xray::ui::user_interface*         ui;
-  xray::base::fast_delegate<void()> quit_receiver;
+struct init_context_t
+{
+    int32_t surface_width;
+    int32_t surface_height;
+    xray::base::app_config* cfg;
+    xray::ui::user_interface* ui;
+    xray::base::fast_delegate<void()> quit_receiver;
 };
 
 } // namespace app

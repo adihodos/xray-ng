@@ -30,8 +30,8 @@
 
 /// \file gpu_shader.hpp
 
-#include "xray/xray.hpp"
 #include "xray/base/windows/com_ptr.hpp"
+#include "xray/xray.hpp"
 #include <d3d11.h>
 
 namespace xray {
@@ -40,101 +40,97 @@ namespace rendering {
 /// \addtogroup __GroupXrayRendering_Directx
 /// @{
 
-class scoped_rasterizer_state {
-public:
-  explicit scoped_rasterizer_state(ID3D11DeviceContext*   context,
-                                   ID3D11RasterizerState* new_state) noexcept
-    : _context{context} {
-    context->RSGetState(&_old_state);
-    context->RSSetState(new_state);
-  }
+class scoped_rasterizer_state
+{
+  public:
+    explicit scoped_rasterizer_state(ID3D11DeviceContext* context, ID3D11RasterizerState* new_state) noexcept
+        : _context{ context }
+    {
+        context->RSGetState(&_old_state);
+        context->RSSetState(new_state);
+    }
 
-  ~scoped_rasterizer_state() noexcept { _context->RSSetState(_old_state); }
+    ~scoped_rasterizer_state() noexcept { _context->RSSetState(_old_state); }
 
-private:
-  ID3D11DeviceContext*   _context{};
-  ID3D11RasterizerState* _old_state{};
+  private:
+    ID3D11DeviceContext* _context{};
+    ID3D11RasterizerState* _old_state{};
 
-private:
-  XRAY_NO_COPY(scoped_rasterizer_state);
+  private:
+    XRAY_NO_COPY(scoped_rasterizer_state);
 };
 
-class scoped_blend_state {
-public:
-  explicit scoped_blend_state(ID3D11DeviceContext* context,
-                              ID3D11BlendState*    new_state,
-                              const float*         blend_factors,
-                              const uint32_t       sample_mask) noexcept;
+class scoped_blend_state
+{
+  public:
+    explicit scoped_blend_state(ID3D11DeviceContext* context,
+                                ID3D11BlendState* new_state,
+                                const float* blend_factors,
+                                const uint32_t sample_mask) noexcept;
 
-  ~scoped_blend_state() noexcept {
-    _context->OMSetBlendState(_saved_state, _blend_factors, _mask);
-  }
+    ~scoped_blend_state() noexcept { _context->OMSetBlendState(_saved_state, _blend_factors, _mask); }
 
-private:
-  ID3D11DeviceContext* _context;
-  ID3D11BlendState*    _saved_state;
-  float                _blend_factors[4];
-  uint32_t             _mask;
+  private:
+    ID3D11DeviceContext* _context;
+    ID3D11BlendState* _saved_state;
+    float _blend_factors[4];
+    uint32_t _mask;
 
-private:
-  XRAY_NO_COPY(scoped_blend_state);
+  private:
+    XRAY_NO_COPY(scoped_blend_state);
 };
 
-class scoped_depth_stencil_state {
-public:
-  explicit scoped_depth_stencil_state(ID3D11DeviceContext*     context,
-                                      ID3D11DepthStencilState* new_state,
-                                      const uint32_t stencil_ref) noexcept;
+class scoped_depth_stencil_state
+{
+  public:
+    explicit scoped_depth_stencil_state(ID3D11DeviceContext* context,
+                                        ID3D11DepthStencilState* new_state,
+                                        const uint32_t stencil_ref) noexcept;
 
-  ~scoped_depth_stencil_state() noexcept {
-    _context->OMSetDepthStencilState(_saved_state, _saved_stencil_ref);
-  }
+    ~scoped_depth_stencil_state() noexcept { _context->OMSetDepthStencilState(_saved_state, _saved_stencil_ref); }
 
-private:
-  ID3D11DeviceContext*     _context;
-  ID3D11DepthStencilState* _saved_state{};
-  uint32_t                 _saved_stencil_ref{};
+  private:
+    ID3D11DeviceContext* _context;
+    ID3D11DepthStencilState* _saved_state{};
+    uint32_t _saved_stencil_ref{};
 
-private:
-  XRAY_NO_COPY(scoped_depth_stencil_state);
+  private:
+    XRAY_NO_COPY(scoped_depth_stencil_state);
 };
 
-class scoped_viewport {
-public:
-  scoped_viewport(ID3D11DeviceContext*  context,
-                  const D3D11_VIEWPORT* viewports,
-                  const size_t          num_viewports) noexcept;
+class scoped_viewport
+{
+  public:
+    scoped_viewport(ID3D11DeviceContext* context, const D3D11_VIEWPORT* viewports, const size_t num_viewports) noexcept;
 
-  ~scoped_viewport() noexcept;
+    ~scoped_viewport() noexcept;
 
-private:
-  ID3D11DeviceContext* _context;
-  D3D11_VIEWPORT
-  _saved_viewport[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
-  uint32_t _viewport_count{
-    D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE};
+  private:
+    ID3D11DeviceContext* _context;
+    D3D11_VIEWPORT
+    _saved_viewport[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    uint32_t _viewport_count{ D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE };
 
-private:
-  XRAY_NO_COPY(scoped_viewport);
+  private:
+    XRAY_NO_COPY(scoped_viewport);
 };
 
-class scoped_scissor_rects {
-public:
-  scoped_scissor_rects(ID3D11DeviceContext* context,
-                       const D3D11_RECT*    scissor_rects,
-                       const size_t         num_rects) noexcept;
+class scoped_scissor_rects
+{
+  public:
+    scoped_scissor_rects(ID3D11DeviceContext* context,
+                         const D3D11_RECT* scissor_rects,
+                         const size_t num_rects) noexcept;
 
-  ~scoped_scissor_rects() noexcept;
+    ~scoped_scissor_rects() noexcept;
 
-private:
-  ID3D11DeviceContext* _context;
-  D3D11_RECT           _saved_scissor_rects
-    [D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
-  uint32_t _scissors_count{
-    D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE};
+  private:
+    ID3D11DeviceContext* _context;
+    D3D11_RECT _saved_scissor_rects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    uint32_t _scissors_count{ D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE };
 
-private:
-  XRAY_NO_COPY(scoped_scissor_rects);
+  private:
+    XRAY_NO_COPY(scoped_scissor_rects);
 };
 
 /// @}

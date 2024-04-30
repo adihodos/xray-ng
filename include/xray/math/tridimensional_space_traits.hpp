@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/space_traits.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace xray {
@@ -39,11 +39,12 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-template <typename T>
-struct space_traits<3, T> {
-  static constexpr uint32_t rank = 3;
-  using point_type               = scalar3<T>;
-  using vector_type              = scalar3<T>;
+template<typename T>
+struct space_traits<3, T>
+{
+    static constexpr uint32_t rank = 3;
+    using point_type = scalar3<T>;
+    using vector_type = scalar3<T>;
 };
 
 /// @}

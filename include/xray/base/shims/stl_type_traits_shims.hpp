@@ -40,19 +40,19 @@ namespace base {
 /// \addtogroup __GroupXrayBase
 /// @{
 
-template <bool C, typename T, typename U>
+template<bool C, typename T, typename U>
 using std_conditional = typename std::conditional<C, T, U>::type;
 
-template <typename T>
+template<typename T>
 constexpr bool std_is_arithmetic = std::is_arithmetic<T>::value;
 
-template <typename T>
+template<typename T>
 constexpr bool std_is_integral = std::is_integral<T>::value;
 
-template <typename T>
+template<typename T>
 constexpr bool std_is_floating_point = std::is_floating_point<T>::value;
 
-template <typename T>
+template<typename T>
 constexpr bool std_is_pod = std::is_pod<T>::value;
 
 /// @}

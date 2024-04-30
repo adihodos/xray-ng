@@ -42,10 +42,19 @@ using namespace std;
 // }
 
 app::demo_base::demo_base(const init_context_t& init_ctx)
-  : _quit_receiver{init_ctx.quit_receiver}, _ui{init_ctx.ui} {}
+    : _quit_receiver{ init_ctx.quit_receiver }
+    , _ui{ init_ctx.ui }
+{
+}
 
 app::demo_base::~demo_base() {}
 
-void app::demo_base::poll_start(const xray::ui::poll_start_event&) {}
+void
+app::demo_base::poll_start(const xray::ui::poll_start_event&)
+{
+}
 
-void app::demo_base::poll_end(const xray::ui::poll_end_event&) {}
+void
+app::demo_base::poll_end(const xray::ui::poll_end_event&)
+{
+}

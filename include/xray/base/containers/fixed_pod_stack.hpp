@@ -33,103 +33,98 @@
 #include <iterator>
 #include <type_traits>
 
-#include "xray/xray.hpp"
 #include "xray/base/containers/fixed_pod_vector.hpp"
+#include "xray/xray.hpp"
 
-namespace xray { 
+namespace xray {
 namespace base {
 
 ///
 /// \brief Adaptor class, similar to std::stack, for fixed size POD containers.
-/// The underlying container must support the back(), push_back() and pop_back() 
+/// The underlying container must support the back(), push_back() and pop_back()
 /// operations.
-template<
-    typename T,
-    size_t k_max_size = 64U,
-    typename container = fixed_pod_vector<T, k_max_size>
-> class fixed_pod_stack {
+template<typename T, size_t k_max_size = 64U, typename container = fixed_pod_vector<T, k_max_size>>
+class fixed_pod_stack
+{
 
-/// \name Defined types.
-/// @{
+    /// \name Defined types.
+    /// @{
 
-public :
+  public:
+    typedef container container_type;
+    typedef typename container::value_type value_type;
+    typedef typename container::size_type size_type;
+    typedef typename container::reference reference;
+    typedef typename container::const_reference const_reference;
+    typedef fixed_pod_stack<T, k_max_size, container> class_type;
 
-    typedef container                                   container_type;
-    typedef typename container::value_type              value_type;
-    typedef typename container::size_type               size_type;
-    typedef typename container::reference               reference;
-    typedef typename container::const_reference         const_reference;
-    typedef fixed_pod_stack<T, k_max_size, container>   class_type;
+    /// @}
 
-/// @}    
+    /// \name Constructos.
+    /// @{
 
-/// \name Constructos.
-/// @{
-
-public :
-    
+  public:
     static_assert(std::is_pod<T>::value, "POD-only container!");
 
     fixed_pod_stack() noexcept
-        :   backend_{}
-    {}
+        : backend_{}
+    {
+    }
 
     explicit fixed_pod_stack(const container_type& cont) noexcept
-        :   backend_{cont}
-    {}
-
-/// @}
-
-/// \name Attributes.
-/// @{
-
-public :    
-
-    bool empty() const noexcept {
-        return backend_.empty();
+        : backend_{ cont }
+    {
     }
 
-    size_t size() const noexcept {
-        return backend_.size();
-    }
+    /// @}
 
-    reference top() noexcept {
+    /// \name Attributes.
+    /// @{
+
+  public:
+    bool empty() const noexcept { return backend_.empty(); }
+
+    size_t size() const noexcept { return backend_.size(); }
+
+    reference top() noexcept
+    {
         assert(!empty());
         return backend_.back();
     }
 
-    const_reference top() const noexcept {
+    const_reference top() const noexcept
+    {
         assert(!empty());
         return backend_.back();
     }
 
-/// @}    
+    /// @}
 
-/// \name Operations.
-/// @{
+    /// \name Operations.
+    /// @{
 
-public :
-
-    void pop() noexcept {
+  public:
+    void pop() noexcept
+    {
         assert(!empty());
         backend_.pop_back();
     }
 
-    void push(const T& val) noexcept {
+    void push(const T& val) noexcept
+    {
         assert(size() < k_max_size);
         backend_.push_back(val);
     }
 
-/// @}    
+    /// @}
 
-/// \name Data members.
-/// @{
+    /// \name Data members.
+    /// @{
 
-private :
+  private:
+    container backend_;
 
-    container       backend_;    
-
-/// @}    
+    /// @}
 };
 
 } // namespace base

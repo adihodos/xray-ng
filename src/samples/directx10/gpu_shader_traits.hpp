@@ -11,9 +11,14 @@ inline namespace directx10 {
 namespace directx10 {
 #endif
 
-enum class shader_type : uint8_t { vertex, geometry, fragment };
+enum class shader_type : uint8_t
+{
+    vertex,
+    geometry,
+    fragment
+};
 
-template <shader_type st>
+template<shader_type st>
 struct shader_traits;
 
 } // namespace directx10

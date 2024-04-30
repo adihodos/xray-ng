@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/tridimensional_space_traits.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 #include "xray/math/objects/line.hpp"

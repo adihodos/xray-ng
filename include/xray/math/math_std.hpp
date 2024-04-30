@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/constants.hpp"
+#include "xray/xray.hpp"
 #include <cassert>
 #include <cmath>
 
@@ -39,103 +39,130 @@ namespace math {
 /// @{
 
 /// \brief Restrics a value to a certain range.
-template <typename T>
-inline T clamp(const T val, const T min_val, const T max_val) noexcept {
-  return val < min_val ? min_val : (val > max_val ? max_val : val);
+template<typename T>
+inline T
+clamp(const T val, const T min_val, const T max_val) noexcept
+{
+    return val < min_val ? min_val : (val > max_val ? max_val : val);
 }
 
-template <typename T>
-inline T min(const T a, const T b) noexcept {
-  return a < b ? a : b;
+template<typename T>
+inline T
+min(const T a, const T b) noexcept
+{
+    return a < b ? a : b;
 }
 
-template <typename T>
-inline T max(const T a, const T b) noexcept {
-  return a > b ? a : b;
+template<typename T>
+inline T
+max(const T a, const T b) noexcept
+{
+    return a > b ? a : b;
 }
 
 /// \brief Performs a linear interpolation of two values.
 /// \param a Start value.
 /// \param b Final value.
 /// \param u Interpolation factor. Must be in the [0, 1] range;
-template <typename T, typename U>
-inline T mix(const T& a, const T& b, const U u) noexcept {
-  assert((u >= U(0)) && (u <= U(1)) &&
-         "Interpolation factor must be in the [0, 1] range!");
-  return a * (U(1) - u) + b * u;
+template<typename T, typename U>
+inline T
+mix(const T& a, const T& b, const U u) noexcept
+{
+    assert((u >= U(0)) && (u <= U(1)) && "Interpolation factor must be in the [0, 1] range!");
+    return a * (U(1) - u) + b * u;
 }
 
 /// \brief  Returns 1 when x >= a, 0 otherwise.
-template <typename T>
-constexpr inline T step(const T x, const T a) noexcept {
-  return static_cast<T>(x >= a);
+template<typename T>
+constexpr inline T
+step(const T x, const T a) noexcept
+{
+    return static_cast<T>(x >= a);
 }
 
-template <typename T>
-constexpr inline T pulse(const T a, const T b, const T x) noexcept {
-  return step(a, x) - step(b, x);
+template<typename T>
+constexpr inline T
+pulse(const T a, const T b, const T x) noexcept
+{
+    return step(a, x) - step(b, x);
 }
 
-template <typename T>
-inline T smoothstep(const T a, const T b, const T x) noexcept {
-  if (x < a)
-    return T(0);
+template<typename T>
+inline T
+smoothstep(const T a, const T b, const T x) noexcept
+{
+    if (x < a)
+        return T(0);
 
-  if (x >= b)
-    return T(1);
+    if (x >= b)
+        return T(1);
 
-  const auto nx = (x - a) / (b - a);
-  return nx * nx * (T(3) - T(2) * nx);
+    const auto nx = (x - a) / (b - a);
+    return nx * nx * (T(3) - T(2) * nx);
 }
 
-inline float bias(const float b, const float x) noexcept {
-  return pow(x, log(b) / log(0.5f));
+inline float
+bias(const float b, const float x) noexcept
+{
+    return pow(x, log(b) / log(0.5f));
 }
 
-inline float gain(const float g, const float x) noexcept {
-  if (x < 0.5f)
-    return bias(1.0f - g, 2.0f * x) / 2.0f;
+inline float
+gain(const float g, const float x) noexcept
+{
+    if (x < 0.5f)
+        return bias(1.0f - g, 2.0f * x) / 2.0f;
 
-  return 1.0f - bias(1.0f - g, 2.0f - 2.0f * x) / 2.0f;
+    return 1.0f - bias(1.0f - g, 2.0f - 2.0f * x) / 2.0f;
 }
 
 /// \brief Returns the sign of x :
 /// -1, if x < 0,
 /// +1, if x >= 0
-template <typename T>
-inline constexpr T sgn(const T value) noexcept {
-  return (value >= T(0)) - (value < 0);
+template<typename T>
+inline constexpr T
+sgn(const T value) noexcept
+{
+    return (value >= T(0)) - (value < 0);
 }
 
-template <typename T>
-inline constexpr T radians(const T degrees) noexcept {
-  return degrees * pi_over_180<T>;
+template<typename T>
+inline constexpr T
+radians(const T degrees) noexcept
+{
+    return degrees * pi_over_180<T>;
 }
 
-template <typename T>
-inline constexpr T degrees(const T radians) noexcept {
-  return radians * one_eighty_over_pi<T>;
+template<typename T>
+inline constexpr T
+degrees(const T radians) noexcept
+{
+    return radians * one_eighty_over_pi<T>;
 }
 
-template <typename real_t>
-real_t angle_from_xy(const real_t x, const real_t y) noexcept {
-  real_t theta{};
+template<typename real_t>
+real_t
+angle_from_xy(const real_t x, const real_t y) noexcept
+{
+    real_t theta{};
 
-  if (x >= real_t(0)) {
-    theta = atan(y / x);
-    if (theta < real_t(0)) {
-      theta += two_pi<real_t>;
+    if (x >= real_t(0)) {
+        theta = atan(y / x);
+        if (theta < real_t(0)) {
+            theta += two_pi<real_t>;
+        }
+    } else {
+        theta = std::atan(y / x) + pi<real_t>;
     }
-  } else {
-    theta = std::atan(y / x) + pi<real_t>;
-  }
 
-  return theta;
+    return theta;
 }
 
-template <typename T>
-inline T inv_sqrt(const T val) noexcept {
-  return T{1} / sqrt(val);
+template<typename T>
+inline T
+inv_sqrt(const T val) noexcept
+{
+    return T{ 1 } / sqrt(val);
 }
 
 /// @}

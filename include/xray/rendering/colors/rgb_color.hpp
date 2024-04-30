@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
@@ -43,86 +43,101 @@ namespace rendering {
 ///         in individual components having values out of the [0, 1] range, so
 ///         some form of normalization should be used, to correct those
 ///         situations.
-struct rgb_color {
-public:
-  union {
+struct rgb_color
+{
+  public:
+    union
+    {
 
-    struct {
-      float r; ///< Red component intensity
-      float g; ///< Green component intensity
-      float b; ///< Blue component intensity
-      float a; ///< Alpha component (opacity)
+        struct
+        {
+            float r; ///< Red component intensity
+            float g; ///< Green component intensity
+            float b; ///< Blue component intensity
+            float a; ///< Alpha component (opacity)
+        };
+
+        float components[4];
     };
 
-    float components[4];
-  };
+    /// \name Constructors
+    /// @{
 
-  /// \name Constructors
-  /// @{
+  public:
+    rgb_color() noexcept = default;
 
-public:
-  rgb_color() noexcept = default;
+    constexpr rgb_color(const float val) noexcept
+        : rgb_color{ val, val, val, 1.0f }
+    {
+    }
 
-  constexpr rgb_color(const float val) noexcept
-    : rgb_color{val, val, val, 1.0f} {}
+    constexpr rgb_color(const float red, const float green, const float blue, const float alpha = 1.0f) noexcept
+        : r{ red }
+        , g{ green }
+        , b{ blue }
+        , a{ alpha }
+    {
+    }
 
-  constexpr rgb_color(const float red,
-                      const float green,
-                      const float blue,
-                      const float alpha = 1.0f) noexcept
-    : r{red}, g{green}, b{blue}, a{alpha} {}
+    constexpr explicit rgb_color(const math::vec3f v, const float a_ = 1.0f)
+        : r{ v.x }
+        , g{ v.y }
+        , b{ v.z }
+        , a{ a_ }
+    {
+    }
 
-  constexpr explicit rgb_color(const math::vec3f v, const float a_ = 1.0f)
-    : r{v.x}, g{v.y}, b{v.z}, a{a_} {}
+    constexpr explicit rgb_color(const math::vec4f v)
+        : r{ v.x }
+        , g{ v.y }
+        , b{ v.z }
+        , a{ v.w }
 
-  constexpr explicit rgb_color(const math::vec4f v)
-    : r{v.x}
-    , g{v.y}
-    , b{v.z}
-    , a{v.w}
+    {
+    }
 
-  {}
+    /// \name   Conversions
+    /// @{
+    explicit operator math::vec3f() const noexcept { return math::vec3f{ this->r, this->g, this->b }; }
 
-  /// \name   Conversions
-  /// @{
-  explicit operator math::vec3f() const noexcept {
-    return math::vec3f{this->r, this->g, this->b};
-  }
+    explicit operator math::vec4f() const noexcept { return math::vec4f{ this->r, this->g, this->b, this->a }; }
 
-  explicit operator math::vec4f() const noexcept {
-    return math::vec4f{this->r, this->g, this->b, this->a};
-  }
+  public:
+    /// \name   Self assign operators
+    /// @{
 
-public:
-  /// \name   Self assign operators
-  /// @{
+  public:
+    rgb_color& operator+=(const rgb_color& rhs) noexcept;
 
-public:
-  rgb_color& operator+=(const rgb_color& rhs) noexcept;
+    rgb_color& operator-=(const rgb_color& rhs) noexcept;
 
-  rgb_color& operator-=(const rgb_color& rhs) noexcept;
+    rgb_color& operator*=(float const k) noexcept;
 
-  rgb_color& operator*=(float const k) noexcept;
+    /// Performs a componentwise multiplication between the two colors.
+    rgb_color& operator*=(const rgb_color& other) noexcept;
 
-  /// Performs a componentwise multiplication between the two colors.
-  rgb_color& operator*=(const rgb_color& other) noexcept;
+    rgb_color& operator/=(const float scalar) noexcept;
 
-  rgb_color& operator/=(const float scalar) noexcept;
-
-  /// @}
+    /// @}
 };
 
-rgb_color operator+(const rgb_color& lhs, const rgb_color& rhs) noexcept;
+rgb_color
+operator+(const rgb_color& lhs, const rgb_color& rhs) noexcept;
 
-rgb_color operator-(const rgb_color& lhs, const rgb_color& rhs) noexcept;
+rgb_color
+operator-(const rgb_color& lhs, const rgb_color& rhs) noexcept;
 
-rgb_color operator*(const rgb_color& lhs, const rgb_color& rhs) noexcept;
+rgb_color
+operator*(const rgb_color& lhs, const rgb_color& rhs) noexcept;
 
-rgb_color operator*(const rgb_color& lhs, const float k) noexcept;
+rgb_color
+operator*(const rgb_color& lhs, const float k) noexcept;
 
-rgb_color operator*(const float k, const rgb_color& rhs) noexcept;
+rgb_color
+operator*(const float k, const rgb_color& rhs) noexcept;
 
-rgb_color operator/(const rgb_color& lhs, const float scalar) noexcept;
+rgb_color
+operator/(const rgb_color& lhs, const float scalar) noexcept;
 
 } // namespace rendering
 } // namespace xray

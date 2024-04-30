@@ -38,37 +38,37 @@
 
 namespace app {
 
-class directional_light_demo {
-public:
-  directional_light_demo();
+class directional_light_demo
+{
+  public:
+    directional_light_demo();
 
-  ~directional_light_demo();
+    ~directional_light_demo();
 
-  void draw(const xray::rendering::draw_context_t &dc) noexcept;
-  void update(const float delta_ms) noexcept;
-  void key_event(const int32_t key_code, const int32_t action,
-                 const int32_t mods) noexcept;
+    void draw(const xray::rendering::draw_context_t& dc) noexcept;
+    void update(const float delta_ms) noexcept;
+    void key_event(const int32_t key_code, const int32_t action, const int32_t mods) noexcept;
 
-  bool valid() const noexcept { return _valid; }
+    bool valid() const noexcept { return _valid; }
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  static const uint32_t NUM_LIGHTS = 4;
+  private:
+    static const uint32_t NUM_LIGHTS = 4;
 
-  void init();
+    void init();
 
-private:
-  xray::rendering::scoped_buffer _vertex_buffer;
-  xray::rendering::scoped_buffer _index_buffer;
-  xray::rendering::scoped_vertex_array _vertex_array;
-  xray::rendering::gpu_program _draw_program;
-  bool _valid{false};
-  uint32_t _index_count{};
-  directional_light _lights[NUM_LIGHTS];
+  private:
+    xray::rendering::scoped_buffer _vertex_buffer;
+    xray::rendering::scoped_buffer _index_buffer;
+    xray::rendering::scoped_vertex_array _vertex_array;
+    xray::rendering::gpu_program _draw_program;
+    bool _valid{ false };
+    uint32_t _index_count{};
+    directional_light _lights[NUM_LIGHTS];
 
-private:
-  XRAY_NO_COPY(directional_light_demo);
+  private:
+    XRAY_NO_COPY(directional_light_demo);
 };
 
 } // namespace app

@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "light_source.hpp"
 #include "material.hpp"
@@ -37,71 +36,76 @@
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
-enum class shape_type {
-  tetrahedron,
-  hexahedron,
-  octahedron,
-  dodecahedron,
-  icosahedron,
-  sphere,
-  cylinder
+enum class shape_type
+{
+    tetrahedron,
+    hexahedron,
+    octahedron,
+    dodecahedron,
+    icosahedron,
+    sphere,
+    cylinder
 };
 
-struct shape_name_id_tuple {
-  const char* s_name;
-  shape_type  s_type;
+struct shape_name_id_tuple
+{
+    const char* s_name;
+    shape_type s_type;
 };
 
-class textures_demo : public demo_base {
-public:
-  textures_demo();
+class textures_demo : public demo_base
+{
+  public:
+    textures_demo();
 
-  ~textures_demo();
+    ~textures_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
 
-  virtual void update(const float delta_ms) override;
+    virtual void update(const float delta_ms) override;
 
-  virtual void key_event(const int32_t key_code, const int32_t action,
-                         const int32_t mods) override;
+    virtual void key_event(const int32_t key_code, const int32_t action, const int32_t mods) override;
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-  void compose_ui();
+    void compose_ui();
 
-private:
-  void init();
-  void update_shape(const uint32_t index);
-  void shape_specific_ui();
+  private:
+    void init();
+    void update_shape(const uint32_t index);
+    void shape_specific_ui();
 
-private:
-  xray::rendering::scoped_buffer       _vertex_buffer;
-  xray::rendering::scoped_buffer       _index_buffer;
-  xray::rendering::scoped_vertex_array _vertex_array;
-  xray::rendering::gpu_program         _draw_prog;
-  xray::rendering::scoped_texture      _texture;
-  xray::rendering::scoped_sampler      _sampler;
-  uint32_t                             _mesh_index_count{};
-  uint32_t                             _sel_shape_idx{};
-  size_t                               _bytes_vertexbuffer{};
-  size_t                               _bytes_indexbuffer{};
+  private:
+    xray::rendering::scoped_buffer _vertex_buffer;
+    xray::rendering::scoped_buffer _index_buffer;
+    xray::rendering::scoped_vertex_array _vertex_array;
+    xray::rendering::gpu_program _draw_prog;
+    xray::rendering::scoped_texture _texture;
+    xray::rendering::scoped_sampler _sampler;
+    uint32_t _mesh_index_count{};
+    uint32_t _sel_shape_idx{};
+    size_t _bytes_vertexbuffer{};
+    size_t _bytes_indexbuffer{};
 
-  struct cylinder_params_t {
-    int32_t ring_tess_factor{3};
-    int32_t rings{3};
-    float   height{2.0f};
-    float   radius{2.0f};
-  } _cyl_params;
+    struct cylinder_params_t
+    {
+        int32_t ring_tess_factor{ 3 };
+        int32_t rings{ 3 };
+        float height{ 2.0f };
+        float radius{ 2.0f };
+    } _cyl_params;
 
-  struct sphere_params_t {
-    int32_t subdivisions{1};
-    float   radius{1.0f};
-  } _sphere_params;
+    struct sphere_params_t
+    {
+        int32_t subdivisions{ 1 };
+        float radius{ 1.0f };
+    } _sphere_params;
 
-private:
-  XRAY_NO_COPY(textures_demo);
+  private:
+    XRAY_NO_COPY(textures_demo);
 };
 }

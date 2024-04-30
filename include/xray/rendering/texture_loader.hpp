@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/unique_pointer.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 #include <opengl/opengl.hpp>
 #include <string>
@@ -39,61 +39,63 @@ namespace rendering {
 
 namespace detail {
 
-struct stbi_img_deleter {
-  void operator()(uint8_t* mem) const noexcept;
+struct stbi_img_deleter
+{
+    void operator()(uint8_t* mem) const noexcept;
 };
 
 } // namespace detail
 
-enum class texture_load_options : uint32_t {
-  none = 0U,
+enum class texture_load_options : uint32_t
+{
+    none = 0U,
 
-  ///< Flip image vertically on load
-  flip_y = 1U << 0
+    ///< Flip image vertically on load
+    flip_y = 1U << 0
 };
 
-class texture_loader {
-public:
-  texture_loader() = default;
-  ~texture_loader();
+class texture_loader
+{
+  public:
+    texture_loader() = default;
+    ~texture_loader();
 
-  explicit texture_loader(
-    const std::string&         file_path,
-    const texture_load_options load_opts = texture_load_options::none)
-    : texture_loader{file_path.c_str(), load_opts} {}
+    explicit texture_loader(const std::string& file_path,
+                            const texture_load_options load_opts = texture_load_options::none)
+        : texture_loader{ file_path.c_str(), load_opts }
+    {
+    }
 
-  explicit texture_loader(
-    const char*                file_path,
-    const texture_load_options load_opts = texture_load_options::none);
+    explicit texture_loader(const char* file_path, const texture_load_options load_opts = texture_load_options::none);
 
-  texture_loader& operator=(texture_loader&&) = default;
-  texture_loader(texture_loader&&)            = default;
+    texture_loader& operator=(texture_loader&&) = default;
+    texture_loader(texture_loader&&) = default;
 
-public:
-  explicit operator bool() const noexcept { return _texdata != nullptr; }
+  public:
+    explicit operator bool() const noexcept { return _texdata != nullptr; }
 
-  int32_t width() const noexcept { return _x_size; }
+    int32_t width() const noexcept { return _x_size; }
 
-  int32_t height() const noexcept { return _y_size; }
+    int32_t height() const noexcept { return _y_size; }
 
-  int32_t depth() const noexcept { return _levels; }
+    int32_t depth() const noexcept { return _levels; }
 
-  GLenum format() const noexcept;
+    GLenum format() const noexcept;
 
-  GLenum internal_format() const noexcept;
+    GLenum internal_format() const noexcept;
 
-  GLenum pixel_size() const noexcept { return gl::UNSIGNED_BYTE; }
+    GLenum pixel_size() const noexcept { return gl::UNSIGNED_BYTE; }
 
-  const uint8_t* data() const noexcept { return xray::base::raw_ptr(_texdata); }
+    const uint8_t* data() const noexcept { return xray::base::raw_ptr(_texdata); }
 
-private:
-  xray::base::unique_pointer<uint8_t, detail::stbi_img_deleter> _texdata;
-  int32_t                                                       _x_size{};
-  int32_t                                                       _y_size{};
-  int32_t                                                       _levels{};
+  private:
+    xray::base::unique_pointer<uint8_t, detail::stbi_img_deleter> _texdata;
+    int32_t _x_size{};
+    int32_t _y_size{};
+    int32_t _levels{};
 
-private:
-  XRAY_NO_COPY(texture_loader);
+  private:
+    XRAY_NO_COPY(texture_loader);
 };
 
 } // namespace rendering

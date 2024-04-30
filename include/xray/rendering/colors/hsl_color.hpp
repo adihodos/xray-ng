@@ -33,25 +33,30 @@
 namespace xray {
 namespace rendering {
 
-struct hsl_color {
-  union {
+struct hsl_color
+{
+    union
+    {
 
-    struct {
-      float h; //! Hue.
-      float l; //! Lightness.
-      float s; //! Saturation.
-               //!
+        struct
+        {
+            float h; //! Hue.
+            float l; //! Lightness.
+            float s; //! Saturation.
+                     //!
+        };
+
+        float components[3];
     };
 
-    float components[3];
-  };
+    hsl_color() noexcept = default;
 
-  hsl_color() noexcept = default;
-
-  constexpr hsl_color(const float hue, const float lightness,
-                      const float saturation) noexcept : h{hue},
-                                                         l{lightness},
-                                                         s{saturation} {}
+    constexpr hsl_color(const float hue, const float lightness, const float saturation) noexcept
+        : h{ hue }
+        , l{ lightness }
+        , s{ saturation }
+    {
+    }
 };
 
 } // namespace rendering

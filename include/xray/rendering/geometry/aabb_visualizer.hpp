@@ -30,11 +30,11 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/objects/aabb3.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace xray {
@@ -43,29 +43,30 @@ namespace rendering {
 struct draw_context_t;
 struct rgb_color;
 
-class aabb_visualizer {
-public:
-  aabb_visualizer();
+class aabb_visualizer
+{
+  public:
+    aabb_visualizer();
 
-  void draw(const xray::rendering::draw_context_t& ctx,
-            const xray::math::aabb3f&              boundingbox,
-            const xray::rendering::rgb_color&      draw_color,
-            const float                            line_width = 2.0f);
+    void draw(const xray::rendering::draw_context_t& ctx,
+              const xray::math::aabb3f& boundingbox,
+              const xray::rendering::rgb_color& draw_color,
+              const float line_width = 2.0f);
 
-  bool valid() const noexcept { return _valid; }
+    bool valid() const noexcept { return _valid; }
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  xray::rendering::scoped_buffer       _vb;
-  xray::rendering::scoped_vertex_array _vao;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::geometry_program    _gs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
-  bool                                 _valid{false};
+  private:
+    xray::rendering::scoped_buffer _vb;
+    xray::rendering::scoped_vertex_array _vao;
+    xray::rendering::vertex_program _vs;
+    xray::rendering::geometry_program _gs;
+    xray::rendering::fragment_program _fs;
+    xray::rendering::program_pipeline _pipeline;
+    bool _valid{ false };
 
-  XRAY_NO_COPY(aabb_visualizer);
+    XRAY_NO_COPY(aabb_visualizer);
 };
 
 } // namespace rendering

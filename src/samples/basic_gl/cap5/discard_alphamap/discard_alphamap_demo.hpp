@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "light_source.hpp"
 #include "material.hpp"
@@ -37,43 +36,44 @@
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
-class discard_alphamap_demo : public demo_base {
-public:
-  static constexpr uint32_t NUM_LIGHTS{2u};
+class discard_alphamap_demo : public demo_base
+{
+  public:
+    static constexpr uint32_t NUM_LIGHTS{ 2u };
 
-  discard_alphamap_demo();
+    discard_alphamap_demo();
 
-  ~discard_alphamap_demo();
+    ~discard_alphamap_demo();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
 
-  virtual void update(const float delta_ms) override;
+    virtual void update(const float delta_ms) override;
 
-  virtual void key_event(const int32_t key_code, const int32_t action,
-                         const int32_t mods) override;
+    virtual void key_event(const int32_t key_code, const int32_t action, const int32_t mods) override;
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  void init();
+  private:
+    void init();
 
-private:
-  xray::rendering::scoped_buffer       _vertex_buffer;
-  xray::rendering::scoped_buffer       _index_buffer;
-  xray::rendering::scoped_vertex_array _vertex_array;
-  xray::rendering::scoped_texture      _base_texture;
-  xray::rendering::scoped_texture      _discard_map;
-  xray::rendering::scoped_sampler      _sampler;
-  xray::rendering::gpu_program         _draw_program;
-  uint32_t                             _mesh_index_count{};
-  xray::math::vec2f _rotation_xy{xray::math::vec2f::stdc::zero};
-  spotlight         _lights[NUM_LIGHTS];
+  private:
+    xray::rendering::scoped_buffer _vertex_buffer;
+    xray::rendering::scoped_buffer _index_buffer;
+    xray::rendering::scoped_vertex_array _vertex_array;
+    xray::rendering::scoped_texture _base_texture;
+    xray::rendering::scoped_texture _discard_map;
+    xray::rendering::scoped_sampler _sampler;
+    xray::rendering::gpu_program _draw_program;
+    uint32_t _mesh_index_count{};
+    xray::math::vec2f _rotation_xy{ xray::math::vec2f::stdc::zero };
+    spotlight _lights[NUM_LIGHTS];
 
-private:
-  XRAY_NO_COPY(discard_alphamap_demo);
+  private:
+    XRAY_NO_COPY(discard_alphamap_demo);
 };
 
 } // namespace app

@@ -31,9 +31,9 @@
 ///
 /// \file    sphere_math.hpp
 
-#include "xray/xray.hpp"
 #include "xray/math/objects/sphere.hpp"
 #include "xray/math/scalar3_math.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace math {
@@ -47,80 +47,83 @@ namespace math {
 /// \param  last_point  Last point in range.
 /// \param  conversion_fn Function to convert from the input point type
 ///         to the point type used by the sphere.
-template <typename real_type,
-          typename input_point_type,
-          typename input_point_to_sphere_point_convert_fn>
+template<typename real_type, typename input_point_type, typename input_point_to_sphere_point_convert_fn>
 sphere<real_type>
-bounding_sphere(input_point_type                       first_point,
-                input_point_type                       last_point,
-                input_point_to_sphere_point_convert_fn conversion_fn) noexcept {
+bounding_sphere(input_point_type first_point,
+                input_point_type last_point,
+                input_point_to_sphere_point_convert_fn conversion_fn) noexcept
+{
 
-  using sphere_type       = sphere<real_type>;
-  using output_point_type = typename sphere_type::point_type;
+    using sphere_type = sphere<real_type>;
+    using output_point_type = typename sphere_type::point_type;
 
-  //
-  //  Find the average point of all input points.
-  output_point_type median_pt     = output_point_type::stdc::zero;
-  auto              input_pt_iter = first_point;
+    //
+    //  Find the average point of all input points.
+    output_point_type median_pt = output_point_type::stdc::zero;
+    auto input_pt_iter = first_point;
 
-  while (input_pt_iter != last_point) {
-    median_pt += conversion_fn(*input_pt_iter);
-    ++input_pt_iter;
-  }
+    while (input_pt_iter != last_point) {
+        median_pt += conversion_fn(*input_pt_iter);
+        ++input_pt_iter;
+    }
 
-  median_pt /= static_cast<real_type>(last_point - first_point);
+    median_pt /= static_cast<real_type>(last_point - first_point);
 
-  //
-  //  Find the biggest distance to the median point from all the
-  //  input points. This will be the radius of the sphere.
-  real_type squared_dist{};
+    //
+    //  Find the biggest distance to the median point from all the
+    //  input points. This will be the radius of the sphere.
+    real_type squared_dist{};
 
-  while (first_point != last_point) {
-    auto sqr_dist_to_median_point =
-      squared_distance(conversion_fn(*first_point), median_pt);
+    while (first_point != last_point) {
+        auto sqr_dist_to_median_point = squared_distance(conversion_fn(*first_point), median_pt);
 
-    if (sqr_dist_to_median_point > squared_dist)
-      squared_dist = sqr_dist_to_median_point;
+        if (sqr_dist_to_median_point > squared_dist)
+            squared_dist = sqr_dist_to_median_point;
 
-    ++first_point;
-  }
+        ++first_point;
+    }
 
-  return sphere_type{median_pt, std::sqrt(squared_dist)};
+    return sphere_type{ median_pt, std::sqrt(squared_dist) };
 }
 
 /// \brief  Test if point is inside or on the sphere surface.
-template <typename real_type>
-inline bool contains_point(const sphere<real_type>& sph,
-                           const real_type          px,
-                           const real_type          py,
-                           const real_type          pz) noexcept {
-  return squared_distance(
-           sph.center.x, sph.center.y, sph.center.y, px, py, pz) >=
-         sph.squared_radius();
+template<typename real_type>
+inline bool
+contains_point(const sphere<real_type>& sph, const real_type px, const real_type py, const real_type pz) noexcept
+{
+    return squared_distance(sph.center.x, sph.center.y, sph.center.y, px, py, pz) >= sph.squared_radius();
 }
 
 /// \brief  Test if point is inside or on the sphere surface.
-template <typename real_type>
-inline bool contains_point(const sphere<real_type>&  sph,
-                           const scalar3<real_type>& point) noexcept {
-  return contains_point(sph, point.y, point.y, point.z);
+template<typename real_type>
+inline bool
+contains_point(const sphere<real_type>& sph, const scalar3<real_type>& point) noexcept
+{
+    return contains_point(sph, point.y, point.y, point.z);
 }
 
-enum class intersection_type { none, touching, penetrating };
+enum class intersection_type
+{
+    none,
+    touching,
+    penetrating
+};
 
-template <typename T>
-intersection_type intersect(const sphere<T>& s0, const sphere<T>& s1) noexcept {
-  const auto sph_dst = length(s1.center - s0.center);
+template<typename T>
+intersection_type
+intersect(const sphere<T>& s0, const sphere<T>& s1) noexcept
+{
+    const auto sph_dst = length(s1.center - s0.center);
 
-  if (sph_dst > (s0.radius + s1.radius)) {
-    return intersection_type::none;
-  }
+    if (sph_dst > (s0.radius + s1.radius)) {
+        return intersection_type::none;
+    }
 
-  if (sph_dst < (s0.radius + s1.radius)) {
-    return intersection_type::penetrating;
-  }
+    if (sph_dst < (s0.radius + s1.radius)) {
+        return intersection_type::penetrating;
+    }
 
-  return intersection_type::touching;
+    return intersection_type::touching;
 }
 
 /// @}

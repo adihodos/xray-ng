@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "light_source.hpp"
 #include "material.hpp"
@@ -38,65 +37,68 @@
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
+#include "xray/xray.hpp"
 
 namespace app {
 
-class render_texture_demo : public demo_base {
-public:
-  render_texture_demo();
+class render_texture_demo : public demo_base
+{
+  public:
+    render_texture_demo();
 
-  ~render_texture_demo();
+    ~render_texture_demo();
 
-  void compose_ui();
+    void compose_ui();
 
-  virtual void draw(const xray::rendering::draw_context_t&) override;
+    virtual void draw(const xray::rendering::draw_context_t&) override;
 
-  virtual void update(const float delta_ms) override;
+    virtual void update(const float delta_ms) override;
 
-  virtual void key_event(const int32_t key_code, const int32_t action,
-                         const int32_t mods) override;
+    virtual void key_event(const int32_t key_code, const int32_t action, const int32_t mods) override;
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  void init();
+  private:
+    void init();
 
-private:
-  xray::rendering::scoped_texture      _fbo_texture;
-  xray::rendering::scoped_sampler      _fbo_texture_sampler;
-  xray::rendering::scoped_renderbuffer _fbo_depthbuffer;
-  xray::rendering::scoped_framebuffer  _fbo;
-  xray::rendering::scoped_texture      _null_texture;
-  xray::rendering::simple_mesh         _spacecraft_mesh;
-  xray::rendering::simple_mesh         _cube_mesh;
-  xray::rendering::scoped_texture      _spacecraft_material;
-  xray::rendering::gpu_program         _drawprogram;
-  xray::rendering::gpu_program         _drawprogram_debug;
-  float                                _cube_r_angle{0.0f};
+  private:
+    xray::rendering::scoped_texture _fbo_texture;
+    xray::rendering::scoped_sampler _fbo_texture_sampler;
+    xray::rendering::scoped_renderbuffer _fbo_depthbuffer;
+    xray::rendering::scoped_framebuffer _fbo;
+    xray::rendering::scoped_texture _null_texture;
+    xray::rendering::simple_mesh _spacecraft_mesh;
+    xray::rendering::simple_mesh _cube_mesh;
+    xray::rendering::scoped_texture _spacecraft_material;
+    xray::rendering::gpu_program _drawprogram;
+    xray::rendering::gpu_program _drawprogram_debug;
+    float _cube_r_angle{ 0.0f };
 
-  struct debug_options {
-    bool                       debug_normals{false};
-    bool                       draw_wireframe{false};
-    bool                       draw_main_obj{true};
-    bool                       object_rotates{false};
-    bool                       frontface_cw{false};
-    xray::rendering::rgb_color normal_color_beg{1.0f, 0.0f, 0.0f, 1.0f};
-    xray::rendering::rgb_color normal_color_end{0.0f, 1.0f, 0.0f, 1.0f};
-    float                      normal_line_len{0.5f};
-    xray::math::vec3f          light_pos{0.0f, 10.0f, 0.0f};
-  } _dbg_opts;
+    struct debug_options
+    {
+        bool debug_normals{ false };
+        bool draw_wireframe{ false };
+        bool draw_main_obj{ true };
+        bool object_rotates{ false };
+        bool frontface_cw{ false };
+        xray::rendering::rgb_color normal_color_beg{ 1.0f, 0.0f, 0.0f, 1.0f };
+        xray::rendering::rgb_color normal_color_end{ 0.0f, 1.0f, 0.0f, 1.0f };
+        float normal_line_len{ 0.5f };
+        xray::math::vec3f light_pos{ 0.0f, 10.0f, 0.0f };
+    } _dbg_opts;
 
-  struct render_tex_opts {
-    xray::math::vec3f          cam_pos{0.0f, 4.0f, -4.0f};
-    xray::math::vec2ui32       rendertarget_size{512u, 512u};
-    float                      fov{65.0f};
-    light_source4              lights[2];
-    xray::rendering::rgb_color tex_clear_color;
-    xray::rendering::rgb_color scene_clear_color;
-  } _rto;
+    struct render_tex_opts
+    {
+        xray::math::vec3f cam_pos{ 0.0f, 4.0f, -4.0f };
+        xray::math::vec2ui32 rendertarget_size{ 512u, 512u };
+        float fov{ 65.0f };
+        light_source4 lights[2];
+        xray::rendering::rgb_color tex_clear_color;
+        xray::rendering::rgb_color scene_clear_color;
+    } _rto;
 
-private:
-  XRAY_NO_COPY(render_texture_demo);
+  private:
+    XRAY_NO_COPY(render_texture_demo);
 };
 
 } // namespace app

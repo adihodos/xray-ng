@@ -31,10 +31,10 @@
 /// \file   vertex_pntt.hpp
 ///
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
+#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
@@ -44,43 +44,63 @@ namespace rendering {
 
 /// \brief      Vertex format consisting of position, normal, tangent and
 /// texture info.
-struct vertex_pntt {
-  math::vec3f position;
-  math::vec3f normal;
-  math::vec3f tangent;
-  math::vec2f texcoords;
+struct vertex_pntt
+{
+    math::vec3f position;
+    math::vec3f normal;
+    math::vec3f tangent;
+    math::vec2f texcoords;
 
-  vertex_pntt() noexcept {}
+    vertex_pntt() noexcept {}
 
-  vertex_pntt(const math::vec3f& pos, const math::vec3f& vec_normal,
-              const math::vec3f& tan_vec, const math::vec2f& texc) noexcept
-      : position{pos}, normal{vec_normal}, tangent{tan_vec}, texcoords{texc} {}
+    vertex_pntt(const math::vec3f& pos,
+                const math::vec3f& vec_normal,
+                const math::vec3f& tan_vec,
+                const math::vec2f& texc) noexcept
+        : position{ pos }
+        , normal{ vec_normal }
+        , tangent{ tan_vec }
+        , texcoords{ texc }
+    {
+    }
 
-  vertex_pntt(const float px, const float py, const float pz, const float nx,
-              const float ny, const float nz, const float tx, const float ty,
-              const float tz, const float tu, const float tv) noexcept
-      : position{px, py, pz}
-      , normal{nx, ny, nz}
-      , tangent{tx, ty, tz}
-      , texcoords{tu, tv} {}
+    vertex_pntt(const float px,
+                const float py,
+                const float pz,
+                const float nx,
+                const float ny,
+                const float nz,
+                const float tx,
+                const float ty,
+                const float tz,
+                const float tu,
+                const float tv) noexcept
+        : position{ px, py, pz }
+        , normal{ nx, ny, nz }
+        , tangent{ tx, ty, tz }
+        , texcoords{ tu, tv }
+    {
+    }
 };
 
-template <>
-struct vertex_format_traits<xray::rendering::vertex_format::pntt> {
-  using vertex_type = xray::rendering::vertex_pntt;
-  static constexpr size_t   bytes_size{sizeof(vertex_pntt)};
-  static constexpr uint32_t components{4};
+template<>
+struct vertex_format_traits<xray::rendering::vertex_format::pntt>
+{
+    using vertex_type = xray::rendering::vertex_pntt;
+    static constexpr size_t bytes_size{ sizeof(vertex_pntt) };
+    static constexpr uint32_t components{ 4 };
 
-  static const vertex_format_entry_desc* description() {
-    static constexpr vertex_format_entry_desc vdesc[] = {
-        {3, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, position)},
-        {3, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, normal)},
-        {2, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, texcoords)},
-        {3, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, tangent)},
-    };
+    static const vertex_format_entry_desc* description()
+    {
+        static constexpr vertex_format_entry_desc vdesc[] = {
+            { 3, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, position) },
+            { 3, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, normal) },
+            { 2, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, texcoords) },
+            { 3, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, tangent) },
+        };
 
-    return vdesc;
-  }
+        return vdesc;
+    }
 };
 
 /// @}

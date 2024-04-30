@@ -33,14 +33,14 @@
 namespace xray {
 namespace base {
 
-    /// \addtogroup __GroupXrayBase
-    /// @{
+/// \addtogroup __GroupXrayBase
+/// @{
 
-    /// An empty, null type.
-    struct nothing {
-    };
+/// An empty, null type.
+struct nothing
+{};
 
-    /// @}
+/// @}
 
 } // namespace base
 } // namespace xray

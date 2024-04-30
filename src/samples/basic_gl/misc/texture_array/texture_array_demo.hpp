@@ -30,51 +30,51 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 #include <opengl/opengl.hpp>
 
 namespace app {
 
-class texture_array_demo : public demo_base {
-public:
-  texture_array_demo(const init_context_t& init_ctx);
+class texture_array_demo : public demo_base
+{
+  public:
+    texture_array_demo(const init_context_t& init_ctx);
 
-  ~texture_array_demo();
+    ~texture_array_demo();
 
-  virtual void loop_event(const xray::ui::window_loop_event&) override;
-  virtual void event_handler(const xray::ui::window_event& evt) override;
+    virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void event_handler(const xray::ui::window_event& evt) override;
 
-private:
-  void init();
-  void draw(const int32_t surface_width, const int32_t surface_height);
-  void draw_ui(const int32_t surface_width, const int32_t surface_height);
+  private:
+    void init();
+    void draw(const int32_t surface_width, const int32_t surface_height);
+    void draw_ui(const int32_t surface_width, const int32_t surface_height);
 
-private:
-  xray::rendering::scoped_buffer       _quad_vb;
-  xray::rendering::scoped_buffer       _quad_ib;
-  xray::rendering::scoped_vertex_array _quad_layout;
-  xray::rendering::vertex_program      _vs;
-  xray::rendering::fragment_program    _fs;
-  xray::rendering::program_pipeline    _pipeline;
-  xray::rendering::scoped_texture      _texture_array;
-  xray::rendering::scoped_sampler      _sampler;
-  int32_t                              _image_index{};
-  int32_t                              _wrap_factor{1};
-  GLenum                               _wrap_mode{gl::REPEAT};
-  xray::rendering::rgb_color           _border_color{
-    xray::rendering::color_palette::web::dark_cyan};
-  GLenum _min_filter{gl::LINEAR};
-  GLenum _mag_filter{gl::LINEAR};
+  private:
+    xray::rendering::scoped_buffer _quad_vb;
+    xray::rendering::scoped_buffer _quad_ib;
+    xray::rendering::scoped_vertex_array _quad_layout;
+    xray::rendering::vertex_program _vs;
+    xray::rendering::fragment_program _fs;
+    xray::rendering::program_pipeline _pipeline;
+    xray::rendering::scoped_texture _texture_array;
+    xray::rendering::scoped_sampler _sampler;
+    int32_t _image_index{};
+    int32_t _wrap_factor{ 1 };
+    GLenum _wrap_mode{ gl::REPEAT };
+    xray::rendering::rgb_color _border_color{ xray::rendering::color_palette::web::dark_cyan };
+    GLenum _min_filter{ gl::LINEAR };
+    GLenum _mag_filter{ gl::LINEAR };
 
-private:
-  XRAY_NO_COPY(texture_array_demo);
+  private:
+    XRAY_NO_COPY(texture_array_demo);
 };
 
 } // namespace app

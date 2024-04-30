@@ -41,123 +41,149 @@ namespace math {
 /// \addtogroup __GroupXrayMath_Geometry
 /// @{
 
-template <typename T>
-scalar3x3<T> operator-(const scalar3x3<T> &input_mtx) noexcept {
-  return {-input_mtx.a00, -input_mtx.a01, -input_mtx.a02,
-          -input_mtx.a10, -input_mtx.a11, -input_mtx.a12,
-          -input_mtx.a20, -input_mtx.a21, -input_mtx.a22};
+template<typename T>
+scalar3x3<T>
+operator-(const scalar3x3<T>& input_mtx) noexcept
+{
+    return { -input_mtx.a00, -input_mtx.a01, -input_mtx.a02, -input_mtx.a10, -input_mtx.a11,
+             -input_mtx.a12, -input_mtx.a20, -input_mtx.a21, -input_mtx.a22 };
 }
 
-template <typename T>
-scalar3x3<T> operator+(const scalar3x3<T> &m0,
-                       const scalar3x3<T> &m1) noexcept {
-  auto result{m0};
-  result += m1;
-  return result;
+template<typename T>
+scalar3x3<T>
+operator+(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
+{
+    auto result{ m0 };
+    result += m1;
+    return result;
 }
 
-template <typename T>
-scalar3x3<T> operator-(const scalar3x3<T> &m0,
-                       const scalar3x3<T> &m1) noexcept {
-  auto result = m0;
-  result -= m1;
-  return result;
+template<typename T>
+scalar3x3<T>
+operator-(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
+{
+    auto result = m0;
+    result -= m1;
+    return result;
 }
 
-template <typename T>
-scalar3x3<T> operator*(const scalar3x3<T> &m0,
-                       const scalar3x3<T> &m1) noexcept {
+template<typename T>
+scalar3x3<T>
+operator*(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
+{
 
-  auto result = scalar3x3<T>::stdc::null;
+    auto result = scalar3x3<T>::stdc::null;
 
-  for (size_t row = 0; row < 3; ++row) {
-    for (size_t col = 0; col < 3; ++col) {
-      for (size_t k = 0; k < 3; ++k) {
-        result(row, col) += m0(row, k) * m1(k, col);
-      }
+    for (size_t row = 0; row < 3; ++row) {
+        for (size_t col = 0; col < 3; ++col) {
+            for (size_t k = 0; k < 3; ++k) {
+                result(row, col) += m0(row, k) * m1(k, col);
+            }
+        }
     }
-  }
 
-  return result;
+    return result;
 }
 
-template <typename T>
-scalar3x3<T> operator*(const scalar3x3<T> &m, const T k) noexcept {
-  auto result{m};
-  result *= k;
-  return result;
+template<typename T>
+scalar3x3<T>
+operator*(const scalar3x3<T>& m, const T k) noexcept
+{
+    auto result{ m };
+    result *= k;
+    return result;
 }
 
-template <typename T>
-scalar3x3<T> operator*(const T k, const scalar3x3<T> &m) noexcept {
-  return m * k;
+template<typename T>
+scalar3x3<T>
+operator*(const T k, const scalar3x3<T>& m) noexcept
+{
+    return m * k;
 }
 
-template <typename T>
-scalar3x3<T> operator/(const scalar3x3<T> &m, const T k) noexcept {
-  auto result{m};
-  result /= k;
-  return result;
+template<typename T>
+scalar3x3<T>
+operator/(const scalar3x3<T>& m, const T k) noexcept
+{
+    auto result{ m };
+    result /= k;
+    return result;
 }
 
 /// \brief      Computes the determinant of a matrix.
-template <typename T> T determinant(const scalar3x3<T> &m) noexcept {
-  //
-  //  expand by first row
-  const auto det0 = m.a11 * m.a22 - m.a12 * m.a21;
-  const auto det1 = m.a10 * m.a22 - m.a12 * m.a20;
-  const auto det2 = m.a10 * m.a21 - m.a11 * m.a20;
+template<typename T>
+T
+determinant(const scalar3x3<T>& m) noexcept
+{
+    //
+    //  expand by first row
+    const auto det0 = m.a11 * m.a22 - m.a12 * m.a21;
+    const auto det1 = m.a10 * m.a22 - m.a12 * m.a20;
+    const auto det2 = m.a10 * m.a21 - m.a11 * m.a20;
 
-  return m.a00 * det0 - m.a01 * det1 + m.a02 * det2;
+    return m.a00 * det0 - m.a01 * det1 + m.a02 * det2;
 }
 
 /// \brief      Returns the adjoint matrix of the input matrix.
-template <typename T> scalar3x3<T> adjoint(const scalar3x3<T> &m) noexcept {
-  scalar3x3<T> adj{};
+template<typename T>
+scalar3x3<T>
+adjoint(const scalar3x3<T>& m) noexcept
+{
+    scalar3x3<T> adj{};
 
-  adj.a00 = m.a11 * m.a22 - m.a21 * m.a12;
-  adj.a01 = m.a12 * m.a20 - m.a10 * m.a22;
-  adj.a02 = m.a10 * m.a21 - m.a11 * m.a20;
+    adj.a00 = m.a11 * m.a22 - m.a21 * m.a12;
+    adj.a01 = m.a12 * m.a20 - m.a10 * m.a22;
+    adj.a02 = m.a10 * m.a21 - m.a11 * m.a20;
 
-  adj.a10 = m.a02 * m.a21 - m.a01 * m.a22;
-  adj.a11 = m.a00 * m.a22 - m.a02 * m.a20;
-  adj.a12 = m.a01 * m.a20 - m.a00 * m.a21;
+    adj.a10 = m.a02 * m.a21 - m.a01 * m.a22;
+    adj.a11 = m.a00 * m.a22 - m.a02 * m.a20;
+    adj.a12 = m.a01 * m.a20 - m.a00 * m.a21;
 
-  adj.a20 = m.a01 * m.a12 - m.a02 * m.a11;
-  adj.a21 = m.a02 * m.a10 - m.a00 * m.a12;
-  adj.a22 = m.a01 * m.a11 - m.a01 * m.a10;
+    adj.a20 = m.a01 * m.a12 - m.a02 * m.a11;
+    adj.a21 = m.a02 * m.a10 - m.a00 * m.a12;
+    adj.a22 = m.a01 * m.a11 - m.a01 * m.a10;
 
-  return adj;
+    return adj;
 }
 
 /// \brief Compute the inverse of a matrix.
-template <typename T> scalar3x3<T> invert(const scalar3x3<T> &m) noexcept {
-  const auto det_m = determinant(m);
+template<typename T>
+scalar3x3<T>
+invert(const scalar3x3<T>& m) noexcept
+{
+    const auto det_m = determinant(m);
 
-  if (is_zero(det_m)) {
-    assert(false && "Matrix is not invertible!!");
-    return scalar3x3<T>::math::null;
-  }
+    if (is_zero(det_m)) {
+        assert(false && "Matrix is not invertible!!");
+        return scalar3x3<T>::math::null;
+    }
 
-  return adjoint(m) / det_m;
+    return adjoint(m) / det_m;
 }
 
 /// \brief      Applies a transformation to a vector in R3.
-template <typename T>
-scalar3<T> mul_vec(const scalar3x3<T> &m, const scalar3<T> &v) noexcept {
-  return {m.a00 * v.x + m.a01 * v.y + m.a02 * v.z,
-          m.a10 * v.x + m.a11 * v.y + m.a12 * v.z,
-          m.a20 * v.x + m.a21 * v.y + m.a22 * v.z};
+template<typename T>
+scalar3<T>
+mul_vec(const scalar3x3<T>& m, const scalar3<T>& v) noexcept
+{
+    return { m.a00 * v.x + m.a01 * v.y + m.a02 * v.z,
+             m.a10 * v.x + m.a11 * v.y + m.a12 * v.z,
+             m.a20 * v.x + m.a21 * v.y + m.a22 * v.z };
 }
 
 /// \brief      Applies a linear transformation a point in R3;
-template <typename T>
-scalar3<T> mul_point(const scalar3x3<T> &m, const scalar3<T> &p) noexcept {
-  return mul_vec(m, p);
+template<typename T>
+scalar3<T>
+mul_point(const scalar3x3<T>& m, const scalar3<T>& p) noexcept
+{
+    return mul_vec(m, p);
 }
 
-template <typename T> scalar3x3<T> transpose(const scalar3x3<T> &m) noexcept {
-  return {m.a00, m.a10, m.a20, m.a01, m.a11, m.a21, m.a02, m.a12, m.a22};
+template<typename T>
+scalar3x3<T>
+transpose(const scalar3x3<T>& m) noexcept
+{
+    return { m.a00, m.a10, m.a20, m.a01, m.a11, m.a21, m.a02, m.a12, m.a22 };
 }
 
 /// @}

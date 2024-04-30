@@ -30,8 +30,8 @@
 
 /// \file   Shims for C-string and std::string
 
-#include <string>
 #include "xray/xray.hpp"
+#include <string>
 
 namespace xray {
 namespace base {
@@ -39,13 +39,19 @@ namespace base {
 /// \addtogroup __GroupXrayBase
 /// @{
 
-inline auto raw_str(const std::string& cpp_str) noexcept {
-  return cpp_str.c_str();
+inline auto
+raw_str(const std::string& cpp_str) noexcept
+{
+    return cpp_str.c_str();
 }
 
-inline auto raw_str(const char* c_str) noexcept { return c_str; }
+inline auto
+raw_str(const char* c_str) noexcept
+{
+    return c_str;
+}
 
 /// @}
 
-}  // namespace base
-}  // namespace xray
+} // namespace base
+} // namespace xray

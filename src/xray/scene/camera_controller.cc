@@ -29,6 +29,8 @@
 #include "xray/scene/camera_controller.hpp"
 
 xray::scene::camera_controller::camera_controller(xray::scene::camera* cam)
-  : cam_{cam} {}
+    : cam_{ cam }
+{
+}
 
 xray::scene::camera_controller::~camera_controller() {}

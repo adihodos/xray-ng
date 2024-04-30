@@ -28,48 +28,48 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "light_source.hpp"
 #include "material.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/rendering_fwd.hpp"
+#include "xray/xray.hpp"
 #include <cstdint>
 
 namespace app {
 
-class per_fragment_lighting_demo {
-public:
-  per_fragment_lighting_demo();
-  ~per_fragment_lighting_demo();
+class per_fragment_lighting_demo
+{
+  public:
+    per_fragment_lighting_demo();
+    ~per_fragment_lighting_demo();
 
-  void draw(const xray::rendering::draw_context_t& dc) noexcept;
-  void update(const float delta_ms) noexcept;
-  void key_event(const int32_t key_code, const int32_t action,
-                 const int32_t mods) noexcept;
+    void draw(const xray::rendering::draw_context_t& dc) noexcept;
+    void update(const float delta_ms) noexcept;
+    void key_event(const int32_t key_code, const int32_t action, const int32_t mods) noexcept;
 
-  bool valid() const noexcept { return _valid; }
+    bool valid() const noexcept { return _valid; }
 
-  explicit operator bool() const noexcept { return valid(); }
+    explicit operator bool() const noexcept { return valid(); }
 
-private:
-  static const uint32_t NUM_LIGHTS = 4;
+  private:
+    static const uint32_t NUM_LIGHTS = 4;
 
-  void init();
+    void init();
 
-private:
-  bool                                 _valid{false};
-  uint32_t                             _mesh_index_cnt{};
-  xray::rendering::scoped_buffer       _vertex_buff;
-  xray::rendering::scoped_buffer       _index_buff;
-  xray::rendering::scoped_vertex_array _vertex_arr_obj;
-  xray::rendering::gpu_program         _draw_prog;
-  directional_light                    _lights[NUM_LIGHTS];
-  xray::math::vec2f                    _rotations{0.0f, 0.0f};
+  private:
+    bool _valid{ false };
+    uint32_t _mesh_index_cnt{};
+    xray::rendering::scoped_buffer _vertex_buff;
+    xray::rendering::scoped_buffer _index_buff;
+    xray::rendering::scoped_vertex_array _vertex_arr_obj;
+    xray::rendering::gpu_program _draw_prog;
+    directional_light _lights[NUM_LIGHTS];
+    xray::math::vec2f _rotations{ 0.0f, 0.0f };
 
-private:
-  XRAY_NO_COPY(per_fragment_lighting_demo);
+  private:
+    XRAY_NO_COPY(per_fragment_lighting_demo);
 };
 
 } // namespace app

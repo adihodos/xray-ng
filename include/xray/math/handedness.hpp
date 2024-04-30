@@ -28,11 +28,11 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/math/math_base.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/xray.hpp"
 #include <cassert>
 #include <cmath>
 
@@ -42,10 +42,16 @@ namespace math {
 /// \addtogroup __GroupXrayMath
 /// @{
 
-struct left_handed {};
-struct right_handed {};
+struct left_handed
+{};
+struct right_handed
+{};
 
-enum class handedness { left, right };
+enum class handedness
+{
+    left,
+    right
+};
 
 using xray_default_handedness = left_handed;
 

@@ -28,49 +28,49 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
 #include "xray/base/unique_handle.hpp"
+#include "xray/xray.hpp"
 #include <cstring>
 #include <opengl/opengl.hpp>
 
 namespace xray {
 namespace rendering {
 
-inline void mark_gl_object(const GLenum type,
-                           const GLuint obj,
-                           const char*  label) noexcept {
-  gl::ObjectLabel(type, obj, strlen(label), label);
+inline void
+mark_gl_object(const GLenum type, const GLuint obj, const char* label) noexcept
+{
+    gl::ObjectLabel(type, obj, strlen(label), label);
 }
 
-#define GL_MARK_BUFFER(obj, label)                                             \
-  do {                                                                         \
-    mark_gl_object(gl::BUFFER, obj, label);                                    \
-  } while (0)
+#define GL_MARK_BUFFER(obj, label)                                                                                     \
+    do {                                                                                                               \
+        mark_gl_object(gl::BUFFER, obj, label);                                                                        \
+    } while (0)
 
-#define GL_MARK_FRAMEBUFFER(obj, label)                                        \
-  do {                                                                         \
-    mark_gl_object(gl::FRAMEBUFFER, obj, label);                               \
-  } while (0)
+#define GL_MARK_FRAMEBUFFER(obj, label)                                                                                \
+    do {                                                                                                               \
+        mark_gl_object(gl::FRAMEBUFFER, obj, label);                                                                   \
+    } while (0)
 
-#define GL_MARK_PROGRAM_PIPELINE(obj, label)                                   \
-  do {                                                                         \
-    mark_gl_object(gl::PROGRAM_PIPELINE, obj, label);                          \
-  } while (0)
+#define GL_MARK_PROGRAM_PIPELINE(obj, label)                                                                           \
+    do {                                                                                                               \
+        mark_gl_object(gl::PROGRAM_PIPELINE, obj, label);                                                              \
+    } while (0)
 
-#define GL_MARK_PROGRAM(obj, label)                                            \
-  do {                                                                         \
-    mark_gl_object(gl::PROGRAM, obj, label);                                   \
-  } while (0)
+#define GL_MARK_PROGRAM(obj, label)                                                                                    \
+    do {                                                                                                               \
+        mark_gl_object(gl::PROGRAM, obj, label);                                                                       \
+    } while (0)
 
-#define GL_MARK_TEXTURE(obj, label)                                            \
-  do {                                                                         \
-    mark_gl_object(gl::TEXTURE, obj, label);                                   \
-  } while (0)
+#define GL_MARK_TEXTURE(obj, label)                                                                                    \
+    do {                                                                                                               \
+        mark_gl_object(gl::TEXTURE, obj, label);                                                                       \
+    } while (0)
 
-#define GL_MARK_VERTEXARRAY(obj, label)                                        \
-  do {                                                                         \
-    mark_gl_object(gl::VERTEX_ARRAY, obj, label);                              \
-  } while (0)
+#define GL_MARK_VERTEXARRAY(obj, label)                                                                                \
+    do {                                                                                                               \
+        mark_gl_object(gl::VERTEX_ARRAY, obj, label);                                                                  \
+    } while (0)
 
 } // namespace rendering
 } // namespace xray

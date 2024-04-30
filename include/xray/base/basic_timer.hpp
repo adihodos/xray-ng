@@ -38,53 +38,60 @@ namespace base {
 /**
  * @brief Basic timer class.
  */
-template <typename precise_type>
-class basic_timer {
-public:
-  basic_timer()
-      : start_{std::chrono::high_resolution_clock::now()}
-      , end_{std::chrono::high_resolution_clock::now()} {}
+template<typename precise_type>
+class basic_timer
+{
+  public:
+    basic_timer()
+        : start_{ std::chrono::high_resolution_clock::now() }
+        , end_{ std::chrono::high_resolution_clock::now() }
+    {
+    }
 
-  void start() { start_ = std::chrono::high_resolution_clock::now(); }
+    void start() { start_ = std::chrono::high_resolution_clock::now(); }
 
-  void end() {
-    end_      = std::chrono::high_resolution_clock::now();
-    interval_ = end_ - start_;
-  }
+    void end()
+    {
+        end_ = std::chrono::high_resolution_clock::now();
+        interval_ = end_ - start_;
+    }
 
-  void update_and_reset() {
-    end();
-    start();
-  }
+    void update_and_reset()
+    {
+        end();
+        start();
+    }
 
-  precise_type elapsed_millis() const { return interval_.count(); }
+    precise_type elapsed_millis() const { return interval_.count(); }
 
-private:
-  using timepoint_type =
-      std::chrono::time_point<std::chrono::high_resolution_clock>;
+  private:
+    using timepoint_type = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-  timepoint_type start_;
-  timepoint_type end_;
-  std::chrono::duration<precise_type, std::milli> interval_;
+    timepoint_type start_;
+    timepoint_type end_;
+    std::chrono::duration<precise_type, std::milli> interval_;
 };
 
-using timer_stdp  = basic_timer<scalar_lowp>;
+using timer_stdp = basic_timer<scalar_lowp>;
 using timer_highp = basic_timer<scalar_mediump>;
 
-template <typename timer_type>
-struct scoped_timing_object {
-public:
-  explicit scoped_timing_object(timer_type* timer) noexcept : timer_{timer} {
-    timer_->start();
-  }
+template<typename timer_type>
+struct scoped_timing_object
+{
+  public:
+    explicit scoped_timing_object(timer_type* timer) noexcept
+        : timer_{ timer }
+    {
+        timer_->start();
+    }
 
-  ~scoped_timing_object() { timer_->end(); }
+    ~scoped_timing_object() { timer_->end(); }
 
-private:
-  timer_type* timer_;
+  private:
+    timer_type* timer_;
 
-private:
-  XRAY_NO_COPY(scoped_timing_object);
+  private:
+    XRAY_NO_COPY(scoped_timing_object);
 };
 
 } // namespace base
