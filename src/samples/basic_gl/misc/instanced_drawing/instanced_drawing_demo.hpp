@@ -123,7 +123,7 @@ class instanced_drawing_demo : public demo_base
     struct
     {
         xray::scene::camera camera;
-        xray::scene::fps_camera_controller cam_control{ &camera };
+        xray::scene::fps_camera_controller cam_control{};
     } _scene;
 
     struct demo_options

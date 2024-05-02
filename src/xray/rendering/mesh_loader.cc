@@ -24,13 +24,13 @@ xray::rendering::mesh_loader::load(const char* file_path,
 std::span<const xray::rendering::vertex_pnt>
 xray::rendering::mesh_loader::vertex_span() const noexcept
 {
-    return { vertex_data(), vertex_data() + static_cast<ptrdiff_t>(header().vertex_count) };
+    return { vertex_data(), vertex_data() + static_cast<size_t>(header().vertex_count) };
 }
 
 std::span<const uint32_t>
 xray::rendering::mesh_loader::index_span() const noexcept
 {
-    return { index_data(), index_data() + static_cast<ptrdiff_t>(header().index_count) };
+    return { index_data(), index_data() + static_cast<size_t>(header().index_count) };
 }
 
 const xray::rendering::vertex_pnt*
@@ -54,14 +54,19 @@ xray::rendering::mesh_loader::index_data() const noexcept
 tl::optional<mesh_header>
 xray::rendering::mesh_loader::read_header(const char* file_path)
 {
-    std::unique_ptr<FILE, decltype(&fclose)> fp{ fopen(file_path, "rb"), &fclose };
+    std::unique_ptr<FILE, void (*)(FILE*)> fp{ fopen(file_path, "rb"), [](FILE* f) {
+                                                  if (f)
+                                                      static_cast<void>(fclose(f));
+                                              } };
+
     if (!fp) {
         XR_LOG_ERR("Failed to read header for file {}", file_path);
         return tl::nullopt;
     }
 
     mesh_header mhdr;
-    fread(&mhdr, sizeof(mhdr), 1, fp.get());
+    const auto result{ (fread(&mhdr, sizeof(mhdr), 1, fp.get())) };
+    static_cast<void>(result);
 
     return tl::optional{ mhdr };
 }

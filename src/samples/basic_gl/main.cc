@@ -66,8 +66,9 @@
 #include "misc/fractals/fractal_demo.hpp"
 #include "misc/instanced_drawing/instanced_drawing_demo.hpp"
 #include "misc/mesh/mesh_demo.hpp"
-// #include "misc/terrain/basic/terrain_demo.hpp"
+#include "misc/procedural_city/procedural_city_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
+
 #include <rangelib/algorithms.hpp>
 #include <rangelib/rangelib.hpp>
 #include <rangelib/sequence_range.hpp>
@@ -170,7 +171,7 @@ class main_app
     xray::ui::window* _window;
     xray::base::unique_pointer<xray::ui::user_interface> _ui{};
     xray::base::unique_pointer<demo_base> _demo;
-    xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::orange700 };
+    xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::bluegrey800 };
     xray::base::timer_highp _timer;
     vector<DemoInfo> _registeredDemos;
     bool _initialized{ false };
@@ -206,11 +207,12 @@ main_app::main_app(xray::ui::window* wnd)
 
     hookup_event_delegates();
 
-    RegisteredDemosList<fractal_demo, directional_light_demo>::registerDemo(_registeredDemos);
+    RegisteredDemosList<fractal_demo, directional_light_demo, procedural_city_demo>::registerDemo(_registeredDemos);
 
     rangelib::r_for_each(rangelib::make_sequence_range(_registeredDemos),
                          [](const DemoInfo& demo) { XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc); });
 
+    gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
     _ui->set_global_font("Roboto-Regular");
     _timer.start();
 }

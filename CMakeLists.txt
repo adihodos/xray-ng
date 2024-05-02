@@ -24,6 +24,8 @@ CPMAddPackage(
   GIT_TAG master
   OPTIONS "BUILD_TESTING OFF")
 
+CPMAddPackage("gh:ryanhaining/cppitertools#master")
+
 CPMAddPackage(
   NAME libconfig
   GITHUB_REPOSITORY adihodos/libconfig

@@ -53,7 +53,7 @@ template<typename T>
 constexpr bool std_is_floating_point = std::is_floating_point<T>::value;
 
 template<typename T>
-constexpr bool std_is_pod = std::is_pod<T>::value;
+constexpr bool std_is_pod = std::is_standard_layout_v<T>&& std::is_trivial_v<T>;
 
 /// @}
 

@@ -34,6 +34,7 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/xray.hpp"
 
 #include <cstdint>
@@ -55,8 +56,14 @@ struct fractal_params
 
 class fractal_demo : public demo_base
 {
+	private:
+		struct ConstructToken {
+		explicit ConstructToken() = default;
+	};
+	
   public:
-    fractal_demo(const init_context_t& ctx,
+    fractal_demo(ConstructToken tok,
+				 const init_context_t& ctx,
                  xray::rendering::scoped_buffer vb,
                  xray::rendering::scoped_buffer ib,
                  xray::rendering::scoped_vertex_array layout,
@@ -105,6 +112,10 @@ class fractal_demo : public demo_base
     xray::rendering::vertex_program _vs;
     xray::rendering::fragment_program _fs;
     xray::rendering::program_pipeline _pipeline;
+
+	struct RasterizerState {
+		xray::rendering::ScopedGlCap mDisabledDepthTesting{gl::DEPTH_TEST, xray::rendering::GlCapabilityState::Off};
+	} mRasterizerState{};
 
   private:
     XRAY_NO_COPY(fractal_demo);

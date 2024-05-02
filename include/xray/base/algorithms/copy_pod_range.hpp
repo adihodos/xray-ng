@@ -35,6 +35,7 @@
 #include <type_traits>
 
 #include "xray/xray.hpp"
+#include "xray/base/shims/stl_type_traits_shims.hpp"
 
 namespace xray {
 namespace base {
@@ -84,8 +85,8 @@ template<typename T, typename U>
 void
 copy_pod_range(const U* input, const size_t count, T* output) noexcept
 {
-    static_assert(std::is_pod<T>::value, "Only POD types supported!");
-    static_assert(std::is_pod<U>::value, "Only POD types supported!");
+    static_assert(std_is_pod<T>, "Only POD types supported!");
+    static_assert(std_is_pod<U>, "Only POD types supported!");
 
     copy_pod_range_impl(input, count, output, detail::copy_type<sizeof(T) == sizeof(U)>::tag());
 }

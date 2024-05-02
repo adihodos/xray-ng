@@ -29,9 +29,10 @@
 #pragma once
 
 #include "xray/math/scalar3.hpp"
+#include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar4x4.hpp"
-#include "xray/scene/camera_controller.hpp"
 #include "xray/xray.hpp"
+
 #include <cstdint>
 
 namespace xray {
@@ -55,14 +56,14 @@ struct camera_lens_parameters
     float aspect_ratio{ 4.0f / 3.0f };
 };
 
-class fps_camera_controller : public camera_controller
+class fps_camera_controller
 {
   public:
     static constexpr float MOVE_SPEED = 1.0f;
     static constexpr float ROTATE_SPEED = 0.1f;
     static constexpr float LENS_SPEED = 0.05f;
 
-    fps_camera_controller(camera* cam, const char* config_file = nullptr);
+    fps_camera_controller(const char* config_file = nullptr);
 
     void move_up() noexcept;
     void move_down() noexcept;
@@ -92,21 +93,20 @@ class fps_camera_controller : public camera_controller
     }
 
     void reset_orientation() noexcept;
-
-    virtual void input_event(const ui::window_event& input_evt) override;
-    virtual void update() override;
+    void input_event(const ui::window_event& input_evt);
+    void update_camera(camera& cam);
 
   private:
     void pitch(const float delta) noexcept;
     void yaw(const float delta) noexcept;
     void roll(const float delta) noexcept;
-    void update_view_transform();
 
     xray::math::vec3f _right{ xray::math::vec3f::stdc::unit_x };
     xray::math::vec3f _up{ xray::math::vec3f::stdc::unit_y };
     xray::math::vec3f _dir{ xray::math::vec3f::stdc::unit_z };
     xray::math::vec3f _position{ xray::math::vec3f::stdc::zero };
     camera_lens_parameters _lensparams{};
+
     struct
     {
         float move_speed{ 1.0f };
@@ -115,6 +115,7 @@ class fps_camera_controller : public camera_controller
         float pitch_speed{ 0.05f };
         float lens_speed{ 0.05f };
     } _viewparams{};
+
     union
     {
         struct
@@ -123,7 +124,7 @@ class fps_camera_controller : public camera_controller
             uint8_t lens : 1;
         };
 
-        uint8_t state;
+        uint8_t state{};
     } mutable _syncstatus;
 };
 

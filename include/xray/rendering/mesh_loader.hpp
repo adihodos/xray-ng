@@ -91,10 +91,6 @@ struct mesh_load_option
 class mesh_loader
 {
   public:
-    mesh_loader() = delete;
-    mesh_loader(mesh_loader&&) = default;
-    mesh_loader& operator=(mesh_loader&&) = default;
-
     explicit mesh_loader(mio::mmap_source mmfile) noexcept
         : _mfile{ std::move(mmfile) }
     {
@@ -138,8 +134,6 @@ class mesh_loader
 
   private:
     mio::mmap_source _mfile;
-
-    XRAY_NO_COPY(mesh_loader);
 };
 
 /// @}

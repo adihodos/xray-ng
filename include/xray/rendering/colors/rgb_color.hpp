@@ -32,6 +32,9 @@
 #include "xray/math/scalar4.hpp"
 #include "xray/xray.hpp"
 
+#include <cmath>
+#include <type_traits>
+
 namespace xray {
 namespace rendering {
 
@@ -96,6 +99,14 @@ struct rgb_color
     {
     }
 
+    constexpr explicit rgb_color(const uint8_t r_, const uint8_t g_, const uint8_t b_, const uint8_t a_ = 255)
+        : r{ static_cast<float>(r_) / 255.0f }
+        , g{ static_cast<float>(g_) / 255.0f }
+        , b{ static_cast<float>(b_) / 255.0f }
+        , a{ static_cast<float>(a_) / 255.0f }
+    {
+    }
+
     /// \name   Conversions
     /// @{
     explicit operator math::vec3f() const noexcept { return math::vec3f{ this->r, this->g, this->b }; }
@@ -119,7 +130,42 @@ struct rgb_color
     rgb_color& operator/=(const float scalar) noexcept;
 
     /// @}
+    template<typename F>
+    constexpr std::invoke_result_t<F, const rgb_color&> map(F&& f) const
+    {
+        return f(*this);
+    }
 };
+
+inline float
+to_srgb(float x)
+{
+    if (x >= 0.0031308)
+        return (1.055) * std::pow(x, (1.0 / 2.4)) - 0.055;
+    else
+        return 12.92 * x;
+}
+
+inline float
+from_srgb(float x)
+{
+    if (x >= 0.04045)
+        return std::pow(((x + 0.055) / (1 + 0.055)), 2.4);
+    else
+        return x / 12.92;
+}
+
+inline rgb_color
+to_linear_srgb(const rgb_color& c)
+{
+    return c.map([](const rgb_color& v) { return rgb_color{ from_srgb(v.r), from_srgb(v.g), from_srgb(v.b), v.a }; });
+}
+
+inline rgb_color
+to_non_linear_srgb(const rgb_color& c)
+{
+    return c.map([](const rgb_color& v) { return rgb_color{ to_srgb(v.r), to_srgb(v.g), to_srgb(v.b), v.a }; });
+}
 
 rgb_color
 operator+(const rgb_color& lhs, const rgb_color& rhs) noexcept;
@@ -138,6 +184,19 @@ operator*(const float k, const rgb_color& rhs) noexcept;
 
 rgb_color
 operator/(const rgb_color& lhs, const float scalar) noexcept;
+
+struct oklab
+{
+    float L;
+    float a;
+    float b;
+};
+
+oklab
+linear_srgb_to_oklab(const rgb_color& c);
+
+rgb_color
+oklab_to_linear_srgb(const oklab& c);
 
 } // namespace rendering
 } // namespace xray

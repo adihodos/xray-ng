@@ -7,11 +7,14 @@
 #include "xray/math/quaternion.hpp"
 #include "xray/math/quaternion_math.hpp"
 #include "xray/math/scalar3_string_cast.hpp"
+#include "xray/math/scalar3x3.hpp"
+#include "xray/math/scalar3x3_math.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/math/transforms_r3.hpp"
 #include "xray/math/transforms_r4.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
+#include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/draw_context.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
@@ -25,14 +28,14 @@
 #include <fmt/ostream.h>
 #include <pipes/pipes.hpp>
 
-#include <filesystem>
-#include <system_error>
-
 #include <algorithm>
 #include <cassert>
+#include <filesystem>
 #include <numeric>
 #include <queue>
+#include <random>
 #include <span>
+#include <system_error>
 #include <vector>
 
 using namespace xray::base;
@@ -52,15 +55,13 @@ app::directional_light_demo::directional_light_demo(const init_context_t& ctx,
     , mDemoOptions{ ds }
     , mScene{ std::move(s) }
 {
-
     mRenderState.geometryObjects >>= pipes::transform([](basic_mesh& bm) {
         return graphics_object{ &bm, xray::math::vec3f::stdc::zero, xray::math::vec3f::stdc::zero, 1.0f };
     }) >>= pipes::push_back(mRenderState.graphicsObjects);
 
-    mScene.cam.set_projection(projections_rh::perspective_symmetric(
+    mScene.cam.set_projection(perspective_symmetric(
         static_cast<float>(ctx.surface_width) / static_cast<float>(ctx.surface_height), radians(70.0f), 0.1f, 100.0f));
 
-    mScene.cam_control.set_camera(&mScene.cam);
     switch_mesh(SwitchMeshOpt::UseExisting);
     mScene.debugOutput.reserve(1024);
 
@@ -69,6 +70,36 @@ app::directional_light_demo::directional_light_demo(const init_context_t& ctx,
 }
 
 app::directional_light_demo::~directional_light_demo() {}
+
+void
+make_lights()
+{
+    //
+    // generate 4 initial light directions from this vector
+    const vec3f startingDir{ 1.0f, -1.0f, -1.0f };
+    const int range[] = { 0, 1, 2, 3 };
+    const float rotation{ radians(90) };
+    itlib::small_vector<vec3f, 8> lightsDirections = range >>= pipes::transform([=](const int quadrant) {
+        const mat3f rotationMtx{ R3::rotate_y((float)quadrant * rotation) };
+        const vec3f newDir{ mul_vec(rotationMtx, startingDir) };
+        return normalize(newDir);
+    }) >>= pipes::to_<itlib::small_vector<vec3f, 8>>();
+
+    // negate the initial 4 directions
+    for (size_t idx = 0, numLights = lightsDirections.size(); idx < numLights; ++idx) {
+        lightsDirections.push_back(-lightsDirections[idx]);
+    }
+
+    mt19937 randEngine{ 2 };
+    uniform_int_distribution<uint8_t> rngDistrib{ 0, 127 };
+    itlib::small_vector<rgb_color> lightColors = lightsDirections >>= pipes::transform([&](const vec3f&) mutable {
+        const uint8_t r{ static_cast<uint8_t>(rngDistrib(randEngine) + 127) };
+        const uint8_t g{ static_cast<uint8_t>(rngDistrib(randEngine) + 127) };
+        const uint8_t b{ static_cast<uint8_t>(rngDistrib(randEngine) + 127) };
+
+        return rgb_color{ r, g, b };
+    }) >>= pipes::to_<itlib::small_vector<rgb_color>>();
+}
 
 tl::optional<app::demo_bundle_t>
 app::directional_light_demo::create(const app::init_context_t& initContext)
@@ -205,10 +236,6 @@ app::directional_light_demo::create(const app::init_context_t& initContext)
                                                                                // scene
                                                                                move(s) } };
 
-    gl::Enable(gl::DEPTH_TEST);
-    gl::Enable(gl::CULL_FACE);
-    gl::CullFace(gl::BACK);
-
     auto winEventHandler = make_delegate(*object, &directional_light_demo::event_handler);
     auto loopEventHandler = make_delegate(*object, &directional_light_demo::loop_event);
 
@@ -218,6 +245,7 @@ app::directional_light_demo::create(const app::init_context_t& initContext)
 void
 app::directional_light_demo::loop_event(const xray::ui::window_loop_event& wle)
 {
+    _ui->tick(1.0f / 60.0f);
     mScene.timer.update_and_reset();
     update(mScene.timer.elapsed_millis());
     draw();
@@ -357,7 +385,7 @@ app::directional_light_demo::update(const float delta_ms)
         }
     }
 
-    mScene.cam_control.update();
+    mScene.cam_control.update_camera(mScene.cam);
     _ui->tick(delta_ms);
 }
 
@@ -393,11 +421,11 @@ app::directional_light_demo::event_handler(const xray::ui::window_event& evt)
     }
 
     if (evt.type == event_type::configure) {
-        mScene.cam.set_projection(projections_rh::perspective_symmetric(
-            static_cast<float>(evt.event.configure.width) / static_cast<float>(evt.event.configure.height),
-            radians(70.0f),
-            0.1f,
-            100.0f));
+        mScene.cam.set_projection(perspective_symmetric(static_cast<float>(evt.event.configure.width) /
+                                                            static_cast<float>(evt.event.configure.height),
+                                                        radians(70.0f),
+                                                        0.1f,
+                                                        100.0f));
 
         return;
     }

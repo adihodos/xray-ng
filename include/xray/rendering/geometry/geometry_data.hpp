@@ -81,19 +81,19 @@ struct geometry_data_t
     std::span<vertex_pntt> vertex_span() noexcept
     {
         assert(vertex_count != 0);
-        return std::span{ xray::base::raw_ptr(geometry), static_cast<ptrdiff_t>(vertex_count) };
+        return std::span{ xray::base::raw_ptr(geometry), static_cast<size_t>(vertex_count) };
     }
 
     std::span<const vertex_pntt> vertex_span() const noexcept
     {
         assert(vertex_count != 0);
-        return std::span{ xray::base::raw_ptr(geometry), static_cast<ptrdiff_t>(vertex_count) };
+        return std::span{ xray::base::raw_ptr(geometry), static_cast<size_t>(vertex_count) };
     }
 
     std::span<const uint32_t> index_span() const noexcept
     {
         assert(index_count != 0);
-        return std::span{ xray::base::raw_ptr(indices), static_cast<ptrdiff_t>(index_count) };
+        return std::span{ xray::base::raw_ptr(indices), static_cast<size_t>(index_count) };
     }
 
     vertex_pntt* vertex_data() noexcept

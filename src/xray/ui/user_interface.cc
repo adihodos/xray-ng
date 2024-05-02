@@ -619,8 +619,8 @@ xray::ui::user_interface::draw()
 
     gl::Viewport(0, 0, fb_width, fb_height);
 
-    const auto projection_mtx = projections_rh::orthographic(
-        0.0f, static_cast<float>(fb_width), 0.0f, static_cast<float>(fb_height), -1.0f, +1.0f);
+    const auto projection_mtx =
+        orthographic(0.0f, static_cast<float>(fb_width), 0.0f, static_cast<float>(fb_height), -1.0f, +1.0f);
 
     _rendercontext._vs.set_uniform_block("matrix_pack", projection_mtx);
     _rendercontext._fs.set_uniform("font_texture", 0);

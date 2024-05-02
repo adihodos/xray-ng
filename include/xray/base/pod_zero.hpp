@@ -42,7 +42,7 @@ template<typename pod_type>
 struct pod_zero : public pod_type
 {
 
-    static_assert(std::is_pod<pod_type>::value, "Only POD types allowed!");
+    static_assert(std::is_standard_layout_v<pod_type> && std::is_trivial_v<pod_type>, "Only POD types allowed!");
 
     pod_zero() noexcept { memset(this, 0, sizeof(*this)); }
 };

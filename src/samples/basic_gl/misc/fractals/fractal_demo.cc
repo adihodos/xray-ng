@@ -49,7 +49,6 @@ static constexpr uint32_t kIterations[] = { 16, 32, 64, 128, 256, 512, 1024, 204
 tl::optional<app::demo_bundle_t>
 app::fractal_demo::create(const init_context_t& initContext)
 {
-
     geometry_data_t quad_mesh;
     geometry_factory::fullscreen_quad(&quad_mesh);
 
@@ -123,12 +122,16 @@ app::fractal_demo::create(const init_context_t& initContext)
 
     pipeline.use_vertex_program(vs).use_fragment_program(fs);
 
-    auto demoObj = xray::base::make_unique<fractal_demo>(
-        initContext, move(quad_vb), move(quad_ib), move(quad_layout), move(vs), move(fs), move(pipeline));
+    auto demoObj = xray::base::make_unique<fractal_demo>(ConstructToken{},
+                                                         initContext,
+                                                         move(quad_vb),
+                                                         move(quad_ib),
+                                                         move(quad_layout),
+                                                         move(vs),
+                                                         move(fs),
+                                                         move(pipeline));
     auto winEventHandler = make_delegate(*demoObj, &fractal_demo::event_handler);
     auto loopEventHandler = make_delegate(*demoObj, &fractal_demo::loop_event);
-
-    demoObj->_valid = true;
 
     return tl::make_optional<demo_bundle_t>(move(demoObj), winEventHandler, loopEventHandler);
 }
@@ -138,8 +141,6 @@ app::fractal_demo::~fractal_demo() {}
 void
 app::fractal_demo::loop_event(const xray::ui::window_loop_event& wle)
 {
-    assert(valid());
-
     _ui->tick(1.0f / 60.0f);
     draw(wle.wnd_width, wle.wnd_height);
     draw_ui(wle.wnd_width, wle.wnd_height);

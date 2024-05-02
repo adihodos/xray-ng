@@ -30,6 +30,11 @@
 
 #pragma once
 
+#include <cstdint>
+#include <random>
+
+#include <tl/optional.hpp>
+
 #include "demo_base.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
@@ -39,11 +44,10 @@
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
+#include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/fps_camera_controller.hpp"
 #include "xray/xray.hpp"
-#include <cstdint>
-#include <random>
 
 namespace app {
 
@@ -121,39 +125,56 @@ class simple_fluid
 class procedural_city_demo : public demo_base
 {
   public:
-    procedural_city_demo(const init_context_t& inictx);
-
     ~procedural_city_demo();
 
-    virtual void draw(const xray::rendering::draw_context_t&) override;
-    virtual void update(const float delta_ms) override;
     virtual void event_handler(const xray::ui::window_event& evt) override;
-    virtual void compose_ui() override;
+    virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void poll_start(const xray::ui::poll_start_event&) override;
+    virtual void poll_end(const xray::ui::poll_end_event&) override;
+
+    static std::string_view short_desc() noexcept { return "Procedural city."; }
+
+    static std::string_view detailed_desc() noexcept { return "Procedurally generated city."; }
+
+    static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
 
   private:
     void init();
+    void draw_ui(const xray::ui::window_loop_event& loopEvent);
+	void draw(const xray::ui::window_loop_event& loopEvent);
 
   private:
-    xray::rendering::surface_normal_visualizer _drawnormals{};
-    xray::rendering::basic_mesh _mesh;
-    xray::rendering::scoped_buffer _instancedata;
-    xray::rendering::vertex_program _vs;
-    xray::rendering::fragment_program _fs;
-    xray::rendering::program_pipeline _pipeline;
-    xray::rendering::scoped_texture _objtex;
-    xray::rendering::scoped_sampler _sampler;
-    xray::scene::camera _camera;
-    xray::scene::fps_camera_controller _camcontrol{ &_camera };
-    random_engine _rand{};
-    simple_fluid _fluid{};
-    struct
+    struct RenderState
+    {
+        // xray::rendering::surface_normal_visualizer _drawnormals{};
+        xray::rendering::basic_mesh _mesh;
+        xray::rendering::scoped_buffer _instancedata;
+        xray::rendering::vertex_program _vs;
+        xray::rendering::fragment_program _fs;
+        xray::rendering::program_pipeline _pipeline;
+        xray::rendering::scoped_texture _objtex;
+        xray::rendering::scoped_sampler _sampler;
+        xray::scene::camera _camera;
+        xray::scene::fps_camera_controller _camcontrol;
+        // random_engine _rand{};
+        // simple_fluid _fluid{};
+    } mRenderState;
+
+    struct DemoOptions
     {
         bool draw_fluid{ true };
         bool freeze_fluid{ false };
-        bool draw_buildings{ false };
-    } _demo_options;
+        bool draw_buildings{ true };
+    } mDemoOptions;
+
+	struct RasterizerState {
+		xray::rendering::ScopedGlCap mEnabledDepthTesting{gl::DEPTH_TEST, xray::rendering::GlCapabilityState::On};
+		xray::rendering::ScopedGlCap mEnableFaceCulling{gl::CULL_FACE, xray::rendering::GlCapabilityState::On};
+		xray::rendering::ScopedCullFaceMode mCullBackFaces{gl::BACK};
+	} mRasterizerState{};
 
   private:
+    procedural_city_demo(const init_context_t& initCtx, RenderState&& renderState);
     XRAY_NO_COPY(procedural_city_demo);
 };
 

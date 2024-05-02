@@ -306,51 +306,51 @@ xray::rendering::geometry_factory::box(const float width,
 
     // Fill in the front face index data
     i[0] = 0;
-    i[1] = 1;
-    i[2] = 2;
+    i[1] = 2;
+    i[2] = 1;
     i[3] = 0;
-    i[4] = 2;
-    i[5] = 3;
+    i[4] = 3;
+    i[5] = 2;
 
     // Fill in the back face index data
     i[6] = 4;
-    i[7] = 5;
-    i[8] = 6;
+    i[7] = 6;
+    i[8] = 5;
     i[9] = 4;
-    i[10] = 6;
-    i[11] = 7;
+    i[10] = 7;
+    i[11] = 6;
 
     // Fill in the top face index data
     i[12] = 8;
-    i[13] = 9;
-    i[14] = 10;
+    i[13] = 10;
+    i[14] = 9;
     i[15] = 8;
-    i[16] = 10;
-    i[17] = 11;
+    i[16] = 11;
+    i[17] = 10;
 
     // Fill in the bottom face index data
     i[18] = 12;
-    i[19] = 13;
-    i[20] = 14;
+    i[19] = 14;
+    i[20] = 13;
     i[21] = 12;
-    i[22] = 14;
-    i[23] = 15;
+    i[22] = 15;
+    i[23] = 14;
 
     // Fill in the left face index data
     i[24] = 16;
-    i[25] = 17;
-    i[26] = 18;
+    i[25] = 18;
+    i[26] = 17;
     i[27] = 16;
-    i[28] = 18;
-    i[29] = 19;
+    i[28] = 19;
+    i[29] = 18;
 
     // Fill in the right face index data
     i[30] = 20;
-    i[31] = 21;
-    i[32] = 22;
+    i[31] = 22;
+    i[32] = 21;
     i[33] = 20;
-    i[34] = 22;
-    i[35] = 23;
+    i[34] = 23;
+    i[35] = 22;
 }
 
 // void xray::rendering::geometry_factory::create_conical_shape(

@@ -95,7 +95,6 @@ class mesh_demo : public demo_base
     xray::math::aabb3f _bbox;
     xray::scene::camera _camera;
     xray::scene::camera_controller_spherical_coords _camcontrol{
-        &_camera,
         "config/misc/mesh_demo/cam_controller_spherical.conf"
     };
     xray::base::maybe<mesh_info> _mesh_info{ xray::base::nothing{} };

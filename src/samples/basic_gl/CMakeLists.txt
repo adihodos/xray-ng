@@ -33,8 +33,8 @@ set(project_sources
   #    ${proj_inc_dir}/misc/geometric_shapes/geometric_shapes_demo.hpp
   #    ${proj_src_dir}/misc/geometric_shapes/geometric_shapes_demo.cc
 
-  #    ${proj_inc_dir}/misc/procedural_city/procedural_city_demo.hpp
-  #    ${proj_src_dir}/misc/procedural_city/procedural_city_demo.cc
+  ${proj_inc_dir}/misc/procedural_city/procedural_city_demo.hpp
+  ${proj_src_dir}/misc/procedural_city/procedural_city_demo.cc
 
   ${proj_inc_dir}/lighting/directional_light_demo.hpp
   ${proj_src_dir}/lighting/directional_light_demo.cc
@@ -213,7 +213,9 @@ target_link_libraries(${PROJECT_NAME}
   TBB::tbb
   itlib::itlib
   quill::quill
-  joboccara::pipes)
+  joboccara::pipes
+  cppitertools::cppitertools
+)
 
 add_custom_target(COPY_SHADERS ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders

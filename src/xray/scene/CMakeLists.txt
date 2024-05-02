@@ -6,8 +6,6 @@ set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 set(project_sources
   ${proj_inc_dir}/camera.hpp
   ${proj_src_dir}/camera.cc
-  ${proj_inc_dir}/camera_controller.hpp
-  ${proj_src_dir}/camera_controller.cc
   ${proj_inc_dir}/camera_controller_spherical_coords.hpp
   ${proj_src_dir}/camera_controller_spherical_coords.cc
   ${proj_inc_dir}/fps_camera_controller.hpp
@@ -36,4 +34,4 @@ target_compile_definitions(
   $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
 )
 
-target_link_libraries(${PROJECT_NAME} xray-base config)
+target_link_libraries(${PROJECT_NAME} PUBLIC xray-base config tl::optional)

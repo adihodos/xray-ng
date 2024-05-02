@@ -53,8 +53,8 @@ xray::rendering::basic_mesh::basic_mesh(const xray::rendering::vertex_pnt* verti
     : _mtype{ mtype }
 {
 
-    create(std::span<const vertex_pnt>{ vertices, vertices + static_cast<ptrdiff_t>(num_vertices) },
-           std::span<const uint32_t>{ indices, indices + static_cast<ptrdiff_t>(num_indices) });
+    create(std::span<const vertex_pnt>{ vertices, vertices + static_cast<size_t>(num_vertices) },
+           std::span<const uint32_t>{ indices, indices + static_cast<size_t>(num_indices) });
     compute_bounding();
 }
 

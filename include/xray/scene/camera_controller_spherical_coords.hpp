@@ -28,10 +28,10 @@
 
 #pragma once
 
-#include "xray/base/maybe.hpp"
 #include "xray/math/scalar2.hpp"
-#include "xray/scene/camera_controller.hpp"
 #include "xray/xray.hpp"
+
+#include <tl/optional.hpp>
 
 namespace xray {
 
@@ -46,14 +46,14 @@ class camera;
 /// \addtogroup __GroupXrayMath
 /// @{
 
-class camera_controller_spherical_coords : public camera_controller
+class camera_controller_spherical_coords
 {
   public:
-    camera_controller_spherical_coords(camera* cam, const char* config_file = nullptr);
+    camera_controller_spherical_coords(const char* config_file = nullptr);
 
-    virtual void input_event(const ui::window_event& input_evt) override;
+    void input_event(const ui::window_event& input_evt);
 
-    virtual void update() override;
+    void update_camera(camera& targetCam);
 
   private:
     struct controller_params_t
@@ -68,15 +68,13 @@ class camera_controller_spherical_coords : public camera_controller
         float speed_theta_{ 0.1f };
         float speed_phi_{ 0.1f };
         float speed_move_{ 0.2f };
-
-        controller_params_t() noexcept = default;
     };
 
     void mouse_moved(const float x_pos, const float y_pos) noexcept;
 
   private:
     controller_params_t _params{};
-    xray::base::maybe<xray::math::vec2f> _last_mouse_pos{ xray::base::nothing{} };
+    tl::optional<xray::math::vec2f> _last_mouse_pos{};
 };
 
 /// @}

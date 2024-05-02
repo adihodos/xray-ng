@@ -52,6 +52,7 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
+#include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
 
@@ -153,7 +154,6 @@ class directional_light_demo : public demo_base
     {
         xray::scene::camera cam;
         xray::scene::camera_controller_spherical_coords cam_control{
-            &cam,
             "config/lighting/directional_light/cam_controller_spherical.conf"
         };
         std::vector<ModelInfo> modelFiles;
@@ -162,6 +162,13 @@ class directional_light_demo : public demo_base
         xray::base::timer_highp timer;
         std::string debugOutput;
     } mScene;
+
+	struct RasterizerState {
+		xray::rendering::ScopedGlCap mEnableDepthTesting{gl::DEPTH_TEST, xray::rendering::GlCapabilityState::On};
+		xray::rendering::ScopedGlCap mEnableFaceCulling{gl::CULL_FACE, xray::rendering::GlCapabilityState::On};
+		xray::rendering::ScopedCullFaceMode mCullBackFaces{gl::BACK};
+		xray::rendering::ScopedWindingOrder mWindingCW{gl::CW};
+	} mRasterizerState{};
 
   private:
     directional_light_demo(const init_context_t& ctx, RenderState&& rs, const DemoOptions& ds, Scene&& s);

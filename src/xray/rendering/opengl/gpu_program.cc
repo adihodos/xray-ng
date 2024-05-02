@@ -201,10 +201,10 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const noex
         // retrieve pointer to the strings with the source code of the program.
         // strings defined in the config file are placed in front of the
         // string from the shader file.
-        auto src_pts_range = std::span<const char*>{ src_pointers.data(), static_cast<ptrdiff_t>(src_pointers.size()) };
+        auto src_pts_range = std::span<const char*>{ src_pointers.data(), static_cast<size_t>(src_pointers.size()) };
 
         auto src_map_range =
-            std::span<mm_file_t>{ mapped_src_files.data(), static_cast<ptrdiff_t>(mapped_src_files.size()) };
+            std::span<mm_file_t>{ mapped_src_files.data(), static_cast<size_t>(mapped_src_files.size()) };
 
         auto src_dsc_range = std::span<const shader_source_descriptor>{ &_source_list[0], _sources_count };
 
@@ -859,7 +859,7 @@ xray::rendering::detail::gpu_program_base::flush_uniforms()
         for_each(
             begin(subroutine_uniforms_),
             end(subroutine_uniforms_),
-            [indices = std::span<GLuint>{ indices_buff.data(), static_cast<ptrdiff_t>(indices_buff.size()) }](
+            [indices = std::span<GLuint>{ indices_buff.data(), static_cast<size_t>(indices_buff.size()) }](
                 const auto& sub_unifrm) { indices[sub_unifrm.ssu_location] = sub_unifrm.ssu_assigned_subroutine_idx; });
 
         gl::UniformSubroutinesuiv(_stage, static_cast<GLsizei>(indices_buff.size()), indices_buff.data());

@@ -147,7 +147,6 @@ app::instanced_drawing_demo::instanced_drawing_demo(const app::init_context_t& i
     lens_param.farplane = 1000.0f;
     lens_param.fov = radians(70.0f);
     _scene.cam_control.set_lens_parameters(lens_param);
-    _scene.cam_control.update();
 
     const char* const files[] = { "f15/f15c.bin",
                                   //      "f4/f4phantom.bin",
@@ -411,7 +410,7 @@ app::instanced_drawing_demo::loop_event(const xray::ui::window_loop_event& wle)
 
     _ui->tick(delta_tm);
 
-    _scene.cam_control.update();
+    _scene.cam_control.update_camera(_scene.camera);
 
     gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, color_palette::web::black.components);
     gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
@@ -509,7 +508,7 @@ app::instanced_drawing_demo::compose_ui(const int32_t surface_width, const int32
 
         int32_t idx{};
         const auto instance_span =
-            std::span{ _obj_instances.instances.data(), static_cast<ptrdiff_t>(_demo_opts.instance_count) };
+            std::span{ _obj_instances.instances.data(), static_cast<size_t>(_demo_opts.instance_count) };
 
         for_each(begin(instance_span), end(instance_span), [&idx](instance_info& ii) {
             if (ImGui::TreeNodeEx(fmt::format("Instance #{}", idx).c_str(), ImGuiTreeNodeFlags_CollapsingHeader)) {

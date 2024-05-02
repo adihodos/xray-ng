@@ -42,11 +42,9 @@
 using namespace xray::math;
 using namespace xray::ui;
 
-xray::scene::fps_camera_controller::fps_camera_controller(xray::scene::camera* cam, const char*)
-    : camera_controller{ cam }
+xray::scene::fps_camera_controller::fps_camera_controller(const char*)
 {
     _syncstatus.state = 0;
-    update_view_transform();
 }
 
 void
@@ -226,15 +224,19 @@ xray::scene::fps_camera_controller::input_event(const ui::window_event& evt)
 }
 
 void
-xray::scene::fps_camera_controller::update()
+xray::scene::fps_camera_controller::update_camera(xray::scene::camera& cam)
 {
     if (!_syncstatus.view) {
-        update_view_transform();
+		_dir = normalize(_dir);
+		_right = normalize(cross(_up, _dir));
+		_up = cross(_dir, _right);
+		
+        cam.set_view_matrix(view_matrix(_right, _up, _dir, _position));
         _syncstatus.view = true;
     }
 
     if (!_syncstatus.lens) {
-        cam_->set_projection(projections_rh::perspective_symmetric(
+        cam.set_projection(perspective_symmetric(
             _lensparams.aspect_ratio, _lensparams.fov, _lensparams.nearplane, _lensparams.farplane));
         _syncstatus.lens = true;
     }
@@ -265,14 +267,4 @@ xray::scene::fps_camera_controller::roll(const float delta) noexcept
     _up = normalize(qroll * _up);
     _right = normalize(qroll * _right);
     _syncstatus.view = 0;
-}
-
-void
-xray::scene::fps_camera_controller::update_view_transform()
-{
-    _right = normalize(_right);
-    _up = normalize(cross(_dir, _right));
-    _dir = cross(_right, _up);
-
-    cam_->set_view_matrix(view_frame::view_matrix(_right, _up, _dir, _position));
 }

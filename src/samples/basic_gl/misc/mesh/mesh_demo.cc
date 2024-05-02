@@ -57,13 +57,12 @@ struct mesh_load_info
 app::mesh_demo::mesh_demo(const init_context_t& init_ctx)
     : demo_base{ init_ctx }
 {
-    _camera.set_projection(projections_rh::perspective_symmetric(static_cast<float>(init_ctx.surface_width) /
-                                                                     static_cast<float>(init_ctx.surface_height),
-                                                                 radians(70.0f),
-                                                                 0.1f,
-                                                                 100.0f));
+    _camera.set_projection(
+        perspective_symmetric(static_cast<float>(init_ctx.surface_width) / static_cast<float>(init_ctx.surface_height),
+                              radians(70.0f),
+                              0.1f,
+                              100.0f));
 
-    _camcontrol.update();
     init();
     _ui->set_global_font("UbuntuMono-Regular");
 }
@@ -202,7 +201,7 @@ app::mesh_demo::draw(const float surface_width, const float surface_height)
     gl::BindSamplers(0, 1, bound_samplers);
 
     {
-        scoped_polygon_mode_setting set_wireframe{ _drawparams.draw_wireframe ? gl::LINE : gl::FILL };
+        ScopedPolygonMode set_wireframe{ _drawparams.draw_wireframe ? gl::LINE : gl::FILL };
 
         gl::DrawElements(gl::TRIANGLES, _indexcount, gl::UNSIGNED_INT, nullptr);
     }
@@ -304,7 +303,7 @@ app::mesh_demo::event_handler(const xray::ui::window_event& evt)
 {
     if (evt.type == event_type::configure) {
         const auto cfg = &evt.event.configure;
-        _camera.set_projection(projections_rh::perspective_symmetric(
+        _camera.set_projection(perspective_symmetric(
             static_cast<float>(cfg->width) / static_cast<float>(cfg->height), radians(70.0f), 0.1f, 100.0f));
 
         return;
@@ -334,7 +333,7 @@ app::mesh_demo::event_handler(const xray::ui::window_event& evt)
 void
 app::mesh_demo::loop_event(const xray::ui::window_loop_event& wle)
 {
-    _camcontrol.update();
+    _camcontrol.update_camera(_camera);
     _ui->tick(1.0f / 60.0f);
 
     draw(static_cast<float>(wle.wnd_width), static_cast<float>(wle.wnd_height));

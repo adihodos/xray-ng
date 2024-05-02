@@ -31,26 +31,27 @@
 #pragma once
 
 #include "xray/xray.hpp"
+#include <algorithm>
 #include <cstdint>
 #include <opengl/opengl.hpp>
 
 namespace xray {
 namespace rendering {
 
-struct scoped_polygon_mode_setting
+struct ScopedPolygonMode
 {
   public:
-    explicit scoped_polygon_mode_setting(const int32_t new_mode) noexcept
+    explicit ScopedPolygonMode(const GLenum new_mode) noexcept
     {
         gl::GetIntegerv(gl::POLYGON_MODE, &_old_mode);
-        gl::PolygonMode(gl::FRONT_AND_BACK, (GLenum)new_mode);
+        gl::PolygonMode(gl::FRONT_AND_BACK, new_mode);
     }
 
-    ~scoped_polygon_mode_setting() noexcept { gl::PolygonMode(gl::FRONT_AND_BACK, (GLenum)_old_mode); }
+    ~ScopedPolygonMode() noexcept { gl::PolygonMode(gl::FRONT_AND_BACK, static_cast<GLenum>(_old_mode)); }
 
   private:
     GLint _old_mode{ gl::NONE };
-    XRAY_NO_COPY(scoped_polygon_mode_setting);
+    XRAY_NO_COPY(ScopedPolygonMode);
 };
 
 struct scoped_line_width_setting
@@ -69,20 +70,59 @@ struct scoped_line_width_setting
     XRAY_NO_COPY(scoped_line_width_setting);
 };
 
-struct scoped_winding_order_setting
+struct ScopedWindingOrder
 {
   public:
-    explicit scoped_winding_order_setting(const GLint new_winding) noexcept
+    explicit ScopedWindingOrder(const GLenum new_winding) noexcept
     {
         gl::GetIntegerv(gl::FRONT_FACE, &_old_setting);
         gl::FrontFace(new_winding);
     }
 
-    ~scoped_winding_order_setting() noexcept { gl::FrontFace(_old_setting); }
+    ~ScopedWindingOrder() noexcept { gl::FrontFace(static_cast<GLenum>(_old_setting)); }
 
   private:
     GLint _old_setting{};
-    XRAY_NO_COPY(scoped_winding_order_setting);
+    XRAY_NO_COPY(ScopedWindingOrder);
+};
+
+enum class GlCapabilityState
+{
+    Off,
+    On
+};
+
+struct ScopedGlCap
+{
+    explicit ScopedGlCap(const GLenum glCapId, const GlCapabilityState capState)
+        : mPrevValue{ gl::IsEnabled(glCapId) }
+        , mGlCapId{ glCapId }
+    {
+        capState == GlCapabilityState::On ? gl::Enable(mGlCapId) : gl::Disable(mGlCapId);
+    }
+
+    ~ScopedGlCap() { mPrevValue == gl::TRUE_ ? gl::Enable(mGlCapId) : gl::Disable(mGlCapId); }
+
+  private:
+    GLboolean mPrevValue;
+    GLenum mGlCapId;
+    XRAY_NO_COPY(ScopedGlCap);
+};
+
+struct ScopedCullFaceMode
+{
+  public:
+    explicit ScopedCullFaceMode(const GLenum val)
+    {
+        gl::GetIntegerv(gl::CULL_FACE_MODE, &mPrevValue);
+        gl::CullFace(val);
+    }
+
+    ~ScopedCullFaceMode() { gl::CullFace(static_cast<GLenum>(mPrevValue)); }
+
+  private:
+    GLint mPrevValue;
+    XRAY_NO_COPY(ScopedCullFaceMode);
 };
 
 } // namespace rendering

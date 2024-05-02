@@ -1,4 +1,5 @@
 #include "xray/scene/camera_controller_spherical_coords.hpp"
+
 #include "xray/base/config_settings.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/math/constants.hpp"
@@ -7,6 +8,7 @@
 #include "xray/scene/camera.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
+
 #include <cassert>
 
 using namespace xray::base;
@@ -14,9 +16,7 @@ using namespace xray::math;
 using namespace xray::ui;
 
 xray::scene::camera_controller_spherical_coords::camera_controller_spherical_coords(
-    camera* cam,
     const char* config_file_path /* = nullptr */)
-    : camera_controller{ cam }
 {
     if (!config_file_path)
         return;
@@ -105,7 +105,7 @@ xray::scene::camera_controller_spherical_coords::input_event(const ui::window_ev
     // Reset last mouse position to avoid camera jumping suddenly the next
     // time the mouse button is pressed.
     if (input_evt.type == event_type::mouse_button && input_evt.event.button.type == event_action_type::release) {
-        _last_mouse_pos = nothing{};
+        _last_mouse_pos = tl::nullopt;
         return;
     }
 
@@ -141,11 +141,8 @@ xray::scene::camera_controller_spherical_coords::mouse_moved(const float x_pos, 
 }
 
 void
-xray::scene::camera_controller_spherical_coords::update()
+xray::scene::camera_controller_spherical_coords::update_camera(xray::scene::camera& targetCam)
 {
-    assert(cam_ != nullptr);
-
     const auto cam_pos = point_from_spherical_coords(_params.radius_, _params.theta_, _params.phi_);
-
-    cam_->look_at(cam_pos, vec3f::stdc::zero, vec3f::stdc::unit_y);
+    targetCam.look_at(cam_pos, vec3f::stdc::zero, vec3f::stdc::unit_y);
 }
