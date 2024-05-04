@@ -45,7 +45,7 @@ using namespace xray::ui;
 using namespace xray::scene;
 using namespace std;
 
-extern xray::base::app_config* xr_app_config;
+extern xray::base::ConfigSystem* xr_app_config;
 
 static constexpr uint32_t INSTANCE_COUNT{ 1024u };
 static constexpr const char* const TEXTURES[] = { "uv_grids/ash_uvgrid01.jpg", "uv_grids/ash_uvgrid02.jpg",

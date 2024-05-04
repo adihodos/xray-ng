@@ -8,7 +8,7 @@
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include <opengl/opengl.hpp>
 
-extern xray::base::app_config* xr_app_config;
+extern xray::base::ConfigSystem* xr_app_config;
 
 using namespace xray::base;
 using namespace xray::math;

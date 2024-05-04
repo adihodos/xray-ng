@@ -30,7 +30,11 @@
 /// \file syscall_wrapper.hpp
 
 #include "xray/xray.hpp"
+
 #include <cerrno>
+#include <type_traits>
+#include <functional>
+#include <utility>
 
 namespace xray {
 namespace base {
@@ -38,19 +42,21 @@ namespace base {
 /// \addtogroup __GroupXrayBase
 /// @{
 
-template<typename fn_type, typename... fn_args>
-inline auto
-syscall_wrapper(fn_type fn, fn_args... args) noexcept
+template<typename SyscallFN, typename... SyscallArgs>
+auto
+syscall_wrapper(SyscallFN syscall_fn, SyscallArgs... syscall_args)
 {
-    auto ret_code = fn(std::forward<fn_args>(args)...);
+    using syscall_result_type = std::invoke_result_t<SyscallFN, SyscallArgs...>;
+
+    syscall_result_type syscall_res{ std::invoke(syscall_fn, std::forward<SyscallArgs>(syscall_args)...) };
 
 #if defined(XRAY_OS_IS_POSIX_FAMILY)
-    while ((ret_code == -1) && (errno == EINTR)) {
-        ret_code = fn(std::forward<fn_args>(args)...);
+    while ((syscall_res == -1) && (errno == EINTR)) {
+        syscall_res = std::invoke(syscall_fn, std::forward<SyscallArgs>(syscall_args)...);
     }
-#endif /* XRAY_OS_IS_POSIX_FAMILY */
+#endif
 
-    return ret_code;
+    return syscall_res;
 }
 
 /// @}

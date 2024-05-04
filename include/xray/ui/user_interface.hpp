@@ -47,10 +47,11 @@
 
 #include <cassert>
 #include <cstdint>
-#include <imgui/IconsFontAwesome.h>
 #include <string>
 #include <vector>
+#include <filesystem>
 
+#include <imgui/IconsFontAwesome.h>
 #include <imgui/imconfig.h>
 #include <imgui/imgui.h>
 
@@ -67,7 +68,7 @@ struct window_event;
 
 struct font_info
 {
-    std::string path;
+    std::filesystem::path path;
     float pixel_size;
 };
 

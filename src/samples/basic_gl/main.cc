@@ -33,10 +33,18 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <numeric>
 #include <thread>
 #include <tuple>
 #include <vector>
+
+#include <oneapi/tbb/info.h>
+#include <oneapi/tbb/task_arena.h>
+#include <opengl/opengl.hpp>
+
+#include <itertools.hpp>
+#include <pipes/pipes.hpp>
 
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
@@ -53,13 +61,6 @@
 #include "xray/ui/user_interface.hpp"
 #include "xray/ui/window.hpp"
 
-#include <oneapi/tbb/info.h>
-#include <oneapi/tbb/task_arena.h>
-#include <opengl/opengl.hpp>
-
-#include <platformstl/filesystem/filesystem_traits.hpp>
-#include <platformstl/filesystem/readdir_sequence.hpp>
-
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "lighting/directional_light_demo.hpp"
@@ -68,10 +69,6 @@
 #include "misc/mesh/mesh_demo.hpp"
 #include "misc/procedural_city/procedural_city_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
-
-#include <rangelib/algorithms.hpp>
-#include <rangelib/rangelib.hpp>
-#include <rangelib/sequence_range.hpp>
 
 // #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 // #include <quill/Quill.h>
@@ -83,7 +80,7 @@ using namespace xray::ui;
 using namespace xray::rendering;
 using namespace std;
 
-xray::base::app_config* xr_app_config{ nullptr };
+xray::base::ConfigSystem* xr_app_config{ nullptr };
 
 namespace app {
 
@@ -182,35 +179,26 @@ class main_app
 main_app::main_app(xray::ui::window* wnd)
     : _window{ wnd }
 {
+    namespace fs = std::filesystem;
+    const vector<xray::ui::font_info> font_list = fs::recursive_directory_iterator(xr_app_config->font_root()) >>=
+        pipes::filter([](const fs::directory_entry& dir_entry) {
+            if (!dir_entry.is_regular_file())
+                return false;
 
-    platformstl::readdir_sequence rddir{ xr_app_config->font_root(),
-                                         platformstl::readdir_sequence::fullPath |
-                                             platformstl ::readdir_sequence::directories |
-                                             platformstl::readdir_sequence::files };
+            const std::string_view file_ext{ dir_entry.path().extension().c_str() };
+            return file_ext == ".ttf" || file_ext == ".otf";
+        }) >>= pipes::transform([](const fs::directory_entry& dir_entry) {
+            return xray::ui::font_info{ .path = dir_entry.path(), .pixel_size = 18.0f };
+        }) >>= pipes::to_<vector<xray::ui::font_info>>();
 
-    using namespace std;
-    vector<xray::ui::font_info> fonts{};
-    for_each(begin(rddir), end(rddir), [&fonts](const char* dir_entry) {
-        using fs = platformstl::filesystem_traits<char>;
-
-        if (!fs::is_file(dir_entry))
-            return;
-
-        platformstl::path file_p{ dir_entry };
-        if (!file_p.get_ext().compare(".ttf") && !file_p.get_ext().compare("otf"))
-            return;
-
-        fonts.push_back(xray::ui::font_info{ dir_entry, 18.0f });
-    });
-
-    _ui = xray::base::make_unique<xray::ui::user_interface>(fonts.data(), fonts.size());
+    _ui = xray::base::make_unique<xray::ui::user_interface>(font_list.data(), font_list.size());
 
     hookup_event_delegates();
 
-    RegisteredDemosList<fractal_demo, directional_light_demo, procedural_city_demo>::registerDemo(_registeredDemos);
+    RegisteredDemosList<fractal_demo, DirectionalLightDemo, procedural_city_demo>::registerDemo(_registeredDemos);
 
-    rangelib::r_for_each(rangelib::make_sequence_range(_registeredDemos),
-                         [](const DemoInfo& demo) { XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc); });
+    _registeredDemos >>=
+        pipes::for_each([](const DemoInfo& demo) { XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc); });
 
     gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
     _ui->set_global_font("Roboto-Regular");
@@ -685,7 +673,7 @@ main(int argc, char** argv)
     XR_LOG_INFO("Default concurency {}", num_threads);
     // tbb::task_scheduler_init tbb_initializer{};
 
-    app_config app_cfg{ "config/app_config.conf" };
+    ConfigSystem app_cfg{ "config/app_config.conf" };
     xr_app_config = &app_cfg;
 
     XR_LOG_INFO("Configured paths");

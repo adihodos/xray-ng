@@ -45,7 +45,7 @@ using namespace xray::math;
 using namespace xray::ui;
 using namespace std;
 
-extern xray::base::app_config* xr_app_config;
+extern xray::base::ConfigSystem* xr_app_config;
 
 struct rgba
 {

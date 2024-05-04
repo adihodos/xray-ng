@@ -425,7 +425,7 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
     config.MergeMode = true;
     static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
     auto font_awesome = _gui->Fonts->AddFontFromFileTTF(
-        app_config::instance()->font_path("fontawesome/fontawesome-webfont.ttf").c_str(), 13.0f, &config, icon_ranges);
+        ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").c_str(), 13.0f, &config, icon_ranges);
     assert(font_awesome != nullptr);
     _rendercontext.fonts.push_back({ "fontawesome", 13.0f, font_awesome });
 
@@ -439,12 +439,11 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
             fi.path.c_str(), fi.pixel_size, &config, _gui->Fonts->GetGlyphRangesDefault());
 
         if (!fnt) {
-            XR_DBG_MSG("Failed to load font {}", fi.path);
+            XR_DBG_MSG("Failed to load font {}", fi.path.string());
             return;
         }
 
-        platformstl::path_a fpath{ fi.path };
-        _rendercontext.fonts.emplace_back(std::string{ fpath.pop_ext().get_file().data() }, fi.pixel_size, fnt);
+        _rendercontext.fonts.emplace_back(fi.path.stem().string(), fi.pixel_size, fnt);
     });
 
     sort(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& f0, const loaded_font& f1) {

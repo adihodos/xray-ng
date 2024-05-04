@@ -43,10 +43,12 @@
 #include "demo_base.hpp"
 #include "mesh_lister.hpp"
 #include "xray/base/basic_timer.hpp"
+#include "xray/base/file_system_watcher.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/geometry/surface_normal_visualizer.hpp"
 #include "xray/rendering/mesh.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
@@ -58,7 +60,7 @@
 
 namespace app {
 
-struct directional_light
+struct DirectionalLight
 {
     xray::rendering::rgb_color ka;
     xray::rendering::rgb_color kd;
@@ -88,10 +90,10 @@ struct graphics_object
     float scale{ 1.0f };
 };
 
-class directional_light_demo : public demo_base
+class DirectionalLightDemo : public demo_base
 {
   public:
-    ~directional_light_demo();
+    ~DirectionalLightDemo();
 
     virtual void event_handler(const xray::ui::window_event& evt) override;
     virtual void loop_event(const xray::ui::window_loop_event&) override;
@@ -116,6 +118,8 @@ class directional_light_demo : public demo_base
     void update(const float delta_ms);
     void switch_mesh(const SwitchMeshOpt switchMeshOpt);
 
+    void filesys_event_handler(const xray::base::FileSystemEvent& fs_event);
+
   private:
     struct RenderState
     {
@@ -127,6 +131,7 @@ class directional_light_demo : public demo_base
         xray::rendering::program_pipeline pipeline;
         itlib::small_vector<xray::rendering::scoped_texture> objectTextures;
         xray::rendering::scoped_sampler sampler;
+        xray::rendering::RenderDebugDraw mDebugDraw;
     } mRenderState;
 
     struct DemoOptions
@@ -158,24 +163,30 @@ class directional_light_demo : public demo_base
         };
         std::vector<ModelInfo> modelFiles;
         int32_t current_mesh_idx{};
-        itlib::small_vector<directional_light, 4> lights{};
+        std::vector<DirectionalLight> lights{};
         xray::base::timer_highp timer;
         std::string debugOutput;
+        uint32_t lightsCount{ 4 };
+
+        static constexpr const uint32_t kMaxLightsCount{ 8 };
     } mScene;
 
-	struct RasterizerState {
-		xray::rendering::ScopedGlCap mEnableDepthTesting{gl::DEPTH_TEST, xray::rendering::GlCapabilityState::On};
-		xray::rendering::ScopedGlCap mEnableFaceCulling{gl::CULL_FACE, xray::rendering::GlCapabilityState::On};
-		xray::rendering::ScopedCullFaceMode mCullBackFaces{gl::BACK};
-		xray::rendering::ScopedWindingOrder mWindingCW{gl::CW};
-	} mRasterizerState{};
+    struct RasterizerState
+    {
+        xray::rendering::ScopedGlCap mEnableDepthTesting{ gl::DEPTH_TEST, xray::rendering::GlCapabilityState::On };
+        xray::rendering::ScopedGlCap mEnableFaceCulling{ gl::CULL_FACE, xray::rendering::GlCapabilityState::On };
+        xray::rendering::ScopedCullFaceMode mCullBackFaces{ gl::BACK };
+        xray::rendering::ScopedWindingOrder mWindingCW{ gl::CW };
+    } mRasterizerState{};
+
+    xray::base::FileSystemWatcher mFsWatcher{};
 
   private:
-    directional_light_demo(const init_context_t& ctx, RenderState&& rs, const DemoOptions& ds, Scene&& s);
+    DirectionalLightDemo(const init_context_t& ctx, RenderState&& rs, const DemoOptions& ds, Scene&& s);
 
     void adjust_model_transforms();
 
-    XRAY_NO_COPY(directional_light_demo);
+    XRAY_NO_COPY(DirectionalLightDemo);
 };
 
 } // namespace app

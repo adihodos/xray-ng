@@ -2,6 +2,8 @@
 #include "init_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
+#include "xray/base/fast_delegate.hpp"
+#include "xray/base/syscall_wrapper.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/quaternion.hpp"
@@ -9,6 +11,7 @@
 #include "xray/math/scalar3_string_cast.hpp"
 #include "xray/math/scalar3x3.hpp"
 #include "xray/math/scalar3x3_math.hpp"
+#include "xray/math/scalar3x3_string_cast.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/math/transforms_r3.hpp"
@@ -22,10 +25,13 @@
 #include "xray/rendering/texture_loader.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/user_interface.hpp"
+
 #include <opengl/opengl.hpp>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+
+#include <itertools.hpp>
 #include <pipes/pipes.hpp>
 
 #include <algorithm>
@@ -36,6 +42,7 @@
 #include <random>
 #include <span>
 #include <system_error>
+#include <variant>
 #include <vector>
 
 using namespace xray::base;
@@ -44,12 +51,12 @@ using namespace xray::math;
 using namespace xray::ui;
 using namespace std;
 
-extern xray::base::app_config* xr_app_config;
+extern xray::base::ConfigSystem* xr_app_config;
 
-app::directional_light_demo::directional_light_demo(const init_context_t& ctx,
-                                                    RenderState&& rs,
-                                                    const DemoOptions& ds,
-                                                    Scene&& s)
+app::DirectionalLightDemo::DirectionalLightDemo(const init_context_t& ctx,
+                                                RenderState&& rs,
+                                                const DemoOptions& ds,
+                                                Scene&& s)
     : demo_base{ ctx }
     , mRenderState{ std::move(rs) }
     , mDemoOptions{ ds }
@@ -65,23 +72,31 @@ app::directional_light_demo::directional_light_demo(const init_context_t& ctx,
     switch_mesh(SwitchMeshOpt::UseExisting);
     mScene.debugOutput.reserve(1024);
 
+    mFsWatcher.add_watch(
+        ctx.cfg->shader_root(), make_delegate(*this, &DirectionalLightDemo::filesys_event_handler), true);
+
     _ui->set_global_font("Roboto-Regular");
     mScene.timer.start();
 }
 
-app::directional_light_demo::~directional_light_demo() {}
+app::DirectionalLightDemo::~DirectionalLightDemo() {}
 
-void
+vector<app::DirectionalLight>
 make_lights()
 {
     //
     // generate 4 initial light directions from this vector
-    const vec3f startingDir{ 1.0f, -1.0f, -1.0f };
-    const int range[] = { 0, 1, 2, 3 };
-    const float rotation{ radians(90) };
-    itlib::small_vector<vec3f, 8> lightsDirections = range >>= pipes::transform([=](const int quadrant) {
-        const mat3f rotationMtx{ R3::rotate_y((float)quadrant * rotation) };
+    const vec3f startingDir{ 1.0f, 1.0f, 1.0f };
+    const float rotation_step{ radians(90.0f) };
+
+    itlib::small_vector<vec3f, 8> lightsDirections = iter::range(4) >>= pipes::transform([=](const int quadrant) {
+        const float rotation_angle = static_cast<float>(quadrant) * rotation_step;
+
+        const mat3f rotationMtx{ R3::rotate_y(rotation_angle) };
         const vec3f newDir{ mul_vec(rotationMtx, startingDir) };
+
+        XR_LOG_INFO("light vector {:3.3f}", newDir);
+
         return normalize(newDir);
     }) >>= pipes::to_<itlib::small_vector<vec3f, 8>>();
 
@@ -90,19 +105,53 @@ make_lights()
         lightsDirections.push_back(-lightsDirections[idx]);
     }
 
-    mt19937 randEngine{ 2 };
+    mt19937 randEngine{ 0xdeadbeef };
     uniform_int_distribution<uint8_t> rngDistrib{ 0, 127 };
-    itlib::small_vector<rgb_color> lightColors = lightsDirections >>= pipes::transform([&](const vec3f&) mutable {
+
+    struct KaKdKs
+    {
+        rgb_color ka;
+        rgb_color kd;
+        rgb_color ks;
+    };
+
+    itlib::small_vector<KaKdKs> lightColors = lightsDirections >>= pipes::transform([&](const vec3f&) mutable {
         const uint8_t r{ static_cast<uint8_t>(rngDistrib(randEngine) + 127) };
         const uint8_t g{ static_cast<uint8_t>(rngDistrib(randEngine) + 127) };
         const uint8_t b{ static_cast<uint8_t>(rngDistrib(randEngine) + 127) };
 
-        return rgb_color{ r, g, b };
-    }) >>= pipes::to_<itlib::small_vector<rgb_color>>();
+        return KaKdKs{ color_palette::web::black,
+                       rgb_color{ static_cast<uint8_t>(rngDistrib(randEngine) + 127),
+                                  static_cast<uint8_t>(rngDistrib(randEngine) + 127),
+                                  static_cast<uint8_t>(rngDistrib(randEngine) + 127) },
+
+                       color_palette::web::white_smoke
+
+        };
+    }) >>= pipes::to_<itlib::small_vector<KaKdKs>>();
+
+    mt19937 randEngineLights{ 0xbeefdead };
+    uniform_int_distribution<uint8_t> lightStrength{ 20, 32 };
+
+    vector<app::DirectionalLight> lightsCollection;
+    pipes::mux(lightsDirections, lightColors) >>= pipes::transform([&](const vec3f dir, const KaKdKs colors) {
+        const auto& [ka, kd, ks] = colors;
+        return app::DirectionalLight{
+            .ka = ka,
+            .kd = kd,
+            .ks = kd,
+            .direction = dir,
+            .half_vector = vec3f::stdc::zero,
+            .shininess = static_cast<float>(lightStrength(randEngineLights)),
+            .strength = static_cast<float>(lightStrength(randEngineLights)),
+        };
+    }) >>= pipes::push_back(lightsCollection);
+
+    return lightsCollection;
 }
 
 tl::optional<app::demo_bundle_t>
-app::directional_light_demo::create(const app::init_context_t& initContext)
+app::DirectionalLightDemo::create(const app::init_context_t& initContext)
 {
 
     namespace fs = std::filesystem;
@@ -112,7 +161,7 @@ app::directional_light_demo::create(const app::init_context_t& initContext)
     error_code errCode{};
     assert(fs::is_directory(pathQueue.front(), errCode));
 
-    directional_light_demo::Scene s{};
+    DirectionalLightDemo::Scene s{};
 
     while (!pathQueue.empty()) {
         fs::path currentPath{ pathQueue.front() };
@@ -142,11 +191,7 @@ app::directional_light_demo::create(const app::init_context_t& initContext)
     s.modelFiles >>= pipes::for_each([](const ModelInfo& mi) { XR_LOG_DEBUG("::: {} :::", mi.path.c_str()); });
 
     const DemoOptions demoOptions{};
-    s.lights.emplace_back(rgb_color{ demoOptions.ka },
-                          rgb_color{ demoOptions.kd },
-                          rgb_color{ demoOptions.ks },
-                          normalize(demoOptions.lightdir),
-                          0.0f);
+    s.lights = make_lights();
 
     //
     // geometry
@@ -173,14 +218,16 @@ app::directional_light_demo::create(const app::init_context_t& initContext)
     mesh_loader::load(viperMdlItr != cend(s.modelFiles) ? viperMdlItr->path.c_str() : s.modelFiles.front().path.c_str())
         .map([&geometryObjects](mesh_loader loadedModel) { geometryObjects.emplace_back(loadedModel); });
 
-    vertex_program vertShader =
-        gpu_program_builder{}.add_file("shaders/lighting/vs.directional.glsl").build<render_stage::e::vertex>();
+    vertex_program vertShader = gpu_program_builder{}
+                                    .add_file(initContext.cfg->shader_path("lighting/directional.vert").c_str())
+                                    .build<render_stage::e::vertex>();
 
     if (!vertShader)
         return tl::nullopt;
 
-    fragment_program fragShader =
-        gpu_program_builder{}.add_file("shaders/lighting/fs.directional.glsl").build<render_stage::e::fragment>();
+    fragment_program fragShader = gpu_program_builder{}
+                                      .add_file(initContext.cfg->shader_path("lighting/directional.frag").c_str())
+                                      .build<render_stage::e::fragment>();
 
     if (!fragShader)
         return tl::nullopt;
@@ -220,31 +267,37 @@ app::directional_light_demo::create(const app::init_context_t& initContext)
         return scoped_sampler{ samplerId };
     }() };
 
-    unique_pointer<directional_light_demo> object{ new directional_light_demo{ // base
-                                                                               initContext,
-                                                                               // renderstate
-                                                                               { surface_normal_visualizer{},
-                                                                                 move(geometryObjects),
-                                                                                 {},
-                                                                                 move(vertShader),
-                                                                                 move(fragShader),
-                                                                                 move(pipeline),
-                                                                                 move(colorTextures),
-                                                                                 move(sampler) },
-                                                                               // demo options
-                                                                               demoOptions,
-                                                                               // scene
-                                                                               move(s) } };
+    tl::optional<RenderDebugDraw> debugDraw{ RenderDebugDraw::create() };
+    if (!debugDraw)
+        return tl::nullopt;
 
-    auto winEventHandler = make_delegate(*object, &directional_light_demo::event_handler);
-    auto loopEventHandler = make_delegate(*object, &directional_light_demo::loop_event);
+    unique_pointer<DirectionalLightDemo> object{ new DirectionalLightDemo{ // base
+                                                                           initContext,
+                                                                           // renderstate
+                                                                           { surface_normal_visualizer{},
+                                                                             move(geometryObjects),
+                                                                             {},
+                                                                             move(vertShader),
+                                                                             move(fragShader),
+                                                                             move(pipeline),
+                                                                             move(colorTextures),
+                                                                             move(sampler),
+                                                                             move(*debugDraw.take()) },
+                                                                           // demo options
+                                                                           demoOptions,
+                                                                           // scene
+                                                                           move(s) } };
+
+    auto winEventHandler = make_delegate(*object, &DirectionalLightDemo::event_handler);
+    auto loopEventHandler = make_delegate(*object, &DirectionalLightDemo::loop_event);
 
     return tl::make_optional<demo_bundle_t>(std::move(object), winEventHandler, loopEventHandler);
 }
 
 void
-app::directional_light_demo::loop_event(const xray::ui::window_loop_event& wle)
+app::DirectionalLightDemo::loop_event(const xray::ui::window_loop_event& wle)
 {
+    mFsWatcher.poll();
     _ui->tick(1.0f / 60.0f);
     mScene.timer.update_and_reset();
     update(mScene.timer.elapsed_millis());
@@ -253,7 +306,7 @@ app::directional_light_demo::loop_event(const xray::ui::window_loop_event& wle)
 }
 
 void
-app::directional_light_demo::draw()
+app::DirectionalLightDemo::draw()
 {
     gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, color_palette::web::black.components);
     gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
@@ -283,19 +336,19 @@ app::directional_light_demo::draw()
 
     struct
     {
-        directional_light lights[8];
+        DirectionalLight lights[Scene::kMaxLightsCount];
         uint32_t lightscount;
     } scene_lights;
 
-    mScene.lights >>= pipes::transform([this](const directional_light& inputLight) {
-        directional_light dl{ inputLight };
+    mScene.lights >>= pipes::take(mScene.lightsCount) >>= pipes::transform([this](const DirectionalLight& inputLight) {
+        DirectionalLight dl{ inputLight };
         dl.direction = normalize(mul_vec(mScene.cam.view(), -inputLight.direction));
         dl.half_vector = normalize(dl.direction + mScene.cam.direction());
 
         return dl;
     }) >>= pipes::override(scene_lights.lights);
 
-    scene_lights.lightscount = static_cast<uint32_t>(mScene.lights.size());
+    scene_lights.lightscount = static_cast<uint32_t>(mScene.lightsCount);
 
     mRenderState.fs.set_uniform_block("LightData", scene_lights);
     mRenderState.vs.flush_uniforms();
@@ -355,10 +408,26 @@ app::directional_light_demo::draw()
                                       color_palette::web::cadet_blue,
                                       mDemoOptions.normal_len);
     }
+
+    mRenderState.mDebugDraw.draw_coord_sys(vec3f::stdc::zero,
+                                           vec3f::stdc::unit_x,
+                                           vec3f::stdc::unit_y,
+                                           vec3f::stdc::unit_z,
+                                           24.0f,
+                                           color_palette::web::red,
+                                           color_palette::web::green,
+                                           color_palette::web::blue);
+
+    mScene.lights >>= pipes::take(mScene.lightsCount) >>=
+        pipes::for_each([dbgDraw = &mRenderState.mDebugDraw](const DirectionalLight& dl) {
+            dbgDraw->draw_directional_light(dl.direction, 32.0f, dl.kd);
+        });
+
+    mRenderState.mDebugDraw.render(mScene.cam.projection_view());
 }
 
 void
-app::directional_light_demo::update(const float delta_ms)
+app::DirectionalLightDemo::update(const float delta_ms)
 {
     auto teapot = &mRenderState.graphicsObjects[obj_type::teapot];
 
@@ -390,7 +459,7 @@ app::directional_light_demo::update(const float delta_ms)
 }
 
 void
-app::directional_light_demo::event_handler(const xray::ui::window_event& evt)
+app::DirectionalLightDemo::event_handler(const xray::ui::window_event& evt)
 {
     if (is_input_event(evt)) {
 
@@ -432,7 +501,7 @@ app::directional_light_demo::event_handler(const xray::ui::window_event& evt)
 }
 
 void
-app::directional_light_demo::draw_ui(const int32_t surface_w, const int32_t surface_h)
+app::DirectionalLightDemo::draw_ui(const int32_t surface_w, const int32_t surface_h)
 {
     _ui->new_frame(surface_w, surface_h);
 
@@ -447,7 +516,7 @@ app::directional_light_demo::draw_ui(const int32_t surface_w, const int32_t surf
                     "Select a model",
                     &mScene.current_mesh_idx,
                     [](void* p, int32_t idx, const char** out) {
-                        auto obj = static_cast<directional_light_demo*>(p);
+                        auto obj = static_cast<DirectionalLightDemo*>(p);
                         *out = obj->mScene.modelFiles[idx].description.c_str();
                         return true;
                     },
@@ -479,7 +548,7 @@ app::directional_light_demo::draw_ui(const int32_t surface_w, const int32_t surf
         }
 
         if (ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_Framed)) {
-            directional_light* dl = &mScene.lights[0];
+            DirectionalLight* dl = &mScene.lights[0];
 
             ImGui::SliderFloat3("Direction", dl->direction.components, -1.0f, +1.0f);
 
@@ -498,6 +567,11 @@ app::directional_light_demo::draw_ui(const int32_t surface_w, const int32_t surf
             ImGui::Separator();
 
             ImGui::SliderFloat("Light intensity", &dl->strength, 1.0f, 256.0f);
+        }
+
+        int32_t lightsCount = (int32_t)mScene.lightsCount;
+        if (ImGui::SliderInt("Lights count:", &lightsCount, 0, Scene::kMaxLightsCount)) {
+            mScene.lightsCount = static_cast<uint32_t>(lightsCount);
         }
 
         if (ImGui::CollapsingHeader("Debug", ImGuiTreeNodeFlags_Framed)) {
@@ -524,17 +598,17 @@ app::directional_light_demo::draw_ui(const int32_t surface_w, const int32_t surf
 }
 
 void
-app::directional_light_demo::poll_start(const xray::ui::poll_start_event&)
+app::DirectionalLightDemo::poll_start(const xray::ui::poll_start_event&)
 {
 }
 
 void
-app::directional_light_demo::poll_end(const xray::ui::poll_end_event&)
+app::DirectionalLightDemo::poll_end(const xray::ui::poll_end_event&)
 {
 }
 
 void
-app::directional_light_demo::switch_mesh(const SwitchMeshOpt switchMeshOpt)
+app::DirectionalLightDemo::switch_mesh(const SwitchMeshOpt switchMeshOpt)
 {
     if (switchMeshOpt == SwitchMeshOpt::LoadFromFile) {
         basic_mesh loaded_mesh{ mScene.modelFiles[mScene.current_mesh_idx].path.c_str() };
@@ -549,7 +623,7 @@ app::directional_light_demo::switch_mesh(const SwitchMeshOpt switchMeshOpt)
 }
 
 void
-app::directional_light_demo::adjust_model_transforms()
+app::DirectionalLightDemo::adjust_model_transforms()
 {
     graphics_object* teapotObj = &mRenderState.graphicsObjects[obj_type::teapot];
     const float teapotBoundingSphRadius = teapotObj->mesh->bounding_sphere().radius;
@@ -562,4 +636,31 @@ app::directional_light_demo::adjust_model_transforms()
     teapotObj->scale = k;
     teapotObj->pos = vec3f{ 0.0f, rippleObj->mesh->aabb().height() * 0.5f + k * teapotBoundingSphRadius, 0.0f };
     teapotObj->rotation = vec3f::stdc::zero;
+}
+
+void
+app::DirectionalLightDemo::filesys_event_handler(const xray::base::FileSystemEvent& fs_event)
+{
+    if (const FileModifiedEvent* e = get_if<FileModifiedEvent>(&fs_event)) {
+        if (e->file.extension() == ".vert") {
+            vertex_program prg = gpu_program_builder{}.add_file(e->file.c_str()).build<render_stage::e::vertex>();
+            if (prg) {
+                XR_LOG_INFO("::: reloaded vertex program - file {} :::", e->file.string());
+                mRenderState.vs = move(prg);
+                mRenderState.pipeline.use_vertex_program(mRenderState.vs);
+            }
+
+            return;
+        }
+
+        if (e->file.extension() == ".frag") {
+            fragment_program prg = gpu_program_builder{}.add_file(e->file.c_str()).build<render_stage::e::fragment>();
+            if (prg) {
+                XR_LOG_INFO("::: reloaded fragment program - file {} ::: ", e->file.string());
+                mRenderState.fs = move(prg);
+                mRenderState.pipeline.use_fragment_program(mRenderState.fs);
+            }
+            return;
+        }
+    }
 }

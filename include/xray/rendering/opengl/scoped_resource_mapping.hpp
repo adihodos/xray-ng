@@ -29,11 +29,15 @@
 #pragma once
 
 #include "xray/base/logger.hpp"
+#include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/xray.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <opengl/opengl.hpp>
 #include <utility>
+
+#include <tl/optional.hpp>
 
 namespace xray {
 namespace rendering {
@@ -71,6 +75,16 @@ class scoped_resource_mapping
         std::swap(_gl_resource, rval._gl_resource);
     }
 
+    static tl::optional<scoped_resource_mapping> map(scoped_buffer& sb, const uint32_t access, const size_t length)
+    {
+        void* mapped_addr = gl::MapNamedBufferRange(base::raw_handle(sb), 0, static_cast<GLsizeiptr>(length), access);
+
+        if (!mapped_addr)
+            return tl::nullopt;
+
+        return tl::optional<scoped_resource_mapping>{ scoped_resource_mapping{mapped_addr, base::raw_handle(sb) }};
+    }
+
     scoped_resource_mapping& operator=(scoped_resource_mapping&& rval)
     {
         std::swap(_mapping_ptr, rval._mapping_ptr);
@@ -89,6 +103,13 @@ class scoped_resource_mapping
     uint32_t _gl_resource{ 0 };
 
   private:
+    scoped_resource_mapping() = default;
+    scoped_resource_mapping(void* mem, uint32_t res)
+        : _mapping_ptr(mem)
+        , _gl_resource(res)
+    {
+    }
+
     XRAY_NO_COPY(scoped_resource_mapping);
 };
 

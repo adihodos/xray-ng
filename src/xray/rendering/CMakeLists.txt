@@ -1,7 +1,5 @@
 project (xray-rendering)
 
-# add_subdirectory(opengl)
-
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
@@ -34,6 +32,9 @@ set(project_sources
 
     ${proj_inc_dir}/render_stage.hpp
     ${proj_src_dir}/render_stage.cc
+	
+    ${proj_inc_dir}/debug_draw.hpp
+    ${proj_src_dir}/debug_draw.cc
 
     ${proj_inc_dir}/mesh_loader.hpp
     ${proj_src_dir}/mesh_loader.cc
@@ -86,7 +87,7 @@ set(project_sources
   
   target_link_libraries(
 	${PROJECT_NAME}
-	PUBLIC xray-glloader tl::optional xray-base STLSoft mio::mio
-	PRIVATE	TBB::tbb
+	PUBLIC xray-glloader tl::optional xray-base STLSoft mio::mio 
+	PRIVATE	TBB::tbb cppitertools::cppitertools joboccara::pipes
 	$<$<PLATFORM_ID:Linux>:Xinerama>
   )

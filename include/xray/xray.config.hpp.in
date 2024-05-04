@@ -1,0 +1,4 @@
+#pragma once
+
+#cmakedefine SHADER_ROOT_DBG "${SHADER_ROOT_DBG_PATH}"
+#cmakedefine CONFIG_ROOT_DBG "${CONFIG_ROOT_DBG_PATH}"
