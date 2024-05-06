@@ -148,7 +148,7 @@ determinant(const scalar4x4<T>& m) noexcept
     const auto l1 = m.a22 * m.a33 - m.a23 * m.a32;
 
     const auto k2 = m.a00 * m.a12 - m.a02 * m.a10;
-    const auto l2 = m.a21 * m.a33 - m.m.a12 * m.a31;
+    const auto l2 = m.a21 * m.a33 - m.a12 * m.a31;
 
     const auto k3 = m.a00 * m.a13 - m.a03 * m.a10;
     const auto l3 = m.a21 * m.a32 - m.a22 * m.a31;

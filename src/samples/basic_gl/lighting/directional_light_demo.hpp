@@ -30,8 +30,10 @@
 
 #pragma once
 
+#include "xray/math/scalar4x4.hpp"
 #include "xray/xray.hpp"
 
+#include <bitset>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -66,28 +68,40 @@ struct DirectionalLight
     xray::rendering::rgb_color kd;
     xray::rendering::rgb_color ks;
     xray::math::vec3f direction;
-    float _pad;
-    xray::math::vec3f half_vector;
     float shininess{ 20.0f };
+    xray::math::vec3f half_vector;
     float strength{ 20.0f };
-    float _pad0[3];
 };
 
-struct obj_type
+struct GraphicsObjectId
 {
     enum
     {
-        ripple,
-        teapot
+        Ripple,
+        Teapot
     };
 };
 
-struct graphics_object
+struct GraphicsObject
 {
+    enum class StateBits : uint8_t
+    {
+        Visible,
+        DrawBoundingBox,
+        DrawSurfaceNormals,
+		RotateX,
+		RotateY,
+		RotateZ
+    };
+
     xray::rendering::basic_mesh* mesh{};
     xray::math::vec3f pos{ xray::math::vec3f::stdc::zero };
     xray::math::vec3f rotation{ xray::math::vec3f::stdc::zero };
+	xray::math::mat4f world_matrix;
     float scale{ 1.0f };
+    std::bitset<8> state_bits{ 0b1 };
+	uint32_t material{0};
+	bool cull_faces{true};
 };
 
 class DirectionalLightDemo : public demo_base
@@ -101,9 +115,7 @@ class DirectionalLightDemo : public demo_base
     virtual void poll_end(const xray::ui::poll_end_event&) override;
 
     static std::string_view short_desc() noexcept { return "Directional lighting."; }
-
     static std::string_view detailed_desc() noexcept { return "Demonstrates the use of directional lighting."; }
-
     static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
 
   private:
@@ -125,7 +137,7 @@ class DirectionalLightDemo : public demo_base
     {
         xray::rendering::surface_normal_visualizer drawNormals;
         itlib::small_vector<xray::rendering::basic_mesh, 4> geometryObjects;
-        itlib::small_vector<graphics_object, 4> graphicsObjects;
+        itlib::small_vector<GraphicsObject, 4> graphicsObjects;
         xray::rendering::vertex_program vs;
         xray::rendering::fragment_program fs;
         xray::rendering::program_pipeline pipeline;

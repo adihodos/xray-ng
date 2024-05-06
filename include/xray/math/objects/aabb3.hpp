@@ -83,6 +83,8 @@ struct axis_aligned_bounding_box3
 
     real_type max_dimension() const noexcept { return std::max(width(), std::max(height(), depth())); }
 
+    point_type extents() const noexcept { return max - center(); }
+
     struct stdc;
     //   ///< The identity bounding box.
     //   static const axis_aligned_bounding_box3<real_type> identity;

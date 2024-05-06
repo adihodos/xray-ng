@@ -34,6 +34,7 @@
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar3x3.hpp"
 #include "xray/xray.hpp"
+
 #include <cmath>
 
 namespace xray {
@@ -144,7 +145,7 @@ R3::rotate_y(const T theta) noexcept
 
     // clang-format off
 
-  return {
+  return  {
         cos_theta,  T{0}, sin_theta,
         T{0},       T{1}, T{0},
         -sin_theta, T{0}, cos_theta

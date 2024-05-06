@@ -33,6 +33,11 @@
 
 #include "xray/math/objects/aabb3.hpp"
 #include "xray/math/scalar3_math.hpp"
+#include "xray/math/scalar3x3.hpp"
+#include "xray/math/scalar3x3_math.hpp"
+#include "xray/math/scalar4.hpp"
+#include "xray/math/scalar4_math.hpp"
+#include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/xray.hpp"
 
@@ -78,24 +83,47 @@ merge(const axis_aligned_bounding_box3<real_type>& lhs, const axis_aligned_bound
 
 /// \brief  Returns a new bounding box obtained by transforming the
 ///         input bounding box with the specified matrix.
+/// \see 	https://gist.github.com/cmf028/81e8d3907035640ee0e3fdd69ada543f
 template<typename real_type>
 axis_aligned_bounding_box3<real_type>
 transform(const scalar4x4<real_type>& mtx, const axis_aligned_bounding_box3<real_type>& aabb) noexcept
 {
-    const auto xmin = mtx[1] * aabb.min.x;
-    const auto xmax = mtx[1] * aabb.max.x;
+    const auto xmin = mtx[0] * aabb.min.x;
+    const auto xmax = mtx[0] * aabb.max.x;
 
-    const auto ymin = mtx[2] * aabb.min.y;
-    const auto ymax = mtx[2] * aabb.max.y;
+    const auto ymin = mtx[1] * aabb.min.y;
+    const auto ymax = mtx[1] * aabb.max.y;
 
-    const auto zmin = mtx[3] * aabb.min.z;
-    const auto zmax = mtx[3] * aabb.max.z;
+    const auto zmin = mtx[2] * aabb.min.z;
+    const auto zmax = mtx[2] * aabb.max.z;
 
-    const auto min_pt = math::min(xmin, xmax) + math::min(ymin, ymax) + math::min(zmin, zmax) + mtx[4];
+    const auto min_pt = math::min(xmin, xmax) + math::min(ymin, ymax) + math::min(zmin, zmax) + mtx[3];
+    const auto max_pt = math::max(xmin, xmax) + math::max(ymin, ymax) + math::max(zmin, zmax) + mtx[3];
 
-    const auto max_pt = math::max(xmin, xmax) + math::max(ymin, ymax) + math::max(zmin, zmax) + mtx[4];
+    return axis_aligned_bounding_box3<real_type>{ min_pt.template swizzle<X, Y, Z>(),
+                                                  max_pt.template swizzle<X, Y, Z>() };
 
-    return { min_pt, max_pt };
+    // // transform to center/extents box representation
+    // const scalar3<real_type> center = aabb.center();
+    // const scalar3<real_type> extents = aabb.extents();
+    //
+    // // transform center
+    // const scalar3<real_type> t_center = mul_point(mtx, center);
+    //
+    // // vec3 t_center = (m * vec4(center,1.0)).xyz;
+    //
+    // // transform extents (take maximum)
+    // const scalar3x3<real_type> abs_mat{ abs(scalar3<real_type>{ mtx[0].template swizzle<X, Y, Z>() }),
+    //                                     abs(scalar3<real_type>{ mtx[1].template swizzle<X, Y, Z>() }),
+    //                                     abs(scalar3<real_type>{ mtx[2].template swizzle<X, Y, Z>() }),
+    //                                     col_tag{} };
+    //
+    // // mat3 abs_mat = mat3(abs(m[0].xyz), abs(m[1].xyz), abs(m[2].xyz));
+    // const scalar3<real_type> t_extents{ mul_vec(abs_mat, extents) };
+    // // vec3 t_extents = abs_mat * extents;
+    //
+    // // transform to min/max box representation
+    // return axis_aligned_bounding_box3<real_type>{ t_center - t_extents, t_center + t_extents };
 }
 
 /// \brief  Test if point is inside the aabb.

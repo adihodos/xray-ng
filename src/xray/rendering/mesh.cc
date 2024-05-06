@@ -16,10 +16,15 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
+#include "xray/math/scalar4x4.hpp"
+#include "xray/math/scalar4x4_math.hpp"
+#include "xray/math/transforms_r4.hpp"
 #include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
 #include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/parallel_for.h>
+#include <oneapi/tbb/parallel_for_each.h>
 #include <oneapi/tbb/parallel_reduce.h>
 #include <stlsoft/memory/auto_buffer.hpp>
 
@@ -31,7 +36,6 @@ using namespace xray::rendering;
 xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
     : _mtype{ type }
 {
-
     using namespace xray::rendering;
 
     tl::optional<mesh_loader> mloader{ path };
@@ -40,9 +44,35 @@ xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
         return;
     }
 
-    create(mloader->vertex_span(), mloader->index_span());
-    _aabb = mloader->bounding().axis_aligned_bbox;
-    _bsphere = mloader->bounding().bounding_sphere;
+    mloader.map([this](const mesh_loader& loaded_mdl) {
+        _vertices.resize(loaded_mdl.vertex_span().size());
+        _indices.resize(loaded_mdl.index_span().size());
+
+        std::copy(std::cbegin(loaded_mdl.vertex_span()), std::cend(loaded_mdl.vertex_span()), std::begin(_vertices));
+        std::copy(std::cbegin(loaded_mdl.index_span()), std::cend(loaded_mdl.index_span()), std::begin(_indices));
+		
+        _aabb = loaded_mdl.bounding().axis_aligned_bbox;
+        _bsphere = loaded_mdl.bounding().bounding_sphere;
+    });
+
+    if (const vec3f origin = _aabb.center(); !is_zero_length(origin)) {
+        //
+        // correct off-center model
+        namespace mt = oneapi::tbb;
+        mt::parallel_for(mt::blocked_range<vertex_pnt*>{ _vertices.data(), _vertices.data() + _vertices.size() },
+                         [origin](mt::blocked_range<vertex_pnt*> r) {
+                             for (vertex_pnt* v = r.begin(); v != r.end(); ++v) {
+                                 v->position -= origin;
+                             }
+                         });
+
+        // _aabb = math::transform(R4::translate(-origin), _aabb);
+		_aabb.min -= origin;
+		_aabb.max -= origin;
+        _bsphere.center = vec3f::stdc::zero;
+    }
+
+	setup_buffers();
 }
 
 xray::rendering::basic_mesh::basic_mesh(const xray::rendering::vertex_pnt* vertices,
@@ -52,7 +82,6 @@ xray::rendering::basic_mesh::basic_mesh(const xray::rendering::vertex_pnt* verti
                                         const mesh_type mtype)
     : _mtype{ mtype }
 {
-
     create(std::span<const vertex_pnt>{ vertices, vertices + static_cast<size_t>(num_vertices) },
            std::span<const uint32_t>{ indices, indices + static_cast<size_t>(num_indices) });
     compute_bounding();
@@ -82,10 +111,10 @@ xray::rendering::basic_mesh::compute_bounding()
 
     static constexpr size_t PARALLEL_REDUCE_MIN_VERTEX_COUNT = 120'000'000u;
 
+    namespace mt = oneapi::tbb;
+
     if (_vertices.size() >= PARALLEL_REDUCE_MIN_VERTEX_COUNT) {
         scoped_timing_object<timer_highp> sto{ &op_tm };
-
-        namespace mt = oneapi::tbb;
 
         _aabb = mt::parallel_reduce(
             mt::blocked_range{ static_cast<const vertex_pnt*>(_vertices.data()),
@@ -108,6 +137,19 @@ xray::rendering::basic_mesh::compute_bounding()
             _aabb.min = math::min(_aabb.min, v.position);
             _aabb.max = math::max(_aabb.max, v.position);
         });
+    }
+
+    if (const vec3f origin = _aabb.center(); !is_zero_length(origin)) {
+        //
+        // correct off-center model
+        mt::parallel_for(mt::blocked_range<vertex_pnt*>{ _vertices.data(), _vertices.data() + _vertices.size() },
+                         [origin](mt::blocked_range<vertex_pnt*> r) {
+                             for (vertex_pnt* v = r.begin(); v != r.end(); ++v) {
+                                 v->position -= origin;
+                             }
+                         });
+
+        _aabb = math::transform(R4::translate(-origin), _aabb);
     }
 
     XR_DBG_MSG("AABB : [{:3.3f}, {:3.3f}, {:3.3f}] : [{:3.3f}, "
@@ -194,7 +236,6 @@ xray::rendering::basic_mesh::set_instance_data(const instance_descriptor* instan
                                                const vertex_attribute_descriptor* vertex_attributes,
                                                const size_t vertex_attributes_count)
 {
-
     assert(valid());
 
     stlsoft::auto_buffer<GLuint, 16> buffers{ instance_count };

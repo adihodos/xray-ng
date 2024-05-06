@@ -7,8 +7,8 @@ struct DirectionalLight {
 	vec4 kd;
 	vec4 ks;
 	vec3 direction;
-	vec3 halfVector;
 	float shininess;
+	vec3 halfVector;
 	float strength;
 };
 
@@ -41,10 +41,8 @@ void main() {
 
 		// specular
 		const vec3 R = normalize(reflect(-thisLight.direction, fsIn.N));
-		clr += pow(max(0.0, dot(R, fsIn.V)), thisLight.shininess) * mtl
-			* thisLight.ks
-			* thisLight.strength
-			;
+		// clr += pow(max(0.0, dot(R, fsIn.V)), thisLight.shininess) * thisLight.ks;
+		// 	* thisLight.strength;
 	}
 
 	FinalFragColor = clamp(clr, 0.0, 1.0);

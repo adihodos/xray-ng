@@ -3,6 +3,7 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/rendering/geometry/surface_normal_visualizer.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
@@ -15,6 +16,8 @@
 #include <tl/optional.hpp>
 
 namespace xray::rendering {
+
+class basic_mesh;
 
 /// @brief Debug drawing
 class RenderDebugDraw
@@ -76,8 +79,19 @@ class RenderDebugDraw
                    const float apex,
                    const rgb_color& c);
 
-	/// @brief Draws a vector
-	void draw_vector(const math::vec3f& org, const math::vec3f& dir, const float length, const rgb_color& c);
+    /// @brief Draws a vector
+    void draw_vector(const math::vec3f& org, const math::vec3f& dir, const float length, const rgb_color& c);
+
+    /// @brief Visualize surface normals for a mesh
+    void draw_surface_normals(const basic_mesh& mesh,
+							  const math::mat4f& wvp_matrix,
+                              const rgb_color& draw_color_start,
+                              const rgb_color& draw_color_end,
+                              const float line_length = 6.0f)
+
+	{
+		mSurfaceNormalVis.draw(mesh, wvp_matrix, draw_color_start, draw_color_end, line_length);
+	}
 
     void render(const math::mat4f& worldViewProj);
 
@@ -91,6 +105,8 @@ class RenderDebugDraw
         fragment_program mFragmentShader;
         program_pipeline mGraphicsPipeline;
     } mRenderState;
+
+    surface_normal_visualizer mSurfaceNormalVis{};
 
     RenderDebugDraw(scoped_buffer&& vertexBuffer,
                     scoped_vertex_array vertexArray,

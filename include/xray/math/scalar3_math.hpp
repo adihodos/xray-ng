@@ -347,6 +347,13 @@ min(const scalar3<T>& a, const scalar3<T>& b) noexcept
     return { min(a.x, b.x), min(a.y, b.y), min(a.z, b.z) };
 }
 
+template<typename T>
+scalar3<T>
+abs(const scalar3<T>& a) noexcept
+{
+    return { std::abs(a.x), std::abs(a.y), std::abs(a.z) };
+}
+
 /// \brief Convert from spherical coordinates to Cartesian coordinates.
 /// \param   r The radius of the sphere.
 /// \param   phi Angle with the y axis (in radians).

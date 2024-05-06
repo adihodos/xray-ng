@@ -1,5 +1,6 @@
 #include "xray/rendering/debug_draw.hpp"
 #include "xray/math/scalar2.hpp"
+#include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 
@@ -104,8 +105,9 @@ RenderDebugDraw::draw_oriented_box(const math::vec3f& org,
 void
 RenderDebugDraw::draw_axis_aligned_box(const math::vec3f& minpoint, const math::vec3f& maxpoint, const rgb_color& c)
 {
+    const math::vec3f center = (maxpoint + minpoint) * 0.5f;
     const math::vec3f extent{ maxpoint - minpoint };
-    draw_oriented_box(math::vec3f::stdc::zero,
+    draw_oriented_box(center,
                       math::vec3f::stdc::unit_x,
                       math::vec3f::stdc::unit_y,
                       math::vec3f::stdc::unit_z,

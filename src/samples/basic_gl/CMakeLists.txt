@@ -217,6 +217,7 @@ target_link_libraries(${PROJECT_NAME}
   quill::quill
   joboccara::pipes
   cppitertools::cppitertools
+  reflectcpp
   )
 
 cmake_language(EVAL CODE [=[

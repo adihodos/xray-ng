@@ -30,12 +30,14 @@
 
 #pragma once
 
+#include "xray/xray.hpp"
+
+#include <cstdint>
+
 #include "xray/math/scalar4x4.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
-#include "xray/xray.hpp"
-#include <cstdint>
 
 namespace xray {
 namespace rendering {
@@ -48,28 +50,18 @@ class surface_normal_visualizer
 {
   public:
     surface_normal_visualizer();
-    XRAY_DEFAULT_MOVE(surface_normal_visualizer);
 
-    void draw(const xray::rendering::draw_context_t& ctx,
-              const basic_mesh& mesh,
-              const xray::math::mat4f& worldtf,
+    void draw(const basic_mesh& mesh,
+              const xray::math::mat4f& world_view_proj,
               const xray::rendering::rgb_color& draw_color_start,
               const xray::rendering::rgb_color& draw_color_end,
-              const float line_length = 6.0f,
-              const float line_width = 2.0f);
-
-    bool valid() const noexcept { return _valid; }
-
-    explicit operator bool() const noexcept { return valid(); }
+              const float line_length = 6.0f);
 
   private:
     xray::rendering::vertex_program _vs;
     xray::rendering::geometry_program _gs;
     xray::rendering::fragment_program _fs;
     xray::rendering::program_pipeline _pipeline;
-    bool _valid{ false };
-
-    XRAY_NO_COPY(surface_normal_visualizer);
 };
 
 } // namespace rendering

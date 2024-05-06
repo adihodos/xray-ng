@@ -33,6 +33,7 @@
 #include "xray/math/math_std.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3x3.hpp"
+#include "xray/math/scalar4.hpp"
 #include "xray/math/vector_type_tag.hpp"
 #include "xray/xray.hpp"
 #include <cassert>
@@ -184,6 +185,11 @@ class scalar4x4
     /// \param row Component's row index (0 based).
     /// \param col Component's column index (0 based).
     T operator()(const size_t row, const size_t col) const noexcept { return components[index_at(row, col)]; }
+
+    scalar4<T> operator[](const size_t idx) const noexcept
+    {
+        return scalar4<T>{ components[idx], components[idx + 4 * 1], components[idx + 4 * 2], components[idx + 4 * 3] };
+    }
 
   public:
     class_type& operator+=(const class_type& rhs) noexcept;
