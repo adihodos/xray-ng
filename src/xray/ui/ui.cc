@@ -81,13 +81,13 @@ xray::ui::user_interface::init(const xray::ui::font_load_info* fonts_to_load, co
                                                           &font_cfg);
 
                 if (!font) {
-                    XR_DBG_MSG("NK failed to parse font {}", fli.font_file_path);
+                    XR_LOG_DEBUG("NK failed to parse font {}", fli.font_file_path);
                     return;
                 }
 
                 platformstl::path_a fpath{ fli.font_file_path };
                 fpath.pop_ext();
-                XR_DBG_MSG("Loaded font {}", fpath.get_file());
+                XR_LOG_DEBUG("Loaded font {}", fpath.get_file());
 
                 _renderer.fonts[fpath.get_file()] = font;
             } catch (const std::exception&) {
@@ -215,10 +215,10 @@ xray::ui::user_interface::ui_event(const xray::ui::window_event& evt)
 
             nk_input_button(ctx, NK_BUTTON_LEFT, me->pointer_x, me->pointer_y, pressed);
         } else if (me->button == mouse_button::button2) {
-            XR_DBG_MSG("Button 2");
+            XR_LOG_DEBUG("Button 2");
             nk_input_button(ctx, NK_BUTTON_MIDDLE, me->pointer_x, me->pointer_y, pressed);
         } else if (me->button == mouse_button::button3) {
-            XR_DBG_MSG("Button 3");
+            XR_LOG_DEBUG("Button 3");
             nk_input_button(ctx, NK_BUTTON_RIGHT, me->pointer_x, me->pointer_y, pressed);
         }
 
@@ -469,7 +469,7 @@ xray::ui::user_interface::find_font(const char* name) noexcept
 {
     auto font_entry = _renderer.fonts.find(name);
     if (font_entry == std::end(_renderer.fonts)) {
-        XR_DBG_MSG("Trying to set non existent font {}", name);
+        XR_LOG_DEBUG("Trying to set non existent font {}", name);
     }
 
     return font_entry->second;

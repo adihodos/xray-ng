@@ -214,10 +214,10 @@ target_link_libraries(${PROJECT_NAME}
   xray-math
   TBB::tbb
   itlib::itlib
-  quill::quill
   joboccara::pipes
   cppitertools::cppitertools
   reflectcpp
+  spdlog::spdlog
   )
 
 cmake_language(EVAL CODE [=[

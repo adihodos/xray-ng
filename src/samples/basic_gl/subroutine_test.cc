@@ -55,14 +55,14 @@ app::basic_object::init()
         vertex_buffer_ = make_buffer(gl::ARRAY_BUFFER, 0, &mesh_verts[0], mesh_verts.size());
 
         if (!vertex_buffer_) {
-            OUTPUT_DBG_MSG("Failed to create vertex buffer!");
+            XR_LOG_DEBUG("Failed to create vertex buffer!");
             return;
         }
 
         index_buffer_ = make_buffer(gl::ELEMENT_ARRAY_BUFFER, 0, raw_ptr(mesh_data.indices), mesh_data.index_count);
 
         if (!index_buffer_) {
-            OUTPUT_DBG_MSG("Failed to create index buffer!");
+            XR_LOG_DEBUG("Failed to create index buffer!");
             return;
         }
 
@@ -85,14 +85,14 @@ app::basic_object::init()
         scoped_shader_handle vertex_shader{ make_shader(gl::VERTEX_SHADER, "less4/lighting.glsl") };
 
         if (!vertex_shader) {
-            OUTPUT_DBG_MSG("Failed to compile vertex shader !");
+            XR_LOG_DEBUG("Failed to compile vertex shader !");
             return;
         }
 
         scoped_shader_handle fragment_shader{ make_shader(gl::FRAGMENT_SHADER, "less4/frag_shader.glsl") };
 
         if (!fragment_shader) {
-            OUTPUT_DBG_MSG("Failed to compile fragment shader !");
+            XR_LOG_DEBUG("Failed to compile fragment shader !");
             return;
         }
 
@@ -100,7 +100,7 @@ app::basic_object::init()
 
         draw_prog_ = gpu_program{ shader_handles };
         if (!draw_prog_) {
-            OUTPUT_DBG_MSG("Failed to create gpu program !");
+            XR_LOG_DEBUG("Failed to create gpu program !");
             return;
         }
     }

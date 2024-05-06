@@ -28,42 +28,36 @@
 
 #pragma once
 
-#include "xray/base/debug_output.hpp"
 #include "xray/xray.hpp"
-#include <fmt/format.h>
+#include "xray/base/debug_output.hpp"
+#include "spdlog/spdlog.h"
 
 #define XR_LOG_ERR(msg, ...)                                                                                           \
     do {                                                                                                               \
-        xray::base::output_debug_string(fmt::format("[{} : {}]", __FILE__, __LINE__).c_str());                         \
-        xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());                                      \
+        spdlog::error(msg, ##__VA_ARGS__);                                                                             \
     } while (0)
 
 #define XR_LOG_INFO(msg, ...)                                                                                          \
     do {                                                                                                               \
-        xray::base::output_debug_string(fmt::format("[{} : {}]", __FILE__, __LINE__).c_str());                         \
-        xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());                                      \
+        spdlog::info(msg, ##__VA_ARGS__);                                                                              \
     } while (0)
 
 #define XR_LOG_TRACE(msg, ...)                                                                                         \
     do {                                                                                                               \
-        xray::base::output_debug_string(fmt::format("[{} : {}]", __FILE__, __LINE__).c_str());                         \
-        xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());                                      \
+        spdlog::trace(msg, ##__VA_ARGS__);                                                                             \
     } while (0)
 
 #define XR_LOG_DEBUG(msg, ...)                                                                                         \
     do {                                                                                                               \
-        xray::base::output_debug_string(fmt::format("[{} : {}]", __FILE__, __LINE__).c_str());                         \
-        xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());                                      \
+        spdlog::debug(msg, ##__VA_ARGS__);                                                                             \
     } while (0)
 
 #define XR_LOG_WARN(msg, ...)                                                                                          \
     do {                                                                                                               \
-        xray::base::output_debug_string(fmt::format("[{} : {}]", __FILE__, __LINE__).c_str());                         \
-        xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());                                      \
+        spdlog::warn(msg, ##__VA_ARGS__);                                                                              \
     } while (0)
 
 #define XR_LOG_CRITICAL(msg, ...)                                                                                      \
     do {                                                                                                               \
-        xray::base::output_debug_string(fmt::format("[{} : {}]", __FILE__, __LINE__).c_str());                         \
-        xray::base::output_debug_string(fmt::format(msg, ##__VA_ARGS__).c_str());                                      \
+        spdlog::critical(msg, ##__VA_ARGS__);                                                                          \
     } while (0)

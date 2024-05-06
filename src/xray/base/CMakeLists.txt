@@ -73,6 +73,6 @@ target_compile_definitions(
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC config fmt::fmt STLSoft
+  PUBLIC config fmt::fmt spdlog::spdlog STLSoft
   PRIVATE itlib::itlib joboccara::pipes
 )

@@ -3,10 +3,16 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cstring>
-#include <random>
 #include <unordered_map>
 #include <vector>
+
+#include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/parallel_for.h>
+#include <oneapi/tbb/parallel_for_each.h>
+#include <oneapi/tbb/parallel_reduce.h>
+
+#include <itlib/small_vector.hpp>
+#include <pipes/pipes.hpp>
 
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/logger.hpp"
@@ -22,11 +28,6 @@
 #include "xray/rendering/mesh_loader.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
-#include <oneapi/tbb/blocked_range.h>
-#include <oneapi/tbb/parallel_for.h>
-#include <oneapi/tbb/parallel_for_each.h>
-#include <oneapi/tbb/parallel_reduce.h>
-#include <stlsoft/memory/auto_buffer.hpp>
 
 using namespace std;
 using namespace xray::base;
@@ -40,7 +41,7 @@ xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
 
     tl::optional<mesh_loader> mloader{ path };
     if (!mloader) {
-        XR_DBG_MSG("Failed to load mesh {}", path);
+        XR_LOG_CRITICAL("Failed to load mesh {}", path);
         return;
     }
 
@@ -50,7 +51,7 @@ xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
 
         std::copy(std::cbegin(loaded_mdl.vertex_span()), std::cend(loaded_mdl.vertex_span()), std::begin(_vertices));
         std::copy(std::cbegin(loaded_mdl.index_span()), std::cend(loaded_mdl.index_span()), std::begin(_indices));
-		
+
         _aabb = loaded_mdl.bounding().axis_aligned_bbox;
         _bsphere = loaded_mdl.bounding().bounding_sphere;
     });
@@ -66,13 +67,12 @@ xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
                              }
                          });
 
-        // _aabb = math::transform(R4::translate(-origin), _aabb);
-		_aabb.min -= origin;
-		_aabb.max -= origin;
+        _aabb.min -= origin;
+        _aabb.max -= origin;
         _bsphere.center = vec3f::stdc::zero;
     }
 
-	setup_buffers();
+    setup_buffers();
 }
 
 xray::rendering::basic_mesh::basic_mesh(const xray::rendering::vertex_pnt* vertices,
@@ -152,15 +152,15 @@ xray::rendering::basic_mesh::compute_bounding()
         _aabb = math::transform(R4::translate(-origin), _aabb);
     }
 
-    XR_DBG_MSG("AABB : [{:3.3f}, {:3.3f}, {:3.3f}] : [{:3.3f}, "
-               "{:3.3f}, {:3.3f}]\n Time {:3.3f}",
-               _aabb.min.x,
-               _aabb.min.y,
-               _aabb.min.z,
-               _aabb.max.x,
-               _aabb.max.y,
-               _aabb.max.z,
-               op_tm.elapsed_millis());
+    XR_LOG_INFO("AABB : [{:3.3f}, {:3.3f}, {:3.3f}] : [{:3.3f}, "
+                "{:3.3f}, {:3.3f}]\n Time {:3.3f}",
+                _aabb.min.x,
+                _aabb.min.y,
+                _aabb.min.z,
+                _aabb.max.x,
+                _aabb.max.y,
+                _aabb.max.z,
+                op_tm.elapsed_millis());
 
     _bsphere = xray::math::bounding_sphere<float>(
         begin(_vertices), end(_vertices), [](const vertex_pnt& vs_in) { return vs_in.position; });
@@ -238,15 +238,15 @@ xray::rendering::basic_mesh::set_instance_data(const instance_descriptor* instan
 {
     assert(valid());
 
-    stlsoft::auto_buffer<GLuint, 16> buffers{ instance_count };
-    stlsoft::auto_buffer<GLsizei, 16> strides{ instance_count };
-    stlsoft::auto_buffer<GLintptr, 16> offsets{ instance_count };
+    std::span<const instance_descriptor> instance_span{ instances, instances + instance_count };
 
-    for (size_t i = 0; i < instance_count; ++i) {
-        buffers.data()[i] = instances[i].buffer_handle;
-        strides.data()[i] = instances[i].element_stride;
-        offsets.data()[i] = instances[i].buffer_offset;
-    }
+    itlib::small_vector<GLuint, 16> buffers;
+    itlib::small_vector<GLsizei, 16> strides;
+    itlib::small_vector<GLintptr, 16> offsets;
+
+    instance_span >>= pipes::transform([](const instance_descriptor& inst_desc) {
+        return std::make_tuple(inst_desc.buffer_handle, inst_desc.element_stride, inst_desc.buffer_offset);
+    }) >>= pipes::unzip(pipes::push_back(buffers), pipes::push_back(strides), pipes::push_back(offsets));
 
     const auto vao = raw_handle(_vertexarray);
 
@@ -261,7 +261,7 @@ xray::rendering::basic_mesh::set_instance_data(const instance_descriptor* instan
     }
 
     std::span<const vertex_attribute_descriptor> attributes{
-        vertex_attributes, vertex_attributes + static_cast<ptrdiff_t>(vertex_attributes_count)
+        vertex_attributes, vertex_attributes + static_cast<size_t>(vertex_attributes_count)
     };
 
     {
@@ -285,7 +285,6 @@ xray::rendering::basic_mesh::set_instance_data(const instance_descriptor* instan
         assert(buffer_bindpoints.find(attr.instance_desc->buffer_handle) != end(buffer_bindpoints));
 
         gl::VertexArrayAttribBinding(vao, component_index, buffer_bindpoints[attr.instance_desc->buffer_handle]);
-
         gl::EnableVertexArrayAttrib(vao, component_index);
     });
 }

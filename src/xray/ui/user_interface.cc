@@ -391,7 +391,7 @@ xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
         gl::TextureSubImage2D(
             texh, 0, 0, 0, font_img.width, font_img.height, gl::RGBA, gl::UNSIGNED_BYTE, font_img.pixels);
 
-        XR_DBG_MSG("Fonts {}", _gui->Fonts->Fonts.size());
+        XR_LOG_INFO("Fonts {}", _gui->Fonts->Fonts.size());
 
         return texh;
     }();
@@ -439,7 +439,7 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
             fi.path.c_str(), fi.pixel_size, &config, _gui->Fonts->GetGlyphRangesDefault());
 
         if (!fnt) {
-            XR_DBG_MSG("Failed to load font {}", fi.path.string());
+            XR_LOG_INFO("Failed to load font {}", fi.path.string());
             return;
         }
 
@@ -459,7 +459,7 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
     });
 
     for_each(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& fi) {
-        XR_DBG_MSG("added font {}, size {} ...", fi.name, fi.pixel_size);
+        XR_LOG_INFO("added font {}, size {} ...", fi.name, fi.pixel_size);
     });
 }
 
@@ -788,7 +788,7 @@ xray::ui::user_interface::find_font(const char* name)
     });
 
     if (fentry == end(_rendercontext.fonts)) {
-        XR_DBG_MSG("Trying to set non existent font {}", name);
+        XR_LOG_INFO("Trying to set non existent font {}", name);
         return nullptr;
     }
 

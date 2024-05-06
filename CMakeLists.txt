@@ -15,15 +15,21 @@ CPMAddPackage("gh:TartanLlama/optional@1.1.0")
 # CPMAddPackage("gh:tinyobjloader/tinyobjloader#release")
 CPMAddPackage("gh:vimpunk/mio#master")
 CPMAddPackage("gh:iboB/itlib#master")
-CPMAddPackage("gh:odygrd/quill@3.8.0")
+# CPMAddPackage("gh:odygrd/quill@3.8.0")
 CPMAddPackage("gh:getml/reflect-cpp#main")
-# CPMAddPackage("gh:getml/reflect-cpp#main")
+
 CPMAddPackage(
   NAME pipes
   GITHUB_REPOSITORY adihodos/pipes
   GIT_TAG master
   OPTIONS "BUILD_TESTING OFF")
 
+CPMAddPackage(
+  NAME spdlog
+  GITHUB_REPOSITORY gabime/spdlog
+  GIT_TAG v1.14.1
+  OPTIONS "SPDLOG_FMT_EXTERNAL ON"
+  OPTIONS "SPDLOG_NO_EXCEPTIONS ON")
 
 CPMAddPackage("gh:ryanhaining/cppitertools#master")
 

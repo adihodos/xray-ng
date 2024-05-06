@@ -642,13 +642,13 @@ app::DirectionalLightDemo::switch_mesh(const SwitchMeshOpt switchMeshOpt)
     if (switchMeshOpt == SwitchMeshOpt::LoadFromFile) {
         basic_mesh loaded_mesh{ mScene.modelFiles[mScene.current_mesh_idx].path.c_str() };
         if (!loaded_mesh) {
-            XR_DBG_MSG("Failed to create mesh!");
+            XR_LOG_DEBUG("Failed to create mesh!");
             return;
         }
         mRenderState.geometryObjects[GraphicsObjectId::Teapot] = std::move(loaded_mesh);
 
-        XR_DBG_MSG("Loaded model {}", mScene.modelFiles[mScene.current_mesh_idx].path.c_str());
-        XR_DBG_MSG("AABB center {}", mRenderState.graphicsObjects[GraphicsObjectId::Teapot].mesh->aabb().center());
+        XR_LOG_DEBUG("Loaded model {}", mScene.modelFiles[mScene.current_mesh_idx].path.c_str());
+        XR_LOG_DEBUG("AABB center {}", mRenderState.graphicsObjects[GraphicsObjectId::Teapot].mesh->aabb().center());
     }
 
     adjust_model_transforms();

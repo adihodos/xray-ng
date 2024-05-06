@@ -71,7 +71,6 @@
 #include "misc/texture_array/texture_array_demo.hpp"
 
 // #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
-// #include <quill/Quill.h>
 
 using namespace xray;
 using namespace xray::base;
@@ -100,7 +99,6 @@ struct RegisteredDemosList<T, Rest...>
     static void registerDemo(vector<DemoInfo>& demoList)
     {
         demoList.emplace_back(T::short_desc(), T::detailed_desc(), make_delegate(T::create));
-
         RegisteredDemosList<Rest...>::registerDemo(demoList);
     }
 };
@@ -615,58 +613,14 @@ class heightmap_generator
     std::vector<xray::math::vec3f> _points;
 };
 
-void
-setup_quill()
-{
-    // quill::configure([]() {
-    //   quill::Config cfg{};
-    //   cfg.enable_console_colours = true;
-    //   cfg.backend_thread_name    = "Xray logging thread";
-    //   cfg.default_logger_name    = "xray-default logger";
-    //   return cfg;
-    // }());
-    //
-    // // Starts the logging backend thread
-    // quill::start();
-    //
-    // // Create a file logger
-    // quill::Logger* logger = quill::create_logger(
-    //   "file_logger", quill::file_handler("example.log", []() {
-    //     quill::FileHandlerConfig cfg;
-    //     cfg.set_open_mode('w');
-    //     cfg.set_pattern(
-    //       "[%(time)] [%(thread)] [%(file_name):%(line_number)] [%(logger)] "
-    //       "[%(log_level)] - %(message)",
-    //       "%H:%M:%S.%Qms");
-    //     return cfg;
-    //   }()));
-    //
-    // logger->set_log_level(quill::LogLevel::TraceL3);
-    //
-    // // enable a backtrace that will get flushed when we log CRITICAL
-    // logger->init_backtrace(2u, quill::LogLevel::Critical);
-    //
-    // LOG_BACKTRACE(logger, "Backtrace log {}", 1);
-    // LOG_BACKTRACE(logger, "Backtrace log {}", 2);
-    //
-    // LOG_INFO(logger, "Welcome to Quill!");
-    // LOG_ERROR(logger, "An error message. error code {}", 123);
-    // LOG_WARNING(logger, "A warning message.");
-    // LOG_CRITICAL(logger, "A critical error. Doing ur mom as usual ...");
-    // LOG_DEBUG(logger, "Debugging foo {}", 1234);
-    // LOG_TRACE_L1(logger, "{:>30}", "right aligned");
-    // LOG_TRACE_L2(logger, "Positional arguments are {1} {0} ", "too",
-    // "supported"); LOG_TRACE_L3(logger, "Support for floats {:03.2f}", 1.23456);
-}
-
 int
 main(int argc, char** argv)
 {
     using namespace xray::ui;
     using namespace xray::base;
 
-    setup_quill();
-
+	xray::base::setup_logging();
+	
     XR_LOG_INFO("Starting up ...");
 
     const int num_threads = oneapi::tbb::info::default_concurrency();

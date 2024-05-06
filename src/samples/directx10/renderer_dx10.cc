@@ -38,7 +38,7 @@ xray::rendering::directx10::renderer::renderer(const render_params_t& r_param) n
                                       raw_ptr_ptr(device_));
 
         if (!swapchain_ || !device_) {
-            OUTPUT_DBG_MSG("Failed to create device/swapchain !!!");
+            XR_LOG_DEBUG("Failed to create device/swapchain !!!");
             return;
         }
     }
@@ -50,7 +50,7 @@ xray::rendering::directx10::renderer::renderer(const render_params_t& r_param) n
         assert(backbuffer_tex != nullptr);
         device_->CreateRenderTargetView(raw_ptr(backbuffer_tex), nullptr, raw_ptr_ptr(rtv_));
         if (!rtv_) {
-            OUTPUT_DBG_MSG("Failed to create render target view!");
+            XR_LOG_DEBUG("Failed to create render target view!");
             return;
         }
 

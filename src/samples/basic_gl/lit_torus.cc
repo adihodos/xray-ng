@@ -58,7 +58,7 @@ app::lit_object::init()
             }
         }
 
-        OUTPUT_DBG_MSG("Model loaded in %f milliseconds", load_tmr.elapsed_millis());
+        XR_LOG_DEBUG("Model loaded in %f milliseconds", load_tmr.elapsed_millis());
 
         // geometry_factory::box(1.0f, 1.0f, 1.0f, &torus_mesh);
         // geometry_factory::tetrahedron(&torus_mesh);

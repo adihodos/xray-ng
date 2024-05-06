@@ -329,7 +329,7 @@ app::simple_fluid::parameters::check_numerical_constraints() const noexcept
     const float k_speedmax = (cellwidth / 2.0f * timefactor) * sqrt(dampingfactor * timefactor + 2.0f);
 
     if ((wavespeed < 0.0f) || (wavespeed > k_speedmax)) {
-        OUTPUT_DBG_MSG("Speed constraints not satisfied, waves will diverge "
+        XR_LOG_DEBUG("Speed constraints not satisfied, waves will diverge "
                        "to infinity");
     }
 
@@ -337,7 +337,7 @@ app::simple_fluid::parameters::check_numerical_constraints() const noexcept
     const float k_timefactormax = (dampingfactor + sqrt(dampingfactor * dampingfactor + (32.0f * k0))) / (8.0f * k0);
 
     if ((timefactor < 0.0f) || (timefactor > k_timefactormax)) {
-        OUTPUT_DBG_MSG("Time step constraints not satified, waves will diverge "
+        XR_LOG_DEBUG("Time step constraints not satified, waves will diverge "
                        "to infinity");
     }
 }

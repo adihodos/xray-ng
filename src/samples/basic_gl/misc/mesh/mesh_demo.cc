@@ -262,7 +262,7 @@ app::mesh_demo::draw_ui(const int32_t surface_width, const int32_t surface_heigh
             5);
 
         if (selected != _sel_id) {
-            XR_DBG_MSG("Changing mesh from {} to {}", _sel_id, selected);
+            XR_LOG_DEBUG("Changing mesh from {} to {}", _sel_id, selected);
             _sel_id = selected;
 
             _mesh_info = load_mesh(xr_app_config->model_path(loadable_meshes[_sel_id].file_name).c_str());
@@ -351,7 +351,7 @@ app::mesh_demo::load_mesh(const char* model_path)
     const auto& mesh_loader = loaded_obj.value();
 
     if (mesh_loader.header().vertex_count > _vertexcount) {
-        XR_DBG_MSG("Reallocating vertex buffer!");
+        XR_LOG_DEBUG("Reallocating vertex buffer!");
         gl::NamedBufferData(raw_handle(_vb), mesh_loader.vertex_bytes(), mesh_loader.vertex_data(), gl::STREAM_DRAW);
     } else {
         scoped_resource_mapping srm{ raw_handle(_vb),
@@ -359,7 +359,7 @@ app::mesh_demo::load_mesh(const char* model_path)
                                      mesh_loader.vertex_bytes() };
 
         if (!srm) {
-            XR_DBG_MSG("Failed to map vertex buffer for mapping!");
+            XR_LOG_DEBUG("Failed to map vertex buffer for mapping!");
             return nothing{};
         }
 
@@ -369,7 +369,7 @@ app::mesh_demo::load_mesh(const char* model_path)
     _vertexcount = mesh_loader.header().vertex_count;
 
     if (mesh_loader.header().index_count > _indexcount) {
-        XR_DBG_MSG("Reallocating index buffer!");
+        XR_LOG_DEBUG("Reallocating index buffer!");
         gl::NamedBufferData(raw_handle(_ib), mesh_loader.index_bytes(), mesh_loader.index_data(), gl::STREAM_DRAW);
     } else {
         scoped_resource_mapping srm{ raw_handle(_ib),
@@ -377,7 +377,7 @@ app::mesh_demo::load_mesh(const char* model_path)
                                      mesh_loader.index_bytes() };
 
         if (!srm) {
-            XR_DBG_MSG("Failed to map index buffer for mapping");
+            XR_LOG_DEBUG("Failed to map index buffer for mapping");
             return nothing{};
         }
 

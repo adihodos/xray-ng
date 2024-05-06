@@ -88,6 +88,6 @@ set(project_sources
   target_link_libraries(
 	${PROJECT_NAME}
 	PUBLIC xray-glloader tl::optional xray-base STLSoft mio::mio 
-	PRIVATE	TBB::tbb cppitertools::cppitertools joboccara::pipes
+	PRIVATE	TBB::tbb cppitertools::cppitertools joboccara::pipes itlib::itlib
 	$<$<PLATFORM_ID:Linux>:Xinerama>
   )

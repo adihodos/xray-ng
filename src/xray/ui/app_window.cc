@@ -143,19 +143,19 @@ xray::ui::application_window::wm_size_event(const int32_t size_request,
 
     switch (size_request) {
         case SIZE_MINIMIZED:
-            OUTPUT_DBG_MSG("Minimized!");
+            XR_LOG_DEBUG("Minimized!");
             _wininfo.active = false;
             return;
             break;
 
         case SIZE_MAXIMIZED:
         case SIZE_RESTORED:
-            OUTPUT_DBG_MSG("Maximized/restored");
+            XR_LOG_DEBUG("Maximized/restored");
             _wininfo.active = true;
             break;
 
         default:
-            OUTPUT_DBG_MSG("Resized!");
+            XR_LOG_DEBUG("Resized!");
             break;
     }
 
@@ -213,7 +213,7 @@ xray::ui::application_window::make_frame()
     //  events.draw(draw_event);
     //  events.swap_buffers(false);
     //} else {
-    //  // OUTPUT_DBG_MSG("Inactive -> sleeping");
+    //  // XR_LOG_DEBUG("Inactive -> sleeping");
     //  Sleep(100);
     //}
 }
@@ -221,7 +221,7 @@ xray::ui::application_window::make_frame()
 void
 xray::ui::application_window::toggle_fullscreen(const bool fs_value) noexcept
 {
-    // OUTPUT_DBG_MSG("Fullscreen toggle from %s",
+    // XR_LOG_DEBUG("Fullscreen toggle from %s",
     //               _wininfo.fullscreen ? "fullscreen" : "windowed");
 
     // if (!_wininfo.fullscreen) {
@@ -382,12 +382,12 @@ xray::ui::application_window::window_procedure(UINT msg, WPARAM w_param, LPARAM 
 {
     switch (msg) {
         case WM_CLOSE: {
-            OUTPUT_DBG_MSG("WM Close!");
+            XR_LOG_DEBUG("WM Close!");
             DestroyWindow(_wininfo.handle);
         } break;
 
         case WM_DESTROY: {
-            OUTPUT_DBG_MSG("Closing window !");
+            XR_LOG_DEBUG("Closing window !");
             PostQuitMessage(0);
         } break;
 
@@ -442,7 +442,7 @@ xray::ui::application_window::window_procedure(UINT msg, WPARAM w_param, LPARAM 
 
         case WM_ACTIVATE: {
             _wininfo.active = (w_param != WA_INACTIVE);
-            OUTPUT_DBG_MSG("Active status : %s", w_param == WA_INACTIVE ? "deactivating" : "activating");
+            XR_LOG_DEBUG("Active status : %s", w_param == WA_INACTIVE ? "deactivating" : "activating");
         } break;
 
             // case WM_SYSCOMMAND:
