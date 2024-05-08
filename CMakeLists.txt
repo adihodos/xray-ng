@@ -106,19 +106,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 #
 # endif()
 #
-# if (UNIX)
-#   list(APPEND SYSTEM_DEPS rt m dl pthread X11 Xrandr Xi Xcursor Xxf86vm GL Xinerama)
-# endif()
-#
-# if (WIN32 AND NOT MSVC)
-#   if (NOT XRAY_USE_DIRECTX11)
-#     list(APPEND SYSTEM_DEPS opengl32)
-#   endif()
-#
-#   if (NOT MSVC)
-#     list(APPEND compiler_flags "mwindows")
-#   endif()
-# endif()
 #
 # if (NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
 #   include_directories(third_party/opengl/include)
@@ -126,6 +113,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 #
 add_subdirectory(third_party/opengl/src)
 add_subdirectory(third_party/imgui/src)
+add_subdirectory(third_party/imgui-docking/src)
 
 # if (CMAKE_BUILD_TYPE MATCHES Debug)
 #   message(" ---> Debug build <---")

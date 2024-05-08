@@ -155,7 +155,7 @@ app::fractal_demo::event_handler(const xray::ui::window_event& evt)
             return;
         }
 
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }
@@ -205,7 +205,7 @@ app::fractal_demo::draw_ui(const int32_t surface_w, const int32_t surface_h)
     _ui->new_frame(surface_w, surface_h);
 
     ImGui::SetNextWindowPos({ 0, 0 }, ImGuiCond_Appearing);
-    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_ShowBorders)) {
+    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Combo("Shapes",
                      &_shape_idx,
                      &get_next_shape_description,

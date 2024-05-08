@@ -486,9 +486,9 @@ void
 app::instanced_drawing_demo::compose_ui(const int32_t surface_width, const int32_t surface_height)
 {
     _ui->new_frame(surface_width, surface_height);
-    ImGui::SetNextWindowPos(vec2f::stdc::zero, ImGuiCond_Appearing);
+    ImGui::SetNextWindowPos({0.0f, 0.0f}, ImGuiCond_Appearing);
 
-    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_ShowBorders)) {
+    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize )) {
         if (ImGui::SliderInt("Instance count",
                              &_demo_opts.instance_count,
                              2,
@@ -520,7 +520,7 @@ app::instanced_drawing_demo::compose_ui(const int32_t surface_width, const int32
                 ImGui::SliderFloat("Yaw", &ii.yaw, -two_pi<float>, two_pi<float>);
 
                 ImGui::Separator();
-                ImGui::InputFloat("Scaling", &ii.scale, 0.1f, 0.5f, 3, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::InputFloat("Scaling", &ii.scale, 0.1f, 0.5f, "%.3f", ImGuiInputTextFlags_CharsDecimal);
                 ImGui::PopID();
 
                 ii.scale = xray::math::clamp(ii.scale, 0.1f, 10.0f);
@@ -565,7 +565,7 @@ app::instanced_drawing_demo::event_handler(const xray::ui::window_event& evt)
         if (!_ui->wants_input()) {
             //
             //  Quit on escape
-            if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+            if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
                 _quit_receiver();
                 return;
             }

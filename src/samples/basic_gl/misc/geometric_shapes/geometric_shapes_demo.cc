@@ -372,7 +372,7 @@ app::geometric_shapes_demo::event_handler(const xray::ui::window_event& evt)
     }
 
     if (is_input_event(evt)) {
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }
@@ -412,7 +412,7 @@ app::geometric_shapes_demo::draw_ui(const int32_t wnd_width, const int32_t wnd_h
     ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
     //  ImGui::ShowTestWindow();
 
-    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_ShowBorders | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::Begin("Options", nullptr,  ImGuiWindowFlags_AlwaysAutoResize)) {
         _ui->push_font("kenvector_future");
         if (ImGui::CollapsingHeader("Lights setup", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
             for (size_t i = 0; i < XR_COUNTOF(_scene.lights); ++i) {

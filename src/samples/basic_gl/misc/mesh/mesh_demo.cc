@@ -248,7 +248,7 @@ app::mesh_demo::draw_ui(const int32_t surface_width, const int32_t surface_heigh
 
     ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
 
-    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_ShowBorders | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         int32_t selected{ _sel_id == -1 ? 0 : _sel_id };
         ImGui::Combo(
             "Displayed model",
@@ -310,7 +310,7 @@ app::mesh_demo::event_handler(const xray::ui::window_event& evt)
     }
 
     if (is_input_event(evt)) {
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }

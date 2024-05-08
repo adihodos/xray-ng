@@ -1,4 +1,31 @@
-space,0x0020 
+space,         0x0020
+exclam,        0x0021
+quotedbl,      0x0022
+numbersign,    0x0023
+dollar,        0x0024
+percent,       0x0025
+ampersand,     0x0026
+apostrophe,    0x0027
+quoteright,    0x0027
+parenleft,     0x0028
+parenright,    0x0029
+asterisk,      0x002a
+plus,          0x002b
+comma,         0x002c
+minus,         0x002d
+period,        0x002e
+slash,         0x002f
+bracketleft,   0x005b
+backslash,     0x005c
+bracketright,  0x005d
+asciicircum,   0x005e
+underscore,    0x005f
+grave,         0x0060
+quoteleft,     0x0060
+braceleft,     0x007b
+bar,           0x007c
+braceright,    0x007d
+asciitilde,    0x007e
 key_0,0x0030
 key_1,0x0031
 key_2,0x0032

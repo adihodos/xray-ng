@@ -396,7 +396,7 @@ app::terrain_demo::draw_ui(const int32_t surface_width, const int32_t surface_he
 
     ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
 
-    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_ShowBorders | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::Begin("Options", nullptr,  ImGuiWindowFlags_AlwaysAutoResize)) {
 
         ImGui::DragFloat("Scaling", &_terrain_opts.scaling, 0.25f, 1.0f, 16.0f);
         ImGui::Separator();
@@ -419,7 +419,7 @@ app::terrain_demo::event_handler(const xray::ui::window_event& evt)
     }
 
     if (is_input_event(evt)) {
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }

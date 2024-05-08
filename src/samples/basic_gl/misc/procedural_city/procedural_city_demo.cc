@@ -132,7 +132,7 @@ app::procedural_city_demo::event_handler(const xray::ui::window_event& evt)
         if (_ui->wants_input())
             return;
 
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }

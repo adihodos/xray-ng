@@ -35,6 +35,15 @@ x86/
 bld/
 [Bb]in/
 [Oo]bj/
+[Oo]ut/
+[Bb]in/
+[Gg]en/
+#  Uncomment the following line in case you need and you don't have the release build type files in your app
+# release/
+
+# Gradle files
+.gradle/
+build/
 
 # Visual Studio 2015 cache/options directory
 .vs/

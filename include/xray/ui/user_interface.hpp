@@ -47,9 +47,9 @@
 
 #include <cassert>
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
-#include <filesystem>
 
 #include <imgui/IconsFontAwesome.h>
 #include <imgui/imconfig.h>
@@ -105,11 +105,7 @@ class user_interface
     void push_font(const char* name);
     void pop_font();
 
-    void set_current()
-    {
-        ImGui::SetCurrentContext(xray::base::raw_ptr(_imcontext));
-        _gui = &ImGui::GetIO();
-    }
+    void set_current() { ImGui::SetCurrentContext(xray::base::raw_ptr(_imcontext)); }
 
   private:
     struct loaded_font
@@ -130,7 +126,6 @@ class user_interface
     loaded_font* find_font(const char* name = nullptr);
     void init(const font_info* fonts, const size_t num_fonts);
     void load_fonts(const font_info* fonts, const size_t num_fonts);
-    void setup_key_mappings();
 
     struct render_context
     {
@@ -162,7 +157,6 @@ class user_interface
     } _rendercontext;
 
     xray::base::unique_pointer<ImGuiContext, imcontext_deleter> _imcontext;
-    ImGuiIO* _gui;
 
   private:
     XRAY_NO_COPY(user_interface);

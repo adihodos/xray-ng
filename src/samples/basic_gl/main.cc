@@ -237,7 +237,7 @@ main_app::event_handler(const xray::ui::window_event& wnd_evt)
 
     if (is_input_event(wnd_evt)) {
 
-        if (wnd_evt.event.key.keycode == xray::ui::key_sym::e::escape &&
+        if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
             wnd_evt.event.key.type == event_action_type::press && !_ui->wants_input()) {
             _window->quit();
             return;
@@ -259,7 +259,7 @@ main_app::loop_event(const xray::ui::window_loop_event& levt)
 
         if (ImGui::Begin("Run a demo",
                          nullptr,
-                         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_ShowBorders |
+                         ImGuiWindowFlags_AlwaysAutoResize |
                              ImGuiWindowFlags_NoCollapse)) {
 
             int32_t selectedItem{};

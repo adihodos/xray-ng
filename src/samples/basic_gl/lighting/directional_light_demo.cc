@@ -459,17 +459,17 @@ app::DirectionalLightDemo::event_handler(const xray::ui::window_event& evt)
         }
 
         if (evt.type == event_type::key) {
-            if (evt.event.key.keycode == key_sym::e::backspace) {
+            if (evt.event.key.keycode == KeySymbol::backspace) {
                 mDemoOptions = {};
                 return;
             }
 
-            if (evt.event.key.keycode == key_sym::e::insert) {
+            if (evt.event.key.keycode == KeySymbol::insert) {
                 // reset mesh scale, pos, rot, etc
                 adjust_model_transforms();
             }
 
-            if (evt.event.key.keycode == key_sym::e::escape) {
+            if (evt.event.key.keycode == KeySymbol::escape) {
                 _quit_receiver();
                 return;
             }
@@ -501,127 +501,121 @@ app::DirectionalLightDemo::draw_ui(const int32_t surface_w, const int32_t surfac
 {
     _ui->new_frame(surface_w, surface_h);
 
-    ImGui::SetNextWindowPos({ 0, 0 }, ImGuiCond_Appearing);
+	ImGui::ShowDemoWindow();
+    // ImGui::SetNextWindowPos({ 0, 0 }, ImGuiCond_Appearing);
+	// 
+    // if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+	// 
+    //     if (ImGui::CollapsingHeader("Objects", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
+    //         mRenderState.graphicsObjects >>= pipes::for_each([](GraphicsObject& obj) {
+    //             ImGui::PushID(&obj);
+	// 
+    //             ImGui::Text("::: Object :::");
+    //             ImGui::Separator();
+	// 
+    //             rfl::get_underlying_enumerator_array<GraphicsObject::StateBits>() >>=
+    //                 pipes::for_each([&obj](const pair<string_view, uint8_t> enum_name_id_pair) {
+    //                     const auto [state_name, state_idx] = enum_name_id_pair;
+	// 
+    //                     bool state_bit{ obj.state_bits[state_idx] };
+    //                     if (ImGui::Checkbox(state_name.data(), &state_bit)) {
+    //                         obj.state_bits[state_idx] = state_bit;
+    //                     }
+    //                 });
+	// 
+    //             if (ImGui::Button("Reset rotation"))
+    //                 obj.rotation = vec3f::stdc::zero;
+	// 
+    //             ImGui::Separator();
+    //             char dbg_txt[512] = {};
+    //             fmt::format_to_n(dbg_txt,
+    //                              size(dbg_txt),
+    //                              "position: {:3.3f}, rotation: {:3.3f}, scale: {:3.3f}\n",
+    //                              obj.pos,
+    //                              obj.rotation,
+    //                              obj.scale);
+	// 
+    //             const rgb_color txt_color{ color_palette::web::lime };
+    //             ImGui::TextColored(ImVec4{ txt_color.r, txt_color.g, txt_color.b, txt_color.a }, "%s", dbg_txt);
+    //             ImGui::Separator();
+	// 
+    //             ImGui::PopID();
+    //         });
+    //     }
+	// 
+    //     if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
+    //         if (ImGui::Combo(
+    //                 "Select a model",
+    //                 &mScene.current_mesh_idx,
+    //                 [](void* p, int32_t idx, const char** out) {
+    //                     auto obj = static_cast<DirectionalLightDemo*>(p);
+    //                     *out = obj->mScene.modelFiles[idx].description.c_str();
+    //                     return true;
+    //                 },
+    //                 this,
+    //                 static_cast<int32_t>(mScene.modelFiles.size()),
+    //                 5)) {
+    //             switch_mesh(SwitchMeshOpt::LoadFromFile);
+    //         }
+	// 
+    //         ImGui::Separator();
+    //         ImGui::SliderFloat("Scale", &mRenderState.graphicsObjects[GraphicsObjectId::Teapot].scale, 0.1f, 10.0f);
+	// 
+    //         ImGui::Separator();
+    //         if (ImGui::ColorPicker3(
+    //                 "Object diffuse color", mDemoOptions.kd_main.components, ImGuiColorEditFlags_NoAlpha)) {
+    //             gl::ClearTexImage(raw_handle(mRenderState.objectTextures[GraphicsObjectId::Teapot]),
+    //                               0,
+    //                               gl::RGBA,
+    //                               gl::FLOAT,
+    //                               mDemoOptions.kd_main.components);
+    //         }
+    //     }
+	// 
+    //     if (ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_Framed)) {
+    //         mScene.lights >>= pipes::filter([](const DirectionalLight& dl) {
+    //             return ImGui::TreeNodeEx(&dl, ImGuiTreeNodeFlags_CollapsingHeader, "Light ");
+    //         }) >>= pipes::for_each([](DirectionalLight& dl) mutable {
+    //             ImGui::SliderFloat3("Direction", dl.direction.components, -1.0f, +1.0f);
+    //             ImGui::Separator();
+	// 
+    //             ImGui::ColorPicker3("Ambient (ka)", dl.ka.components, ImGuiColorEditFlags_NoAlpha);
+    //             ImGui::Separator();
+	// 
+    //             ImGui::ColorPicker3("Diffuse (kd)", dl.kd.components, ImGuiColorEditFlags_NoAlpha);
+                ImGui::Separator();// 
+	// 
+    //             ImGui::ColorPicker3("Specular (ks)", dl.ks.components, ImGuiColorEditFlags_NoAlpha);
+    //             ImGui::Separator();
+	// 
+    //             ImGui::SliderFloat("Specular intensity", &dl.shininess, 1.0f, 256.0f);
+    //             ImGui::Separator();
+	// 
+    //             ImGui::SliderFloat("Light intensity", &dl.strength, 1.0f, 256.0f);
+    //         });
+    //     }
+	// 
+    //     int32_t lightsCount = (int32_t)mScene.lightsCount;
+    //     if (ImGui::SliderInt("Lights count:", &lightsCount, 0, Scene::kMaxLightsCount)) {
+    //         mScene.lightsCount = static_cast<uint32_t>(lightsCount);
+    //     }
+	// 
+    //     if (ImGui::CollapsingHeader("Debug", ImGuiTreeNodeFlags_Framed)) {
+    //         ImGui::Separator();
+	// 
+    //         mScene.debugOutput.clear();
+    //         mRenderState.graphicsObjects >>= pipes::for_each([this](const GraphicsObject& graphicsObj) mutable {
+    //             fmt::format_to(back_inserter(mScene.debugOutput),
+    //                            "position: {:3.3f}, rotation: {:3.3f}, scale: {:3.3f}\n",
+    //                            graphicsObj.pos,
+    //                            graphicsObj.rotation,
+    //                            graphicsObj.scale);
+    //         });
+    //         ImGui::TextUnformatted(mScene.debugOutput.c_str());
+    //     }
+    // }
 
-    if (ImGui::Begin("Options",
-                     nullptr,
-                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_ShowBorders | ImGuiWindowFlags_NoMove)) {
-
-        if (ImGui::CollapsingHeader("Objects", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
-            mRenderState.graphicsObjects >>= pipes::for_each([](GraphicsObject& obj) {
-                ImGui::PushID(&obj);
-
-                ImGui::Text("::: Object :::");
-                ImGui::Separator();
-
-                rfl::get_underlying_enumerator_array<GraphicsObject::StateBits>() >>=
-                    pipes::for_each([&obj](const pair<string_view, uint8_t> enum_name_id_pair) {
-                        const auto [state_name, state_idx] = enum_name_id_pair;
-
-                        bool state_bit{ obj.state_bits[state_idx] };
-                        if (ImGui::Checkbox(state_name.data(), &state_bit)) {
-                            obj.state_bits[state_idx] = state_bit;
-                        }
-                    });
-
-				if  (ImGui::Button("Reset rotation"))
-					obj.rotation = vec3f::stdc::zero;
-
-                ImGui::Separator();
-                char dbg_txt[512] = {};
-                fmt::format_to_n(dbg_txt,
-                                 size(dbg_txt),
-                                 "position: {:3.3f}, rotation: {:3.3f}, scale: {:3.3f}\n",
-                                 obj.pos,
-                                 obj.rotation,
-                                 obj.scale);
-
-                const rgb_color txt_color{ color_palette::web::lime };
-                ImGui::TextColored(ImVec4{ txt_color.r, txt_color.g, txt_color.b, txt_color.a }, "%s", dbg_txt);
-                ImGui::Separator();
-
-                ImGui::PopID();
-            });
-        }
-
-        if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
-            if (ImGui::Combo(
-                    "Select a model",
-                    &mScene.current_mesh_idx,
-                    [](void* p, int32_t idx, const char** out) {
-                        auto obj = static_cast<DirectionalLightDemo*>(p);
-                        *out = obj->mScene.modelFiles[idx].description.c_str();
-                        return true;
-                    },
-                    this,
-                    static_cast<int32_t>(mScene.modelFiles.size()),
-                    5)) {
-                switch_mesh(SwitchMeshOpt::LoadFromFile);
-            }
-
-            ImGui::Separator();
-            ImGui::SliderFloat("Scale", &mRenderState.graphicsObjects[GraphicsObjectId::Teapot].scale, 0.1f, 10.0f);
-
-            ImGui::Separator();
-            if (ImGui::ColorPicker3(
-                    "Object diffuse color", mDemoOptions.kd_main.components, ImGuiColorEditFlags_NoAlpha)) {
-                gl::ClearTexImage(raw_handle(mRenderState.objectTextures[GraphicsObjectId::Teapot]),
-                                  0,
-                                  gl::RGBA,
-                                  gl::FLOAT,
-                                  mDemoOptions.kd_main.components);
-            }
-        }
-
-        if (ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_Framed)) {
-            mScene.lights >>= pipes::filter([](const DirectionalLight& dl) {
-                return ImGui::TreeNodeEx(&dl, ImGuiTreeNodeFlags_CollapsingHeader, "Light ");
-            }) >>= pipes::for_each([](DirectionalLight& dl) mutable {
-                ImGui::PushID(&dl);
-
-                ImGui::SliderFloat3("Direction", dl.direction.components, -1.0f, +1.0f);
-                ImGui::Separator();
-
-                ImGui::ColorPicker3("Ambient (ka)", dl.ka.components, ImGuiColorEditFlags_NoAlpha);
-                ImGui::Separator();
-
-                ImGui::ColorPicker3("Diffuse (kd)", dl.kd.components, ImGuiColorEditFlags_NoAlpha);
-                ImGui::Separator();
-
-                ImGui::ColorPicker3("Specular (ks)", dl.ks.components, ImGuiColorEditFlags_NoAlpha);
-                ImGui::Separator();
-
-                ImGui::SliderFloat("Specular intensity", &dl.shininess, 1.0f, 256.0f);
-                ImGui::Separator();
-
-                ImGui::SliderFloat("Light intensity", &dl.strength, 1.0f, 256.0f);
-
-                ImGui::PopID();
-                ImGui::TreePop();
-            });
-        }
-
-        int32_t lightsCount = (int32_t)mScene.lightsCount;
-        if (ImGui::SliderInt("Lights count:", &lightsCount, 0, Scene::kMaxLightsCount)) {
-            mScene.lightsCount = static_cast<uint32_t>(lightsCount);
-        }
-
-        if (ImGui::CollapsingHeader("Debug", ImGuiTreeNodeFlags_Framed)) {
-            ImGui::Separator();
-
-            mScene.debugOutput.clear();
-            mRenderState.graphicsObjects >>= pipes::for_each([this](const GraphicsObject& graphicsObj) mutable {
-                fmt::format_to(back_inserter(mScene.debugOutput),
-                               "position: {:3.3f}, rotation: {:3.3f}, scale: {:3.3f}\n",
-                               graphicsObj.pos,
-                               graphicsObj.rotation,
-                               graphicsObj.scale);
-            });
-            ImGui::TextUnformatted(mScene.debugOutput.c_str());
-        }
-    }
-
-    ImGui::End();
+    // ImGui::End();
 
     _ui->draw();
 }

@@ -163,55 +163,55 @@ xray::scene::fps_camera_controller::input_event(const ui::window_event& evt)
     if ((evt.type == event_type::key) && (evt.event.key.type == event_action_type::press)) {
 
         switch (evt.event.key.keycode) {
-            case key_sym::e::key_q:
+            case KeySymbol::key_q:
                 yaw_left();
                 break;
 
-            case key_sym::e::key_e:
+            case KeySymbol::key_e:
                 yaw_right();
                 break;
 
-            case key_sym::e::key_w:
+            case KeySymbol::key_w:
                 move_forward();
                 break;
 
-            case key_sym::e::key_s:
+            case KeySymbol::key_s:
                 move_backward();
                 break;
 
-            case key_sym::e::key_d:
+            case KeySymbol::key_d:
                 move_right();
                 break;
 
-            case key_sym::e::key_a:
+            case KeySymbol::key_a:
                 move_left();
                 break;
 
-            case key_sym::e::up:
+            case KeySymbol::up:
                 pitch_down();
                 break;
 
-            case key_sym::e::down:
+            case KeySymbol::down:
                 pitch_up();
                 break;
 
-            case key_sym::e::left:
+            case KeySymbol::left:
                 roll_left();
                 break;
 
-            case key_sym::e::right:
+            case KeySymbol::right:
                 roll_right();
                 break;
 
-            case key_sym::e::kp_add:
+            case KeySymbol::kp_add:
                 zoom_in();
                 break;
 
-            case key_sym::e::kp_minus:
+            case KeySymbol::kp_minus:
                 zoom_out();
                 break;
 
-            case key_sym::e::backspace:
+            case KeySymbol::backspace:
                 reset_orientation();
                 break;
 
