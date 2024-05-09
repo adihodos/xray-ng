@@ -991,11 +991,12 @@ xray::ui::window::message_loop()
             if (window_event.type == _input_helper.xkb_event_base) {
                 const XkbEvent* xkb_evt = reinterpret_cast<const XkbEvent*>(&window_event);
                 if (xkb_evt->any.xkb_type == XkbStateNotify) {
-                    XR_LOG_INFO("XkbStateNotify: mods {:0x} base mods: {:0x} latched mods {:0x} locked mods {:0x}",
-                                xkb_evt->state.mods,
-                                xkb_evt->state.base_mods,
-                                xkb_evt->state.latched_mods,
-                                xkb_evt->state.locked_mods);
+
+                    // XR_LOG_INFO("XkbStateNotify: mods {:0x} base mods: {:0x} latched mods {:0x} locked mods {:0x}",
+                    //             xkb_evt->state.mods,
+                    //             xkb_evt->state.base_mods,
+                    //             xkb_evt->state.latched_mods,
+                    //             xkb_evt->state.locked_mods);
 
                     auto get_xkb_mod_mask_fn = [xi = &_input_helper](const uint32_t in) {
                         uint32_t ret = 0;
@@ -1010,14 +1011,14 @@ xray::ui::window::message_loop()
                         if ((in & Mod2Mask) && xi->mod_index.num_mod != XKB_MOD_INVALID)
                             ret |= (1 << xi->mod_index.num_mod);
 
-						// mod3 - scroll lock, don’t need it for now
+                        // mod3 - scroll lock, don’t need it for now
                         // if ((in & Mod3Mask) && xi->mod_index.mod3_mod != XKB_MOD_INVALID)
                         // 	ret |= (1 << xi->mod_index.mod3_mod);
 
                         if ((in & Mod4Mask) && xi->mod_index.logo_mod != XKB_MOD_INVALID)
                             ret |= (1 << xi->mod_index.logo_mod);
 
-						// what is mod5 ??!!
+                        // what is mod5 ??!!
                         // if ((in & Mod5Mask) && xi->mod_index.mod5_mod != XKB_MOD_INVALID)
                         // ret |= (1 << xi->mod_index.mod5_mod);
 

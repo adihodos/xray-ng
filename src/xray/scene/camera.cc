@@ -32,21 +32,21 @@
 #include "xray/math/scalar4x4_math.hpp"
 
 void
-xray::scene::camera::set_view_matrix(const math::mat4f& view)
+xray::scene::camera::set_view_matrix(const math::MatrixWithInvertedMatrixPair4f& view)
 {
     view_ = view;
 
-    right_.x = view_.a00;
-    right_.y = view_.a10;
-    right_.z = view_.a20;
+    right_.x = view_.transform.a00;
+    right_.y = view_.transform.a10;
+    right_.z = view_.transform.a20;
 
-    up_.x = view_.a01;
-    up_.y = view_.a11;
-    up_.z = view_.a21;
+    up_.x = view_.transform.a01;
+    up_.y = view_.transform.a11;
+    up_.z = view_.transform.a21;
 
-    direction_.x = view_.a02;
-    direction_.y = view_.a12;
-    direction_.z = view_.a22;
+    direction_.x = view_.transform.a02;
+    direction_.y = view_.transform.a12;
+    direction_.z = view_.transform.a22;
 
     invalidate();
 }
@@ -54,18 +54,40 @@ xray::scene::camera::set_view_matrix(const math::mat4f& view)
 const xray::math::mat4f&
 xray::scene::camera::view() const noexcept
 {
-    return view_;
+    update();
+    return view_.transform;
 }
 
 const xray::math::mat4f&
 xray::scene::camera::projection() const noexcept
 {
     update();
-    return projection_;
+    return projection_.transform;
 }
 
 const xray::math::mat4f&
 xray::scene::camera::projection_view() const noexcept
+{
+    update();
+    return projection_view_.transform;
+}
+
+const xray::math::MatrixWithInvertedMatrixPair4f&
+xray::scene::camera::view_bijection() const noexcept
+{
+    update();
+    return view_;
+}
+
+const xray::math::MatrixWithInvertedMatrixPair4f&
+xray::scene::camera::projection_bijection() const noexcept
+{
+    update();
+    return projection_;
+}
+
+const xray::math::MatrixWithInvertedMatrixPair4f&
+xray::scene::camera::projection_view_bijection() const noexcept
 {
     update();
     return projection_view_;
@@ -77,12 +99,13 @@ xray::scene::camera::update() const noexcept
     if (updated_)
         return;
 
-    projection_view_ = projection_ * view_;
+    projection_view_.transform = projection_.transform * view_.transform;
+    projection_view_.inverted = view_.inverted * projection_.inverted;
     updated_ = true;
 }
 
 void
-xray::scene::camera::set_projection(const math::mat4f& projection) noexcept
+xray::scene::camera::set_projection(const math::MatrixWithInvertedMatrixPair4f& projection) noexcept
 {
     projection_ = projection;
     invalidate();

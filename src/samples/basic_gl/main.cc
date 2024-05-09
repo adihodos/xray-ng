@@ -170,6 +170,7 @@ class main_app
     xray::base::timer_highp _timer;
     vector<DemoInfo> _registeredDemos;
     bool _initialized{ false };
+    vector<char> _combo_items{};
 
     XRAY_NO_COPY(main_app);
 };
@@ -193,10 +194,19 @@ main_app::main_app(xray::ui::window* wnd)
 
     hookup_event_delegates();
 
-    RegisteredDemosList<fractal_demo, DirectionalLightDemo, procedural_city_demo>::registerDemo(_registeredDemos);
+    RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo>::registerDemo(_registeredDemos);
 
-    _registeredDemos >>=
-        pipes::for_each([](const DemoInfo& demo) { XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc); });
+    const string_view first_entry{ "Main page" };
+    copy(cbegin(first_entry), cend(first_entry), back_inserter(_combo_items));
+    _combo_items.push_back(0);
+
+    _registeredDemos >>= pipes::for_each([this](const DemoInfo& demo) {
+        XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc);
+        const string_view demo_desc{ demo.shortDesc };
+        copy(cbegin(demo_desc), cend(demo_desc), back_inserter(_combo_items));
+        _combo_items.push_back(0);
+    });
+	_combo_items.push_back(0);
 
     gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
     _ui->set_global_font("Roboto-Regular");
@@ -257,32 +267,32 @@ main_app::loop_event(const xray::ui::window_loop_event& levt)
     {
         ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
 
-        if (ImGui::Begin("Run a demo",
-                         nullptr,
-                         ImGuiWindowFlags_AlwaysAutoResize |
-                             ImGuiWindowFlags_NoCollapse)) {
+        if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
 
             int32_t selectedItem{};
             const bool wasClicked = ImGui::Combo(
                 "Available demos",
                 &selectedItem,
-                [](void* obj, int idx, const char** str) {
-                    const DemoInfo& demo = static_cast<const main_app*>(obj)->get_demo_info(static_cast<size_t>(idx));
-                    *str = demo.shortDesc.data();
-                    return true;
-                },
+				_combo_items.data()
+				
+                // [](void* obj, int idx, const char** str) {
+                //     const DemoInfo& demo = static_cast<const main_app*>(obj)->get_demo_info(static_cast<size_t>(idx));
+                //     *str = demo.shortDesc.data();
+                //     return true;
+                // },
+				// 
+                // this,
+                // static_cast<int>(_registeredDemos.size())
+												 );
 
-                this,
-                static_cast<int>(_registeredDemos.size()));
-
-            if (wasClicked) {
+            if (wasClicked && selectedItem >= 1) {
                 const init_context_t initContext{ _window->width(),
                                                   _window->height(),
                                                   xr_app_config,
                                                   xray::base::raw_ptr(_ui),
                                                   make_delegate(*this, &main_app::demo_quit) };
 
-                _registeredDemos[static_cast<size_t>(selectedItem)]
+                _registeredDemos[static_cast<size_t>(selectedItem - 1)]
                     .createFn(initContext)
                     .map([this](demo_bundle_t bundle) {
                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
@@ -619,8 +629,8 @@ main(int argc, char** argv)
     using namespace xray::ui;
     using namespace xray::base;
 
-	xray::base::setup_logging();
-	
+    xray::base::setup_logging();
+
     XR_LOG_INFO("Starting up ...");
 
     const int num_threads = oneapi::tbb::info::default_concurrency();

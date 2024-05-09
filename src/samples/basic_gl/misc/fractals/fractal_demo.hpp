@@ -54,22 +54,23 @@ struct fractal_params
     uint32_t iterations{ 0 };
 };
 
-class fractal_demo : public demo_base
+class FractalDemo : public demo_base
 {
-	private:
-		struct ConstructToken {
-		explicit ConstructToken() = default;
-	};
-	
+  private:
+    struct ConstructToken
+    {
+        explicit ConstructToken() = default;
+    };
+
   public:
-    fractal_demo(ConstructToken tok,
-				 const init_context_t& ctx,
-                 xray::rendering::scoped_buffer vb,
-                 xray::rendering::scoped_buffer ib,
-                 xray::rendering::scoped_vertex_array layout,
-                 xray::rendering::vertex_program vs,
-                 xray::rendering::fragment_program fs,
-                 xray::rendering::program_pipeline pp)
+    FractalDemo(ConstructToken tok,
+                const init_context_t& ctx,
+                xray::rendering::scoped_buffer vb,
+                xray::rendering::scoped_buffer ib,
+                xray::rendering::scoped_vertex_array layout,
+                xray::rendering::vertex_program vs,
+                xray::rendering::fragment_program fs,
+                xray::rendering::program_pipeline pp)
         : demo_base{ ctx }
         , _quad_vb{ std::move(vb) }
         , _quad_ib{ std::move(ib) }
@@ -80,9 +81,7 @@ class fractal_demo : public demo_base
     {
     }
 
-    ~fractal_demo();
-
-    XRAY_DEFAULT_MOVE(fractal_demo);
+    ~FractalDemo();
 
     virtual void event_handler(const xray::ui::window_event& evt) override;
     virtual void loop_event(const xray::ui::window_loop_event&) override;
@@ -113,12 +112,10 @@ class fractal_demo : public demo_base
     xray::rendering::fragment_program _fs;
     xray::rendering::program_pipeline _pipeline;
 
-	struct RasterizerState {
-		xray::rendering::ScopedGlCap mDisabledDepthTesting{gl::DEPTH_TEST, xray::rendering::GlCapabilityState::Off};
-	} mRasterizerState{};
-
-  private:
-    XRAY_NO_COPY(fractal_demo);
+    struct RasterizerState
+    {
+        xray::rendering::ScopedGlCap mDisabledDepthTesting{ gl::DEPTH_TEST, xray::rendering::GlCapabilityState::Off };
+    } mRasterizerState{};
 };
 
 } // namespace app

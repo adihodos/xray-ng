@@ -211,6 +211,15 @@ class scalar4x4
 };
 
 template<typename T>
+struct MatrixWithInvertedMatrixPair
+{
+    scalar4x4<T> transform;
+    scalar4x4<T> inverted;
+};
+
+using MatrixWithInvertedMatrixPair4f = MatrixWithInvertedMatrixPair<scalar_lowp>;
+
+template<typename T>
 struct scalar4x4<T>::stdc
 {
     /// \brief      Null 4x4 matrix.
