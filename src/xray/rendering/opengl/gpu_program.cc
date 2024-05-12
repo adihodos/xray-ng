@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <numeric>
 #include <span>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <unordered_map>
@@ -21,6 +22,7 @@
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 
 #include <mio/mmap.hpp>
+#include <pipes/pipes.hpp>
 #include <stlsoft/memory/auto_buffer.hpp>
 #include <tl/optional.hpp>
 
@@ -180,6 +182,89 @@ xray::rendering::shader_source_descriptor::shader_source_descriptor(const shader
 }
 
 xray::rendering::scoped_program_handle
+xray::rendering::gpu_program_builder::build_program_ex(const GLenum stg) const noexcept
+{
+    using namespace itlib;
+    using namespace std;
+
+    itlib::small_vector<mio::mmap_source, 4> mem_mapped_files;
+    itlib::small_vector<const char*, 4> source_string_ptrs;
+
+    _build_blocks >>= pipes::for_each([&mem_mapped_files, &source_string_ptrs](const ShaderBuildingBlock& bblock) {
+        if (const filesystem::path* p = get_if<filesystem::path>(&bblock)) {
+            std::error_code err_code{};
+            mio::mmap_source mapped_file = mio::make_mmap_source(p->c_str(), err_code);
+            if (!err_code) {
+                source_string_ptrs.emplace_back(mapped_file.cbegin());
+                mem_mapped_files.emplace_back(move(mapped_file));
+            } else {
+                XR_LOG_CRITICAL("Cannot open shader file {}", p->c_str());
+            }
+        } else if (const std::string_view* strv = get_if<std::string_view>(&bblock)) {
+            source_string_ptrs.emplace_back(strv->data());
+        }
+    });
+
+    auto gpu_prg =
+        scoped_program_handle{ gl::CreateShaderProgramv(stg, source_string_ptrs.size(), source_string_ptrs.data()) };
+    if (!gpu_prg) {
+        XR_LOG_CRITICAL("Failed to create shader program!");
+        return scoped_program_handle{};
+    }
+
+    const auto was_linked = [ph = raw_handle(gpu_prg)]() {
+        GLint linked_ok{ false };
+        gl::GetProgramiv(ph, gl::LINK_STATUS, &linked_ok);
+        return linked_ok == gl::TRUE_;
+    }();
+
+    if (was_linked) {
+        return gpu_prg;
+    }
+
+    char log_buff[1024];
+    GLint log_len{ 0 };
+    gl::GetProgramInfoLog(raw_handle(gpu_prg), XR_I32_COUNTOF(log_buff), &log_len, log_buff);
+    log_buff[log_len] = 0;
+
+    auto stage_id = [stg]() {
+
+#define STG_NAME(s)                                                                                                    \
+    case s:                                                                                                            \
+        return #s;                                                                                                     \
+        break
+        switch (stg) {
+            STG_NAME(gl::VERTEX_SHADER);
+            STG_NAME(gl::FRAGMENT_SHADER);
+            STG_NAME(gl::GEOMETRY_SHADER);
+
+            default:
+                break;
+        }
+
+#undef STG_NAME
+
+        return "Unknown ??";
+    }();
+
+    string sbuf;
+    fmt::format_to(back_inserter(sbuf),
+                   "Failed to compile/link {} program, error:\n[[{}]]\nDumping building blocks:\n",
+                   stage_id,
+                   &log_buff[0]);
+    _build_blocks >>= pipes::for_each([&](const ShaderBuildingBlock& bblock) {
+        if (const filesystem::path* p = get_if<filesystem::path>(&bblock)) {
+            fmt::format_to(back_inserter(sbuf), " - shader file: {}\n", p->c_str());
+        } else if (const std::string_view* strv = get_if<std::string_view>(&bblock)) {
+            fmt::format_to(back_inserter(sbuf), " - shader code: {}", strv->data());
+        }
+    });
+
+    XR_LOG_CRITICAL("{}", sbuf);
+    return scoped_program_handle{ 0 };
+}
+
+xray::rendering::scoped_program_handle
 xray::rendering::gpu_program_builder::build_program(const GLenum stg) const noexcept
 {
     using namespace xray::base;
@@ -274,8 +359,6 @@ xray::rendering::gpu_program_builder::build_program(const GLenum stg) const noex
 
         return "Unknown ??";
     }();
-
-    XR_LOG_CRITICAL("Failed to compile/link {} program, error:\n[[{}]]", stage_id, &log_buff[0]);
 
     return scoped_program_handle{};
 }

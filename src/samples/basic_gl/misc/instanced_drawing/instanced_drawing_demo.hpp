@@ -30,6 +30,12 @@
 
 #pragma once
 
+#include "xray/xray.hpp"
+
+#include <cstdint>
+#include <tl/optional.hpp>
+#include <vector>
+
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "xray/base/basic_timer.hpp"
@@ -44,41 +50,37 @@
 #include "xray/scene/camera_controller_spherical_coords.hpp"
 #include "xray/scene/fps_camera_controller.hpp"
 #include "xray/ui/user_interface.hpp"
-#include "xray/xray.hpp"
-#include <cstdint>
-#include <vector>
 
 namespace app {
 
-class simple_world
+class SimpleWorld
 {
   public:
-    simple_world();
-
     void draw(const xray::scene::camera* cam);
     void update(const float delta_ms);
 
-  private:
+    static tl::optional<SimpleWorld> create(const init_context_t& init_ctx);
+
     xray::rendering::basic_mesh _world;
     xray::rendering::vertex_program _vs;
     xray::rendering::fragment_program _fs;
     xray::rendering::program_pipeline _pp;
     xray::rendering::scoped_texture _heightmap;
     xray::rendering::scoped_sampler _sampler;
-    xray::math::vec2ui32 _worldsize{ 1024, 1024 };
-
-    XRAY_NO_COPY(simple_world);
+    xray::math::vec2ui32 _worldsize;
 };
 
-class instanced_drawing_demo : public demo_base
+class InstancedDrawingDemo : public demo_base
 {
   public:
-    instanced_drawing_demo(const init_context_t& init_ctx);
-
-    ~instanced_drawing_demo();
+    ~InstancedDrawingDemo();
 
     virtual void event_handler(const xray::ui::window_event& evt) override;
     virtual void loop_event(const xray::ui::window_loop_event&) override;
+
+    static std::string_view short_desc() noexcept { return "Instanced drawing demo."; }
+    static std::string_view detailed_desc() noexcept { return "Instanced drawing demo."; }
+    static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
 
   private:
     void compose_ui(const int32_t surface_width, const int32_t surface_height);
@@ -97,30 +99,37 @@ class instanced_drawing_demo : public demo_base
         uint32_t texture_id{};
     };
 
-    struct object_instances
+    struct InstanceXData
+    {
+        xray::math::mat4f worldViewProjection;
+        xray::math::mat4f object2World;
+    };
+
+    struct InstancingState
     {
         static constexpr uint32_t instance_count{ 32u };
         std::vector<instance_info> instances;
         xray::rendering::scoped_buffer buffer_transforms;
-        xray::rendering::scoped_buffer buffer_texture_ids;
+        std::vector<InstanceXData> scratch_buffer{ 32u };
     } _obj_instances;
 
-    xray::rendering::scoped_buffer _vertices;
-    xray::rendering::scoped_buffer _indices;
-    xray::rendering::scoped_buffer _indirect_draw_cmd_buffer;
-    xray::rendering::scoped_buffer _draw_ids;
-    xray::rendering::scoped_vertex_array _vertexarray;
-    xray::rendering::vertex_program _vs;
-    xray::rendering::geometry_program _gs;
-    xray::rendering::fragment_program _fs;
-    xray::rendering::program_pipeline _pipeline;
-    xray::rendering::scoped_texture _textures;
-    xray::rendering::scoped_sampler _sampler;
-    xray::base::random_number_generator _rand;
-    simple_world _world;
-    xray::math::vec2i32 _window_size;
+    struct RenderState
+    {
+        xray::rendering::scoped_buffer _vertices;
+        xray::rendering::scoped_buffer _indices;
+        xray::rendering::scoped_buffer _indirect_draw_cmd_buffer;
+        xray::rendering::scoped_vertex_array _vertexarray;
+        xray::rendering::vertex_program _vs;
+        xray::rendering::fragment_program _fs;
+        xray::rendering::scoped_program_pipeline_handle _pipeline;
+        xray::rendering::scoped_texture _textures;
+        xray::rendering::scoped_sampler _sampler;
+        xray::math::vec2i32 _window_size;
+        xray::base::timer_highp _timer;
+        SimpleWorld _world;
+    } _render_state;
 
-    struct
+    struct Scene
     {
         xray::scene::camera camera;
         xray::scene::fps_camera_controller cam_control{};
@@ -128,13 +137,11 @@ class instanced_drawing_demo : public demo_base
 
     struct demo_options
     {
-        int32_t instance_count{ object_instances::instance_count };
+        int32_t instance_count{ InstancingState::instance_count };
     } _demo_opts;
 
-    xray::base::timer_highp _timer;
-
   private:
-    XRAY_NO_COPY(instanced_drawing_demo);
+    InstancedDrawingDemo(const init_context_t& init_ctx, RenderState rs, InstancingState ins);
 };
 
 } // namespace app

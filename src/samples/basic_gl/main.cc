@@ -194,7 +194,8 @@ main_app::main_app(xray::ui::window* wnd)
 
     hookup_event_delegates();
 
-    RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo>::registerDemo(_registeredDemos);
+    RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo, InstancedDrawingDemo>::registerDemo(
+        _registeredDemos);
 
     const string_view first_entry{ "Main page" };
     copy(cbegin(first_entry), cend(first_entry), back_inserter(_combo_items));
@@ -206,7 +207,7 @@ main_app::main_app(xray::ui::window* wnd)
         copy(cbegin(demo_desc), cend(demo_desc), back_inserter(_combo_items));
         _combo_items.push_back(0);
     });
-	_combo_items.push_back(0);
+    _combo_items.push_back(0);
 
     gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
     _ui->set_global_font("Roboto-Regular");
@@ -270,20 +271,7 @@ main_app::loop_event(const xray::ui::window_loop_event& levt)
         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
 
             int32_t selectedItem{};
-            const bool wasClicked = ImGui::Combo(
-                "Available demos",
-                &selectedItem,
-				_combo_items.data()
-				
-                // [](void* obj, int idx, const char** str) {
-                //     const DemoInfo& demo = static_cast<const main_app*>(obj)->get_demo_info(static_cast<size_t>(idx));
-                //     *str = demo.shortDesc.data();
-                //     return true;
-                // },
-				// 
-                // this,
-                // static_cast<int>(_registeredDemos.size())
-												 );
+            const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
 
             if (wasClicked && selectedItem >= 1) {
                 const init_context_t initContext{ _window->width(),

@@ -54,9 +54,6 @@ set(project_sources
   # ${proj_src_dir}/lit_torus.cc
   ${proj_src_dir}/main.cc
 
-  ${proj_inc_dir}/mesh_lister.hpp
-  ${proj_src_dir}/mesh_lister.cc
-
 
   # ${proj_inc_dir}/material.hpp
   # ${proj_src_dir}/material.cc

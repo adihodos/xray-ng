@@ -30,7 +30,6 @@
 
 #pragma once
 
-#include "xray/math/scalar4x4.hpp"
 #include "xray/xray.hpp"
 
 #include <bitset>
@@ -43,7 +42,6 @@
 #include <tl/optional.hpp>
 
 #include "demo_base.hpp"
-#include "mesh_lister.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/file_system_watcher.hpp"
 #include "xray/base/unique_pointer.hpp"
@@ -59,6 +57,7 @@
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera_controller_spherical_coords.hpp"
+#include "xray/math/scalar4x4.hpp"
 
 namespace app {
 

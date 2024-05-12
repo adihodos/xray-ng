@@ -58,6 +58,18 @@ struct gpu_program_pipeline_handle
 
 using scoped_program_pipeline_handle = xray::base::unique_handle<gpu_program_pipeline_handle>;
 
+template<typename... Stages>
+scoped_program_pipeline_handle
+create_program_pipeline(Stages&&... stages)
+{
+    GLuint pipeline{};
+    gl::CreateProgramPipelines(1, &pipeline);
+    (gl::UseProgramStages(pipeline, xray_to_opengl<std::decay_t<Stages>::program_stage>::shader_bit, stages.handle()),
+     ...);
+
+    return scoped_program_pipeline_handle{ pipeline };
+}
+
 class program_pipeline
 {
   public:

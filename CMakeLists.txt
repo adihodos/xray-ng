@@ -112,7 +112,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # endif()
 #
 add_subdirectory(third_party/opengl/src)
-add_subdirectory(third_party/imgui/src)
 add_subdirectory(third_party/imgui-docking/src)
 
 # if (CMAKE_BUILD_TYPE MATCHES Debug)
