@@ -58,3 +58,14 @@ void
 app::demo_base::poll_end(const xray::ui::poll_end_event&)
 {
 }
+
+void
+app::demo_base::event_handler(const xray::ui::window_event& evt)
+{
+    using namespace xray::ui;
+
+    if (evt.type == xray::ui::event_type::key) {
+        const xray::ui::key_event* k = &evt.event.key;
+        _keyboard[static_cast<size_t>(k->keycode)] = k->type == xray::ui::event_action_type::press;
+    }
+}

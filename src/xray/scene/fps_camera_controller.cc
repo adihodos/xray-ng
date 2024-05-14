@@ -27,6 +27,9 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/scene/fps_camera_controller.hpp"
+
+#include <pipes/pipes.hpp>
+
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/projection.hpp"
@@ -160,65 +163,10 @@ xray::scene::fps_camera_controller::reset_orientation() noexcept
 void
 xray::scene::fps_camera_controller::input_event(const ui::window_event& evt)
 {
-    if ((evt.type == event_type::key) && (evt.event.key.type == event_action_type::press)) {
 
-        switch (evt.event.key.keycode) {
-            case KeySymbol::key_q:
-                yaw_left();
-                break;
-
-            case KeySymbol::key_e:
-                yaw_right();
-                break;
-
-            case KeySymbol::key_w:
-                move_forward();
-                break;
-
-            case KeySymbol::key_s:
-                move_backward();
-                break;
-
-            case KeySymbol::key_d:
-                move_right();
-                break;
-
-            case KeySymbol::key_a:
-                move_left();
-                break;
-
-            case KeySymbol::up:
-                pitch_down();
-                break;
-
-            case KeySymbol::down:
-                pitch_up();
-                break;
-
-            case KeySymbol::left:
-                roll_left();
-                break;
-
-            case KeySymbol::right:
-                roll_right();
-                break;
-
-            case KeySymbol::kp_add:
-                zoom_in();
-                break;
-
-            case KeySymbol::kp_minus:
-                zoom_out();
-                break;
-
-            case KeySymbol::backspace:
-                reset_orientation();
-                break;
-
-            default:
-                break;
-        }
-
+    if (evt.type == event_type::mouse_wheel) {
+        const mouse_wheel_event* mwe = &evt.event.wheel;
+        mwe->delta > 0 ? zoom_in() : zoom_out();
         return;
     }
 }
@@ -227,10 +175,10 @@ void
 xray::scene::fps_camera_controller::update_camera(xray::scene::camera& cam)
 {
     if (!_syncstatus.view) {
-		_dir = normalize(_dir);
-		_right = normalize(cross(_up, _dir));
-		_up = cross(_dir, _right);
-		
+        _dir = normalize(_dir);
+        _right = normalize(cross(_up, _dir));
+        _up = cross(_dir, _right);
+
         cam.set_view_matrix(view_matrix(_right, _up, _dir, _position));
         _syncstatus.view = true;
     }
@@ -267,4 +215,46 @@ xray::scene::fps_camera_controller::roll(const float delta) noexcept
     _up = normalize(qroll * _up);
     _right = normalize(qroll * _right);
     _syncstatus.view = 0;
+}
+
+void
+xray::scene::fps_camera_controller::process_input(const std::bitset<256>& keyboard)
+{
+    struct KeySymbolWithActionPair
+    {
+        KeySymbol key;
+        void (fps_camera_controller::*action_fn)();
+    } constexpr const key_handlers[] = {
+        { KeySymbol::key_q, &fps_camera_controller::yaw_left },
+
+        { KeySymbol::key_e, &fps_camera_controller::yaw_right },
+
+        { KeySymbol::key_w, &fps_camera_controller::move_forward },
+
+        { KeySymbol::key_s, &fps_camera_controller::move_backward },
+
+        { KeySymbol::key_d, &fps_camera_controller::move_right },
+
+          { KeySymbol::key_a, &fps_camera_controller::move_left },
+
+        { KeySymbol::up, &fps_camera_controller::pitch_down },
+
+        { KeySymbol::down, &fps_camera_controller::pitch_up },
+
+        { KeySymbol::left, &fps_camera_controller::roll_left },
+
+        { KeySymbol::right, &fps_camera_controller::roll_right },
+
+        { KeySymbol::kp_add, &fps_camera_controller::zoom_in },
+
+        { KeySymbol::kp_minus, &fps_camera_controller::zoom_out },
+
+        { KeySymbol::backspace, &fps_camera_controller::reset_orientation },
+    };
+
+    key_handlers >>= pipes::for_each([&keyboard, this](const KeySymbolWithActionPair& ka) {
+        auto&& [key_sym, key_action] = ka;
+        if (keyboard[static_cast<size_t>(key_sym)])
+            (this->*key_action)();
+    });
 }

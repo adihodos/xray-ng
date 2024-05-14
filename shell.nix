@@ -14,7 +14,14 @@ pkgs.mkShell {
     pkg-config
     python3Full
     kdiff3
-
+    vulkan-tools
+    vulkan-headers
+    vulkan-loader
+    vulkan-tools-lunarg
+    vulkan-validation-layers
+    shaderc
+    glslang
+    bashInteractive
     # libs
     zlib
     xorg.libX11

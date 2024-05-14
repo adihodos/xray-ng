@@ -36,6 +36,7 @@
 
 #include <cstdint>
 #include <tuple>
+#include <bitset>
 
 namespace xray {
 namespace scene {
@@ -73,6 +74,7 @@ class demo_base
     bool _valid{ false };
     xray::base::fast_delegate<void()> _quit_receiver;
     xray::ui::user_interface* _ui;
+	std::bitset<256> _keyboard{};
 };
 
 } // namespace app

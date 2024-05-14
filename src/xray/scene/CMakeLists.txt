@@ -34,4 +34,4 @@ target_compile_definitions(
   $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
 )
 
-target_link_libraries(${PROJECT_NAME} PUBLIC xray-base config tl::optional)
+target_link_libraries(${PROJECT_NAME} PUBLIC xray-base config tl::optional PRIVATE joboccara::pipes)

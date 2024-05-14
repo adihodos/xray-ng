@@ -446,6 +446,9 @@ app::InstancedDrawingDemo::~InstancedDrawingDemo() {}
 void
 app::InstancedDrawingDemo::loop_event(const xray::ui::window_loop_event& wle)
 {
+    //
+    // process input
+    _scene.cam_control.process_input(_keyboard);
 
     RenderState* r = &_render_state;
     Scene* s = &_scene;
@@ -581,6 +584,8 @@ app::InstancedDrawingDemo::compose_ui(const int32_t surface_width, const int32_t
 void
 app::InstancedDrawingDemo::event_handler(const xray::ui::window_event& evt)
 {
+    demo_base::event_handler(evt);
+
     if (evt.type == event_type::configure) {
         RenderState* r = &_render_state;
         r->_window_size.x = evt.event.configure.width;
@@ -613,7 +618,8 @@ app::InstancedDrawingDemo::event_handler(const xray::ui::window_event& evt)
                 _quit_receiver();
                 return;
             }
-            _scene.cam_control.input_event(evt);
+
+			_scene.cam_control.input_event(evt);
         }
         return;
     }
