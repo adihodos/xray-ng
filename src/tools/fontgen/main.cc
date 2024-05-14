@@ -15,7 +15,7 @@ main(int, char**)
     const auto err = FT_Init_FreeType(&library);
 
     if (err) {
-        OUTPUT_DBG_MSG("Failed to init freetype !");
+        XR_LOG_DEBUG("Failed to init freetype !");
         return EXIT_FAILURE;
     }
 

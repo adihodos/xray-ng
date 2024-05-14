@@ -28,12 +28,13 @@
 
 #pragma once
 
+#include "xray/xray.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar4x4.hpp"
-#include "xray/xray.hpp"
 
 #include <cstdint>
+#include <bitset>
 
 namespace xray {
 
@@ -94,6 +95,7 @@ class fps_camera_controller
 
     void reset_orientation() noexcept;
     void input_event(const ui::window_event& input_evt);
+	void process_input(const std::bitset<256>& keyboard);
     void update_camera(camera& cam);
 
   private:

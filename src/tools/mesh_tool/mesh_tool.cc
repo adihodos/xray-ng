@@ -180,13 +180,13 @@ main(int argc, char** argv)
             return;
         }
 
-        XR_DBG_MSG("Processing file %s", file);
+        XR_LOG_DEBUG("Processing file %s", file);
 
         vertices.clear();
         indices.clear();
 
         if (!load_mesh_obj_format(file, &vertices, &indices)) {
-            XR_DBG_MSG("Failed to load mesh!");
+            XR_LOG_DEBUG("Failed to load mesh!");
             return;
         }
 
@@ -202,11 +202,11 @@ main(int argc, char** argv)
         path.pop_ext();
         path.push_ext("bin");
 
-        XR_DBG_MSG("Processing to file %s", path.c_str());
+        XR_LOG_DEBUG("Processing to file %s", path.c_str());
 
         unique_file outfile{ fopen(path.c_str(), "wb"), &fclose };
         if (!outfile) {
-            XR_DBG_MSG("Failed to open output file!");
+            XR_LOG_DEBUG("Failed to open output file!");
             return;
         }
 

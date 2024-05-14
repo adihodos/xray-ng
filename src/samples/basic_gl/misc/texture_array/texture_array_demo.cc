@@ -21,7 +21,7 @@ using namespace xray::math;
 using namespace xray::ui;
 using namespace std;
 
-extern xray::base::app_config* xr_app_config;
+extern xray::base::ConfigSystem* xr_app_config;
 
 struct imgui_scope
 {
@@ -174,7 +174,7 @@ app::texture_array_demo::event_handler(const xray::ui::window_event& evt)
             return;
         }
 
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }
@@ -229,7 +229,7 @@ app::texture_array_demo::draw_ui(const int32_t surface_width, const int32_t surf
     _ui->new_frame(surface_width, surface_height);
 
     ImGui::SetNextWindowPos({ 0, 0 }, ImGuiCond_Appearing);
-    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_ShowBorders)) {
+    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 
         if (ImGui::Button("<< Previous image")) {
             XR_LOG_INFO("Pushed button!");

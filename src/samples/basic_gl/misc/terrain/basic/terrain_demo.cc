@@ -192,7 +192,7 @@ app::terrain_demo::init()
     //    xr_app_config->texture_path("worlds/test/terrain_heightmap.r16").c_str()};
 
     //  if (!hmldr) {
-    //    XR_DBG_MSG("Failed to load heightmap!");
+    //    XR_LOG_DEBUG("Failed to load heightmap!");
     //    return;
     //  }
 
@@ -243,7 +243,7 @@ app::terrain_demo::init()
 
     _mesh = basic_mesh{ vertices.data(), vertices.size(), indices.data(), indices.size(), mesh_type::writable };
     if (!_mesh) {
-        XR_DBG_MSG("Failed to create grid!");
+        XR_LOG_DEBUG("Failed to create grid!");
         return;
     }
 
@@ -296,7 +296,7 @@ app::terrain_demo::init()
     {
         texture_loader tldr{ xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str() };
         if (!tldr) {
-            XR_DBG_MSG("Failed to load color map for terrain!");
+            XR_LOG_DEBUG("Failed to load color map for terrain!");
             return;
         }
 
@@ -396,7 +396,7 @@ app::terrain_demo::draw_ui(const int32_t surface_width, const int32_t surface_he
 
     ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
 
-    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_ShowBorders | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::Begin("Options", nullptr,  ImGuiWindowFlags_AlwaysAutoResize)) {
 
         ImGui::DragFloat("Scaling", &_terrain_opts.scaling, 0.25f, 1.0f, 16.0f);
         ImGui::Separator();
@@ -419,7 +419,7 @@ app::terrain_demo::event_handler(const xray::ui::window_event& evt)
     }
 
     if (is_input_event(evt)) {
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }

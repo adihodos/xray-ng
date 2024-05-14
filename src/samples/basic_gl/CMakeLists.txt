@@ -54,9 +54,6 @@ set(project_sources
   # ${proj_src_dir}/lit_torus.cc
   ${proj_src_dir}/main.cc
 
-  ${proj_inc_dir}/mesh_lister.hpp
-  ${proj_src_dir}/mesh_lister.cc
-
 
   # ${proj_inc_dir}/material.hpp
   # ${proj_src_dir}/material.cc
@@ -184,7 +181,7 @@ set(config_files
   ${proj_cfg_dir}/cap6/edge_detect/app.conf
   ${proj_cfg_dir}/cap6/hdr_tonemapping/app.conf
   ${proj_cfg_dir}/cam_controller_spherical.conf
-)    
+)
 
 source_group(code FILES ${project_sources})
 source_group(shaders FILES ${shader_files})
@@ -202,25 +199,51 @@ target_compile_definitions(
   ${PROJECT_NAME}
   PRIVATE
   $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
-)
+  XRAY_MATH_ENABLE_FMT_SUPPORT)
 
 target_link_libraries(${PROJECT_NAME}
+  PRIVATE
   xray-base
   xray-rendering
   xray-physics
   xray-scene
   xray-ui
+  xray-math
   TBB::tbb
   itlib::itlib
-  quill::quill
   joboccara::pipes
   cppitertools::cppitertools
-)
+  reflectcpp
+  spdlog::spdlog
+  )
+
+cmake_language(EVAL CODE [=[
+file(GENERATE OUTPUT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/config/app_config.override.conf"
+CONTENT "
+directories : {
+    root_win = \"c:/games/xray\";
+    root = \"/home/adi/games/xray\";
+    models = \"assets/models\";
+    textures = \"assets/textures\";
+    shaders = \"${CMAKE_CURRENT_SOURCE_DIR}/shaders\";
+};"
+CONDITION $<CONFIG:Debug>
+NEWLINE_STYLE UNIX)
+]=])
 
 add_custom_target(COPY_SHADERS ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
+  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders
+COMMENT "::: Copying shader files :::")
 
 add_custom_target(COPY_CONFIG_FILES ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/config
-  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/config)
+  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/config
+COMMENT "::: Copying configuration files :::")
+
+add_custom_target( OVERWRITE_APP_CONFIG ALL
+COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/config/app_config.override.conf" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/config/app_config.conf"
+# DEPENDS COPY_CONFIG_FILES
+COMMENT "::: WARNING: overwriting main configuration file with a custom one ! :::")
+
+add_dependencies(OVERWRITE_APP_CONFIG COPY_CONFIG_FILES)

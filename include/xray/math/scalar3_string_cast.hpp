@@ -30,31 +30,11 @@
 
 #include "xray/math/scalar3.hpp"
 #include "xray/xray.hpp"
-#include <cstdio>
-#include <stlsoft/memory/auto_buffer.hpp>
-#include <string>
 
-#define XRAY_MATH_ENABLE_FMT_SUPPORT
 #if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
 #include <fmt/core.h>
 #include <fmt/format.h>
 #endif
-
-namespace xray {
-namespace math {
-
-template<typename T>
-std::string
-string_cast(const scalar3<T>& s)
-{
-    stlsoft::auto_buffer<char, 256u> tmp_buff{ 256u };
-    snprintf(tmp_buff.data(), tmp_buff.size(), "scalar3 [%f, %f, %f]", s.x, s.y, s.z);
-
-    return static_cast<const char*>(tmp_buff.data());
-}
-
-} // namespace math
-} // namespace xray
 
 #if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
 

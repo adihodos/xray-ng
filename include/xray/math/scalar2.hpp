@@ -28,10 +28,13 @@
 
 #pragma once
 
-#include "xray/base/shims/stl_type_traits_shims.hpp"
 #include "xray/xray.hpp"
-#include "xray/xray_types.hpp"
+
 #include <cstdint>
+#include <type_traits>
+
+#include "xray/math/swizzle.hpp"
+#include "xray/xray_types.hpp"
 
 namespace xray {
 namespace math {
@@ -42,13 +45,12 @@ namespace math {
 /// \class scalar2
 /// \brief  Two component vector/point in R2.
 template<typename T>
-struct scalar2
+struct scalar2 : public SwizzleBase<T, 2>
 {
-    static_assert(base::std_is_arithmetic<T>, "template parameter must be an arithmetic type !");
+    static_assert(std::is_arithmetic_v<T>, "template parameter must be an arithmetic type !");
 
     union
     {
-
         struct
         {
             T x;
@@ -80,6 +82,12 @@ struct scalar2
     {
     }
 
+    constexpr scalar2(const Swizzle2<T> s) noexcept
+        : x{ s.x }
+        , y{ s.y }
+    {
+    }
+
     explicit constexpr scalar2(const T val) noexcept
         : scalar2<T>{ val, val }
     {
@@ -94,6 +102,12 @@ struct scalar2
     inline class_type& operator/=(const T scalar) noexcept;
 
     /// @}
+
+    template<typename... Ts>
+    constexpr auto swizzle() const noexcept
+    {
+        return SwizzleBase<T, 2>::swizzle(this->components, Ts{}...);
+    }
 
     /// \brief      Standard constants for R2 vectors.
     struct stdc;

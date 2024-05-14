@@ -30,34 +30,43 @@
 
 #include "xray/math/scalar3x3.hpp"
 #include "xray/xray.hpp"
-#include <cstdio>
-#include <stlsoft/memory/auto_buffer.hpp>
-#include <string>
 
-namespace xray {
-namespace math {
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
+#include <fmt/core.h>
+#include <fmt/format.h>
+#endif
+
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
+
+namespace fmt {
 
 template<typename T>
-std::string
-string_cast(const scalar3x3<T>& s)
+struct formatter<xray::math::scalar3x3<T>> : nested_formatter<T>
 {
-    stlsoft::auto_buffer<char, 256> tmp_buff{ 256u };
 
-    snprintf(tmp_buff.data(),
-             tmp_buff.size(),
-             "scalar3x3 [%f, %f, %f] [%f %f %f] [%f %f %f]",
-             s.a00,
-             s.a01,
-             s.a02,
-             s.a10,
-             s.a11,
-             s.a12,
-             s.a20,
-             s.a21,
-             s.a22);
+    // Formats value using the parsed format specification stored in this
+    // formatter and writes the output to ctx.out().
+    auto format(const xray::math::scalar3x3<T>& m, format_context& ctx) const
+    {
+        return this->write_padded(ctx, [this, m](auto out) {
+            return fmt::format_to(out,
+                                  "scalar3x3 = \n"
+								  "| {}, {}, {} |\n"
+								  "| {}, {}, {} |\n"
+                                  "| {}, {}, {} |",
+                                  this->nested(m.a00),
+                                  this->nested(m.a01),
+                                  this->nested(m.a02),
+                                  this->nested(m.a10),
+                                  this->nested(m.a11),
+                                  this->nested(m.a12),
+                                  this->nested(m.a20),
+                                  this->nested(m.a21),
+                                  this->nested(m.a22));
+        });
+    }
+};
 
-    return static_cast<const char*>(tmp_buff.data());
-}
+} // namespace fmt
 
-} // namespace math
-} // namespace xray
+#endif

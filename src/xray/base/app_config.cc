@@ -1,17 +1,13 @@
 #include "xray/base/app_config.hpp"
-#include "xray/base/array_dimension.hpp"
 #include "xray/base/config_settings.hpp"
-#include <platformstl/filesystem/current_directory.hpp>
-#include <platformstl/filesystem/filesystem_traits.hpp>
-#include <platformstl/filesystem/path.hpp>
+#include "xray/base/logger.hpp"
 
 using namespace xray::base;
 
-xray::base::app_config* xray::base::app_config::_unique_instance;
+xray::base::ConfigSystem* xray::base::ConfigSystem::_unique_instance;
 
-xray::base::app_config::app_config(const char* cfg_path /*= nullptr*/)
+xray::base::ConfigSystem::ConfigSystem(const char* cfg_path /*= nullptr*/)
 {
-
     assert((_unique_instance == nullptr) && "Already initialized!");
     _unique_instance = this;
 
@@ -46,45 +42,38 @@ xray::base::app_config::app_config(const char* cfg_path /*= nullptr*/)
 
     if (root_dir) {
         paths_.root_path = root_dir;
-        if (!paths_.root_path.has_sep())
-            paths_.root_path.push_sep();
-
         assert(paths_.root_path.is_absolute());
     }
 
     struct path_with_conf_entry_t
     {
         const char* conf_file_entry_name;
-        platformstl::path_a* path;
+        std::filesystem::path* path;
     };
 
     //
     //  List of predefined paths we look for in the config file.
-    path_with_conf_entry_t paths_to_load[] = { { "directories.shaders", &paths_.shader_path },
-                                               { "directories.models", &paths_.model_path },
-                                               { "directories.textures", &paths_.texture_path },
-                                               { "directories.fonts", &paths_.fonts_path },
-                                               { "directories.shader_configs", &paths_.shader_cfg_path },
-                                               { "directories.camera_configs", &paths_.camera_cfg_path },
-                                               { "directories.object_configs", &paths_.objects_cfg_path },
-                                               { "directories.engine_ini", &paths_.engine_ini_file } };
+    path_with_conf_entry_t paths_to_load[] = {
+        { "directories.shaders", &paths_.shader_path },
+        { "directories.models", &paths_.model_path },
+        { "directories.textures", &paths_.texture_path },
+        { "directories.fonts", &paths_.fonts_path },
+    };
 
     for (auto& path_load_info : paths_to_load) {
         const char* path_value{ nullptr };
         app_conf_file.lookup_value(path_load_info.conf_file_entry_name, path_value);
 
-        platformstl::path_a loaded_path{ path_value ? path_value : path_load_info.path->c_str() };
-        if (platformstl::filesystem_traits<char>::is_directory(loaded_path.c_str()) && !loaded_path.has_sep()) {
-            loaded_path.push_sep();
+        if (path_value) {
+            *path_load_info.path = path_value;
         }
 
-        //
-        //  If path is not absolute, make it so by appending the root first.
-        //  Thus, having a root of c:/mydir and a path of "assets/shaders"
-        //  will result in c:/mydir/assets/shaders/ .
-        if (!loaded_path.is_absolute())
-            *path_load_info.path = paths_.root_path;
+        if (!path_load_info.path->is_absolute())
+            *path_load_info.path = paths_.root_path / *path_load_info.path;
 
-        path_load_info.path->push(loaded_path);
+        assert(std::filesystem::exists(*path_load_info.path));
+        assert(std::filesystem::is_directory(*path_load_info.path));
+
+        XR_LOG_INFO("{} -> {}", path_load_info.conf_file_entry_name, path_load_info.path->c_str());
     }
 }

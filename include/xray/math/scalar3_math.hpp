@@ -28,7 +28,9 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
+#include <iterator>
 
 #include "xray/math/math_base.hpp"
 #include "xray/math/math_std.hpp"
@@ -345,6 +347,13 @@ min(const scalar3<T>& a, const scalar3<T>& b) noexcept
     return { min(a.x, b.x), min(a.y, b.y), min(a.z, b.z) };
 }
 
+template<typename T>
+scalar3<T>
+abs(const scalar3<T>& a) noexcept
+{
+    return { std::abs(a.x), std::abs(a.y), std::abs(a.z) };
+}
+
 /// \brief Convert from spherical coordinates to Cartesian coordinates.
 /// \param   r The radius of the sphere.
 /// \param   phi Angle with the y axis (in radians).
@@ -383,6 +392,33 @@ point_to_spherical_coordinates(const scalar3<T>& pt) noexcept
     const auto theta = atan2(pt.x, pt.z);
 
     return { delta, phi, theta };
+}
+
+template<typename T>
+struct frame_vectors
+{
+    scalar3<T> u;
+    scalar3<T> v;
+    scalar3<T> w;
+};
+
+template<typename T>
+frame_vectors<T>
+make_frame_vectors(const scalar3<T>& s) noexcept
+{
+    auto [minval, maxval] = std::minmax_element(std::cbegin(s.components),
+                                                std::cend(s.components),
+                                                [](const T a, const T b) { return std::abs(a) < std::abs(b); });
+
+    const ptrdiff_t min_elem_pos = std::distance(std::cbegin(s.components), minval);
+
+    const scalar3<T> result_table[] = { scalar3<T>{ T{}, -s.z, s.y },
+                                        scalar3<T>{ -s.z, T{}, s.x },
+                                        scalar3<T>{ -s.y, s.x, T{} } };
+
+    const scalar3<T> v{ normalize(result_table[min_elem_pos]) };
+
+    return frame_vectors<T>{ .u = s, .v = v, .w = cross(s, v) };
 }
 
 /// @}

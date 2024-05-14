@@ -85,7 +85,7 @@ operator*(const real_type k, const scalar4<real_type>& vec) noexcept
     return res;
 }
 
-template<typename real_type, typename real_type>
+template<typename real_type>
 inline scalar4<real_type>
 operator*(const scalar4<real_type>& vec, const real_type k) noexcept
 {
@@ -118,6 +118,13 @@ scalar4<T>
 min(const scalar4<T>& a, const scalar4<T>& b) noexcept
 {
     return { min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w) };
+}
+
+template<typename T>
+scalar4<T>
+abs(const scalar4<T>& a) noexcept
+{
+    return { std::abs(a.x), std::abs(a.y), std::abs(a.z), std::abs(a.w) };
 }
 
 /// @}

@@ -47,7 +47,7 @@ static constexpr nice_shape_def NICE_SHAPES[] = {
 static constexpr uint32_t kIterations[] = { 16, 32, 64, 128, 256, 512, 1024, 2048, 4096 };
 
 tl::optional<app::demo_bundle_t>
-app::fractal_demo::create(const init_context_t& initContext)
+app::FractalDemo::create(const init_context_t& initContext)
 {
     geometry_data_t quad_mesh;
     geometry_factory::fullscreen_quad(&quad_mesh);
@@ -122,7 +122,7 @@ app::fractal_demo::create(const init_context_t& initContext)
 
     pipeline.use_vertex_program(vs).use_fragment_program(fs);
 
-    auto demoObj = xray::base::make_unique<fractal_demo>(ConstructToken{},
+    auto demoObj = xray::base::make_unique<FractalDemo>(ConstructToken{},
                                                          initContext,
                                                          move(quad_vb),
                                                          move(quad_ib),
@@ -130,16 +130,16 @@ app::fractal_demo::create(const init_context_t& initContext)
                                                          move(vs),
                                                          move(fs),
                                                          move(pipeline));
-    auto winEventHandler = make_delegate(*demoObj, &fractal_demo::event_handler);
-    auto loopEventHandler = make_delegate(*demoObj, &fractal_demo::loop_event);
+    auto winEventHandler = make_delegate(*demoObj, &FractalDemo::event_handler);
+    auto loopEventHandler = make_delegate(*demoObj, &FractalDemo::loop_event);
 
     return tl::make_optional<demo_bundle_t>(move(demoObj), winEventHandler, loopEventHandler);
 }
 
-app::fractal_demo::~fractal_demo() {}
+app::FractalDemo::~FractalDemo() {}
 
 void
-app::fractal_demo::loop_event(const xray::ui::window_loop_event& wle)
+app::FractalDemo::loop_event(const xray::ui::window_loop_event& wle)
 {
     _ui->tick(1.0f / 60.0f);
     draw(wle.wnd_width, wle.wnd_height);
@@ -147,7 +147,7 @@ app::fractal_demo::loop_event(const xray::ui::window_loop_event& wle)
 }
 
 void
-app::fractal_demo::event_handler(const xray::ui::window_event& evt)
+app::FractalDemo::event_handler(const xray::ui::window_event& evt)
 {
     if (is_input_event(evt)) {
         _ui->input_event(evt);
@@ -155,7 +155,7 @@ app::fractal_demo::event_handler(const xray::ui::window_event& evt)
             return;
         }
 
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }
@@ -178,7 +178,7 @@ get_next_shape_description(void*, int32_t idx, const char** shape_desc)
 }
 
 void
-app::fractal_demo::draw(const int32_t surface_w, const int32_t surface_h)
+app::FractalDemo::draw(const int32_t surface_w, const int32_t surface_h)
 {
     gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, color_palette::web::black.components);
     gl::ViewportIndexedf(0, 0.0f, 0.0f, static_cast<float>(surface_w), static_cast<float>(surface_h));
@@ -199,13 +199,13 @@ app::fractal_demo::draw(const int32_t surface_w, const int32_t surface_h)
 }
 
 void
-app::fractal_demo::draw_ui(const int32_t surface_w, const int32_t surface_h)
+app::FractalDemo::draw_ui(const int32_t surface_w, const int32_t surface_h)
 {
 
     _ui->new_frame(surface_w, surface_h);
 
     ImGui::SetNextWindowPos({ 0, 0 }, ImGuiCond_Appearing);
-    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_ShowBorders)) {
+    if (ImGui::Begin("Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Combo("Shapes",
                      &_shape_idx,
                      &get_next_shape_description,

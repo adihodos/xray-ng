@@ -29,8 +29,12 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/xray_types.hpp"
+
 #include <cstdint>
+#include <type_traits>
+
+#include "xray/math/swizzle.hpp"
+#include "xray/xray_types.hpp"
 
 namespace xray {
 namespace math {
@@ -39,12 +43,12 @@ namespace math {
 /// @{
 
 template<typename T>
-struct scalar3
+struct scalar3 : public SwizzleBase<T, 3>
 {
+    static_assert(std::is_arithmetic_v<T>, "Template parameter needs to be an arythmetic type!");
 
     union
     {
-
         struct
         {
             T x;
@@ -78,6 +82,13 @@ struct scalar3
     {
     }
 
+    constexpr scalar3(const Swizzle3<T> s) noexcept
+        : x{ s.x }
+        , y{ s.y }
+        , z{ s.z }
+    {
+    }
+
     constexpr scalar3(const T xval, const T yval, const T zval) noexcept
         : x{ xval }
         , y{ yval }
@@ -94,6 +105,12 @@ struct scalar3
     inline scalar3<T>& operator/=(const T scalar) noexcept;
 
     /// @}
+
+    template<typename... Ts>
+    constexpr auto swizzle() const noexcept
+    {
+        return SwizzleBase<T, 3>::swizzle(this->components, Ts{}...);
+    }
 
     /// \name Standard constants for R3 vectors.
     /// @{

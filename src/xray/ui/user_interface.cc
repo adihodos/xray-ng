@@ -18,9 +18,11 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
+#include "xray/ui/window.hpp"
 #include <algorithm>
+
 #include <imgui/imgui.h>
-#include <platformstl/filesystem/path.hpp>
+#include <imgui/imgui_internal.h>
 
 using namespace xray::base;
 using namespace xray::rendering;
@@ -36,8 +38,149 @@ struct font_img_data
     int32_t bpp{};
 };
 
+struct XrayKeyToImGuiKeyPair
+{
+    KeySymbol xr_keycode;
+    ImGuiKey im_keycode;
+};
+
+static constexpr XrayKeyToImGuiKeyPair XR_KEY_TO_IMGUI_KEY_TABLE[126] = {
+    { KeySymbol::ampersand, ImGuiKey_None },
+    { KeySymbol::apostrophe, ImGuiKey_Apostrophe },
+    { KeySymbol::asciicircum, ImGuiKey_None },
+    { KeySymbol::asciitilde, ImGuiKey_None },
+    { KeySymbol::asterisk, ImGuiKey_None },
+    { KeySymbol::backslash, ImGuiKey_Backslash },
+    { KeySymbol::backspace, ImGuiKey_Backspace },
+    { KeySymbol::bar, ImGuiKey_None },
+    { KeySymbol::braceleft, ImGuiKey_None },
+    { KeySymbol::braceright, ImGuiKey_None },
+    { KeySymbol::bracketleft, ImGuiKey_LeftBracket },
+    { KeySymbol::bracketright, ImGuiKey_RightBracket },
+    { KeySymbol::caps_lock, ImGuiKey_CapsLock },
+    { KeySymbol::clear, ImGuiKey_None },
+    { KeySymbol::comma, ImGuiKey_Comma },
+    { KeySymbol::del, ImGuiKey_Delete },
+    { KeySymbol::dollar, ImGuiKey_None },
+    { KeySymbol::down, ImGuiKey_DownArrow },
+    { KeySymbol::end, ImGuiKey_End },
+    { KeySymbol::enter, ImGuiKey_Enter },
+    { KeySymbol::escape, ImGuiKey_Escape },
+    { KeySymbol::exclam, ImGuiKey_None },
+    { KeySymbol::f1, ImGuiKey_F1 },
+    { KeySymbol::f10, ImGuiKey_F10 },
+    { KeySymbol::f11, ImGuiKey_F11 },
+    { KeySymbol::f12, ImGuiKey_F12 },
+    { KeySymbol::f13, ImGuiKey_F13 },
+    { KeySymbol::f14, ImGuiKey_F14 },
+    { KeySymbol::f15, ImGuiKey_F15 },
+    { KeySymbol::f2, ImGuiKey_F2 },
+    { KeySymbol::f3, ImGuiKey_F3 },
+    { KeySymbol::f4, ImGuiKey_F4 },
+    { KeySymbol::f5, ImGuiKey_F5 },
+    { KeySymbol::f6, ImGuiKey_F6 },
+    { KeySymbol::f7, ImGuiKey_F7 },
+    { KeySymbol::f8, ImGuiKey_F8 },
+    { KeySymbol::f9, ImGuiKey_F9 },
+    { KeySymbol::grave, ImGuiKey_GraveAccent },
+    { KeySymbol::home, ImGuiKey_Home },
+    { KeySymbol::insert, ImGuiKey_Insert },
+    { KeySymbol::key_0, ImGuiKey_0 },
+    { KeySymbol::key_1, ImGuiKey_1 },
+    { KeySymbol::key_2, ImGuiKey_2 },
+    { KeySymbol::key_3, ImGuiKey_3 },
+    { KeySymbol::key_4, ImGuiKey_4 },
+    { KeySymbol::key_5, ImGuiKey_5 },
+    { KeySymbol::key_6, ImGuiKey_6 },
+    { KeySymbol::key_7, ImGuiKey_7 },
+    { KeySymbol::key_8, ImGuiKey_8 },
+    { KeySymbol::key_9, ImGuiKey_9 },
+    { KeySymbol::key_a, ImGuiKey_A },
+    { KeySymbol::key_b, ImGuiKey_B },
+    { KeySymbol::key_c, ImGuiKey_C },
+    { KeySymbol::key_d, ImGuiKey_D },
+    { KeySymbol::key_e, ImGuiKey_E },
+    { KeySymbol::key_f, ImGuiKey_F },
+    { KeySymbol::key_g, ImGuiKey_G },
+    { KeySymbol::key_h, ImGuiKey_H },
+    { KeySymbol::key_i, ImGuiKey_I },
+    { KeySymbol::key_j, ImGuiKey_J },
+    { KeySymbol::key_k, ImGuiKey_K },
+    { KeySymbol::key_l, ImGuiKey_L },
+    { KeySymbol::key_m, ImGuiKey_M },
+    { KeySymbol::key_n, ImGuiKey_N },
+    { KeySymbol::key_o, ImGuiKey_O },
+    { KeySymbol::key_p, ImGuiKey_P },
+    { KeySymbol::key_q, ImGuiKey_Q },
+    { KeySymbol::key_r, ImGuiKey_R },
+    { KeySymbol::key_s, ImGuiKey_S },
+    { KeySymbol::key_t, ImGuiKey_T },
+    { KeySymbol::key_u, ImGuiKey_U },
+    { KeySymbol::key_v, ImGuiKey_V },
+    { KeySymbol::key_w, ImGuiKey_W },
+    { KeySymbol::key_x, ImGuiKey_X },
+    { KeySymbol::key_y, ImGuiKey_Y },
+    { KeySymbol::key_z, ImGuiKey_Z },
+    { KeySymbol::kp0, ImGuiKey_Keypad0 },
+    { KeySymbol::kp1, ImGuiKey_Keypad1 },
+    { KeySymbol::kp2, ImGuiKey_Keypad2 },
+    { KeySymbol::kp3, ImGuiKey_Keypad3 },
+    { KeySymbol::kp4, ImGuiKey_Keypad4 },
+    { KeySymbol::kp5, ImGuiKey_Keypad5 },
+    { KeySymbol::kp6, ImGuiKey_Keypad6 },
+    { KeySymbol::kp7, ImGuiKey_Keypad7 },
+    { KeySymbol::kp8, ImGuiKey_Keypad8 },
+    { KeySymbol::kp9, ImGuiKey_Keypad9 },
+    { KeySymbol::kp_add, ImGuiKey_KeypadAdd },
+    { KeySymbol::kp_decimal, ImGuiKey_KeypadDecimal },
+    { KeySymbol::kp_divide, ImGuiKey_KeypadDivide },
+    { KeySymbol::kp_minus, ImGuiKey_KeypadSubtract },
+    { KeySymbol::kp_multiply, ImGuiKey_KeypadMultiply },
+    { KeySymbol::left, ImGuiKey_LeftArrow },
+    { KeySymbol::left_alt, ImGuiKey_LeftAlt },
+    { KeySymbol::left_control, ImGuiKey_LeftCtrl },
+    { KeySymbol::left_menu, ImGuiKey_Menu },
+    { KeySymbol::left_shift, ImGuiKey_LeftShift },
+    { KeySymbol::left_win, ImGuiKey_LeftSuper },
+    { KeySymbol::minus, ImGuiKey_Minus },
+    { KeySymbol::num_lock, ImGuiKey_NumLock },
+    { KeySymbol::numbersign, ImGuiKey_None },
+    { KeySymbol::page_down, ImGuiKey_PageDown },
+    { KeySymbol::page_up, ImGuiKey_PageUp },
+    { KeySymbol::parenleft, ImGuiKey_None },
+    { KeySymbol::parenright, ImGuiKey_None },
+    { KeySymbol::pause, ImGuiKey_Pause },
+    { KeySymbol::percent, ImGuiKey_None },
+    { KeySymbol::period, ImGuiKey_Period },
+    { KeySymbol::plus, ImGuiKey_None },
+    { KeySymbol::print_screen, ImGuiKey_PrintScreen },
+    { KeySymbol::quotedbl, ImGuiKey_None },
+    { KeySymbol::quoteleft, ImGuiKey_None },
+    { KeySymbol::quoteright, ImGuiKey_None },
+    { KeySymbol::right, ImGuiKey_RightArrow },
+    { KeySymbol::right_alt, ImGuiKey_RightAlt },
+    { KeySymbol::right_control, ImGuiKey_RightCtrl },
+    { KeySymbol::right_menu, ImGuiKey_Menu },
+    { KeySymbol::right_shift, ImGuiKey_RightShift },
+    { KeySymbol::right_win, ImGuiKey_RightSuper },
+    { KeySymbol::scrol_lock, ImGuiKey_ScrollLock },
+    { KeySymbol::select, ImGuiKey_None },
+    { KeySymbol::slash, ImGuiKey_None },
+    { KeySymbol::space, ImGuiKey_Space },
+    { KeySymbol::tab, ImGuiKey_Tab },
+    { KeySymbol::underscore, ImGuiKey_None },
+    { KeySymbol::unknown, ImGuiKey_None },
+    { KeySymbol::up, ImGuiKey_UpArrow },
+};
+
+static ImGuiKey
+translate_key(const KeySymbol key_sym_val)
+{
+    assert(static_cast<size_t>(key_sym_val) < size(XR_KEY_TO_IMGUI_KEY_TABLE));
+    return XR_KEY_TO_IMGUI_KEY_TABLE[static_cast<size_t>(key_sym_val)].im_keycode;
+}
+
 xray::ui::user_interface::user_interface() noexcept
-    : _gui{ &ImGui::GetIO() }
 {
     init(nullptr, 0);
 }
@@ -136,11 +279,26 @@ static constexpr auto IMGUI_SHADER_LEN = static_cast<uint32_t>(sizeof(IMGUI_SHAD
 void
 xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
 {
-    _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ ImGui::CreateContext() };
+    IMGUI_CHECKVERSION();
+    _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ []() {
+        auto imgui_ctx = ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
+        // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
+        ImGui::StyleColorsDark();
+
+        ImGuiStyle& style = ImGui::GetStyle();
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+            style.WindowRounding = 0.0f;
+            style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+        }
+        return imgui_ctx;
+    }() };
     // _imcontext->IO.Fonts = new ImFontAtlas();
 
     set_current();
-    _gui = &ImGui::GetIO();
 
 #if defined(XRAY_RENDERER_DIRECTX)
 
@@ -383,20 +541,22 @@ xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
     _rendercontext._font_texture = [this]() {
         GLuint texh{};
 
+        ImGuiIO& io = ImGui::GetIO();
         font_img_data font_img;
-        _gui->Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
+        io.Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
 
         gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
         gl::TextureStorage2D(texh, 1, gl::RGBA8, font_img.width, font_img.height);
         gl::TextureSubImage2D(
             texh, 0, 0, 0, font_img.width, font_img.height, gl::RGBA, gl::UNSIGNED_BYTE, font_img.pixels);
 
-        XR_DBG_MSG("Fonts {}", _gui->Fonts->Fonts.size());
+        XR_LOG_INFO("Fonts {}", io.Fonts->Fonts.size());
 
         return texh;
     }();
 
-    _gui->Fonts->TexID = reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->TexID = reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
 
     _rendercontext._font_sampler = []() {
         GLuint smph{};
@@ -409,7 +569,7 @@ xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
 
 #endif
 
-    setup_key_mappings();
+    // setup_key_mappings();
     _rendercontext._valid = true;
 }
 
@@ -418,14 +578,18 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
 {
     //
     // Default fonts that always get loaded (Proggy and FontAwesome)
-    auto default_font = _gui->Fonts->AddFontDefault();
+    ImGuiIO& io = ImGui::GetIO();
+    auto default_font = io.Fonts->AddFontDefault();
     _rendercontext.fonts.push_back({ "Default", 13.0f, default_font });
 
     ImFontConfig config;
     config.MergeMode = true;
     static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
-    auto font_awesome = _gui->Fonts->AddFontFromFileTTF(
-        app_config::instance()->font_path("fontawesome/fontawesome-webfont.ttf").c_str(), 13.0f, &config, icon_ranges);
+    auto font_awesome =
+        io.Fonts->AddFontFromFileTTF(ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").c_str(),
+                                     13.0f,
+                                     &config,
+                                     icon_ranges);
     assert(font_awesome != nullptr);
     _rendercontext.fonts.push_back({ "fontawesome", 13.0f, font_awesome });
 
@@ -435,16 +599,15 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
         config.OversampleV = 1;
         config.GlyphExtraSpacing.x = 1.0f;
 
-        auto fnt = _gui->Fonts->AddFontFromFileTTF(
-            fi.path.c_str(), fi.pixel_size, &config, _gui->Fonts->GetGlyphRangesDefault());
+        auto fnt = ImGui::GetIO().Fonts->AddFontFromFileTTF(
+            fi.path.c_str(), fi.pixel_size, &config, ImGui::GetIO().Fonts->GetGlyphRangesDefault());
 
         if (!fnt) {
-            XR_DBG_MSG("Failed to load font {}", fi.path);
+            XR_LOG_INFO("Failed to load font {}", fi.path.string());
             return;
         }
 
-        platformstl::path_a fpath{ fi.path };
-        _rendercontext.fonts.emplace_back(std::string{ fpath.pop_ext().get_file().data() }, fi.pixel_size, fnt);
+        _rendercontext.fonts.emplace_back(fi.path.stem().string(), fi.pixel_size, fnt);
     });
 
     sort(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& f0, const loaded_font& f1) {
@@ -460,7 +623,7 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
     });
 
     for_each(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& fi) {
-        XR_DBG_MSG("added font {}, size {} ...", fi.name, fi.pixel_size);
+        XR_LOG_INFO("added font {}, size {} ...", fi.name, fi.pixel_size);
     });
 }
 
@@ -566,12 +729,13 @@ xray::ui::user_interface::draw()
 
 #else
 
-    const auto fb_width = static_cast<int32_t>(_gui->DisplaySize.x * _gui->DisplayFramebufferScale.x);
-    const auto fb_height = static_cast<int32_t>(_gui->DisplaySize.y * _gui->DisplayFramebufferScale.y);
+    ImGuiIO& io = ImGui::GetIO();
+    const auto fb_width = static_cast<int32_t>(io.DisplaySize.x * io.DisplayFramebufferScale.x);
+    const auto fb_height = static_cast<int32_t>(io.DisplaySize.y * io.DisplayFramebufferScale.y);
     if (fb_width == 0 || fb_height == 0)
         return;
 
-    draw_data->ScaleClipRects(_gui->DisplayFramebufferScale);
+    draw_data->ScaleClipRects(io.DisplayFramebufferScale);
 
     struct opengl_state_save_restore
     {
@@ -688,31 +852,69 @@ xray::ui::user_interface::draw()
 void
 xray::ui::user_interface::new_frame(const int32_t wnd_width, const int32_t wnd_height)
 {
-    _gui->DisplaySize = ImVec2{ static_cast<float>(wnd_width), static_cast<float>(wnd_height) };
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2{ static_cast<float>(wnd_width), static_cast<float>(wnd_height) };
+
+    if (wnd_width > 0 && wnd_height > 0) {
+        // io.DisplayFramebufferScale = ImVec2{};
+    }
+
     ImGui::NewFrame();
 }
 
 bool
 xray::ui::user_interface::input_event(const xray::ui::window_event& in_evt)
 {
-
     if (in_evt.type == event_type::key) {
         const auto& ke = in_evt.event.key;
-        _gui->KeysDown[key_sym::to_integer(ke.keycode)] = ke.type == event_action_type::press;
+        const bool is_down{ ke.type == event_action_type::press };
+
+        ImGuiIO& io = ImGui::GetIO();
+        const ImGuiKey translated_key{ translate_key(ke.keycode) };
+        if (translated_key != ImGuiKey_None)
+            io.AddKeyEvent(translated_key, ke.type == event_action_type::press);
+
+        if (ke.keycode == KeySymbol::left_control || ke.keycode == KeySymbol::right_control)
+            io.AddKeyEvent(ImGuiMod_Ctrl, is_down);
+
+        if (ke.keycode == KeySymbol::left_shift || ke.keycode == KeySymbol::right_shift)
+            io.AddKeyEvent(ImGuiMod_Shift, is_down);
+
+        if (ke.keycode == KeySymbol::left_alt || ke.keycode == KeySymbol::right_alt)
+            io.AddKeyEvent(ImGuiMod_Alt, is_down);
+
+        if (ke.keycode == KeySymbol::left_menu || ke.keycode == KeySymbol::right_win)
+            io.AddKeyEvent(ImGuiMod_Super, is_down);
+
+        return true;
+    }
+
+    if (in_evt.type == event_type::char_input) {
+        const char_input_event* ch_in = &in_evt.event.char_input;
+        ImGuiIO& io = ImGui::GetIO();
+        if (ch_in->wnd->key_sym_handling == window::InputKeySymHandling::Unicode)
+            io.AddInputCharacter(ch_in->unicode_point);
+        else
+            io.AddInputCharactersUTF8(ch_in->utf8);
         return true;
     }
 
     if (in_evt.type == event_type::mouse_button) {
         const auto& mb = in_evt.event.button;
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddKeyEvent(ImGuiMod_Ctrl, mb.control);
+        io.AddKeyEvent(ImGuiMod_Shift, mb.shift);
+
         bool handled = true;
 
         switch (mb.button) {
             case mouse_button::button1:
-                _gui->MouseDown[0] = mb.type == event_action_type::press;
+                io.MouseDown[0] = mb.type == event_action_type::press;
                 break;
 
             case mouse_button::button3:
-                _gui->MouseDown[1] = mb.type == event_action_type::press;
+                io.MouseDown[1] = mb.type == event_action_type::press;
                 break;
 
             default:
@@ -725,15 +927,17 @@ xray::ui::user_interface::input_event(const xray::ui::window_event& in_evt)
 
     if (in_evt.type == event_type::mouse_motion) {
         const auto& mm = in_evt.event.motion;
-        _gui->MousePos.x = static_cast<float>(mm.pointer_x);
-        _gui->MousePos.y = static_cast<float>(mm.pointer_y);
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMousePosEvent(static_cast<float>(mm.pointer_x), static_cast<float>(mm.pointer_y));
 
         return true;
     }
 
     if (in_evt.type == event_type::mouse_wheel) {
+        ImGuiIO& io = ImGui::GetIO();
         const auto& mw = in_evt.event.wheel;
-        _gui->MouseWheel += mw.delta > 0 ? -1.0f : +1.0f;
+
+        io.AddMouseWheelEvent(0.0f, static_cast<float>(mw.delta));
         return true;
     }
 
@@ -749,32 +953,8 @@ xray::ui::user_interface::tick(const float delta)
 bool
 xray::ui::user_interface::wants_input() const noexcept
 {
-    return _gui->WantCaptureKeyboard || _gui->WantCaptureMouse;
-}
-
-void
-xray::ui::user_interface::setup_key_mappings()
-{
-    _gui->KeyMap[ImGuiKey_Tab] = key_sym::to_integer(key_sym::e::tab);
-    _gui->KeyMap[ImGuiKey_LeftArrow] = key_sym::to_integer(key_sym::e::left);
-    _gui->KeyMap[ImGuiKey_RightArrow] = key_sym::to_integer(key_sym::e::right);
-    _gui->KeyMap[ImGuiKey_UpArrow] = key_sym::to_integer(key_sym::e::up);
-    _gui->KeyMap[ImGuiKey_DownArrow] = key_sym::to_integer(key_sym::e::down);
-    _gui->KeyMap[ImGuiKey_PageUp] = key_sym::to_integer(key_sym::e::page_up);
-    _gui->KeyMap[ImGuiKey_PageDown] = key_sym::to_integer(key_sym::e::page_down);
-    _gui->KeyMap[ImGuiKey_Home] = key_sym::to_integer(key_sym::e::home);
-    _gui->KeyMap[ImGuiKey_End] = key_sym::to_integer(key_sym::e::end);
-    _gui->KeyMap[ImGuiKey_Delete] = key_sym::to_integer(key_sym::e::del);
-    _gui->KeyMap[ImGuiKey_Backspace] = key_sym::to_integer(key_sym::e::backspace);
-    _gui->KeyMap[ImGuiKey_Enter] = key_sym::to_integer(key_sym::e::enter);
-    _gui->KeyMap[ImGuiKey_Escape] = key_sym::to_integer(key_sym::e::escape);
-    _gui->KeyMap[ImGuiKey_A] = 'A';
-    _gui->KeyMap[ImGuiKey_C] = 'C';
-    _gui->KeyMap[ImGuiKey_V] = 'V';
-    _gui->KeyMap[ImGuiKey_X] = 'X';
-    _gui->KeyMap[ImGuiKey_Y] = 'Y';
-    _gui->KeyMap[ImGuiKey_Z] = 'Z';
-    _gui->RenderDrawListsFn = nullptr;
+    const ImGuiIO io = ImGui::GetIO();
+    return io.WantCaptureMouse || io.WantCaptureKeyboard;
 }
 
 xray::ui::user_interface::loaded_font*
@@ -789,7 +969,7 @@ xray::ui::user_interface::find_font(const char* name)
     });
 
     if (fentry == end(_rendercontext.fonts)) {
-        XR_DBG_MSG("Trying to set non existent font {}", name);
+        XR_LOG_INFO("Trying to set non existent font {}", name);
         return nullptr;
     }
 
@@ -801,7 +981,7 @@ xray::ui::user_interface::set_global_font(const char* name)
 {
     auto fnt_entry = find_font(name);
     if (fnt_entry) {
-        _gui->FontDefault = fnt_entry->font;
+        ImGui::GetIO().FontDefault = fnt_entry->font;
     }
 }
 

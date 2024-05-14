@@ -42,7 +42,7 @@ xray::ui::win32::basic_window::basic_window(const char* title /*= nullptr*/)
         width_ = static_cast<uint32_t>(r->right - r->left);
         height_ = static_cast<uint32_t>(r->bottom - r->top);
 
-        OUTPUT_DBG_MSG("Window dimensions [%u x %u]", width(), height());
+        XR_LOG_DEBUG("Window dimensions [%u x %u]", width(), height());
 
         constexpr auto wnd_style = WS_POPUP;
 
@@ -150,7 +150,7 @@ xray::ui::win32::basic_window::pump_messages()
             }
 
             if (ret_code == 0) {
-                OUTPUT_DBG_MSG("Caught WM_QUIT");
+                XR_LOG_DEBUG("Caught WM_QUIT");
                 quit_flag = true;
                 break;
             }

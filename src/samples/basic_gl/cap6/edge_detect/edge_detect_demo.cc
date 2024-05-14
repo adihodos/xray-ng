@@ -279,7 +279,7 @@ app::edge_detect_demo::init(const init_context_t& ini_ctx)
     const auto render_wnd_width = static_cast<GLsizei>(ini_ctx.surface_width);
     const auto render_wnd_height = static_cast<GLsizei>(ini_ctx.surface_height);
 
-    OUTPUT_DBG_MSG("Init window size %f x %f", render_wnd_width, render_wnd_height);
+    XR_LOG_DEBUG("Init window size %f x %f", render_wnd_width, render_wnd_height);
 
     _sampler_obj = []() {
         GLuint smp_obj{};

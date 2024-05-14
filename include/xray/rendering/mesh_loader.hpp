@@ -91,6 +91,8 @@ struct mesh_load_option
 class mesh_loader
 {
   public:
+	mesh_loader(mesh_loader&&) = default;
+	
     explicit mesh_loader(mio::mmap_source mmfile) noexcept
         : _mfile{ std::move(mmfile) }
     {

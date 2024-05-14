@@ -76,7 +76,7 @@ basic_scene::basic_scene(const uint32_t wnd_width, const uint32_t wnd_height, xr
     cam_.set_projection(projection::perspective_symmetric(
         static_cast<float>(wnd_width), static_cast<float>(wnd_height), radians(70.0f), 0.3f, 100.0f));
 
-    OUTPUT_DBG_MSG("Window [%u x %u]", wnd_width, wnd_height);
+    XR_LOG_DEBUG("Window [%u x %u]", wnd_width, wnd_height);
 
     draw_ctx_.window_width = wnd_width;
     draw_ctx_.window_height = wnd_height;

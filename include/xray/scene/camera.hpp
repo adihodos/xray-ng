@@ -52,13 +52,16 @@ class camera
 
     const math::vec3f& up() const noexcept { return up_; }
 
-    void set_view_matrix(const math::mat4f& view);
+    void set_view_matrix(const math::MatrixWithInvertedMatrixPair4f& view);
+    void set_projection(const math::MatrixWithInvertedMatrixPair4f& projection) noexcept;
+
     const math::mat4f& view() const noexcept;
-
-    void set_projection(const math::mat4f& projection) noexcept;
     const math::mat4f& projection() const noexcept;
-
     const math::mat4f& projection_view() const noexcept;
+
+    const math::MatrixWithInvertedMatrixPair4f& view_bijection() const noexcept;
+    const math::MatrixWithInvertedMatrixPair4f& projection_bijection() const noexcept;
+    const math::MatrixWithInvertedMatrixPair4f& projection_view_bijection() const noexcept;
 
     void look_at(const math::vec3f& eye_pos, const math::vec3f& target, const math::vec3f& world_up) noexcept;
 
@@ -75,9 +78,9 @@ class camera
     math::vec3f up_{ math::vec3f::stdc::zero };
     math::vec3f direction_{ math::vec3f::stdc::zero };
     math::vec3f origin_{ math::vec3f::stdc::zero };
-    mutable math::mat4f view_{ math::mat4f::stdc::identity };
-    mutable math::mat4f projection_{ math::mat4f::stdc::identity };
-    mutable math::mat4f projection_view_{ math::mat4f::stdc::identity };
+    mutable math::MatrixWithInvertedMatrixPair4f view_;
+    mutable math::MatrixWithInvertedMatrixPair4f projection_;
+    mutable math::MatrixWithInvertedMatrixPair4f projection_view_;
     mutable bool updated_{ false };
 };
 

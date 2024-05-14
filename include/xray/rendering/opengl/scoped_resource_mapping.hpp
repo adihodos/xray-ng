@@ -29,14 +29,69 @@
 #pragma once
 
 #include "xray/base/logger.hpp"
+#include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/xray.hpp"
+
 #include <cstddef>
 #include <cstdint>
-#include <opengl/opengl.hpp>
+#include <span>
 #include <utility>
+
+#include <opengl/opengl.hpp>
+#include <tl/optional.hpp>
 
 namespace xray {
 namespace rendering {
+
+class ScopedResourceMapping
+{
+  private:
+    struct PrivateContructionToken
+    {
+        explicit PrivateContructionToken() = default;
+    };
+
+  public:
+    ScopedResourceMapping(PrivateContructionToken tok,
+                          void* map_addr,
+                          uint64_t mapping_length,
+                          uint32_t resource_handle,
+                          uint32_t access,
+                          uint32_t mapping_offset);
+
+    ScopedResourceMapping() = default;
+    ScopedResourceMapping(ScopedResourceMapping&&);
+    ScopedResourceMapping(const ScopedResourceMapping&) = delete;
+    ScopedResourceMapping& operator=(const ScopedResourceMapping&&) = delete;
+    ~ScopedResourceMapping();
+
+    static tl::optional<ScopedResourceMapping> create(const uint32_t resource,
+                                                      const uint32_t access,
+                                                      const uint32_t length = 0,
+                                                      const uint32_t offset = 0);
+
+    void* memory() noexcept { return _map_addr; }
+    const void* memory() const noexcept { return _map_addr; }
+
+    template<typename T>
+    std::span<T> as() noexcept
+    {
+        return std::span<T>{ static_cast<T*>(_map_addr), static_cast<T*>(_map_addr) + _mapping_length / 4 };
+    }
+
+    template<typename T>
+    std::span<const T> as() const noexcept
+    {
+        return std::span<T>{ static_cast<const T*>(_map_addr), static_cast<const T*>(_map_addr) + _mapping_length / 4 };
+    }
+
+  private:
+    void* _map_addr{};
+    uint64_t _mapping_length{};
+    uint32_t _resource_handle{};
+    uint32_t _access{};
+    uint32_t _mapping_offset{};
+};
 
 class scoped_resource_mapping
 {
@@ -71,6 +126,16 @@ class scoped_resource_mapping
         std::swap(_gl_resource, rval._gl_resource);
     }
 
+    static tl::optional<scoped_resource_mapping> map(scoped_buffer& sb, const uint32_t access, const size_t length)
+    {
+        void* mapped_addr = gl::MapNamedBufferRange(base::raw_handle(sb), 0, static_cast<GLsizeiptr>(length), access);
+
+        if (!mapped_addr)
+            return tl::nullopt;
+
+        return tl::optional<scoped_resource_mapping>{ scoped_resource_mapping{ mapped_addr, base::raw_handle(sb) } };
+    }
+
     scoped_resource_mapping& operator=(scoped_resource_mapping&& rval)
     {
         std::swap(_mapping_ptr, rval._mapping_ptr);
@@ -89,6 +154,13 @@ class scoped_resource_mapping
     uint32_t _gl_resource{ 0 };
 
   private:
+    scoped_resource_mapping() = default;
+    scoped_resource_mapping(void* mem, uint32_t res)
+        : _mapping_ptr(mem)
+        , _gl_resource(res)
+    {
+    }
+
     XRAY_NO_COPY(scoped_resource_mapping);
 };
 

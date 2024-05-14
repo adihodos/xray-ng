@@ -45,7 +45,7 @@ using namespace xray::ui;
 using namespace xray::scene;
 using namespace std;
 
-extern xray::base::app_config* xr_app_config;
+extern xray::base::ConfigSystem* xr_app_config;
 
 static constexpr uint32_t INSTANCE_COUNT{ 1024u };
 static constexpr const char* const TEXTURES[] = { "uv_grids/ash_uvgrid01.jpg", "uv_grids/ash_uvgrid02.jpg",
@@ -132,7 +132,7 @@ app::procedural_city_demo::event_handler(const xray::ui::window_event& evt)
         if (_ui->wants_input())
             return;
 
-        if (evt.type == event_type::key && evt.event.key.keycode == key_sym::e::escape) {
+        if (evt.type == event_type::key && evt.event.key.keycode == KeySymbol::escape) {
             _quit_receiver();
             return;
         }
@@ -329,7 +329,7 @@ app::simple_fluid::parameters::check_numerical_constraints() const noexcept
     const float k_speedmax = (cellwidth / 2.0f * timefactor) * sqrt(dampingfactor * timefactor + 2.0f);
 
     if ((wavespeed < 0.0f) || (wavespeed > k_speedmax)) {
-        OUTPUT_DBG_MSG("Speed constraints not satisfied, waves will diverge "
+        XR_LOG_DEBUG("Speed constraints not satisfied, waves will diverge "
                        "to infinity");
     }
 
@@ -337,7 +337,7 @@ app::simple_fluid::parameters::check_numerical_constraints() const noexcept
     const float k_timefactormax = (dampingfactor + sqrt(dampingfactor * dampingfactor + (32.0f * k0))) / (8.0f * k0);
 
     if ((timefactor < 0.0f) || (timefactor > k_timefactormax)) {
-        OUTPUT_DBG_MSG("Time step constraints not satified, waves will diverge "
+        XR_LOG_DEBUG("Time step constraints not satified, waves will diverge "
                        "to infinity");
     }
 }

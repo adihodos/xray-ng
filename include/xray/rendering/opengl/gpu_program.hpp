@@ -28,6 +28,22 @@
 
 #pragma once
 
+#include "xray/xray.hpp"
+
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <variant>
+#include <vector>
+#include <string_view>
+#include <span>
+
+#include <itlib/small_vector.hpp>
+#include <opengl/opengl.hpp>
+
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/enum_cast.hpp"
 #include "xray/base/logger.hpp"
@@ -36,16 +52,8 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/shader_base.hpp"
 #include "xray/rendering/render_stage.hpp"
-#include "xray/xray.hpp"
 #include "xray/xray_types.hpp"
-#include <algorithm>
-#include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <opengl/opengl.hpp>
-#include <string>
-#include <vector>
+
 
 namespace xray {
 namespace rendering {
@@ -548,10 +556,29 @@ using fragment_program = gpu_program_t<render_stage::e::fragment>;
 
 using compute_program = gpu_program_t<render_stage::e::compute>;
 
+using blob_span_t = std::span<const uint8_t>;
+
+using ShaderBuildingBlock = std::variant<std::filesystem::path, std::string_view, blob_span_t>;
+
 class gpu_program_builder
 {
   public:
     gpu_program_builder() noexcept {}
+
+	gpu_program_builder& push_string_block(std::string_view sv) {
+		_build_blocks.emplace_back(sv);
+		return *this;
+	}
+
+	gpu_program_builder& push_file_block(std::filesystem::path path) {
+		_build_blocks.emplace_back(std::move(path));
+		return *this;
+	}
+
+	gpu_program_builder& push_binary_block(blob_span_t blob) {
+		_build_blocks.emplace_back(blob);
+		return *this;
+	}
 
     gpu_program_builder& add_string(const char* str) { return add_string(shader_source_string{ str }); }
 
@@ -584,6 +611,12 @@ class gpu_program_builder
     {
         return gpu_program_t<stage>{ build_program(xray_to_opengl<stage>::shader_type) };
     }
+	
+    template<render_stage::e stage>
+    gpu_program_t<stage> build_ex() const
+    {
+        return gpu_program_t<stage>{ build_program_ex(xray_to_opengl<stage>::shader_type) };
+    }
 
     explicit operator bool() const noexcept { return _sources_count != 0; }
 
@@ -597,10 +630,13 @@ class gpu_program_builder
     }
 
     scoped_program_handle build_program(const GLenum stg) const noexcept;
+    scoped_program_handle build_program_ex(const GLenum stg) const noexcept;
 
     shader_source_descriptor _source_list[MAX_SLOTS];
     uint8_t _sources_count{ 0 };
     bool _binary{ false };
+
+	itlib::small_vector<ShaderBuildingBlock, 4> _build_blocks;
 };
 
 } // namespace rendering

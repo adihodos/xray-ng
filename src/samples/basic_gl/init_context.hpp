@@ -34,7 +34,7 @@
 
 namespace xray {
 namespace base {
-class app_config;
+class ConfigSystem;
 }
 
 namespace ui {
@@ -48,7 +48,7 @@ struct init_context_t
 {
     int32_t surface_width;
     int32_t surface_height;
-    xray::base::app_config* cfg;
+    xray::base::ConfigSystem* cfg;
     xray::ui::user_interface* ui;
     xray::base::fast_delegate<void()> quit_receiver;
 };

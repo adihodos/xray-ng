@@ -33,6 +33,7 @@ set(project_headers
     ${proj_inc_dir}/perf_stats_collector.hpp
     ${proj_inc_dir}/windows/com_ptr.hpp
     ${proj_inc_dir}/windows/handle_traits.hpp
+	${proj_inc_dir}/file_system_watcher.hpp
 )
 
 set(project_sources
@@ -40,7 +41,8 @@ set(project_sources
     ${proj_src_dir}/config_settings.cc
     ${proj_src_dir}/debug_output.cc
     ${proj_src_dir}/logger.cc
-    ${proj_src_dir}/perf_stats_collector.cc)
+    ${proj_src_dir}/perf_stats_collector.cc
+	${proj_src_dir}/file_system_watcher.cc)
 
 add_library(
   ${PROJECT_NAME} STATIC
@@ -63,11 +65,14 @@ target_compile_features(
 
 target_compile_definitions(
   ${PROJECT_NAME}
+  PUBLIC
+  $<$<PLATFORM_ID:Linux>:XRAY_OS_IS_POSIX_FAMILY>
   PRIVATE
   $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
 )
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC config fmt::fmt STLSoft
+  PUBLIC config fmt::fmt spdlog::spdlog STLSoft
+  PRIVATE itlib::itlib joboccara::pipes
 )

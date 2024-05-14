@@ -9,13 +9,20 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/window_x11.hpp"
+#include <X11/XKBlib.h>
 #include <X11/Xatom.h>
+#include <X11/Xlib-xcb.h> /* for XGetXCBConnection, link with libX11-xcb */
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/Xinerama.h>
 #include <X11/extensions/Xrender.h>
 #include <X11/keysym.h>
+#include <xcb/xcb.h>
+#include <xkbcommon/xkbcommon-x11.h>
+#include <xkbcommon/xkbcommon.h>
+
 #include <algorithm>
+#include <span>
 
 using namespace xray::base;
 using namespace xray::ui;
@@ -46,321 +53,536 @@ get_primary_screen_info(Display* dpy)
     return *itr_def_scr;
 }
 
-static constexpr const xray::ui::key_sym::e X11_MISC_KEYS_MAPPING_TABLE[] = { key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::backspace,
-                                                                              key_sym::e::tab,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::clear,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::enter,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::pause,
-                                                                              key_sym::e::scrol_lock,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::escape,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::home,
-                                                                              key_sym::e::left,
-                                                                              key_sym::e::up,
-                                                                              key_sym::e::right,
-                                                                              key_sym::e::down,
-                                                                              key_sym::e::page_up,
-                                                                              key_sym::e::page_down,
-                                                                              key_sym::e::end,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::select,
-                                                                              key_sym::e::print_screen,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::insert,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::kp_multiply,
-                                                                              key_sym::e::kp_add,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::kp_minus,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::kp_divide,
-                                                                              key_sym::e::kp0,
-                                                                              key_sym::e::kp1,
-                                                                              key_sym::e::kp2,
-                                                                              key_sym::e::kp3,
-                                                                              key_sym::e::kp4,
-                                                                              key_sym::e::kp5,
-                                                                              key_sym::e::kp6,
-                                                                              key_sym::e::kp7,
-                                                                              key_sym::e::kp8,
-                                                                              key_sym::e::kp9,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::f1,
-                                                                              key_sym::e::f2,
-                                                                              key_sym::e::f3,
-                                                                              key_sym::e::f4,
-                                                                              key_sym::e::f5,
-                                                                              key_sym::e::f6,
-                                                                              key_sym::e::f7,
-                                                                              key_sym::e::f8,
-                                                                              key_sym::e::f9,
-                                                                              key_sym::e::f10,
-                                                                              key_sym::e::f11,
-                                                                              key_sym::e::f12,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::left_shift,
-                                                                              key_sym::e::right_shift,
-                                                                              key_sym::e::left_control,
-                                                                              key_sym::e::right_control,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::left_menu,
-                                                                              key_sym::e::right_menu,
-                                                                              key_sym::e::left_alt,
-                                                                              key_sym::e::right_alt,
-                                                                              key_sym::e::left_win,
-                                                                              key_sym::e::right_win,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::unknown,
-                                                                              key_sym::e::del };
+// clang-format off
 
-static constexpr const xray::ui::key_sym::e X11_LATIN1_KEYS_MAPPING_TABLE[] = {
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::space,   key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::key_0,   key_sym::e::key_1,
-    key_sym::e::key_2,   key_sym::e::key_3,   key_sym::e::key_4,   key_sym::e::key_5,   key_sym::e::key_6,
-    key_sym::e::key_7,   key_sym::e::key_8,   key_sym::e::key_9,   key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::key_a,   key_sym::e::key_b,   key_sym::e::key_c,   key_sym::e::key_d,   key_sym::e::key_e,
-    key_sym::e::key_f,   key_sym::e::key_g,   key_sym::e::key_h,   key_sym::e::key_i,   key_sym::e::key_j,
-    key_sym::e::key_k,   key_sym::e::key_l,   key_sym::e::key_m,   key_sym::e::key_n,   key_sym::e::key_o,
-    key_sym::e::key_p,   key_sym::e::key_q,   key_sym::e::key_r,   key_sym::e::key_s,   key_sym::e::key_t,
-    key_sym::e::key_u,   key_sym::e::key_v,   key_sym::e::key_w,   key_sym::e::key_x,   key_sym::e::key_y,
-    key_sym::e::key_z,   key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::key_a,   key_sym::e::key_b,   key_sym::e::key_c,
-    key_sym::e::key_d,   key_sym::e::key_e,   key_sym::e::key_f,   key_sym::e::key_g,   key_sym::e::key_h,
-    key_sym::e::key_i,   key_sym::e::key_j,   key_sym::e::key_k,   key_sym::e::key_l,   key_sym::e::key_m,
-    key_sym::e::key_n,   key_sym::e::key_o,   key_sym::e::key_p,   key_sym::e::key_q,   key_sym::e::key_r,
-    key_sym::e::key_s,   key_sym::e::key_t,   key_sym::e::key_u,   key_sym::e::key_v,   key_sym::e::key_w,
-    key_sym::e::key_x,   key_sym::e::key_y,   key_sym::e::key_z,   key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown, key_sym::e::unknown,
-    key_sym::e::unknown
+static constexpr const KeySymbol X11_MISC_FUNCTION_KEYS_MAPPING_TABLE[] = {
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::backspace,
+	KeySymbol::tab,
+	KeySymbol::unknown,
+	KeySymbol::clear,
+	KeySymbol::unknown,
+	KeySymbol::enter,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::pause,
+	KeySymbol::scrol_lock,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::escape,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::home,
+	KeySymbol::left,
+	KeySymbol::up,
+	KeySymbol::right,
+	KeySymbol::down,
+	KeySymbol::page_up,
+	KeySymbol::page_down,
+	KeySymbol::end,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::select,
+	KeySymbol::print_screen,
+	KeySymbol::unknown,
+	KeySymbol::insert,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::num_lock,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::kp_multiply,
+	KeySymbol::kp_add,
+	KeySymbol::unknown,
+	KeySymbol::kp_minus,
+	KeySymbol::kp_decimal,
+	KeySymbol::kp_divide,
+	KeySymbol::kp0,
+	KeySymbol::kp1,
+	KeySymbol::kp2,
+	KeySymbol::kp3,
+	KeySymbol::kp4,
+	KeySymbol::kp5,
+	KeySymbol::kp6,
+	KeySymbol::kp7,
+	KeySymbol::kp8,
+	KeySymbol::kp9,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::f1,
+	KeySymbol::f2,
+	KeySymbol::f3,
+	KeySymbol::f4,
+	KeySymbol::f5,
+	KeySymbol::f6,
+	KeySymbol::f7,
+	KeySymbol::f8,
+	KeySymbol::f9,
+	KeySymbol::f10,
+	KeySymbol::f11,
+	KeySymbol::f12,
+	KeySymbol::f13,
+	KeySymbol::f14,
+	KeySymbol::f15,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::left_shift,
+	KeySymbol::right_shift,
+	KeySymbol::left_control,
+	KeySymbol::right_control,
+	KeySymbol::caps_lock,
+	KeySymbol::unknown,
+	KeySymbol::left_menu,
+	KeySymbol::right_menu,
+	KeySymbol::left_alt,
+	KeySymbol::right_alt,
+	KeySymbol::left_win,
+	KeySymbol::right_win,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::del,
 };
 
-static xray::ui::key_sym::e
-map_x11_key_symbol(const KeySym x11_key) noexcept
+// clang-format on
+
+// clang-format off
+
+static constexpr const KeySymbol X11_LATIN1_KEYS_MAPPING_TABLE[] = {
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::space,
+	KeySymbol::exclam,
+	KeySymbol::quotedbl,
+	KeySymbol::numbersign,
+	KeySymbol::dollar,
+	KeySymbol::percent,
+	KeySymbol::ampersand,
+	KeySymbol::quoteright,
+	KeySymbol::parenleft,
+	KeySymbol::parenright,
+	KeySymbol::asterisk,
+	KeySymbol::plus,
+	KeySymbol::comma,
+	KeySymbol::minus,
+	KeySymbol::period,
+	KeySymbol::slash,
+	KeySymbol::key_0,
+	KeySymbol::key_1,
+	KeySymbol::key_2,
+	KeySymbol::key_3,
+	KeySymbol::key_4,
+	KeySymbol::key_5,
+	KeySymbol::key_6,
+	KeySymbol::key_7,
+	KeySymbol::key_8,
+	KeySymbol::key_9,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::key_a,
+	KeySymbol::key_b,
+	KeySymbol::key_c,
+	KeySymbol::key_d,
+	KeySymbol::key_e,
+	KeySymbol::key_f,
+	KeySymbol::key_g,
+	KeySymbol::key_h,
+	KeySymbol::key_i,
+	KeySymbol::key_j,
+	KeySymbol::key_k,
+	KeySymbol::key_l,
+	KeySymbol::key_m,
+	KeySymbol::key_n,
+	KeySymbol::key_o,
+	KeySymbol::key_p,
+	KeySymbol::key_q,
+	KeySymbol::key_r,
+	KeySymbol::key_s,
+	KeySymbol::key_t,
+	KeySymbol::key_u,
+	KeySymbol::key_v,
+	KeySymbol::key_w,
+	KeySymbol::key_x,
+	KeySymbol::key_y,
+	KeySymbol::key_z,
+	KeySymbol::bracketleft,
+	KeySymbol::backslash,
+	KeySymbol::bracketright,
+	KeySymbol::asciicircum,
+	KeySymbol::underscore,
+	KeySymbol::quoteleft,
+	KeySymbol::key_a,
+	KeySymbol::key_b,
+	KeySymbol::key_c,
+	KeySymbol::key_d,
+	KeySymbol::key_e,
+	KeySymbol::key_f,
+	KeySymbol::key_g,
+	KeySymbol::key_h,
+	KeySymbol::key_i,
+	KeySymbol::key_j,
+	KeySymbol::key_k,
+	KeySymbol::key_l,
+	KeySymbol::key_m,
+	KeySymbol::key_n,
+	KeySymbol::key_o,
+	KeySymbol::key_p,
+	KeySymbol::key_q,
+	KeySymbol::key_r,
+	KeySymbol::key_s,
+	KeySymbol::key_t,
+	KeySymbol::key_u,
+	KeySymbol::key_v,
+	KeySymbol::key_w,
+	KeySymbol::key_x,
+	KeySymbol::key_y,
+	KeySymbol::key_z,
+	KeySymbol::braceleft,
+	KeySymbol::bar,
+	KeySymbol::braceright,
+	KeySymbol::asciitilde,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+	KeySymbol::unknown,
+};
+
+// clang-format on
+
+static xray::ui::KeySymbol
+map_x11_key_symbol(const xkb_keysym_t key_sym) noexcept
 {
+    const uint32_t x11_key = static_cast<uint32_t>(key_sym);
     //
     // special keys have byte2 set to 0xFF, regular keys to 0x00
     const auto byte2 = (x11_key & 0xFF00) >> 8;
@@ -372,21 +594,55 @@ map_x11_key_symbol(const KeySym x11_key) noexcept
         assert(sym_idx < XR_COUNTOF(X11_LATIN1_KEYS_MAPPING_TABLE));
         return X11_LATIN1_KEYS_MAPPING_TABLE[sym_idx];
     } else if (byte2 == 0xFF) {
-        assert(sym_idx < XR_COUNTOF(X11_MISC_KEYS_MAPPING_TABLE));
-        return X11_MISC_KEYS_MAPPING_TABLE[sym_idx];
+        assert(sym_idx < XR_COUNTOF(X11_MISC_FUNCTION_KEYS_MAPPING_TABLE));
+        return X11_MISC_FUNCTION_KEYS_MAPPING_TABLE[sym_idx];
     } else {
-        return xray::ui::key_sym::e::unknown;
+        return xray::ui::KeySymbol::unknown;
     }
 }
 
 xray::ui::window::window(const window_params_t& wparam)
-    : _display{ XOpenDisplay(nullptr) }
-{
 
+{
+    int32_t ver_major{ XkbMajorVersion };
+    int32_t ver_minor{ XkbMinorVersion };
+    int32_t err_code{};
+    int32_t xkb_event_base{};
+    int32_t xkb_error_base{};
+    _display = x11_unique_display{ XkbOpenDisplay(
+        nullptr, &xkb_event_base, &xkb_error_base, &ver_major, &ver_minor, &err_code) };
     if (!_display) {
-        XR_LOG_ERR("Failed to open display!");
+        XR_LOG_CRITICAL("Failed to open display, error {}", err_code);
         return;
     }
+
+    constexpr const uint32_t xkb_details_mask =
+        XkbModifierBaseMask | XkbModifierStateMask | XkbModifierLatchMask | XkbModifierLockMask;
+
+    XkbSelectEvents(raw_ptr(_display), XkbUseCoreKbd, XkbStateNotifyMask, XkbStateNotifyMask);
+    XkbSelectEventDetails(raw_ptr(_display), XkbUseCoreKbd, XkbStateNotifyMask, xkb_details_mask, xkb_details_mask);
+
+    // xcb
+    xcb_connection_t* connection = XGetXCBConnection(raw_ptr(_display));
+    if (!connection) {
+        XR_LOG_ERR("Failed to get XCB connection");
+    }
+
+    detail::unique_xbk_context xkb_ctx{ xkb_context_new(XKB_CONTEXT_NO_FLAGS) };
+    if (!xkb_ctx) {
+        XR_LOG_ERR("Failed to get XKB context!");
+    }
+
+    const int32_t device_id = xkb_x11_get_core_keyboard_device_id(connection);
+    XR_LOG_INFO("Core keyboard id {}", device_id);
+
+    detail::unique_xkb_keyman keymap{ xkb_x11_keymap_new_from_device(
+        raw_ptr(xkb_ctx), connection, device_id, XKB_KEYMAP_COMPILE_NO_FLAGS) };
+    if (!keymap) {
+        XR_LOG_ERR("Failed to get XKB keymap!");
+    }
+
+    detail::unique_xkb_state state{ xkb_x11_state_new_from_device(raw_ptr(keymap), connection, device_id) };
 
     const auto main_screen_info = get_primary_screen_info(raw_ptr(_display));
     if (!main_screen_info) {
@@ -668,6 +924,26 @@ xray::ui::window::window(const window_params_t& wparam)
     _wnd_width = static_cast<int32_t>(width);
     _wnd_height = static_cast<int32_t>(height);
 
+    const uint32_t mod_shift = xkb_keymap_mod_get_index(raw_ptr(keymap), XKB_MOD_NAME_SHIFT);
+    const uint32_t mod_caps = xkb_keymap_mod_get_index(raw_ptr(keymap), XKB_MOD_NAME_CAPS);
+    const uint32_t mod_alt = xkb_keymap_mod_get_index(raw_ptr(keymap), XKB_MOD_NAME_ALT);
+    const uint32_t mod_ctrl = xkb_keymap_mod_get_index(raw_ptr(keymap), XKB_MOD_NAME_CTRL);
+    const uint32_t mod_num = xkb_keymap_mod_get_index(raw_ptr(keymap), XKB_MOD_NAME_NUM);
+    const uint32_t mod_logo = xkb_keymap_mod_get_index(raw_ptr(keymap), XKB_MOD_NAME_LOGO);
+
+    _input_helper = XInputHelper{ connection,
+                                  move(xkb_ctx),
+                                  move(keymap),
+                                  move(state),
+                                  xkb_event_base,
+                                  xkb_error_base,
+                                  XInputHelper::KbMods{ .shift_mod = mod_shift,
+                                                        .caps_mod = mod_caps,
+                                                        .ctrl_mod = mod_ctrl,
+                                                        .alt_mod = mod_alt,
+                                                        .num_mod = mod_num,
+                                                        .logo_mod = mod_logo } };
+
     XR_LOG_INFO("Window [{} x {}], border size {}, depth {}, screen position ({} x {})",
                 _wnd_width,
                 _wnd_height,
@@ -712,6 +988,57 @@ xray::ui::window::message_loop()
             XEvent window_event;
             XNextEvent(raw_ptr(_display), &window_event);
 
+            if (window_event.type == _input_helper.xkb_event_base) {
+                const XkbEvent* xkb_evt = reinterpret_cast<const XkbEvent*>(&window_event);
+                if (xkb_evt->any.xkb_type == XkbStateNotify) {
+
+                    // XR_LOG_INFO("XkbStateNotify: mods {:0x} base mods: {:0x} latched mods {:0x} locked mods {:0x}",
+                    //             xkb_evt->state.mods,
+                    //             xkb_evt->state.base_mods,
+                    //             xkb_evt->state.latched_mods,
+                    //             xkb_evt->state.locked_mods);
+
+                    auto get_xkb_mod_mask_fn = [xi = &_input_helper](const uint32_t in) {
+                        uint32_t ret = 0;
+                        if ((in & ShiftMask) && xi->mod_index.shift_mod != XKB_MOD_INVALID)
+                            ret |= (1 << xi->mod_index.shift_mod);
+                        if ((in & LockMask) && xi->mod_index.caps_mod != XKB_MOD_INVALID)
+                            ret |= (1 << xi->mod_index.caps_mod);
+                        if ((in & ControlMask) && xi->mod_index.ctrl_mod != XKB_MOD_INVALID)
+                            ret |= (1 << xi->mod_index.ctrl_mod);
+                        if ((in & Mod1Mask) && xi->mod_index.alt_mod != XKB_MOD_INVALID)
+                            ret |= (1 << xi->mod_index.alt_mod);
+                        if ((in & Mod2Mask) && xi->mod_index.num_mod != XKB_MOD_INVALID)
+                            ret |= (1 << xi->mod_index.num_mod);
+
+                        // mod3 - scroll lock, don’t need it for now
+                        // if ((in & Mod3Mask) && xi->mod_index.mod3_mod != XKB_MOD_INVALID)
+                        // 	ret |= (1 << xi->mod_index.mod3_mod);
+
+                        if ((in & Mod4Mask) && xi->mod_index.logo_mod != XKB_MOD_INVALID)
+                            ret |= (1 << xi->mod_index.logo_mod);
+
+                        // what is mod5 ??!!
+                        // if ((in & Mod5Mask) && xi->mod_index.mod5_mod != XKB_MOD_INVALID)
+                        // ret |= (1 << xi->mod_index.mod5_mod);
+
+                        return ret;
+                    };
+
+                    // adapted from here
+                    // https://coral.googlesource.com/weston-imx/+/refs/heads/master/libweston/compositor-x11.c
+
+                    xkb_state_update_mask(raw_ptr(_input_helper.xkb_state),
+                                          get_xkb_mod_mask_fn(xkb_evt->state.base_mods),
+                                          get_xkb_mod_mask_fn(xkb_evt->state.latched_mods),
+                                          get_xkb_mod_mask_fn(xkb_evt->state.locked_mods),
+                                          0,
+                                          0,
+                                          xkb_evt->state.group);
+                }
+                continue;
+            }
+
             if ((window_event.type == ButtonPress) || (window_event.type == ButtonRelease)) {
                 event_mouse_button(&window_event.xbutton);
                 continue;
@@ -729,11 +1056,6 @@ xray::ui::window::message_loop()
 
             if ((window_event.type == KeyPress) || (window_event.type == KeyRelease)) {
                 event_key(&window_event.xkey);
-                continue;
-            }
-
-            if (window_event.type == ConfigureNotify) {
-                event_configure(&window_event.xconfigure);
                 continue;
             }
         }
@@ -816,7 +1138,7 @@ xray::ui::window::event_mouse_button(const XButtonEvent* x11evt)
     }
 
     mouse_wheel_event mwe;
-    mwe.delta = x11evt->button == Button4 ? -1 : 1;
+    mwe.delta = x11evt->button == Button4 ? 1 : -1;
     mwe.wnd = this;
     mwe.pointer_x = x11evt->x;
     mwe.pointer_y = x11evt->y;
@@ -847,37 +1169,69 @@ xray::ui::window::event_client_message(const XClientMessageEvent* x11evt)
 void
 xray::ui::window::event_key(const XKeyEvent* x11evt)
 {
-    char tmp[256];
-    KeySym key_sym{ NoSymbol };
-    const int32_t buff_len = XLookupString((XKeyEvent*)x11evt, tmp, 256, &key_sym, nullptr);
-    tmp[buff_len] = 0;
-
-    const auto mapped_key = map_x11_key_symbol(key_sym);
-    if (mapped_key == key_sym::e::unknown) {
-        return;
-    }
+    const xkb_keycode_t key_code{ x11evt->keycode };
+    const xkb_keysym_t key_sym{ xkb_state_key_get_one_sym(raw_ptr(_input_helper.xkb_state), key_code) };
 
     key_event ke;
-    ke.wnd = this;
-    ke.type = x11evt->type == KeyPress ? event_action_type::press : event_action_type::release;
-    ke.keycode = mapped_key;
-    ke.pointer_x = x11evt->x;
-    ke.pointer_y = x11evt->y;
-    ke.button1 = (x11evt->state & Button1Mask) != 0;
-    ke.button2 = (x11evt->state & Button2Mask) != 0;
-    ke.button3 = (x11evt->state & Button3Mask) != 0;
-    ke.button4 = (x11evt->state & Button4Mask) != 0;
-    ke.button5 = (x11evt->state & Button5Mask) != 0;
-    ke.shift = (x11evt->state & ShiftMask) != 0;
-    ke.control = (x11evt->state & ControlMask) != 0;
-    memset(ke.name, 0, sizeof(ke.name));
-    memcpy(ke.name, tmp, std::min(static_cast<uint32_t>(strlen(tmp)), XR_U32_COUNTOF(ke.name) - 1));
+    if (const int bytes_len = xkb_keysym_get_name(key_sym, ke.name, sizeof(ke.name)); bytes_len >= 0)
+        ke.name[bytes_len] = 0;
 
-    window_event we;
-    we.type = event_type::key;
-    we.event.key = ke;
+    if (const KeySymbol mapped_key = map_x11_key_symbol(key_sym); mapped_key != KeySymbol::unknown) {
+        ke.wnd = this;
+        ke.type = x11evt->type == KeyPress ? event_action_type::press : event_action_type::release;
+        ke.keycode = mapped_key;
+        ke.pointer_x = x11evt->x;
+        ke.pointer_y = x11evt->y;
 
-    events.window(we);
+        ke.meta = (x11evt->state & Mod4Mask) != 0;
+        ke.alt = (x11evt->state & Mod1Mask) != 0;
+        ke.shift = (x11evt->state & ShiftMask) != 0;
+        ke.control = (x11evt->state & ControlMask) != 0;
+
+        window_event we;
+        we.type = event_type::key;
+        we.event.key = ke;
+
+        events.window(we);
+    }
+
+    if (x11evt->type == KeyPress) {
+        // https://gist.github.com/bluetech/6038239
+        // https://stackoverflow.com/questions/64722105/without-creating-a-window-is-it-possible-to-detect-the-current-xcb-modifier-sta
+        // https://www.x.org/releases/X11R7.7/doc/kbproto/xkbproto.html
+        // https://github.com/xkbcommon/libxkbcommon/blob/master/test/state.c
+        // https://github.com/xkbcommon/libxkbcommon/blob/master/doc/quick-guide.md
+        // https://stackoverflow.com/questions/10157826/xkb-how-to-convert-a-keycode-to-keysym?rq=3
+        char_input_event ch_input;
+        ch_input.wnd = this;
+        ch_input.key_code = ke.keycode;
+
+        if (this->key_sym_handling == InputKeySymHandling::Unicode) {
+            ch_input.unicode_point = xkb_state_key_get_utf32(raw_ptr(_input_helper.xkb_state), key_code);
+
+            if (ch_input.unicode_point != 0) {
+                window_event we;
+                we.type = event_type::char_input;
+                we.event.char_input = ch_input;
+                events.window(we);
+            }
+        } else {
+            KeySym x11_key_sym;
+            uint32_t mod_return{};
+            XkbLookupKeySym(raw_ptr(_display), x11evt->keycode, x11evt->state, &mod_return, &x11_key_sym);
+
+            const int32_t num_bytes = XkbTranslateKeySym(
+                raw_ptr(_display), &x11_key_sym, x11evt->state, ch_input.utf8, sizeof(ch_input.utf8), nullptr);
+            ch_input.utf8[num_bytes > 0 ? num_bytes : 0] = 0;
+
+            if (num_bytes > 0) {
+                window_event we;
+                we.type = event_type::char_input;
+                we.event.char_input = ch_input;
+                events.window(we);
+            }
+        }
+    }
 }
 
 void

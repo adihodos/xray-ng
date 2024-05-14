@@ -33,10 +33,18 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <numeric>
 #include <thread>
 #include <tuple>
 #include <vector>
+
+#include <oneapi/tbb/info.h>
+#include <oneapi/tbb/task_arena.h>
+#include <opengl/opengl.hpp>
+
+#include <itertools.hpp>
+#include <pipes/pipes.hpp>
 
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
@@ -53,13 +61,6 @@
 #include "xray/ui/user_interface.hpp"
 #include "xray/ui/window.hpp"
 
-#include <oneapi/tbb/info.h>
-#include <oneapi/tbb/task_arena.h>
-#include <opengl/opengl.hpp>
-
-#include <platformstl/filesystem/filesystem_traits.hpp>
-#include <platformstl/filesystem/readdir_sequence.hpp>
-
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "lighting/directional_light_demo.hpp"
@@ -69,12 +70,7 @@
 #include "misc/procedural_city/procedural_city_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
 
-#include <rangelib/algorithms.hpp>
-#include <rangelib/rangelib.hpp>
-#include <rangelib/sequence_range.hpp>
-
 // #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
-// #include <quill/Quill.h>
 
 using namespace xray;
 using namespace xray::base;
@@ -83,7 +79,7 @@ using namespace xray::ui;
 using namespace xray::rendering;
 using namespace std;
 
-xray::base::app_config* xr_app_config{ nullptr };
+xray::base::ConfigSystem* xr_app_config{ nullptr };
 
 namespace app {
 
@@ -103,7 +99,6 @@ struct RegisteredDemosList<T, Rest...>
     static void registerDemo(vector<DemoInfo>& demoList)
     {
         demoList.emplace_back(T::short_desc(), T::detailed_desc(), make_delegate(T::create));
-
         RegisteredDemosList<Rest...>::registerDemo(demoList);
     }
 };
@@ -175,6 +170,7 @@ class main_app
     xray::base::timer_highp _timer;
     vector<DemoInfo> _registeredDemos;
     bool _initialized{ false };
+    vector<char> _combo_items{};
 
     XRAY_NO_COPY(main_app);
 };
@@ -182,35 +178,36 @@ class main_app
 main_app::main_app(xray::ui::window* wnd)
     : _window{ wnd }
 {
+    namespace fs = std::filesystem;
+    const vector<xray::ui::font_info> font_list = fs::recursive_directory_iterator(xr_app_config->font_root()) >>=
+        pipes::filter([](const fs::directory_entry& dir_entry) {
+            if (!dir_entry.is_regular_file())
+                return false;
 
-    platformstl::readdir_sequence rddir{ xr_app_config->font_root(),
-                                         platformstl::readdir_sequence::fullPath |
-                                             platformstl ::readdir_sequence::directories |
-                                             platformstl::readdir_sequence::files };
+            const std::string_view file_ext{ dir_entry.path().extension().c_str() };
+            return file_ext == ".ttf" || file_ext == ".otf";
+        }) >>= pipes::transform([](const fs::directory_entry& dir_entry) {
+            return xray::ui::font_info{ .path = dir_entry.path(), .pixel_size = 18.0f };
+        }) >>= pipes::to_<vector<xray::ui::font_info>>();
 
-    using namespace std;
-    vector<xray::ui::font_info> fonts{};
-    for_each(begin(rddir), end(rddir), [&fonts](const char* dir_entry) {
-        using fs = platformstl::filesystem_traits<char>;
-
-        if (!fs::is_file(dir_entry))
-            return;
-
-        platformstl::path file_p{ dir_entry };
-        if (!file_p.get_ext().compare(".ttf") && !file_p.get_ext().compare("otf"))
-            return;
-
-        fonts.push_back(xray::ui::font_info{ dir_entry, 18.0f });
-    });
-
-    _ui = xray::base::make_unique<xray::ui::user_interface>(fonts.data(), fonts.size());
+    _ui = xray::base::make_unique<xray::ui::user_interface>(font_list.data(), font_list.size());
 
     hookup_event_delegates();
 
-    RegisteredDemosList<fractal_demo, directional_light_demo, procedural_city_demo>::registerDemo(_registeredDemos);
+    RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo, InstancedDrawingDemo>::registerDemo(
+        _registeredDemos);
 
-    rangelib::r_for_each(rangelib::make_sequence_range(_registeredDemos),
-                         [](const DemoInfo& demo) { XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc); });
+    const string_view first_entry{ "Main page" };
+    copy(cbegin(first_entry), cend(first_entry), back_inserter(_combo_items));
+    _combo_items.push_back(0);
+
+    _registeredDemos >>= pipes::for_each([this](const DemoInfo& demo) {
+        XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc);
+        const string_view demo_desc{ demo.shortDesc };
+        copy(cbegin(demo_desc), cend(demo_desc), back_inserter(_combo_items));
+        _combo_items.push_back(0);
+    });
+    _combo_items.push_back(0);
 
     gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
     _ui->set_global_font("Roboto-Regular");
@@ -251,7 +248,7 @@ main_app::event_handler(const xray::ui::window_event& wnd_evt)
 
     if (is_input_event(wnd_evt)) {
 
-        if (wnd_evt.event.key.keycode == xray::ui::key_sym::e::escape &&
+        if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
             wnd_evt.event.key.type == event_action_type::press && !_ui->wants_input()) {
             _window->quit();
             return;
@@ -271,32 +268,19 @@ main_app::loop_event(const xray::ui::window_loop_event& levt)
     {
         ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
 
-        if (ImGui::Begin("Run a demo",
-                         nullptr,
-                         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_ShowBorders |
-                             ImGuiWindowFlags_NoCollapse)) {
+        if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
 
             int32_t selectedItem{};
-            const bool wasClicked = ImGui::Combo(
-                "Available demos",
-                &selectedItem,
-                [](void* obj, int idx, const char** str) {
-                    const DemoInfo& demo = static_cast<const main_app*>(obj)->get_demo_info(static_cast<size_t>(idx));
-                    *str = demo.shortDesc.data();
-                    return true;
-                },
+            const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
 
-                this,
-                static_cast<int>(_registeredDemos.size()));
-
-            if (wasClicked) {
+            if (wasClicked && selectedItem >= 1) {
                 const init_context_t initContext{ _window->width(),
                                                   _window->height(),
                                                   xr_app_config,
                                                   xray::base::raw_ptr(_ui),
                                                   make_delegate(*this, &main_app::demo_quit) };
 
-                _registeredDemos[static_cast<size_t>(selectedItem)]
+                _registeredDemos[static_cast<size_t>(selectedItem - 1)]
                     .createFn(initContext)
                     .map([this](demo_bundle_t bundle) {
                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
@@ -627,57 +611,13 @@ class heightmap_generator
     std::vector<xray::math::vec3f> _points;
 };
 
-void
-setup_quill()
-{
-    // quill::configure([]() {
-    //   quill::Config cfg{};
-    //   cfg.enable_console_colours = true;
-    //   cfg.backend_thread_name    = "Xray logging thread";
-    //   cfg.default_logger_name    = "xray-default logger";
-    //   return cfg;
-    // }());
-    //
-    // // Starts the logging backend thread
-    // quill::start();
-    //
-    // // Create a file logger
-    // quill::Logger* logger = quill::create_logger(
-    //   "file_logger", quill::file_handler("example.log", []() {
-    //     quill::FileHandlerConfig cfg;
-    //     cfg.set_open_mode('w');
-    //     cfg.set_pattern(
-    //       "[%(time)] [%(thread)] [%(file_name):%(line_number)] [%(logger)] "
-    //       "[%(log_level)] - %(message)",
-    //       "%H:%M:%S.%Qms");
-    //     return cfg;
-    //   }()));
-    //
-    // logger->set_log_level(quill::LogLevel::TraceL3);
-    //
-    // // enable a backtrace that will get flushed when we log CRITICAL
-    // logger->init_backtrace(2u, quill::LogLevel::Critical);
-    //
-    // LOG_BACKTRACE(logger, "Backtrace log {}", 1);
-    // LOG_BACKTRACE(logger, "Backtrace log {}", 2);
-    //
-    // LOG_INFO(logger, "Welcome to Quill!");
-    // LOG_ERROR(logger, "An error message. error code {}", 123);
-    // LOG_WARNING(logger, "A warning message.");
-    // LOG_CRITICAL(logger, "A critical error. Doing ur mom as usual ...");
-    // LOG_DEBUG(logger, "Debugging foo {}", 1234);
-    // LOG_TRACE_L1(logger, "{:>30}", "right aligned");
-    // LOG_TRACE_L2(logger, "Positional arguments are {1} {0} ", "too",
-    // "supported"); LOG_TRACE_L3(logger, "Support for floats {:03.2f}", 1.23456);
-}
-
 int
 main(int argc, char** argv)
 {
     using namespace xray::ui;
     using namespace xray::base;
 
-    setup_quill();
+    xray::base::setup_logging();
 
     XR_LOG_INFO("Starting up ...");
 
@@ -685,7 +625,7 @@ main(int argc, char** argv)
     XR_LOG_INFO("Default concurency {}", num_threads);
     // tbb::task_scheduler_init tbb_initializer{};
 
-    app_config app_cfg{ "config/app_config.conf" };
+    ConfigSystem app_cfg{ "config/app_config.conf" };
     xr_app_config = &app_cfg;
 
     XR_LOG_INFO("Configured paths");

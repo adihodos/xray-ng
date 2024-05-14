@@ -43,7 +43,8 @@ class window;
 
 enum class event_type
 {
-    key,
+	key,
+	char_input,
     mouse_button,
     mouse_motion,
     mouse_crossing,
@@ -170,7 +171,7 @@ struct key_event
     ///< Y pointer position (client coords)
     int32_t pointer_y;
     ///< Code of key that generated the event.
-    key_sym::e keycode;
+    KeySymbol keycode;
     ///< Press or release
     event_action_type type;
     union
@@ -179,17 +180,28 @@ struct key_event
         uint32_t modifiers;
         struct
         {
-            uint32_t button1 : 1;
-            uint32_t button2 : 1;
-            uint32_t button3 : 1;
-            uint32_t button4 : 1;
-            uint32_t button5 : 1;
+            // uint32_t mod1 : 1;
+            // uint32_t mod2 : 1;
+            // uint32_t mod3 : 1;
+            // uint32_t mod4 : 1;
+            // uint32_t mod5 : 1;
+
+            uint32_t meta : 1;
+            uint32_t alt : 1;
             uint32_t shift : 1;
             uint32_t control : 1;
         };
     };
 
     char name[32];
+};
+
+struct char_input_event
+{
+    window* wnd;
+    KeySymbol key_code;
+	uint32_t unicode_point;
+	char utf8[32];
 };
 
 struct window_configure_event
@@ -215,6 +227,7 @@ struct window_event
         mouse_wheel_event wheel;
         mouse_motion_event motion;
         key_event key;
+		char_input_event char_input;
         window_configure_event configure;
     } event;
 
@@ -234,7 +247,7 @@ inline bool
 is_input_event(const window_event& we) noexcept
 {
     return we.type == event_type::key || we.type == event_type::mouse_button || we.type == event_type::mouse_motion ||
-           we.type == event_type::mouse_crossing || we.type == event_type::mouse_wheel;
+		we.type == event_type::mouse_crossing || we.type == event_type::mouse_wheel || we.type == event_type::char_input;
 }
 
 struct poll_start_event

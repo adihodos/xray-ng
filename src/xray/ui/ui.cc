@@ -81,13 +81,13 @@ xray::ui::user_interface::init(const xray::ui::font_load_info* fonts_to_load, co
                                                           &font_cfg);
 
                 if (!font) {
-                    XR_DBG_MSG("NK failed to parse font {}", fli.font_file_path);
+                    XR_LOG_DEBUG("NK failed to parse font {}", fli.font_file_path);
                     return;
                 }
 
                 platformstl::path_a fpath{ fli.font_file_path };
                 fpath.pop_ext();
-                XR_DBG_MSG("Loaded font {}", fpath.get_file());
+                XR_LOG_DEBUG("Loaded font {}", fpath.get_file());
 
                 _renderer.fonts[fpath.get_file()] = font;
             } catch (const std::exception&) {
@@ -140,46 +140,46 @@ xray::ui::user_interface::ui_event(const xray::ui::window_event& evt)
         const auto ke = &evt.event.key;
         const auto pressed = ke->type == event_action_type::press;
 
-        if (ke->keycode == key_sym::e::left_shift || ke->keycode == key_sym::e::right_shift) {
+        if (ke->keycode == KeySymbol::left_shift || ke->keycode == KeySymbol::right_shift) {
             nk_input_key(ctx, NK_KEY_SHIFT, pressed);
-        } else if (ke->keycode == key_sym::e::del) {
+        } else if (ke->keycode == KeySymbol::del) {
             nk_input_key(ctx, NK_KEY_DEL, pressed);
-        } else if (ke->keycode == key_sym::e::enter) {
+        } else if (ke->keycode == KeySymbol::enter) {
             nk_input_key(ctx, NK_KEY_ENTER, pressed);
-        } else if (ke->keycode == key_sym::e::tab) {
+        } else if (ke->keycode == KeySymbol::tab) {
             nk_input_key(ctx, NK_KEY_TAB, pressed);
-        } else if (ke->keycode == key_sym::e::left) {
+        } else if (ke->keycode == KeySymbol::left) {
             nk_input_key(ctx, NK_KEY_LEFT, pressed);
-        } else if (ke->keycode == key_sym::e::right) {
+        } else if (ke->keycode == KeySymbol::right) {
             nk_input_key(ctx, NK_KEY_RIGHT, pressed);
-        } else if (ke->keycode == key_sym::e::up) {
+        } else if (ke->keycode == KeySymbol::up) {
             nk_input_key(ctx, NK_KEY_UP, pressed);
-        } else if (ke->keycode == key_sym::e::down) {
+        } else if (ke->keycode == KeySymbol::down) {
             nk_input_key(ctx, NK_KEY_DOWN, pressed);
-        } else if (ke->keycode == key_sym::e::backspace) {
+        } else if (ke->keycode == KeySymbol::backspace) {
             nk_input_key(ctx, NK_KEY_BACKSPACE, pressed);
-        } else if (ke->keycode == key_sym::e::space && !pressed) {
+        } else if (ke->keycode == KeySymbol::space && !pressed) {
             nk_input_char(ctx, ' ');
-        } else if (ke->keycode == key_sym::e::page_up) {
+        } else if (ke->keycode == KeySymbol::page_up) {
             nk_input_key(ctx, NK_KEY_SCROLL_UP, pressed);
-        } else if (ke->keycode == key_sym::e::page_down) {
+        } else if (ke->keycode == KeySymbol::page_down) {
             nk_input_key(ctx, NK_KEY_SCROLL_DOWN, pressed);
-        } else if (ke->keycode == key_sym::e::home) {
+        } else if (ke->keycode == KeySymbol::home) {
             nk_input_key(ctx, NK_KEY_TEXT_START, pressed);
             nk_input_key(ctx, NK_KEY_SCROLL_START, pressed);
-        } else if (ke->keycode == key_sym::e::end) {
+        } else if (ke->keycode == KeySymbol::end) {
             nk_input_key(ctx, NK_KEY_TEXT_END, pressed);
             nk_input_key(ctx, NK_KEY_SCROLL_END, pressed);
         } else {
-            if (ke->keycode == key_sym::e::key_c && ke->control) {
+            if (ke->keycode == KeySymbol::key_c && ke->control) {
                 nk_input_key(ctx, NK_KEY_COPY, pressed);
-            } else if (ke->keycode == key_sym::e::key_v && ke->control) {
+            } else if (ke->keycode == KeySymbol::key_v && ke->control) {
                 nk_input_key(ctx, NK_KEY_PASTE, pressed);
-            } else if (ke->keycode == key_sym::e::key_x && ke->control) {
+            } else if (ke->keycode == KeySymbol::key_x && ke->control) {
                 nk_input_key(ctx, NK_KEY_CUT, pressed);
-            } else if (ke->keycode == key_sym::e::key_z && ke->control) {
+            } else if (ke->keycode == KeySymbol::key_z && ke->control) {
                 nk_input_key(ctx, NK_KEY_TEXT_UNDO, pressed);
-            } else if (ke->keycode == key_sym::e::key_r && ke->control) {
+            } else if (ke->keycode == KeySymbol::key_r && ke->control) {
                 nk_input_key(ctx, NK_KEY_TEXT_REDO, pressed);
             } else {
                 if (pressed) {
@@ -215,10 +215,10 @@ xray::ui::user_interface::ui_event(const xray::ui::window_event& evt)
 
             nk_input_button(ctx, NK_BUTTON_LEFT, me->pointer_x, me->pointer_y, pressed);
         } else if (me->button == mouse_button::button2) {
-            XR_DBG_MSG("Button 2");
+            XR_LOG_DEBUG("Button 2");
             nk_input_button(ctx, NK_BUTTON_MIDDLE, me->pointer_x, me->pointer_y, pressed);
         } else if (me->button == mouse_button::button3) {
-            XR_DBG_MSG("Button 3");
+            XR_LOG_DEBUG("Button 3");
             nk_input_button(ctx, NK_BUTTON_RIGHT, me->pointer_x, me->pointer_y, pressed);
         }
 
@@ -469,7 +469,7 @@ xray::ui::user_interface::find_font(const char* name) noexcept
 {
     auto font_entry = _renderer.fonts.find(name);
     if (font_entry == std::end(_renderer.fonts)) {
-        XR_DBG_MSG("Trying to set non existent font {}", name);
+        XR_LOG_DEBUG("Trying to set non existent font {}", name);
     }
 
     return font_entry->second;

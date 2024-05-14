@@ -42,7 +42,7 @@ xray::rendering::make_shader(const uint32_t shader_type,
             gl::GetShaderInfoLog(raw_handle(tmp_handle), log_length, nullptr, err_buff.data());
 
             XR_LOG_ERR("Failed to compile shader, error {}", err_buff.data());
-            //      OUTPUT_DBG_MSG("Failed to compile shader, error [%s]",
+            //      XR_LOG_DEBUG("Failed to compile shader, error [%s]",
             //                     static_cast<const char *>(err_buff.data()));
         }
     }
@@ -62,7 +62,7 @@ xray::rendering::make_shader(const uint32_t shader_type, const char* source_file
         return make_shader(shader_type, &src_code, 1u);
     } catch (const std::exception& ex) {
         XR_LOG_ERR("Failed to open shader file [{}], error [{}]", source_file, ex.what());
-        //    OUTPUT_DBG_MSG("Failed to open shader file %s, error %s", source_file,
+        //    XR_LOG_DEBUG("Failed to open shader file %s, error %s", source_file,
         //                   ex.what());
     }
 

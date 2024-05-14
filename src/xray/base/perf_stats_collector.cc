@@ -56,7 +56,7 @@ xray::base::stats_thread::run()
             const auto result = PdhAddCounter(raw_handle(_proc_stats.query), awr.c_str(), 0, &_proc_stats.counters[i]);
 
             if (result != ERROR_SUCCESS)
-                XR_DBG_MSG("Failed to add counter {}", awr.c_str());
+                XR_LOG_DEBUG("Failed to add counter {}", awr.c_str());
         }
     }
 
@@ -92,7 +92,7 @@ xray::base::stats_thread::run()
         break;
     }
 
-    XR_DBG_MSG("Stats collect thread shutting down.");
+    XR_LOG_DEBUG("Stats collect thread shutting down.");
 #endif
 }
 

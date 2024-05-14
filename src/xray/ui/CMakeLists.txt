@@ -3,6 +3,9 @@ project(xray-ui)
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/ui")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
+find_package(X11 REQUIRED COMPONENTS xcb Xi Xinerama Xkb xkbcommon)
+find_package(OpenGL REQUIRED)
+
 # if (WIN32)
 #     set(platform_sources
 #       ${proj_inc_dir}/window_win32.hpp
@@ -16,7 +19,6 @@ set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 set(PROJECT_SOURCES_MAIN
     ${proj_inc_dir}/events.hpp
     ${proj_inc_dir}/key_sym.hpp
-    ${proj_src_dir}/key_sym.cc
     ${proj_inc_dir}/user_interface.hpp
     ${proj_src_dir}/user_interface.cc
 #    ${proj_inc_dir}/ui.hpp
@@ -67,7 +69,7 @@ target_link_libraries(
   PUBLIC
   xray-base
   xray-rendering
-  xray-imgui
-  $<$<PLATFORM_ID:Linux>:X11 GL>
+  xray-imgui-docking
+  $<$<PLATFORM_ID:Linux>:OpenGL::OpenGL OpenGL::GLX X11::Xi X11::Xinerama X11::xcb X11::X11_xcb X11::Xkb X11::xkbcommon  X11::xkbcommon_X11>
 )
 

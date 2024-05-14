@@ -38,8 +38,6 @@
 #include <span>
 #include <vector>
 
-#include <platformstl/filesystem/memory_mapped_file.hpp>
-
 #include "xray/base/maybe.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/math/objects/aabb3.hpp"

@@ -30,10 +30,14 @@
 
 /// \file   scalar4.hpp
 
-#include "xray/math/scalar3.hpp"
 #include "xray/xray.hpp"
+
 #include <cassert>
 #include <cstdint>
+#include <type_traits>
+
+#include "xray/math/scalar3.hpp"
+#include "xray/math/swizzle.hpp"
 
 namespace xray {
 namespace math {
@@ -51,8 +55,9 @@ namespace math {
 ///             homogeneous
 ///             point has a w component with a value different than 1.
 template<typename T>
-class scalar4
+class scalar4 : public SwizzleBase<T, 4>
 {
+	static_assert(std::is_arithmetic_v<T>, "Template parameter needs to be an arythmetic type!");
 
     /// \name Defined types.
     /// @{
@@ -107,6 +112,14 @@ class scalar4
 
     explicit constexpr scalar4(const T val) noexcept
         : scalar4<T>{ val, val, val, val }
+    {
+    }
+
+    constexpr scalar4(const Swizzle4<T> s) noexcept
+        : x{ s.x }
+        , y{ s.y }
+        , z{ s.z }
+        , w{ s.w }
     {
     }
 
@@ -190,6 +203,12 @@ class scalar4
         z /= k;
         w /= k;
         return *this;
+    }
+
+    template<typename... Ts>
+    constexpr auto swizzle() const noexcept
+    {
+        return SwizzleBase<T, 4>::swizzle(this->components, Ts{}...);
     }
 
     /// \name Standard constants for R4 vectors.

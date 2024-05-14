@@ -41,6 +41,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <xcb/xcb.h>
+#include <xkbcommon/xkbcommon-x11.h>
+#include <xkbcommon/xkbcommon.h>
 
 namespace xray {
 namespace ui {
@@ -89,11 +92,38 @@ struct glx_context_deleter
 
 using glx_unique_context = xray::base::unique_pointer<std::remove_pointer<GLXContext>::type, glx_context_deleter>;
 
+struct XKBContextDeleter
+{
+    void operator()(xkb_context* c) const noexcept { xkb_context_unref(c); }
+};
+
+using unique_xbk_context = xray::base::unique_pointer<xkb_context, XKBContextDeleter>;
+
+struct XKBKeymapDeleter
+{
+    void operator()(xkb_keymap* k) const noexcept { xkb_keymap_unref(k); }
+};
+
+using unique_xkb_keyman = xray::base::unique_pointer<xkb_keymap, XKBKeymapDeleter>;
+
+struct XKBStateDeleter
+{
+    void operator()(xkb_state* s) const noexcept { xkb_state_unref(s); }
+};
+
+using unique_xkb_state = xray::base::unique_pointer<xkb_state, XKBStateDeleter>;
+
 } // namespace detail
 
 class window
 {
+   
   public:
+	enum class InputKeySymHandling {
+		Utf8,
+		Unicode
+	};
+	
     struct
     {
         loop_event_delegate loop;
@@ -133,6 +163,8 @@ class window
     void quit() noexcept { _quit_flag = true; }
     void swap_buffers() noexcept;
 
+	InputKeySymHandling key_sym_handling{InputKeySymHandling::Unicode};
+
   private:
     void event_mouse_button(const XButtonEvent* x11evt);
     void event_client_message(const XClientMessageEvent* x11evt);
@@ -152,6 +184,25 @@ class window
     std::atomic<int32_t> _quit_flag{ false };
     bool _kb_grabbed{ false };
     bool _pointer_grabbed{ false };
+
+    struct XInputHelper
+    {
+        xcb_connection_t* xcb_con{};
+        detail::unique_xbk_context xkb_ctx;
+        detail::unique_xkb_keyman xkb_keymap;
+        detail::unique_xkb_state xkb_state;
+		int32_t xkb_event_base{};
+		int32_t xkb_error_base{};
+		struct KbMods {
+			uint32_t shift_mod;
+			uint32_t caps_mod;
+			uint32_t ctrl_mod;
+			uint32_t alt_mod;
+			uint32_t num_mod;
+			uint32_t logo_mod;
+		} mod_index{};
+	   
+    } _input_helper{};
 
   private:
     XRAY_NO_COPY(window);
