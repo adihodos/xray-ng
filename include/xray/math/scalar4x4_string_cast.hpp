@@ -28,43 +28,46 @@
 
 #pragma once
 
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
+
 #include "xray/math/scalar4x4.hpp"
 #include "xray/xray.hpp"
-#include <cstdio>
-#include <stlsoft/memory/auto_buffer.hpp>
-#include <string>
 
-namespace xray {
-namespace math {
+#include <fmt/core.h>
+#include <fmt/format.h>
+
+namespace fmt {
 
 template<typename T>
-std::string
-string_cast(const scalar4x4<T>& s)
+struct formatter<xray::math::scalar4x4<T>> : nested_formatter<T>
 {
-    stlsoft::auto_buffer<char, 256> tmp_buff{ 256u };
+    // Formats value using the parsed format specification stored in this
+    // formatter and writes the output to ctx.out().
+    auto format(const xray::math::scalar4x4<T>& value, format_context& ctx) const
+    {
+        return this->write_padded(ctx, [this, value](auto out) {
+            return fmt::format_to(out,
+                                  "scalar4x4 = {{ {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} }}",
+                                  this->nested(value.a00),
+                                  this->nested(value.a01),
+                                  this->nested(value.a02),
+                                  this->nested(value.a03),
+                                  this->nested(value.a10),
+                                  this->nested(value.a11),
+                                  this->nested(value.a12),
+                                  this->nested(value.a13),
+                                  this->nested(value.a20),
+                                  this->nested(value.a21),
+                                  this->nested(value.a22),
+                                  this->nested(value.a23),
+                                  this->nested(value.a30),
+                                  this->nested(value.a31),
+                                  this->nested(value.a32),
+                                  this->nested(value.a33));
+        });
+    }
+};
 
-    snprintf(tmp_buff.data(),
-             tmp_buff.size(),
-             "scalar4x4 [%f %f %f %f] [%f %f %f %f] [%f %f %f %f] [%f %f %f %f]",
-             s.a00,
-             s.a01,
-             s.a02,
-             s.a03,
-             s.a10,
-             s.a11,
-             s.a12,
-             s.a13,
-             s.a20,
-             s.a21,
-             s.a22,
-             s.a23,
-             s.a30,
-             s.a31,
-             s.a32,
-             s.a33);
+} // namespace fmt
 
-    return static_cast<const char*>(tmp_buff.data());
-}
-
-} // namespace math
-} // namespace xray
+#endif

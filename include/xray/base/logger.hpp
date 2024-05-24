@@ -29,35 +29,107 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/base/debug_output.hpp"
-#include "spdlog/spdlog.h"
+#include <fmt/core.h>
+
+namespace xray::base {
+
+enum class LogLevel : uint8_t
+{
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Err,
+    Critical,
+
+};
+
+void
+log_file_line(const LogLevel level,
+              const char* file,
+              const int32_t line,
+              fmt::string_view format,
+              fmt::format_args args);
+
+template<typename... Ts>
+void
+log_fwd_file_line(const LogLevel level,
+                  const char* file,
+                  const int32_t line,
+                  fmt::format_string<Ts...> format,
+                  Ts&&... args)
+{
+    return log_file_line(level, file, line, format, fmt::make_format_args(args...));
+}
+
+void
+log(const LogLevel level, fmt::string_view format, fmt::format_args args);
+
+template<typename... Ts>
+void
+log_fwd(const LogLevel level, fmt::format_string<Ts...> format, Ts&&... args)
+{
+    return log(level, format, fmt::make_format_args(args...));
+}
+
+}
 
 #define XR_LOG_ERR(msg, ...)                                                                                           \
     do {                                                                                                               \
-        spdlog::error(msg, ##__VA_ARGS__);                                                                             \
+        xray::base::log_fwd(xray::base::LogLevel::Err, msg, ##__VA_ARGS__);                                            \
     } while (0)
 
 #define XR_LOG_INFO(msg, ...)                                                                                          \
     do {                                                                                                               \
-        spdlog::info(msg, ##__VA_ARGS__);                                                                              \
+        xray::base::log_fwd(xray::base::LogLevel::Info, msg, ##__VA_ARGS__);                                           \
     } while (0)
 
 #define XR_LOG_TRACE(msg, ...)                                                                                         \
     do {                                                                                                               \
-        spdlog::trace(msg, ##__VA_ARGS__);                                                                             \
+        xray::base::log_fwd(xray::base::LogLevel::Trace, msg, ##__VA_ARGS__);                                          \
     } while (0)
 
 #define XR_LOG_DEBUG(msg, ...)                                                                                         \
     do {                                                                                                               \
-        spdlog::debug(msg, ##__VA_ARGS__);                                                                             \
+        xray::base::log_fwd(xray::base::LogLevel::Debug, msg, ##__VA_ARGS__);                                          \
     } while (0)
 
 #define XR_LOG_WARN(msg, ...)                                                                                          \
     do {                                                                                                               \
-        spdlog::warn(msg, ##__VA_ARGS__);                                                                              \
+        xray::base::log_fwd(xray::base::LogLevel::Warn, msg, ##__VA_ARGS__);                                           \
     } while (0)
 
 #define XR_LOG_CRITICAL(msg, ...)                                                                                      \
     do {                                                                                                               \
-        spdlog::critical(msg, ##__VA_ARGS__);                                                                          \
+        xray::base::log_fwd(xray::base::LogLevel::Critical, msg, ##__VA_ARGS__);                                       \
+    } while (0)
+
+#define XR_LOG_ERR_FILE_LINE(msg, ...)                                                                                 \
+    do {                                                                                                               \
+        xray::base::log_fwd_file_line(xray::base::LogLevel::Err, __FILE__, __LINE__, msg, ##__VA_ARGS__);              \
+    } while (0)
+
+#define XR_LOG_INFO_FILE_LINE(msg, ...)                                                                                \
+    do {                                                                                                               \
+        xray::base::log_fwd_file_line(xray::base::LogLevel::Info, __FILE__, __LINE__, msg, ##__VA_ARGS__);             \
+    } while (0)
+
+#define XR_LOG_TRACE_FILE_LINE(msg, ...)                                                                               \
+    do {                                                                                                               \
+        xray::base::log_fwd_file_line(xray::base::LogLevel::Trace, __FILE__, __LINE__, msg, ##__VA_ARGS__);            \
+    } while (0)
+
+#define XR_LOG_DEBUG_FILE_LINE(msg, ...)                                                                               \
+    do {                                                                                                               \
+        xray::base::log_fwd_file_line(xray::base::LogLevel::Debug, __FILE__, __LINE__, msg, ##__VA_ARGS__);            \
+    } while (0)
+
+#define XR_LOG_WARN_FILE_LINE(msg, ...)                                                                                \
+    do {                                                                                                               \
+        xray::base::log_fwd_file_line(xray::base::LogLevel::Warn, __FILE__, __LINE__, msg, ##__VA_ARGS__);             \
+    } while (0)
+
+#define XR_LOG_CRITICAL_FILE_LINE(msg, ...)                                                                            \
+    do {                                                                                                               \
+        xray::base::log_fwd_file_line(xray::base::LogLevel::Critical, __FILE__, __LINE__, msg, ##__VA_ARGS__);         \
     } while (0)

@@ -77,7 +77,10 @@ class scoped_handle
   public:
     /// \brief Default constructor. Initializes object with a non valid handle of
     /// the corresponding type.
-    scoped_handle() NOEXCEPT : handle_{ handle_policy::null_handle() } {}
+    scoped_handle()
+        : handle_{ handle_policy::null_handle() }
+    {
+    }
 
     /// \brief   Initialize with an existing raw handle.
     ///          The object assumes ownership of the handle.
@@ -87,7 +90,7 @@ class scoped_handle
     }
 
     /// \brief Construct from a temporary of the same type.
-    scoped_handle(class_type&& right) NOEXCEPT { handle_ = right.release(); }
+    scoped_handle(class_type&& right) { handle_ = right.release(); }
 
     ~scoped_handle() { handle_policy::dispose(handle_); }
 
@@ -99,7 +102,7 @@ class scoped_handle
   public:
     ///
     /// \brief   Supports sanity checking in the form of if(object) {}.
-    explicit operator bool() const NOEXCEPT { return handle_ != handle_policy::null_handle(); }
+    explicit operator bool() const { return handle_ != handle_policy::null_handle(); }
 
     /// @}
 
@@ -110,28 +113,28 @@ class scoped_handle
     ///
     /// \brief Explicit access to the raw handle owned by this object.
     template<typename M>
-    friend typename scoped_handle<M>::handle_type scoped_handle_get(const scoped_handle<M>&) NOEXCEPT;
+    friend typename scoped_handle<M>::handle_type scoped_handle_get(const scoped_handle<M>&);
 
     ///
     /// \brief Release ownership of the native handle to the caller.
     template<typename M>
-    friend typename scoped_handle<M>::handle_type scoped_handle_release(scoped_handle<M>&) NOEXCEPT;
+    friend typename scoped_handle<M>::handle_type scoped_handle_release(scoped_handle<M>&);
 
     ///
     /// \brief Reset the owned handle to a new value.
     /// \remarks The old handle is destroyed before the assignment.
     template<typename M>
-    friend void scoped_handle_reset(scoped_handle<M>&, typename scoped_handle<M>::handle_type) NOEXCEPT;
+    friend void scoped_handle_reset(scoped_handle<M>&, typename scoped_handle<M>::handle_type);
 
     ///
     /// \brief Returns a pointer to the raw handle.
     template<typename M>
-    friend typename scoped_handle<M>::handle_pointer scoped_handle_get_impl(scoped_handle<M>& sh) NOEXCEPT;
+    friend typename scoped_handle<M>::handle_pointer scoped_handle_get_impl(scoped_handle<M>& sh);
 
     ///
     /// \brief Swaps contents with another object of this type.
     template<typename M>
-    friend void swap(scoped_handle<M>&, scoped_handle<M>&) NOEXCEPT;
+    friend void swap(scoped_handle<M>&, scoped_handle<M>&);
 
     /// @}
 
@@ -141,7 +144,7 @@ class scoped_handle
 
     ///
     /// \brief Assign operator from a temporary of the same type.
-    class_type& operator=(class_type&& right) NOEXCEPT
+    class_type& operator=(class_type&& right)
     {
         swap(right);
         return *this;
@@ -149,7 +152,7 @@ class scoped_handle
 
     ///
     /// \brief Assign from a raw handle and take ownership of it.
-    class_type& operator=(handle_type new_handle) NOEXCEPT
+    class_type& operator=(handle_type new_handle)
     {
         if (new_handle != handle_) {
             handle_policy::dispose(handle_);
@@ -167,18 +170,18 @@ class scoped_handle
     /// \name Internal helper functions.
     ///  @{
 
-    handle_type get() const NOEXCEPT { return handle_; }
+    handle_type get() const { return handle_; }
 
-    handle_pointer get_impl_ptr() NOEXCEPT { return &handle_; }
+    handle_pointer get_impl_ptr() { return &handle_; }
 
-    handle_type release() NOEXCEPT
+    handle_type release()
     {
         handle_type temp_handle = handle_;
         handle_ = handle_policy::null_handle();
         return temp_handle;
     }
 
-    void reset(handle_type new_handle) NOEXCEPT
+    void reset(handle_type new_handle)
     {
         if (handle_ != new_handle) {
             handle_policy::dispose(handle_);
@@ -186,7 +189,7 @@ class scoped_handle
         }
     }
 
-    void swap(class_type& rhs) NOEXCEPT
+    void swap(class_type& rhs)
     {
         handle_type tmp_handle = handle_;
         handle_ = rhs.release();
@@ -197,14 +200,14 @@ class scoped_handle
     /// \name Disabled functions.
     ///  @{
 
-    NO_CC_ASSIGN(scoped_handle);
+    XRAY_NO_COPY(scoped_handle);
 };
 
 ///
 /// \brief Accessor funct
 template<typename M>
 inline typename scoped_handle<M>::handle_type
-scoped_handle_get(const scoped_handle<M>& sh) NOEXCEPT
+scoped_handle_get(const scoped_handle<M>& sh)
 {
     return sh.get();
 }
@@ -214,7 +217,7 @@ scoped_handle_get(const scoped_handle<M>& sh) NOEXCEPT
 ///          responsible for closing the handle when no longer nee
 template<typename M>
 inline typename scoped_handle<M>::handle_type
-scoped_handle_release(scoped_handle<M>& sh) NOEXCEPT
+scoped_handle_release(scoped_handle<M>& sh)
 {
     return sh.release();
 }
@@ -224,7 +227,7 @@ scoped_handle_release(scoped_handle<M>& sh) NOEXCEPT
 ///          released in the proc
 template<typename M>
 inline void
-scoped_handle_reset(scoped_handle<M>& sh, typename scoped_handle<M>::handle_type new_value = M::null_handle()) NOEXCEPT
+scoped_handle_reset(scoped_handle<M>& sh, typename scoped_handle<M>::handle_type new_value = M::null_handle())
 {
     sh.reset(new_value);
 }
@@ -242,7 +245,7 @@ scoped_handle_reset(scoped_handle<M>& sh, typename scoped_handle<M>::handle_type
 /// \endcode
 template<typename M>
 inline typename scoped_handle<M>::handle_pointer
-scoped_handle_get_impl(scoped_handle<M>& sh) NOEXCEPT
+scoped_handle_get_impl(scoped_handle<M>& sh)
 {
     scoped_handle_reset(sh);
     return sh.get_impl_ptr();
@@ -252,7 +255,7 @@ scoped_handle_get_impl(scoped_handle<M>& sh) NOEXCEPT
 /// \brief   Equality test between raw handle and scoped_handle obj
 template<typename T>
 inline bool
-operator==(const typename T::handle_type& left, const scoped_handle<T>& right) NOEXCEPT
+operator==(const typename T::handle_type& left, const scoped_handle<T>& right)
 {
     return left == scoped_handle_get(right);
 }
@@ -261,7 +264,7 @@ operator==(const typename T::handle_type& left, const scoped_handle<T>& right) N
 /// \brief   Equality test between raw handle and scoped_handle obj
 template<typename T>
 inline bool
-operator==(const scoped_handle<T>& left, const typename T::handle_type& right) NOEXCEPT
+operator==(const scoped_handle<T>& left, const typename T::handle_type& right)
 {
     return right == left;
 }
@@ -270,7 +273,7 @@ operator==(const scoped_handle<T>& left, const typename T::handle_type& right) N
 /// \brief   Inequality test between raw handle and scoped_handle obj
 template<typename T>
 inline bool
-operator!=(const typename T::handle_type& left, const scoped_handle<T>& right) NOEXCEPT
+operator!=(const typename T::handle_type& left, const scoped_handle<T>& right)
 {
     return !(left == right);
 }
@@ -279,7 +282,7 @@ operator!=(const typename T::handle_type& left, const scoped_handle<T>& right) N
 /// \brief   Inequality test between raw handle and scoped_handle obj
 template<typename T>
 inline bool
-operator!=(const scoped_handle<T>& left, const typename T::handle_type& right) NOEXCEPT
+operator!=(const scoped_handle<T>& left, const typename T::handle_type& right)
 {
     return right != left;
 }
@@ -288,7 +291,7 @@ operator!=(const scoped_handle<T>& left, const typename T::handle_type& right) N
 /// \brief   Swaps the owned handles of two scoped_handle obje
 template<typename M>
 inline void
-swap(scoped_handle<M>& left, scoped_handle<M>& right) NOEXCEPT
+swap(scoped_handle<M>& left, scoped_handle<M>& right)
 {
     left.swap(right);
 }

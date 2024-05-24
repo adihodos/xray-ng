@@ -2,10 +2,6 @@
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/debug_output.hpp"
 #include <fmt/format.h>
-#include <platformstl/filesystem/path.hpp>
-#include <platformstl/filesystem/path_functions.hpp>
-#include <platformstl/system/system_traits.hpp>
-#include <stlsoft/memory/auto_buffer.hpp>
 #include <type_traits>
 
 using namespace xray::base;

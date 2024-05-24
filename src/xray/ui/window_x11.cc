@@ -652,6 +652,7 @@ xray::ui::window::window(const window_params_t& wparam)
 
     _default_screen = XDefaultScreen(raw_ptr(_display));
 
+#if !defined(XRAY_GRAPHICS_API_VULKAN)
     if (glXQueryExtension(raw_ptr(_display), nullptr, nullptr) != True) {
         XR_LOG_ERR("GLX extension not present!");
         return;
@@ -721,7 +722,24 @@ xray::ui::window::window(const window_params_t& wparam)
         return;
     }
 
+#else
+
+    pod_zero<XVisualInfo> xvisual_info{};
+    xvisual_info.screen = _default_screen;
+
+    int32_t visuals_count{};
+    unique_pointer<XVisualInfo, decltype(&XFree)> visual_info{
+        XGetVisualInfo(raw_ptr(_display), VisualScreenMask, &xvisual_info, &visuals_count), &XFree
+    };
+
+    if (!visuals_count) {
+        XR_LOG_ERR("Failed to query visuals!");
+        return;
+    }
+#endif
+
     auto root_window = RootWindow(raw_ptr(_display), _default_screen);
+    _visualid = visual_info->visualid;
 
     pod_zero<XSetWindowAttributes> window_attribs;
     window_attribs.override_redirect = wparam.grab_input ? True : False;
@@ -816,6 +834,7 @@ xray::ui::window::window(const window_params_t& wparam)
         XInternAtom(raw_ptr(_display), "UTF8_STRING", False),
     };
 
+#if !defined(XRAY_GRAPHICS_API_VULKAN)
     //
     // load OpenGL
     const char* extension_list = glXQueryExtensionsString(raw_ptr(_display), _default_screen);
@@ -871,6 +890,7 @@ xray::ui::window::window(const window_params_t& wparam)
 
         XR_LOG_INFO("Loaded OpenGL ({}.{})", gl::sys::GetMajorVersion(), gl::sys::GetMinorVersion());
     }
+#endif
 
     XClearWindow(raw_ptr(_display), raw_ptr(_window));
     XMapRaised(raw_ptr(_display), raw_ptr(_window));
@@ -963,14 +983,18 @@ xray::ui::window::~window()
         XUngrabPointer(raw_ptr(_display), CurrentTime);
     }
 
+#if !defined(XRAY_GRAPHICS_API_VULKAN)
     glXMakeContextCurrent(raw_ptr(_display), None, None, nullptr);
+#endif
 }
 
 void
 xray::ui::window::swap_buffers() noexcept
 {
     assert(valid());
+#if !defined(XRAY_GRAPHICS_API_VULKAN)
     glXSwapBuffers(raw_ptr(_display), raw_ptr(_window));
+#endif
 }
 
 void
@@ -1065,7 +1089,9 @@ xray::ui::window::message_loop()
         //
         // user loop
         events.loop({ _wnd_width, _wnd_height, this });
+#if !defined(XRAY_GRAPHICS_API_VULKAN)
         glXSwapBuffers(raw_ptr(_display), raw_ptr(_window));
+#endif
     }
 }
 

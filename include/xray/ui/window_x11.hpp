@@ -35,15 +35,17 @@
 #include "xray/ui/events.hpp"
 #include "xray/ui/window_params.hpp"
 #include "xray/xray.hpp"
-#include <GL/glx.h>
+
 #include <X11/Xlib.h>
 #include <atomic>
-#include <cstddef>
 #include <cstdint>
-#include <type_traits>
 #include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon-x11.h>
 #include <xkbcommon/xkbcommon.h>
+
+#if !defined(XRAY_GRAPHICS_API_VULKAN)
+#include <GL/glx.h>
+#endif
 
 namespace xray {
 namespace ui {
@@ -76,6 +78,7 @@ struct x11_window_deleter
 
 using x11_unique_window = xray::base::unique_pointer<Window, x11_window_deleter>;
 
+#ifndef XRAY_GRAPHICS_API_VULKAN
 struct glx_context_deleter
 {
     glx_context_deleter() noexcept = default;
@@ -91,6 +94,8 @@ struct glx_context_deleter
 };
 
 using glx_unique_context = xray::base::unique_pointer<std::remove_pointer<GLXContext>::type, glx_context_deleter>;
+
+#endif
 
 struct XKBContextDeleter
 {
@@ -117,13 +122,14 @@ using unique_xkb_state = xray::base::unique_pointer<xkb_state, XKBStateDeleter>;
 
 class window
 {
-   
+
   public:
-	enum class InputKeySymHandling {
-		Utf8,
-		Unicode
-	};
-	
+    enum class InputKeySymHandling
+    {
+        Utf8,
+        Unicode
+    };
+
     struct
     {
         loop_event_delegate loop;
@@ -136,6 +142,7 @@ class window
     /// @{
   public:
     using handle_type = Window;
+    using native_display_handle = Display*;
 
     explicit window(const window_params_t& wparam);
 
@@ -143,7 +150,9 @@ class window
 
     /// @}
 
-    handle_type handle() const noexcept { return base::raw_ptr(_window); }
+    handle_type native_window() const noexcept { return base::raw_ptr(_window); }
+    native_display_handle native_display() const noexcept { return base::raw_ptr(_display); }
+    VisualID native_visual() const noexcept { return _visualid; }
 
     void disable_cursor() noexcept;
     void enable_cursor() noexcept;
@@ -152,7 +161,14 @@ class window
     /// @{
   public:
     explicit operator bool() const noexcept { return valid(); }
-    bool valid() const noexcept { return static_cast<bool>(_glx_context); }
+    bool valid() const noexcept
+    {
+#if defined(XRAY_GRAPHICS_API_VULKAN)
+        return true;
+#else
+        return static_cast<bool>(_glx_context);
+#endif
+    }
 
     /// @}
 
@@ -163,7 +179,7 @@ class window
     void quit() noexcept { _quit_flag = true; }
     void swap_buffers() noexcept;
 
-	InputKeySymHandling key_sym_handling{InputKeySymHandling::Unicode};
+    InputKeySymHandling key_sym_handling{ InputKeySymHandling::Unicode };
 
   private:
     void event_mouse_button(const XButtonEvent* x11evt);
@@ -175,7 +191,10 @@ class window
   private:
     detail::x11_unique_display _display;
     detail::x11_unique_window _window;
+#ifndef XRAY_GRAPHICS_API_VULKAN
     detail::glx_unique_context _glx_context;
+#endif
+    VisualID _visualid{};
     Atom _window_delete_atom{ None };
     Atom _motif_hints{ None };
     int32_t _default_screen{ -1 };
@@ -191,17 +210,18 @@ class window
         detail::unique_xbk_context xkb_ctx;
         detail::unique_xkb_keyman xkb_keymap;
         detail::unique_xkb_state xkb_state;
-		int32_t xkb_event_base{};
-		int32_t xkb_error_base{};
-		struct KbMods {
-			uint32_t shift_mod;
-			uint32_t caps_mod;
-			uint32_t ctrl_mod;
-			uint32_t alt_mod;
-			uint32_t num_mod;
-			uint32_t logo_mod;
-		} mod_index{};
-	   
+        int32_t xkb_event_base{};
+        int32_t xkb_error_base{};
+        struct KbMods
+        {
+            uint32_t shift_mod;
+            uint32_t caps_mod;
+            uint32_t ctrl_mod;
+            uint32_t alt_mod;
+            uint32_t num_mod;
+            uint32_t logo_mod;
+        } mod_index{};
+
     } _input_helper{};
 
   private:

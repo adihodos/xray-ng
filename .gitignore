@@ -31,7 +31,7 @@ compile_commands.json
 [Rr]eleases/
 x64/
 x86/
-[Bb]uild/
+[Bb]uild*/
 bld/
 [Bb]in/
 [Oo]bj/

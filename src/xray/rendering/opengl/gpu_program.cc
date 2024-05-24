@@ -21,9 +21,9 @@
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 
+#include <itlib/small_vector.hpp>
 #include <mio/mmap.hpp>
 #include <pipes/pipes.hpp>
-#include <stlsoft/memory/auto_buffer.hpp>
 #include <tl/optional.hpp>
 
 using namespace xray::base;
@@ -268,8 +268,6 @@ xray::rendering::scoped_program_handle
 xray::rendering::gpu_program_builder::build_program(const GLenum stg) const noexcept
 {
     using namespace xray::base;
-    using namespace stlsoft;
-
     using namespace std;
 
     using std::int32_t;
@@ -456,7 +454,8 @@ xray::rendering::detail::gpu_program_helpers::collect_uniform_blocks(const GLuin
 
     //
     // colllect info about the uniforms
-    stlsoft::auto_buffer<char, 128> txt_buff{ static_cast<size_t>(max_name_len) };
+    itlib::small_vector<char, 128> txt_buff;
+    txt_buff.resize(static_cast<size_t>(max_name_len));
     vector<uniform_block_t> ublocks{};
 
     for (uint32_t blk_idx = 0; blk_idx < static_cast<uint32_t>(num_uniform_blocks); ++blk_idx) {
@@ -559,7 +558,6 @@ xray::rendering::detail::gpu_program_helpers::collect_uniforms(const GLuint prog
 {
     using namespace xray::base;
     using namespace std;
-    using namespace stlsoft;
 
     using std::int32_t;
     using std::uint32_t;
@@ -579,7 +577,8 @@ xray::rendering::detail::gpu_program_helpers::collect_uniforms(const GLuint prog
     GLint u_max_len{};
     gl::GetProgramInterfaceiv(phandle, gl::UNIFORM, gl::MAX_NAME_LENGTH, &u_max_len);
 
-    auto_buffer<char, 128> tmp_buff{ static_cast<size_t>(u_max_len) };
+    itlib::small_vector<char, 128> tmp_buff;
+    tmp_buff.resize(static_cast<size_t>(u_max_len));
 
     for (uint32_t u_idx = 0; u_idx < static_cast<uint32_t>(num_uniforms); ++u_idx) {
 
@@ -692,7 +691,9 @@ xray::rendering::detail::gpu_program_helpers::collect_subroutines_and_uniforms(
     assert(max_namelen_subroutine_uniform != 0);
 
     for (int32_t idx = 0; idx < active_uniforms; ++idx) {
-        stlsoft::auto_buffer<char> name_buff{ static_cast<size_t>(max_namelen_subroutine_uniform) + 1 };
+        itlib::small_vector<char, 64> name_buff;
+        name_buff.resize(static_cast<size_t>(max_namelen_subroutine_uniform) + 1);
+
         GLsizei chars_written{ 0 };
         gl::GetProgramResourceName(phandle,
                                    api_subroutine_uniform_interface_name,
@@ -737,7 +738,9 @@ xray::rendering::detail::gpu_program_helpers::collect_subroutines_and_uniforms(
 
     for (int32_t idx = 0; idx < subroutines_count; ++idx) {
         int32_t name_len{ 0 };
-        stlsoft::auto_buffer<char> name_buff{ static_cast<size_t>(max_namelen_subroutine) + 1 };
+
+        itlib::small_vector<char, 64> name_buff;
+        name_buff.resize(static_cast<size_t>(max_namelen_subroutine) + 1);
 
         gl::GetProgramResourceName(
             phandle, api_subroutine_interface_name, idx, max_namelen_subroutine, &name_len, name_buff.data());
@@ -937,7 +940,8 @@ xray::rendering::detail::gpu_program_base::flush_uniforms()
     });
 
     if (!subroutine_uniforms_.empty()) {
-        stlsoft::auto_buffer<GLuint> indices_buff{ subroutine_uniforms_.size() };
+        itlib::small_vector<GLuint, 64> indices_buff;
+        indices_buff.resize(subroutine_uniforms_.size());
 
         for_each(
             begin(subroutine_uniforms_),

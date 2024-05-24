@@ -27,6 +27,52 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/base/logger.hpp"
+#include <array>
 #include <cassert>
+#include <cstdarg>
 
-// INITIALIZE_EASYLOGGINGPP
+#include "spdlog/spdlog.h"
+void
+xray::base::log(const LogLevel level, fmt::string_view format, fmt::format_args args)
+{
+    static thread_local std::array<char, 2048> scratch_buffer;
+    const auto [itr, cch] = fmt::vformat_to_n(scratch_buffer.data(), scratch_buffer.size(), format, args);
+    if (itr >= scratch_buffer.end())
+        return;
+
+    *itr = 0;
+
+    constexpr const spdlog::level::level_enum log_levels[] = {
+        spdlog::level::trace, spdlog::level::debug, spdlog::level::info,
+        spdlog::level::warn,  spdlog::level::err,   spdlog::level::critical,
+    };
+
+    spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer.data());
+}
+
+void
+xray::base::log_file_line(const LogLevel level,
+                          const char* file,
+                          const int32_t line,
+                          fmt::string_view format,
+                          fmt::format_args args)
+{
+    static thread_local std::array<char, 2048> scratch_buffer;
+    const auto [itr, cch] = fmt::format_to_n(scratch_buffer.data(), scratch_buffer.size(), "{}:{}\n", file, line);
+
+    if (itr >= scratch_buffer.end())
+        return;
+
+    const auto [itr1, cch1] = fmt::vformat_to_n(itr, scratch_buffer.end() - itr, format, args);
+    if (itr1 >= scratch_buffer.cend())
+        return;
+
+    *itr1 = 0;
+
+    constexpr const spdlog::level::level_enum log_levels[] = {
+        spdlog::level::trace, spdlog::level::debug, spdlog::level::info,
+        spdlog::level::warn,  spdlog::level::err,   spdlog::level::critical,
+    };
+
+    spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer.data());
+}

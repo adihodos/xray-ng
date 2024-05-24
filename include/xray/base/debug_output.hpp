@@ -2,8 +2,6 @@
 #define xray_base_debug_output_hpp__
 
 #include "xray/xray.hpp"
-#include <cstdint>
-#include <fmt/format.h>
 
 #if defined(XRAY_COMPILER_IS_MSVC)
 #include <intrin.h>

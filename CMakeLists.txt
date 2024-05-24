@@ -42,6 +42,9 @@ CPMAddPackage(
   "BUILD_SHARED_LIBS OFF"
   "BUILD_TESTS OFF")
 
+#CPMAddPackage("gh:ericniebler/range-v3#master")
+CPMAddPackage("gh:groundswellaudio/swl-variant#main")
+
 # set(CMAKE_MODULE_PATH
 #   "${CMAKE_PROJECT_DIR}/cmake"
 #   "${CMAKE_PROJECT__DIR}/cmake/modules")

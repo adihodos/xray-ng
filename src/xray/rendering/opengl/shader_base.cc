@@ -1,8 +1,9 @@
 #include "xray/rendering/opengl/shader_base.hpp"
 #include "xray/base/logger.hpp"
 #include <cassert>
-#include <platformstl/filesystem/memory_mapped_file.hpp>
-#include <stlsoft/memory/auto_buffer.hpp>
+#include <itlib/small_vector.hpp>
+#include <mio/mmap.hpp>
+#include <system_error>
 
 GLuint
 xray::rendering::make_shader(const uint32_t shader_type,
@@ -37,13 +38,11 @@ xray::rendering::make_shader(const uint32_t shader_type,
         gl::GetShaderiv(raw_handle(tmp_handle), gl::INFO_LOG_LENGTH, &log_length);
 
         if (log_length > 0) {
-            stlsoft::auto_buffer<GLchar, 1024> err_buff{ static_cast<size_t>(log_length) };
-
+            itlib::small_vector<GLchar, 2048> err_buff;
             gl::GetShaderInfoLog(raw_handle(tmp_handle), log_length, nullptr, err_buff.data());
+            err_buff.push_back(0);
 
             XR_LOG_ERR("Failed to compile shader, error {}", err_buff.data());
-            //      XR_LOG_DEBUG("Failed to compile shader, error [%s]",
-            //                     static_cast<const char *>(err_buff.data()));
         }
     }
 
@@ -55,16 +54,14 @@ xray::rendering::make_shader(const uint32_t shader_type, const char* source_file
 {
     assert(source_file != nullptr);
 
-    try {
-        platformstl::memory_mapped_file shader_code_file{ source_file };
-        const char* src_code = static_cast<const char*>(shader_code_file.memory());
-
-        return make_shader(shader_type, &src_code, 1u);
-    } catch (const std::exception& ex) {
-        XR_LOG_ERR("Failed to open shader file [{}], error [{}]", source_file, ex.what());
-        //    XR_LOG_DEBUG("Failed to open shader file %s, error %s", source_file,
-        //                   ex.what());
+    std::error_code err_code{};
+    const mio::mmap_source shader_code_file{ mio::make_mmap_source(source_file, err_code) };
+    if (err_code) {
+        XR_LOG_ERR(
+            "Failed to open shader file [{}], error [{:#x} - {}]", source_file, err_code.value(), err_code.message());
+        return 0;
     }
 
-    return 0;
+    const char* src_code = reinterpret_cast<const char*>(shader_code_file.data());
+    return make_shader(shader_type, &src_code, 1u);
 }

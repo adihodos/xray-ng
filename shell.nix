@@ -1,12 +1,14 @@
 let
   pkgs = import <nixpkgs> {};
 in
+#pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
 pkgs.mkShell {
   buildInputs = with pkgs; [
     bashInteractive
 
-    gcc
+    #gcc
     gdb
+    lldb
     gdbgui
     gf
     renderdoc
@@ -18,6 +20,9 @@ pkgs.mkShell {
     vulkan-headers
     vulkan-loader
     vulkan-tools-lunarg
+    vulkan-validation-layers
+    vulkan-utility-libraries
+    vulkan-caps-viewer
     vulkan-validation-layers
     shaderc
     glslang
@@ -49,13 +54,12 @@ pkgs.mkShell {
     pkgs.xorg.libXxf86vm
     pkgs.libxkbcommon
     pkgs.xorg.libxcb.dev
-
   ];
+
   shellHook = ''
       export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$APPEND_LIBRARY_PATH"
     '';
 
-  # Set Environment Variables
-#  RUST_BACKTRACE = 1;
+  VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
 }
   

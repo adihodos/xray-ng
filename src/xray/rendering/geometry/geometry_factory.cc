@@ -15,7 +15,6 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
-#include <platformstl/filesystem/memory_mapped_file.hpp>
 
 using namespace std;
 using namespace xray::base;

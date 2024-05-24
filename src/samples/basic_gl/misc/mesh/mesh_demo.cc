@@ -201,8 +201,7 @@ app::mesh_demo::draw(const float surface_width, const float surface_height)
     gl::BindSamplers(0, 1, bound_samplers);
 
     {
-        ScopedPolygonMode set_wireframe{ _drawparams.draw_wireframe ? gl::LINE : gl::FILL };
-
+        ScopedPolygonMode set_wireframe{ static_cast<GLenum>(_drawparams.draw_wireframe ? gl::LINE : gl::FILL) };
         gl::DrawElements(gl::TRIANGLES, _indexcount, gl::UNSIGNED_INT, nullptr);
     }
 

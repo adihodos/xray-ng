@@ -3,6 +3,8 @@ project (xray-rendering)
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
+find_package(Vulkan REQUIRED COMPONENTS glslc glslang)
+
 set(project_sources
     ${proj_inc_dir}/colors/color_cast_rgb_hsv.hpp
     ${proj_src_dir}/colors/color_cast_rgb_hsv.cc
@@ -63,8 +65,14 @@ set(project_sources
 	${gl_proj_src_dir}/shader_base.cc
   )
 
+  set(vk-proj-inc-dir "${CMAKE_SOURCE_DIR}/include/xray/rendering/renderer.vulkan")
+  set(vk-proj-src-dir "${PROJECT_SOURCE_DIR}/renderer.vulkan")
+    set(vk-project-sources
+	${vk-proj-inc-dir}/renderer.vulkan.hpp
+	${vk-proj-src-dir}/renderer.vulkan.cc)
+
   add_library(
-	${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl} )
+	${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl} ${vk-project-sources})
   
   target_compile_features(
 	${PROJECT_NAME}
@@ -82,13 +90,14 @@ set(project_sources
 
   target_compile_definitions(
 	${PROJECT_NAME}
+	PUBLIC XRAY_GRAPHICS_API_VULKAN
 	PRIVATE
 	$<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
   )
   
   target_link_libraries(
 	${PROJECT_NAME}
-	PUBLIC xray-glloader tl::optional xray-base STLSoft mio::mio itlib::itlib
-	PRIVATE	TBB::tbb cppitertools::cppitertools joboccara::pipes
+	PUBLIC xray-glloader tl::optional xray-base STLSoft mio::mio itlib::itlib Vulkan::Vulkan swl-variant
+	PRIVATE	TBB::tbb cppitertools::cppitertools joboccara::pipes 
 	$<$<PLATFORM_ID:Linux>:Xinerama>
   )
