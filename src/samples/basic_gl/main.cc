@@ -61,8 +61,8 @@
 #include "xray/math/scalar4.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
-#include "xray/rendering/renderer.vulkan/renderer.vulkan.hpp"
-#include "xray/rendering/renderer.vulkan/vulkan.window.platform.data.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/user_interface.hpp"
@@ -649,11 +649,11 @@ main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    VulkanRenderer::create(WindowPlatformDataXlib{
-                               .display = main_window.native_display(),
-                               .window = main_window.native_window(),
-                               .visual = main_window.native_visual(),
-                           })
+    VulkanRenderer::create(WindowPlatformDataXlib{ .display = main_window.native_display(),
+                                                   .window = main_window.native_window(),
+                                                   .visual = main_window.native_visual(),
+                                                   .width = static_cast<uint32_t>(main_window.width()),
+                                                   .height = static_cast<uint32_t>(main_window.height()) })
         .map_or_else([](VulkanRenderer vkr) {}, []() { XR_LOG_CRITICAL("Failed to create Vulkan renderer!"); });
 
     // gl::DebugMessageCallback(app::debug_proc, nullptr);

@@ -17,6 +17,8 @@ struct WindowPlatformDataXcb
     xcb_connection_t* connection;
     xcb_window_t window;
     xcb_visualid_t visual;
+    uint32_t width;
+    uint32_t height;
 };
 
 struct WindowPlatformDataXlib
@@ -24,6 +26,8 @@ struct WindowPlatformDataXlib
     Display* display;
     Window window;
     VisualID visual;
+    uint32_t width;
+    uint32_t height;
 };
 
 }
