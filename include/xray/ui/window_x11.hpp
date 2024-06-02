@@ -145,6 +145,7 @@ class window
     using native_display_handle = Display*;
 
     explicit window(const window_params_t& wparam);
+    window(window&&);
 
     ~window();
 

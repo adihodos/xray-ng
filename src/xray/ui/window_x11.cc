@@ -602,7 +602,6 @@ map_x11_key_symbol(const xkb_keysym_t key_sym) noexcept
 }
 
 xray::ui::window::window(const window_params_t& wparam)
-
 {
     int32_t ver_major{ XkbMajorVersion };
     int32_t ver_minor{ XkbMinorVersion };
@@ -952,9 +951,9 @@ xray::ui::window::window(const window_params_t& wparam)
     const uint32_t mod_logo = xkb_keymap_mod_get_index(raw_ptr(keymap), XKB_MOD_NAME_LOGO);
 
     _input_helper = XInputHelper{ connection,
-                                  move(xkb_ctx),
-                                  move(keymap),
-                                  move(state),
+                                  std::move(xkb_ctx),
+                                  std::move(keymap),
+                                  std::move(state),
                                   xkb_event_base,
                                   xkb_error_base,
                                   XInputHelper::KbMods{ .shift_mod = mod_shift,
@@ -971,6 +970,29 @@ xray::ui::window::window(const window_params_t& wparam)
                 depth,
                 x_location,
                 y_location);
+}
+
+xray::ui::window::window(window&& rhs)
+    : events{ std::move(rhs.events) }
+    , _display(std::move(rhs._display))
+    , _window(std::move(rhs._window))
+#ifndef XRAY_GRAPHICS_API_VULKAN
+    , _glx_context{ std::move(rhs._glx_context) }
+#endif
+    , _visualid{ rhs._visualid }
+    , _window_delete_atom{ rhs._window_delete_atom }
+    , _motif_hints{ rhs._motif_hints }
+    , _default_screen{ rhs._default_screen }
+    , _wnd_width{ rhs._wnd_width }
+    , _wnd_height{ rhs._wnd_height }
+    , _quit_flag{ rhs._quit_flag.load() }
+    , _kb_grabbed{ rhs._kb_grabbed }
+    , _pointer_grabbed{ rhs._pointer_grabbed }
+    , _input_helper{ std::move(rhs._input_helper) }
+
+{
+    rhs._kb_grabbed = false;
+    rhs._pointer_grabbed = false;
 }
 
 xray::ui::window::~window()
@@ -1082,6 +1104,12 @@ xray::ui::window::message_loop()
                 event_key(&window_event.xkey);
                 continue;
             }
+
+            if (window_event.type == ConfigureNotify) {
+                const XConfigureEvent* xcfg = &window_event.xconfigure;
+                _wnd_width = xcfg->width;
+                _wnd_height = xcfg->height;
+            }
         }
 
         events.poll_end({});
@@ -1120,7 +1148,6 @@ xray::ui::window::event_motion_notify(const XMotionEvent* x11evt)
 void
 xray::ui::window::event_mouse_button(const XButtonEvent* x11evt)
 {
-
     struct x11_button_mapping
     {
         uint32_t x11_btn;

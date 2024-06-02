@@ -536,7 +536,7 @@ struct SwapchainStateCreationInfo
 };
 
 tl::optional<detail::SwapchainState>
-create_rendering_bundle(const SwapchainStateCreationInfo& create_info);
+create_swapchain_state(const SwapchainStateCreationInfo& create_info);
 
 tl::optional<VulkanRenderer>
 VulkanRenderer::create(const WindowPlatformData& win_data)
@@ -829,9 +829,23 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         return tl::nullopt;
     }
 
-    tl::optional<detail::SwapchainState> swapchain_state =
+    struct SurfaceInfo
+    {
+        VkSurfaceCapabilitiesKHR caps;
+        VkSurfaceFormatKHR format;
+        VkPresentModeKHR present_mode;
+        VkFormat depth_stencil_format;
+    };
+
+    struct SwapchainStateWithSurfaceInfo
+    {
+        detail::SwapchainState swapchain_state;
+        SurfaceInfo surface_info;
+    };
+
+    tl::optional<SwapchainStateWithSurfaceInfo> swapchain_state =
         present_to_surface.and_then([pd = &phys_device, &win_data, vkdev = raw_ptr(logical_device)](
-                                        const PresentToSurface& ps) -> tl::optional<detail::SwapchainState> {
+                                        const PresentToSurface& ps) -> tl::optional<SwapchainStateWithSurfaceInfo> {
             VkSurfaceKHR surface =
                 swl::visit(VariantVisitor{ [](const PresentToWindowSurface& win) { return raw_ptr(win.surface); },
                                            [](const PresentToDisplaySurface& display) {
@@ -911,7 +925,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                                 } },
                 win_data);
 
-            const SwapchainStateCreationInfo rbi{
+            const SwapchainStateCreationInfo swapchain_state_create_info{
                 .device = vkdev,
                 .retired_swapchain = nullptr,
                 .surface = surface,
@@ -924,7 +938,17 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 .depth_att_format = VK_FORMAT_D32_SFLOAT_S8_UINT,
             };
 
-            return create_rendering_bundle(rbi);
+            return create_swapchain_state(swapchain_state_create_info)
+                .and_then([&swapchain_state_create_info](detail::SwapchainState&& swapchain_state) {
+                    return tl::make_optional<SwapchainStateWithSurfaceInfo>(
+                        std::move(swapchain_state),
+                        SurfaceInfo{
+                            .caps = swapchain_state_create_info.surface_caps,
+                            .format = swapchain_state_create_info.fmt,
+                            .present_mode = swapchain_state_create_info.present_mode,
+                            .depth_stencil_format = swapchain_state_create_info.depth_att_format,
+                        });
+                });
         });
 
     if (!swapchain_state) {
@@ -934,9 +958,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
     vector<xrUniqueVkFence> fences = [&swapchain_state, device = raw_ptr(logical_device)]() {
         vector<xrUniqueVkFence> fences{};
-        fences.reserve(swapchain_state->swapchain_imageviews.size());
+        fences.reserve(swapchain_state->swapchain_state.swapchain_imageviews.size());
 
-        for (uint32_t idx = 0; idx < swapchain_state->swapchain_imageviews.size(); ++idx) {
+        for (uint32_t idx = 0; idx < swapchain_state->swapchain_state.swapchain_imageviews.size(); ++idx) {
             const VkFenceCreateInfo fence_create_info = {
                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                 .pNext = nullptr,
@@ -957,9 +981,10 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
     auto make_semaphores_fn = [&swapchain_state, device = raw_ptr(logical_device)]() {
         vector<xrUniqueVkSemaphore> semaphores{};
-        semaphores.reserve(swapchain_state->swapchain_imageviews.size());
+        semaphores.reserve(swapchain_state->swapchain_state.swapchain_imageviews.size());
 
-        for (uint32_t idx = 0, image_count = static_cast<uint32_t>(swapchain_state->swapchain_imageviews.size());
+        for (uint32_t idx = 0,
+                      image_count = static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_imageviews.size());
              idx < image_count;
              ++idx) {
             const VkSemaphoreCreateInfo semaphore_create_info = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -1011,35 +1036,45 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             .pNext = nullptr,
             .commandPool = raw_ptr(qs[0].cmd_pool),
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = static_cast<uint32_t>(swapchain_state->swapchain_imageviews.size())
+            .commandBufferCount = static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_imageviews.size())
         };
 
-        vector<VkCommandBuffer> cmd_buffers{ swapchain_state->swapchain_imageviews.size() };
+        vector<VkCommandBuffer> cmd_buffers{ swapchain_state->swapchain_state.swapchain_imageviews.size() };
         WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, raw_ptr(logical_device), &cmd_buff_alloc_info, cmd_buffers.data());
 
         return cmd_buffers;
     }() };
 
-    const uint32_t max_frames{ static_cast<uint32_t>(swapchain_state->swapchain_images.size()) };
+    const uint32_t max_frames{ static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_images.size()) };
+
+    auto [swapchain, surface_info] = std::move(*swapchain_state.take());
 
     return tl::make_optional<VulkanRenderer>(
         PrivateConstructionToken{},
         detail::InstanceState{ std::move(vkinstance), std::move(dbg_msgr) },
         detail::RenderState{ phys_device, std::move(logical_device), std::move(qs) },
-        detail::PresentationState{ 0,
-                                   max_frames,
-                                   swl::visit(VariantVisitor{ [](PresentToWindowSurface&& win_surface) {
-                                                                 return std::move(win_surface.surface);
-                                                             },
-                                                              [](PresentToDisplaySurface&& display_surface) {
-                                                                  return std::move(display_surface.display_surface);
-                                                              } },
-                                              std::move(*present_to_surface.take())),
-                                   std::move(*swapchain_state.take()),
-                                   std::move(fences),
-                                   std::move(rendering_semaphores),
-                                   std::move(presentation_semaphore),
-                                   std::move(command_buffers) });
+        detail::PresentationState{
+            0,
+            max_frames,
+            0,
+            0,
+            detail::SurfaceState{ swl::visit(VariantVisitor{ [](PresentToWindowSurface&& win_surface) {
+                                                                return std::move(win_surface.surface);
+                                                            },
+                                                             [](PresentToDisplaySurface&& display_surface) {
+                                                                 return std::move(display_surface.display_surface);
+                                                             } },
+                                             std::move(*present_to_surface.take())),
+                                  surface_info.caps,
+                                  surface_info.format,
+                                  surface_info.present_mode,
+                                  surface_info.depth_stencil_format },
+
+            std::move(swapchain),
+            std::move(fences),
+            std::move(rendering_semaphores),
+            std::move(presentation_semaphore),
+            std::move(command_buffers) });
 }
 
 VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
@@ -1053,7 +1088,7 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
 }
 
 FrameRenderData
-VulkanRenderer::begin_rendering()
+VulkanRenderer::begin_rendering(const VkRect2D& render_area)
 {
     //
     // wait for previously submitted work to finish
@@ -1062,12 +1097,12 @@ VulkanRenderer::begin_rendering()
         vkWaitForFences, raw_ptr(_render_state.dev_logical), 1, fences, true, numeric_limits<uint64_t>::max()) };
 
     if (wait_fence_result != VK_SUCCESS) {
+        XR_LOG_CRITICAL("Failed to wait on fence!");
         // TODO: handle device lost
     }
 
     WRAP_VULKAN_FUNC(vkResetFences, raw_ptr(_render_state.dev_logical), 1, fences);
 
-    uint32_t acquired_image{};
     const VkResult acquire_image_result{ WRAP_VULKAN_FUNC(
         vkAcquireNextImageKHR,
         raw_ptr(_render_state.dev_logical),
@@ -1075,12 +1110,73 @@ VulkanRenderer::begin_rendering()
         numeric_limits<uint64_t>::max(),
         raw_ptr(_presentation_state.present_sem[_presentation_state.frame_index]),
         nullptr,
-        &acquired_image) };
+        &_presentation_state.acquired_image) };
 
-    if (acquire_image_result == VK_SUBOPTIMAL_KHR || acquire_image_result == VK_ERROR_OUT_OF_DATE_KHR) {
+    if (acquire_image_result == VK_SUBOPTIMAL_KHR || acquire_image_result == VK_ERROR_OUT_OF_DATE_KHR ||
+        _presentation_state.state_bits & detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL) {
         // TODO: handle this
+
+        VkSurfaceCapabilitiesKHR surface_caps;
+        const VkResult query_result = WRAP_VULKAN_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
+                                                       _render_state.dev_physical.device,
+                                                       raw_ptr(_presentation_state.surface_state.surface),
+                                                       &surface_caps);
+
+        if (query_result == VK_SUCCESS &&
+            (surface_caps.currentExtent.width != _presentation_state.surface_state.caps.currentExtent.width ||
+             surface_caps.currentExtent.height != _presentation_state.surface_state.caps.currentExtent.height)) {
+            XR_LOG_INFO("Suboptimal/out of date : surface caps = {}", surface_caps);
+
+            if (surface_caps.currentExtent.width == numeric_limits<uint32_t>::max() ||
+                surface_caps.currentExtent.height == numeric_limits<uint32_t>::max()) {
+                surface_caps.currentExtent = _presentation_state.surface_state.caps.currentExtent;
+            }
+
+            wait_device_idle();
+
+            const SwapchainStateCreationInfo swapchain_state_creation_info{
+                .device = raw_ptr(_render_state.dev_logical),
+                .retired_swapchain = raw_ptr(_presentation_state.swapchain_state.swapchain),
+                .surface = raw_ptr(_presentation_state.surface_state.surface),
+                .surface_caps = surface_caps,
+                .fmt = _presentation_state.surface_state.format,
+                .present_mode = _presentation_state.surface_state.present_mode,
+                .mem_props = _render_state.dev_physical.memory,
+                .image_count = static_cast<uint32_t>(_presentation_state.max_frames),
+                .dimensions = VkExtent3D{ .width = surface_caps.currentExtent.width,
+                                          .height = surface_caps.currentExtent.height,
+                                          .depth = 1 },
+                .depth_att_format = _presentation_state.surface_state.depth_stencil_format,
+            };
+
+            create_swapchain_state(swapchain_state_creation_info)
+                .map_or_else(
+                    [&](detail::SwapchainState new_swapchain_state) {
+                        _presentation_state.swapchain_state = std::move(new_swapchain_state);
+                        _presentation_state.state_bits &= ~detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL;
+                        _presentation_state.surface_state.caps = surface_caps;
+
+                        const uint32_t previous_acquired_image{ _presentation_state.acquired_image };
+
+                        WRAP_VULKAN_FUNC(vkAcquireNextImageKHR,
+                                         raw_ptr(_render_state.dev_logical),
+                                         raw_ptr(_presentation_state.swapchain_state.swapchain),
+                                         numeric_limits<uint64_t>::max(),
+                                         raw_ptr(_presentation_state.present_sem[_presentation_state.frame_index]),
+                                         nullptr,
+                                         &_presentation_state.acquired_image);
+
+                        XR_LOG_INFO("swapchain recreation previous acquired image {}, re-acquired image {}",
+                                    previous_acquired_image,
+                                    _presentation_state.acquired_image);
+
+                        // reset fences ??
+                    },
+                    []() { XR_LOG_CRITICAL("Could not create new swapchain state"); });
+        }
     }
 
+    const uint32_t acquired_image{ _presentation_state.acquired_image };
     //
     // reset command buffer
     WRAP_VULKAN_FUNC(vkResetCommandBuffer, _presentation_state.command_buffers[_presentation_state.frame_index], 0);
@@ -1096,11 +1192,11 @@ VulkanRenderer::begin_rendering()
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .pNext = nullptr,
         .imageView = raw_ptr(_presentation_state.swapchain_state.swapchain_imageviews[acquired_image]),
-        .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .resolveMode = VK_RESOLVE_MODE_NONE,
         .resolveImageView = nullptr,
         .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue = VkClearValue{}
     };
@@ -1109,11 +1205,11 @@ VulkanRenderer::begin_rendering()
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .pNext = nullptr,
         .imageView = raw_ptr(_presentation_state.swapchain_state.depth_stencil_image_views[acquired_image]),
-        .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         .resolveMode = VK_RESOLVE_MODE_NONE,
         .resolveImageView = nullptr,
         .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue = VkClearValue{}
     };
@@ -1121,7 +1217,7 @@ VulkanRenderer::begin_rendering()
     const VkRenderingInfo rendering_info = { .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
                                              .pNext = nullptr,
                                              .flags = 0,
-                                             .renderArea = VkRect2D{},
+                                             .renderArea = render_area,
                                              .layerCount = 1,
                                              .viewMask = 0,
                                              .colorAttachmentCount = 1,
@@ -1131,18 +1227,15 @@ VulkanRenderer::begin_rendering()
 
     };
 
-    WRAP_VULKAN_FUNC(
-        vkCmdBeginRendering, _presentation_state.command_buffers[_presentation_state.frame_index], &rendering_info);
-
     const VkImageMemoryBarrier2 attachments_to_optimal[] = {
         VkImageMemoryBarrier2{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                                .pNext = nullptr,
                                .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                               .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
-                               .dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
+                               .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                               .dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                               .newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                               .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                .srcQueueFamilyIndex = 0,
                                .dstQueueFamilyIndex = 0,
                                .image = _presentation_state.swapchain_state.swapchain_images[acquired_image],
@@ -1158,18 +1251,19 @@ VulkanRenderer::begin_rendering()
             .pNext = nullptr,
             .srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
             .srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
-            .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+            .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .srcQueueFamilyIndex = 0,
             .dstQueueFamilyIndex = 0,
             .image = raw_ptr(_presentation_state.swapchain_state.depth_stencil_images[acquired_image].image),
-            .subresourceRange = VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-                                                         .baseMipLevel = 0,
-                                                         .levelCount = 1,
-                                                         .baseArrayLayer = 0,
-                                                         .layerCount = 1 } }
+            .subresourceRange =
+                VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+                                         .baseMipLevel = 0,
+                                         .levelCount = 1,
+                                         .baseArrayLayer = 0,
+                                         .layerCount = 1 } }
     };
 
     const VkDependencyInfo dependency_info = { .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -1185,6 +1279,9 @@ VulkanRenderer::begin_rendering()
     WRAP_VULKAN_FUNC(
         vkCmdPipelineBarrier2, _presentation_state.command_buffers[_presentation_state.frame_index], &dependency_info);
 
+    WRAP_VULKAN_FUNC(
+        vkCmdBeginRendering, _presentation_state.command_buffers[_presentation_state.frame_index], &rendering_info);
+
     return FrameRenderData{ .id = _presentation_state.frame_index,
                             .max_frames = _presentation_state.max_frames,
                             .cmd_buf = _presentation_state.command_buffers[_presentation_state.frame_index] };
@@ -1193,6 +1290,8 @@ VulkanRenderer::begin_rendering()
 void
 VulkanRenderer::end_rendering()
 {
+    vkCmdEndRendering(_presentation_state.command_buffers[_presentation_state.frame_index]);
+
     //
     // move image from ATTACHMENT_OPTIMAL to SRC_PRESENT
     const VkImageMemoryBarrier2 att_optimal_to_src_present = {
@@ -1206,7 +1305,7 @@ VulkanRenderer::end_rendering()
         .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         .srcQueueFamilyIndex = 0,
         .dstQueueFamilyIndex = 0,
-        .image = _presentation_state.swapchain_state.swapchain_images[_presentation_state.frame_index],
+        .image = _presentation_state.swapchain_state.swapchain_images[_presentation_state.acquired_image],
         .subresourceRange = VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                                                      .baseMipLevel = 0,
                                                      .levelCount = VK_REMAINING_MIP_LEVELS,
@@ -1277,7 +1376,7 @@ VulkanRenderer::end_rendering()
     const VkSwapchainKHR swap_chains[] = { raw_ptr(_presentation_state.swapchain_state.swapchain) };
     const VkSemaphore present_wait_semaphores[] = { raw_ptr(
         _presentation_state.rendering_sem[_presentation_state.frame_index]) };
-    const uint32_t swapchain_image_index[] = { _presentation_state.frame_index };
+    const uint32_t swapchain_image_index[] = { _presentation_state.acquired_image };
 
     const VkPresentInfoKHR present_info = { .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
                                             .pNext = nullptr,
@@ -1286,17 +1385,57 @@ VulkanRenderer::end_rendering()
                                             .swapchainCount = static_cast<uint32_t>(size(swap_chains)),
                                             .pSwapchains = swap_chains,
                                             .pImageIndices = swapchain_image_index,
-                                            .pResults = nullptr
-
-    };
+                                            .pResults = nullptr };
 
     const VkResult present_result{ WRAP_VULKAN_FUNC(vkQueuePresentKHR, _render_state.queues[0].handle, &present_info) };
-    if (present_result == VK_SUCCESS) {
-        _presentation_state.frame_index = (_presentation_state.frame_index + 1) % _presentation_state.max_frames;
-    }
+    _presentation_state.frame_index = (_presentation_state.frame_index + 1) % _presentation_state.max_frames;
 
-    //
-    // deal with failure
+    if (present_result != VK_SUCCESS) {
+        if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
+            _presentation_state.state_bits |= detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL;
+        }
+    }
+}
+
+void
+VulkanRenderer::clear_attachments(VkCommandBuffer cmd_buf,
+                                  const float red,
+                                  const float green,
+                                  const float blue,
+                                  const uint32_t width,
+                                  const uint32_t height,
+                                  const float depth,
+                                  const uint32_t stencil)
+{
+    const VkClearAttachment clear_attachments[] = {
+        VkClearAttachment{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                           .colorAttachment = 0,
+                           .clearValue = VkClearValue{ .color = VkClearColorValue{ red, green, blue, 1.0f } } },
+        VkClearAttachment{ .aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT | VK_IMAGE_ASPECT_DEPTH_BIT,
+                           .colorAttachment = 0,
+                           .clearValue = VkClearValue{ .depthStencil = VkClearDepthStencilValue{ depth, stencil } } }
+    };
+
+    const VkRect2D clear_area{ .offset = { 0, 0 }, .extent = { width, height } };
+
+    const VkClearRect clear_rects[] = {
+        VkClearRect{ .rect = clear_area, .baseArrayLayer = 0, .layerCount = 1 },
+        VkClearRect{ .rect = clear_area, .baseArrayLayer = 0, .layerCount = 1 },
+    };
+
+    vkCmdClearAttachments(cmd_buf,
+                          static_cast<uint32_t>(size(clear_attachments)),
+                          clear_attachments,
+                          static_cast<uint32_t>(size(clear_rects)),
+                          clear_rects);
+}
+
+void
+VulkanRenderer::wait_device_idle() noexcept
+{
+    for (const detail::Queue& q : _render_state.queues) {
+        WRAP_VULKAN_FUNC(vkQueueWaitIdle, q.handle);
+    }
 }
 
 tl::optional<UniqueMemoryMapping>
@@ -1715,7 +1854,7 @@ vk_format_bytes_size(const VkFormat format)
 }
 
 tl::optional<detail::SwapchainState>
-create_rendering_bundle(const SwapchainStateCreationInfo& create_info)
+create_swapchain_state(const SwapchainStateCreationInfo& create_info)
 {
     xrUniqueVkSwapchainKHR swapchain{
         [&]() {

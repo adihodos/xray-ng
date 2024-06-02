@@ -87,229 +87,325 @@ using namespace xray::rendering;
 using namespace std;
 
 xray::base::ConfigSystem* xr_app_config{ nullptr };
-//
-// namespace app {
-//
-// struct DemoInfo
-// {
-//     std::string_view shortDesc;
-//     std::string_view detailedDesc;
-//     fast_delegate<tl::optional<demo_bundle_t>(const init_context_t&)> createFn;
-// };
-//
-// template<typename... Ts>
-// struct RegisteredDemosList;
-//
-// template<typename T, typename... Rest>
-// struct RegisteredDemosList<T, Rest...>
-// {
-//     static void registerDemo(vector<DemoInfo>& demoList)
-//     {
-//         demoList.emplace_back(T::short_desc(), T::detailed_desc(), make_delegate(T::create));
-//         RegisteredDemosList<Rest...>::registerDemo(demoList);
-//     }
-// };
-//
-// template<>
-// struct RegisteredDemosList<>
-// {
-//     static void registerDemo(vector<DemoInfo>&) {}
-// };
-//
-// enum class demo_type : int32_t
-// {
-//     none,
-//     colored_circle,
-//     fractal,
-//     texture_array,
-//     mesh,
-//     bufferless_draw,
-//     lighting_directional,
-//     lighting_point,
-//     procedural_city,
-//     instanced_drawing,
-//     geometric_shapes,
-//     // terrain_basic
-// };
-//
-// class main_app
-// {
-//   public:
-//     explicit main_app(xray::ui::window* wnd);
-//     ~main_app() {}
-//
-//     bool valid() const noexcept { return _initialized; }
-//
-//     explicit operator bool() const noexcept { return valid(); }
-//
-//   private:
-//     bool demo_running() const noexcept { return _demo != nullptr; }
-//     void run_demo(const demo_type type);
-//     void hookup_event_delegates();
-//     void demo_quit();
-//
-//     const DemoInfo& get_demo_info(const size_t idx) const
-//     {
-//         assert(idx < _registeredDemos.size());
-//         return _registeredDemos[idx];
-//     }
-//
-//     /// \group Event handlers
-//     /// @{
-//
-//     void loop_event(const xray::ui::window_loop_event& loop_evt);
-//
-//     void event_handler(const xray::ui::window_event& wnd_evt);
-//
-//     void poll_start(const xray::ui::poll_start_event&);
-//
-//     void poll_end(const xray::ui::poll_end_event&);
-//
-//     /// @}
-//
-//     void draw(const xray::ui::window_loop_event& loop_evt);
-//
-//   private:
-//     xray::ui::window* _window;
-//     xray::base::unique_pointer<xray::ui::user_interface> _ui{};
-//     xray::base::unique_pointer<demo_base> _demo;
-//     xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::bluegrey800 };
-//     xray::base::timer_highp _timer;
-//     vector<DemoInfo> _registeredDemos;
-//     bool _initialized{ false };
-//     vector<char> _combo_items{};
-//
-//     XRAY_NO_COPY(main_app);
-// };
-//
-// main_app::main_app(xray::ui::window* wnd)
-//     : _window{ wnd }
-// {
-//     namespace fs = std::filesystem;
-//     const vector<xray::ui::font_info> font_list = fs::recursive_directory_iterator(xr_app_config->font_root()) >>=
-//         pipes::filter([](const fs::directory_entry& dir_entry) {
-//             if (!dir_entry.is_regular_file())
-//                 return false;
-//
-//             const std::string_view file_ext{ dir_entry.path().extension().c_str() };
-//             return file_ext == ".ttf" || file_ext == ".otf";
-//         }) >>= pipes::transform([](const fs::directory_entry& dir_entry) {
-//             return xray::ui::font_info{ .path = dir_entry.path(), .pixel_size = 18.0f };
-//         }) >>= pipes::to_<vector<xray::ui::font_info>>();
-//
-//     _ui = xray::base::make_unique<xray::ui::user_interface>(font_list.data(), font_list.size());
-//
-//     hookup_event_delegates();
-//
-//     RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo, InstancedDrawingDemo>::registerDemo(
-//         _registeredDemos);
-//
-//     const string_view first_entry{ "Main page" };
-//     copy(cbegin(first_entry), cend(first_entry), back_inserter(_combo_items));
-//     _combo_items.push_back(0);
-//
-//     _registeredDemos >>= pipes::for_each([this](const DemoInfo& demo) {
-//         XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc);
-//         const string_view demo_desc{ demo.shortDesc };
-//         copy(cbegin(demo_desc), cend(demo_desc), back_inserter(_combo_items));
-//         _combo_items.push_back(0);
-//     });
-//     _combo_items.push_back(0);
-//
-//     gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
-//     _ui->set_global_font("Roboto-Regular");
-//     _timer.start();
-// }
-//
-// void
-// main_app::poll_start(const xray::ui::poll_start_event&)
-// {
-// }
-//
-// void
-// main_app::poll_end(const xray::ui::poll_end_event&)
-// {
-// }
-//
-// void
-// main_app::demo_quit()
-// {
-//     assert(demo_running());
-//     _demo = nullptr;
-//     hookup_event_delegates();
-// }
-//
-// void
-// main_app::hookup_event_delegates()
-// {
-//     _window->events.loop = make_delegate(*this, &main_app::loop_event);
-//     _window->events.poll_start = make_delegate(*this, &main_app::poll_start);
-//     _window->events.poll_end = make_delegate(*this, &main_app::poll_end);
-//     _window->events.window = make_delegate(*this, &main_app::event_handler);
-// }
-//
-// void
-// main_app::event_handler(const xray::ui::window_event& wnd_evt)
-// {
-//     assert(!demo_running());
-//
-//     if (is_input_event(wnd_evt)) {
-//
-//         if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
-//             wnd_evt.event.key.type == event_action_type::press && !_ui->wants_input()) {
-//             _window->quit();
-//             return;
-//         }
-//
-//         _ui->input_event(wnd_evt);
-//     }
-// }
-//
-// void
-// main_app::loop_event(const xray::ui::window_loop_event& levt)
-// {
-//     _timer.update_and_reset();
-//     _ui->tick(_timer.elapsed_millis());
-//     _ui->new_frame(levt.wnd_width, levt.wnd_height);
-//
-//     {
-//         ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
-//
-//         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
-//
-//             int32_t selectedItem{};
-//             const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
-//
-//             if (wasClicked && selectedItem >= 1) {
-//                 const init_context_t initContext{ _window->width(),
-//                                                   _window->height(),
-//                                                   xr_app_config,
-//                                                   xray::base::raw_ptr(_ui),
-//                                                   make_delegate(*this, &main_app::demo_quit) };
-//
-//                 _registeredDemos[static_cast<size_t>(selectedItem - 1)]
-//                     .createFn(initContext)
-//                     .map([this](demo_bundle_t bundle) {
-//                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
-//                         this->_demo = std::move(demoObj);
-//                         this->_window->events.window = winEvtHandler;
-//                         this->_window->events.loop = pollEvtHandler;
-//                     });
-//             }
-//         }
-//
-//         ImGui::End();
-//     }
-//
-//     const xray::math::vec4f viewport{
-//         0.0f, 0.0f, static_cast<float>(levt.wnd_width), static_cast<float>(levt.wnd_height)
-//     };
-//
-//     gl::ViewportIndexedfv(0, viewport.components);
-//     gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
-//     gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
-//     _ui->draw();
-// }
+
+namespace app {
+
+struct DemoInfo
+{
+    std::string_view shortDesc;
+    std::string_view detailedDesc;
+    fast_delegate<tl::optional<demo_bundle_t>(const init_context_t&)> createFn;
+};
+
+template<typename... Ts>
+struct RegisteredDemosList;
+
+template<typename T, typename... Rest>
+struct RegisteredDemosList<T, Rest...>
+{
+    static void registerDemo(vector<DemoInfo>& demoList)
+    {
+        demoList.emplace_back(T::short_desc(), T::detailed_desc(), make_delegate(T::create));
+        RegisteredDemosList<Rest...>::registerDemo(demoList);
+    }
+};
+
+template<>
+struct RegisteredDemosList<>
+{
+    static void registerDemo(vector<DemoInfo>&) {}
+};
+
+enum class demo_type : int32_t
+{
+    none,
+    colored_circle,
+    fractal,
+    texture_array,
+    mesh,
+    bufferless_draw,
+    lighting_directional,
+    lighting_point,
+    procedural_city,
+    instanced_drawing,
+    geometric_shapes,
+    // terrain_basic
+};
+
+class MainRunner
+{
+  private:
+    struct PrivateConstructToken
+    {
+        explicit PrivateConstructToken() = default;
+    };
+
+  public:
+    MainRunner(PrivateConstructToken, xray::ui::window window, xray::rendering::VulkanRenderer vkrenderer)
+        : _window{ std::move(window) }
+        , _vkrenderer{ std::move(vkrenderer) }
+    {
+    }
+
+    MainRunner(MainRunner&& rhs) = default;
+
+    ~MainRunner();
+
+    static tl::optional<MainRunner> create();
+    void run();
+
+  private:
+    bool demo_running() const noexcept { return _demo != nullptr; }
+    void run_demo(const demo_type type);
+    void hookup_event_delegates();
+    void demo_quit();
+
+    const DemoInfo& get_demo_info(const size_t idx) const
+    {
+        assert(idx < _registeredDemos.size());
+        return _registeredDemos[idx];
+    }
+
+    /// \group Event handlers
+    /// @{
+
+    void loop_event(const xray::ui::window_loop_event& loop_evt);
+
+    void event_handler(const xray::ui::window_event& wnd_evt);
+
+    void poll_start(const xray::ui::poll_start_event&);
+
+    void poll_end(const xray::ui::poll_end_event&);
+
+    /// @}
+
+    void draw(const xray::ui::window_loop_event& loop_evt);
+
+  private:
+    xray::ui::window _window;
+    // TODO: decouple UI logic from rendering
+    //     xray::base::unique_pointer<xray::ui::user_interface> _ui{};
+
+    xray::rendering::VulkanRenderer _vkrenderer;
+    xray::base::unique_pointer<demo_base> _demo{};
+    xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::bluegrey800 };
+    xray::base::timer_highp _timer{};
+    vector<DemoInfo> _registeredDemos{};
+    vector<char> _combo_items{};
+
+    XRAY_NO_COPY(MainRunner);
+};
+
+MainRunner::~MainRunner() {}
+
+void
+MainRunner::run()
+{
+    hookup_event_delegates();
+    _window.message_loop();
+    _vkrenderer.wait_device_idle();
+}
+
+tl::optional<MainRunner>
+MainRunner::create()
+{
+    using namespace xray::ui;
+    using namespace xray::base;
+
+    xray::base::setup_logging();
+
+    XR_LOG_INFO("Starting up ...");
+
+    const int num_threads = oneapi::tbb::info::default_concurrency();
+    XR_LOG_INFO("Default concurency {}", num_threads);
+
+    ConfigSystem app_cfg{ "config/app_config.conf" };
+    xr_app_config = &app_cfg;
+
+    XR_LOG_INFO("Configured paths");
+    XR_LOG_INFO("Root {}", xr_app_config->root_directory().c_str());
+    XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").c_str());
+    XR_LOG_INFO("Models {}", xr_app_config->model_path("").c_str());
+    XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").c_str());
+    XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").c_str());
+
+    const window_params_t wnd_params{ "OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false };
+
+    window main_window{ wnd_params };
+    if (!main_window) {
+        XR_LOG_ERR("Failed to initialize application window!");
+        return tl::nullopt;
+    }
+
+    //     namespace fs = std::filesystem;
+    //     const vector<xray::ui::font_info> font_list = fs::recursive_directory_iterator(xr_app_config->font_root())
+    //     >>=
+    //         pipes::filter([](const fs::directory_entry& dir_entry) {
+    //             if (!dir_entry.is_regular_file())
+    //                 return false;
+    //
+    //             const std::string_view file_ext{ dir_entry.path().extension().c_str() };
+    //             return file_ext == ".ttf" || file_ext == ".otf";
+    //         }) >>= pipes::transform([](const fs::directory_entry& dir_entry) {
+    //             return xray::ui::font_info{ .path = dir_entry.path(), .pixel_size = 18.0f };
+    //         }) >>= pipes::to_<vector<xray::ui::font_info>>();
+    //
+    //     _ui = xray::base::make_unique<xray::ui::user_interface>(font_list.data(), font_list.size());
+    //     hookup_event_delegates();
+    //
+    //     RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo,
+    //     InstancedDrawingDemo>::registerDemo(
+    //         _registeredDemos);
+    //
+    //     const string_view first_entry{ "Main page" };
+    //     copy(cbegin(first_entry), cend(first_entry), back_inserter(_combo_items));
+    //     _combo_items.push_back(0);
+    //
+    //     _registeredDemos >>= pipes::for_each([this](const DemoInfo& demo) {
+    //         XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc);
+    //         const string_view demo_desc{ demo.shortDesc };
+    //         copy(cbegin(demo_desc), cend(demo_desc), back_inserter(_combo_items));
+    //         _combo_items.push_back(0);
+    //     });
+    //     _combo_items.push_back(0);
+    //
+    //     gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
+    //     _ui->set_global_font("Roboto-Regular");
+    //     _timer.start();
+
+    tl::optional<VulkanRenderer> renderer{ VulkanRenderer::create(
+        WindowPlatformDataXlib{ .display = main_window.native_display(),
+                                .window = main_window.native_window(),
+                                .visual = main_window.native_visual(),
+                                .width = static_cast<uint32_t>(main_window.width()),
+                                .height = static_cast<uint32_t>(main_window.height()) }) };
+
+    if (!renderer) {
+        XR_LOG_CRITICAL("Failed to create Vulkan renderer!");
+        return tl::nullopt;
+    }
+
+    return tl::make_optional<MainRunner>(PrivateConstructToken{}, std::move(main_window), std::move(*renderer.take()));
+}
+
+void
+MainRunner::demo_quit()
+{
+    assert(demo_running());
+    _demo = nullptr;
+    hookup_event_delegates();
+}
+
+void
+MainRunner::poll_start(const xray::ui::poll_start_event&)
+{
+}
+
+void
+MainRunner::poll_end(const xray::ui::poll_end_event&)
+{
+}
+
+void
+MainRunner::hookup_event_delegates()
+{
+    _window.events.loop = make_delegate(*this, &MainRunner::loop_event);
+    _window.events.poll_start = make_delegate(*this, &MainRunner::poll_start);
+    _window.events.poll_end = make_delegate(*this, &MainRunner::poll_end);
+    _window.events.window = make_delegate(*this, &MainRunner::event_handler);
+}
+
+void
+MainRunner::event_handler(const xray::ui::window_event& wnd_evt)
+{
+    assert(!demo_running());
+
+    if (is_input_event(wnd_evt)) {
+
+        if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
+            wnd_evt.event.key.type == event_action_type::press
+            /* && !_ui->wants_input() */
+        ) {
+            _window.quit();
+            return;
+        }
+
+        //_ui->input_event(wnd_evt);
+    }
+}
+
+void
+MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
+{
+    _timer.update_and_reset();
+    //     _ui->tick(_timer.elapsed_millis());
+    //     _ui->new_frame(levt.wnd_width, levt.wnd_height);
+    //
+    //     {
+    //         ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
+    //
+    //         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse))
+    //         {
+    //
+    //             int32_t selectedItem{};
+    //             const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
+    //
+    //             if (wasClicked && selectedItem >= 1) {
+    //                 const init_context_t initContext{ _window->width(),
+    //                                                   _window->height(),
+    //                                                   xr_app_config,
+    //                                                   xray::base::raw_ptr(_ui),
+    //                                                   make_delegate(*this, &main_app::demo_quit) };
+    //
+    //                 _registeredDemos[static_cast<size_t>(selectedItem - 1)]
+    //                     .createFn(initContext)
+    //                     .map([this](demo_bundle_t bundle) {
+    //                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
+    //                         this->_demo = std::move(demoObj);
+    //                         this->_window->events.window = winEvtHandler;
+    //                         this->_window->events.loop = pollEvtHandler;
+    //                     });
+    //             }
+    //         }
+    //
+    //         ImGui::End();
+    //     }
+    //
+    // const xray::math::vec4f viewport{
+    //     0.0f, 0.0f, static_cast<float>(loop_event.wnd_width), static_cast<float>(loop_event.wnd_height)
+    // };
+    //
+    const VkRect2D render_area{ .offset = { .x = 0, .y = 0 },
+                                .extent = { .width = static_cast<uint32_t>(loop_event.wnd_width),
+                                            .height = static_cast<uint32_t>(loop_event.wnd_height) } };
+
+    const FrameRenderData frd{ _vkrenderer.begin_rendering(render_area) };
+
+    const VkViewport viewport{ .x = 0.0f,
+                               .y = 0.0f,
+                               .width = static_cast<float>(loop_event.wnd_width),
+                               .height = static_cast<float>(loop_event.wnd_height),
+                               .minDepth = 0.0f,
+                               .maxDepth = 1.0f };
+
+    vkCmdSetViewport(frd.cmd_buf, 0, 1, &viewport);
+
+    const VkRect2D scissor{ .offset = VkOffset2D{ 0, 0 },
+                            .extent = VkExtent2D{ static_cast<uint32_t>(viewport.width),
+                                                  static_cast<uint32_t>(viewport.height) } };
+    vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
+    _vkrenderer.clear_attachments(
+        frd.cmd_buf, 1.0f, 0.0f, 0.0f, static_cast<uint32_t>(viewport.width), static_cast<uint32_t>(viewport.height));
+
+    _vkrenderer.end_rendering();
+
+    //
+    //     gl::ViewportIndexedfv(0, viewport.components);
+    //     gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
+    //     gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
+    //     _ui->draw();
+}
+
 //
 // void
 // main_app::run_demo(const demo_type type)
@@ -617,220 +713,17 @@ xray::base::ConfigSystem* xr_app_config{ nullptr };
 //     xray::base::random_number_generator _rng;
 //     std::vector<xray::math::vec3f> _points;
 // };
-//
+}
+
 int
 main(int argc, char** argv)
 {
-    using namespace xray::ui;
-    using namespace xray::base;
+    app::MainRunner::create().map_or_else(
+        [](app::MainRunner runner) {
+            runner.run();
+            XR_LOG_INFO("Shutting down ...");
+        },
+        []() { XR_LOG_CRITICAL("Failure, shutting down ..."); });
 
-    xray::base::setup_logging();
-
-    XR_LOG_INFO("Starting up ...");
-
-    const int num_threads = oneapi::tbb::info::default_concurrency();
-    XR_LOG_INFO("Default concurency {}", num_threads);
-
-    ConfigSystem app_cfg{ "config/app_config.conf" };
-    xr_app_config = &app_cfg;
-
-    XR_LOG_INFO("Configured paths");
-    XR_LOG_INFO("Root {}", xr_app_config->root_directory().c_str());
-    XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").c_str());
-    XR_LOG_INFO("Models {}", xr_app_config->model_path("").c_str());
-    XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").c_str());
-    XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").c_str());
-
-    const window_params_t wnd_params{ "OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false };
-
-    window main_window{ wnd_params };
-    if (!main_window) {
-        XR_LOG_ERR("Failed to initialize application window!");
-        return EXIT_FAILURE;
-    }
-
-    VulkanRenderer::create(WindowPlatformDataXlib{ .display = main_window.native_display(),
-                                                   .window = main_window.native_window(),
-                                                   .visual = main_window.native_visual(),
-                                                   .width = static_cast<uint32_t>(main_window.width()),
-                                                   .height = static_cast<uint32_t>(main_window.height()) })
-        .map_or_else([](VulkanRenderer vkr) {}, []() { XR_LOG_CRITICAL("Failed to create Vulkan renderer!"); });
-
-    // gl::DebugMessageCallback(app::debug_proc, nullptr);
-    // //
-    // // turn off these so we don't get spammed
-    // gl::DebugMessageControl(gl::DONT_CARE, gl::DONT_CARE, gl::DEBUG_SEVERITY_NOTIFICATION, 0, nullptr,
-    // gl::FALSE_);
-    //
-    // app::main_app app{ &main_window };
-    // main_window.message_loop();
-    //
-    // XR_LOG_INFO("Shutting down ...");
     return EXIT_SUCCESS;
 }
-
-// static void
-// cursor_set(xcb_connection_t* c, xcb_screen_t* screen, xcb_window_t window, int cursor_id)
-// {
-//     uint32_t values_list[3];
-//     xcb_void_cookie_t cookie_font;
-//     xcb_void_cookie_t cookie_gc;
-//     xcb_generic_error_t* error;
-//     xcb_font_t font;
-//     xcb_cursor_t cursor;
-//     xcb_gcontext_t gc;
-//     uint32_t mask;
-//     uint32_t value_list;
-//
-//     font = xcb_generate_id(c);
-//     cookie_font = xcb_open_font_checked(c, font, strlen("cursor"), "cursor");
-//     error = xcb_request_check(c, cookie_font);
-//     if (error) {
-//         fprintf(stderr, "ERROR: can't open font : %d\n", error->error_code);
-//         xcb_disconnect(c);
-//         exit(-1);
-//     }
-//
-//     cursor = xcb_generate_id(c);
-//     xcb_create_glyph_cursor(c, cursor, font, font, cursor_id, cursor_id + 1, 0, 0, 0, 0, 0, 0);
-//
-//     gc = xcb_generate_id(c);
-//     mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT;
-//     values_list[0] = screen->black_pixel;
-//     values_list[1] = screen->white_pixel;
-//     values_list[2] = font;
-//     cookie_gc = xcb_create_gc_checked(c, gc, window, mask, values_list);
-//     error = xcb_request_check(c, cookie_gc);
-//     if (error) {
-//         fprintf(stderr, "ERROR: can't create gc : %d\n", error->error_code);
-//         xcb_disconnect(c);
-//         exit(-1);
-//     }
-//
-//     mask = XCB_CW_CURSOR;
-//     value_list = cursor;
-//     xcb_change_window_attributes(c, window, mask, &value_list);
-//
-//     xcb_free_cursor(c, cursor);
-//
-//     cookie_font = xcb_close_font_checked(c, font);
-//     error = xcb_request_check(c, cookie_font);
-//     if (error) {
-//         fprintf(stderr, "ERROR: can't close font : %d\n", error->error_code);
-//         xcb_disconnect(c);
-//         exit(-1);
-//     }
-// }
-//
-// int
-// main()
-// {
-//
-//     using namespace xray::ui;
-//     using namespace xray::base;
-//
-//     xray::base::setup_logging();
-//
-//     XR_LOG_INFO("Starting up ...");
-//
-//     const int num_threads = oneapi::tbb::info::default_concurrency();
-//     XR_LOG_INFO("Default concurency {}", num_threads);
-//
-//     ConfigSystem app_cfg{ "config/app_config.conf" };
-//     xr_app_config = &app_cfg;
-//
-//     XR_LOG_INFO("Configured paths");
-//     XR_LOG_INFO("Root {}", xr_app_config->root_directory().c_str());
-//     XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").c_str());
-//     XR_LOG_INFO("Models {}", xr_app_config->model_path("").c_str());
-//     XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").c_str());
-//     XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").c_str());
-//
-//     const window_params_t wnd_params{ "OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false };
-//
-//     xcb_screen_iterator_t screen_iter;
-//     xcb_connection_t* c;
-//     const xcb_setup_t* setup;
-//     xcb_screen_t* screen;
-//     xcb_generic_event_t* e;
-//     xcb_generic_error_t* error;
-//     xcb_void_cookie_t cookie_window;
-//     xcb_void_cookie_t cookie_map;
-//     xcb_window_t window;
-//     uint32_t mask;
-//     uint32_t values[2];
-//     int screen_number;
-//     uint8_t is_hand = 0;
-//     constexpr const int WIDTH = 1024;
-//     constexpr const int HEIGHT = 1024;
-//
-//     /* getting the connection */
-//     c = xcb_connect(NULL, &screen_number);
-//     if (!c) {
-//         fprintf(stderr, "ERROR: can't connect to an X server\n");
-//         return -1;
-//     }
-//
-//     /* getting the current screen */
-//     setup = xcb_get_setup(c);
-//
-//     screen = NULL;
-//     screen_iter = xcb_setup_roots_iterator(setup);
-//     for (; screen_iter.rem != 0; --screen_number, xcb_screen_next(&screen_iter))
-//         if (screen_number == 0) {
-//             screen = screen_iter.data;
-//             break;
-//         }
-//     if (!screen) {
-//         fprintf(stderr, "ERROR: can't get the current screen\n");
-//         xcb_disconnect(c);
-//         return -1;
-//     }
-//
-//     /* creating the window */
-//     window = xcb_generate_id(c);
-//     mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-//     values[0] = screen->white_pixel;
-//     values[1] = XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_EXPOSURE |
-//                 XCB_EVENT_MASK_POINTER_MOTION;
-//     cookie_window = xcb_create_window_checked(c,
-//                                               screen->root_depth,
-//                                               window,
-//                                               screen->root,
-//                                               20,
-//                                               200,
-//                                               WIDTH,
-//                                               HEIGHT,
-//                                               0,
-//                                               XCB_WINDOW_CLASS_INPUT_OUTPUT,
-//                                               screen->root_visual,
-//                                               mask,
-//                                               values);
-//     cookie_map = xcb_map_window_checked(c, window);
-//
-//     /* error managing */
-//     error = xcb_request_check(c, cookie_window);
-//     if (error) {
-//         fprintf(stderr, "ERROR: can't create window : %d\n", error->error_code);
-//         xcb_disconnect(c);
-//         return -1;
-//     }
-//     error = xcb_request_check(c, cookie_map);
-//     if (error) {
-//         fprintf(stderr, "ERROR: can't map window : %d\n", error->error_code);
-//         xcb_disconnect(c);
-//         return -1;
-//     }
-//
-//     cursor_set(c, screen, window, 68);
-//     xcb_flush(c);
-//
-//     const xray::rendering::WindowPlatformData window_platform_data =
-//         WindowPlatformDataXcb{ .connection = c, .window = window, .visual = screen->root_visual };
-//
-//     VulkanRenderer::create(window_platform_data)
-//         .map_or_else([](VulkanRenderer vkr) { XR_LOG_INFO("Ebaaaaaaaat ! VulkanRenderer created successfully!"); },
-//                      []() { XR_LOG_CRITICAL("Failed to create Vulkan renderer!"); });
-//
-//     return 0;
-// }

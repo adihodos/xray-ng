@@ -32,11 +32,23 @@ struct SwapchainState
     std::vector<xrUniqueVkImageView> depth_stencil_image_views;
 };
 
+struct SurfaceState
+{
+    xrUniqueVkSurfaceKHR surface;
+    VkSurfaceCapabilitiesKHR caps;
+    VkSurfaceFormatKHR format;
+    VkPresentModeKHR present_mode;
+    VkFormat depth_stencil_format;
+};
+
 struct PresentationState
 {
+    static constexpr const uint32_t STATE_SWAPCHAIN_SUBOPTIMAL{ 0x1 };
     uint32_t frame_index{};
     uint32_t max_frames{};
-    xrUniqueVkSurfaceKHR surface;
+    uint32_t acquired_image{};
+    uint32_t state_bits{};
+    SurfaceState surface_state;
     SwapchainState swapchain_state;
     std::vector<xrUniqueVkFence> fences;
     std::vector<xrUniqueVkSemaphore> rendering_sem;
@@ -115,8 +127,18 @@ class VulkanRenderer
                    detail::RenderState render_state,
                    detail::PresentationState presentation_state);
 
-    FrameRenderData begin_rendering();
+    FrameRenderData begin_rendering(const VkRect2D& render_area);
     void end_rendering();
+    void clear_attachments(VkCommandBuffer cmd_buf,
+                           const float red,
+                           const float green,
+                           const float blue,
+                           const uint32_t width,
+                           const uint32_t height,
+                           const float depth = 1.0,
+                           const uint32_t stencil = 0);
+
+    void wait_device_idle() noexcept;
 
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
