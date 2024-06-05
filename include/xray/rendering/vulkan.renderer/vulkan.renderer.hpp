@@ -140,6 +140,21 @@ class VulkanRenderer
 
     void wait_device_idle() noexcept;
 
+    VkDevice device() const noexcept { return xray::base::raw_ptr(_render_state.dev_logical); }
+    const detail::SurfaceState& surface_state() const noexcept { return _presentation_state.surface_state; }
+
+    std::pair<uint32_t, uint32_t> buffering_setup() const noexcept
+    {
+        return { _presentation_state.frame_index, _presentation_state.max_frames };
+    }
+
+    uint32_t max_inflight_frames() const noexcept { return _presentation_state.max_frames; }
+
+    tl::optional<ManagedUniqueBuffer> create_buffer(const VkBufferUsageFlags usage,
+                                                    const size_t bytes,
+                                                    const size_t frames,
+                                                    const VkMemoryPropertyFlags memory_properties) noexcept;
+
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
     const detail::Queue& transfer_queue() const noexcept { return _render_state.queues[1]; }
@@ -148,5 +163,8 @@ class VulkanRenderer
     detail::RenderState _render_state;
     detail::PresentationState _presentation_state;
 };
+
+uint32_t
+vk_format_bytes_size(const VkFormat format);
 
 } // namespace xray::rendering

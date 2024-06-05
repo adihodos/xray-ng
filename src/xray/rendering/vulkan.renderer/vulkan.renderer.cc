@@ -1438,6 +1438,89 @@ VulkanRenderer::wait_device_idle() noexcept
     }
 }
 
+tl::optional<ManagedUniqueBuffer>
+VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
+                              const size_t bytes,
+                              const size_t frames,
+                              const VkMemoryPropertyFlags memory_properties) noexcept
+{
+    const VkDeviceSize alignment = [usage, this]() {
+        if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
+            return _render_state.dev_physical.properties.base.properties.limits.minUniformBufferOffsetAlignment;
+        } else if (usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT) {
+            return _render_state.dev_physical.properties.base.properties.limits.minStorageBufferOffsetAlignment;
+        } else {
+            return _render_state.dev_physical.properties.base.properties.limits.nonCoherentAtomSize;
+        }
+    }();
+
+    auto roundup_to_alignment_fn = [](const size_t bytes, const size_t alignment) {
+        return ((bytes + alignment - 1) / alignment) * alignment;
+    };
+
+    const size_t aligned_bytes = roundup_to_alignment_fn(bytes, alignment);
+    const size_t aligned_allocation_size = aligned_bytes * frames;
+
+    XR_LOG_INFO(
+        "Create buffer request, bytes size = {}, alignment = {}, aligned size = {}, aligned allocation size = {}",
+        bytes,
+        alignment,
+        aligned_bytes,
+        aligned_allocation_size);
+
+    const VkBufferCreateInfo buffer_create_info = { .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                                    .pNext = nullptr,
+                                                    .flags = 0,
+                                                    .size = aligned_allocation_size,
+                                                    .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                                    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                                                    .queueFamilyIndexCount = 0,
+                                                    .pQueueFamilyIndices = nullptr };
+
+    VkBuffer buffer;
+    WRAP_VULKAN_FUNC(vkCreateBuffer, this->device(), &buffer_create_info, nullptr, &buffer);
+    if (!buffer)
+        return tl::nullopt;
+
+    xrUniqueVkBuffer sb{ buffer, VkResourceDeleter_VkBuffer{ this->device() } };
+
+    const VkBufferMemoryRequirementsInfo2 mem_req_info = { .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+                                                           .pNext = nullptr,
+                                                           .buffer = raw_ptr(sb) };
+
+    VkMemoryRequirements2 mem_req = { .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2, .pNext = nullptr };
+
+    vkGetBufferMemoryRequirements2(this->device(), &mem_req_info, &mem_req);
+
+    const VkMemoryAllocateInfo mem_alloc_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .allocationSize = mem_req.memoryRequirements.size,
+        .memoryTypeIndex = find_allocation_memory_type(
+            _render_state.dev_physical.memory, mem_req.memoryRequirements.memoryTypeBits, memory_properties)
+    };
+
+    VkDeviceMemory buffer_mem;
+    WRAP_VULKAN_FUNC(vkAllocateMemory, this->device(), &mem_alloc_info, nullptr, &buffer_mem);
+    xrUniqueVkDeviceMemory bm{ buffer_mem, VkResourceDeleter_VkDeviceMemory{ this->device() } };
+
+    if (!buffer_mem) {
+        return tl::nullopt;
+    }
+
+    const VkResult bind_buffer_mem_result{ WRAP_VULKAN_FUNC(
+        vkBindBufferMemory, this->device(), raw_ptr(sb), raw_ptr(bm), 0) };
+
+    if (bind_buffer_mem_result != VK_SUCCESS) {
+        return tl::nullopt;
+    }
+
+    return tl::make_optional<ManagedUniqueBuffer>(
+        xrUniqueBufferWithMemory{ this->device(), unique_pointer_release(sb), unique_pointer_release(bm) },
+        static_cast<uint32_t>(aligned_bytes),
+        static_cast<uint32_t>(alignment));
+}
+
 tl::optional<UniqueMemoryMapping>
 UniqueMemoryMapping::create(VkDevice device,
                             VkDeviceMemory memory,
@@ -1848,6 +1931,7 @@ vk_format_bytes_size(const VkFormat format)
             break;
 
         default:
+            assert(false && "Unhandled VK_FORMAT");
             break;
     }
     return result;

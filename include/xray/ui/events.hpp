@@ -43,8 +43,8 @@ class window;
 
 enum class event_type
 {
-	key,
-	char_input,
+    key,
+    char_input,
     mouse_button,
     mouse_motion,
     mouse_crossing,
@@ -200,8 +200,8 @@ struct char_input_event
 {
     window* wnd;
     KeySymbol key_code;
-	uint32_t unicode_point;
-	char utf8[32];
+    uint32_t unicode_point;
+    char utf8[32];
 };
 
 struct window_configure_event
@@ -227,7 +227,7 @@ struct window_event
         mouse_wheel_event wheel;
         mouse_motion_event motion;
         key_event key;
-		char_input_event char_input;
+        char_input_event char_input;
         window_configure_event configure;
     } event;
 
@@ -247,11 +247,13 @@ inline bool
 is_input_event(const window_event& we) noexcept
 {
     return we.type == event_type::key || we.type == event_type::mouse_button || we.type == event_type::mouse_motion ||
-		we.type == event_type::mouse_crossing || we.type == event_type::mouse_wheel || we.type == event_type::char_input;
+           we.type == event_type::mouse_crossing || we.type == event_type::mouse_wheel ||
+           we.type == event_type::char_input;
 }
 
 struct poll_start_event
 {};
+
 struct poll_end_event
 {
     int32_t surface_width;

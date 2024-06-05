@@ -141,14 +141,17 @@ class MainRunner
     };
 
   public:
-    MainRunner(PrivateConstructToken, xray::ui::window window, xray::rendering::VulkanRenderer vkrenderer)
+    MainRunner(PrivateConstructToken,
+               xray::ui::window window,
+               xray::rendering::VulkanRenderer vkrenderer,
+               xray::rendering::ManagedUniqueBuffer scratch_buffer)
         : _window{ std::move(window) }
         , _vkrenderer{ std::move(vkrenderer) }
+        , _scratch_buffer{ std::move(scratch_buffer) }
     {
     }
 
     MainRunner(MainRunner&& rhs) = default;
-
     ~MainRunner();
 
     static tl::optional<MainRunner> create();
@@ -188,10 +191,11 @@ class MainRunner
 
     xray::rendering::VulkanRenderer _vkrenderer;
     xray::base::unique_pointer<demo_base> _demo{};
-    xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::bluegrey800 };
+    xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::deeppurple900 };
     xray::base::timer_highp _timer{};
     vector<DemoInfo> _registeredDemos{};
     vector<char> _combo_items{};
+    xray::rendering::ManagedUniqueBuffer _scratch_buffer;
 
     XRAY_NO_COPY(MainRunner);
 };
@@ -285,7 +289,30 @@ MainRunner::create()
         return tl::nullopt;
     }
 
-    return tl::make_optional<MainRunner>(PrivateConstructToken{}, std::move(main_window), std::move(*renderer.take()));
+    const size_t scratch_buffer_bytes{ [&]() {
+        using namespace xray::rendering;
+        const xray::rendering::detail::SurfaceState& s = renderer->surface_state();
+
+        const VkDeviceSize bytes_size =
+            s.caps.currentExtent.width * s.caps.currentExtent.height * vk_format_bytes_size(s.format.format);
+
+        return bytes_size;
+    }() };
+
+    tl::optional<ManagedUniqueBuffer> scratch_buffer{ renderer->create_buffer(
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        scratch_buffer_bytes,
+        renderer->max_inflight_frames(),
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) };
+
+    if (!scratch_buffer) {
+        return tl::nullopt;
+    }
+
+    return tl::make_optional<MainRunner>(PrivateConstructToken{},
+                                         std::move(main_window),
+                                         std::move(*renderer.take()),
+                                         std::move(*scratch_buffer.take()));
 }
 
 void
@@ -344,7 +371,8 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     //     {
     //         ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
     //
-    //         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse))
+    //         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize |
+    //         ImGuiWindowFlags_NoCollapse))
     //         {
     //
     //             int32_t selectedItem{};
@@ -375,11 +403,33 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     //     0.0f, 0.0f, static_cast<float>(loop_event.wnd_width), static_cast<float>(loop_event.wnd_height)
     // };
     //
+    const auto [frame_idx, max_frames] = _vkrenderer.buffering_setup();
+
     const VkRect2D render_area{ .offset = { .x = 0, .y = 0 },
                                 .extent = { .width = static_cast<uint32_t>(loop_event.wnd_width),
                                             .height = static_cast<uint32_t>(loop_event.wnd_height) } };
 
     const FrameRenderData frd{ _vkrenderer.begin_rendering(render_area) };
+
+    _scratch_buffer.mmap(_vkrenderer.device(), frame_idx).map([&](UniqueMemoryMapping mapped_buffer) {
+        struct Pixel
+        {
+            uint8_t a;
+            uint8_t b;
+            uint8_t g;
+            uint8_t r;
+        };
+
+        Pixel* pixels = static_cast<Pixel*>(mapped_buffer._mapped_memory);
+        const size_t max_width = render_area.extent.width;
+        const size_t max_height = render_area.extent.height;
+
+        for (size_t y = 0; y < max_height; ++y) {
+            for (size_t x = 0; x < max_width; ++x) {
+                pixels[y * max_width + x] = Pixel{ .a = 255, .b = 0, .g = 255, .r = 0 };
+            }
+        }
+    });
 
     const VkViewport viewport{ .x = 0.0f,
                                .y = 0.0f,
@@ -394,8 +444,14 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
                             .extent = VkExtent2D{ static_cast<uint32_t>(viewport.width),
                                                   static_cast<uint32_t>(viewport.height) } };
     vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
-    _vkrenderer.clear_attachments(
-        frd.cmd_buf, 1.0f, 0.0f, 0.0f, static_cast<uint32_t>(viewport.width), static_cast<uint32_t>(viewport.height));
+
+    //
+    // _vkrenderer.clear_attachments(frd.cmd_buf,
+    //                               _clear_color.r,
+    //                               _clear_color.g,
+    //                               _clear_color.b,
+    //                               static_cast<uint32_t>(viewport.width),
+    //                               static_cast<uint32_t>(viewport.height));
 
     _vkrenderer.end_rendering();
 

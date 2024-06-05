@@ -1106,9 +1106,7 @@ xray::ui::window::message_loop()
             }
 
             if (window_event.type == ConfigureNotify) {
-                const XConfigureEvent* xcfg = &window_event.xconfigure;
-                _wnd_width = xcfg->width;
-                _wnd_height = xcfg->height;
+                event_configure(&window_event.xconfigure);
             }
         }
 
