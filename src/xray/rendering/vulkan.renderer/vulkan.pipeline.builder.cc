@@ -21,6 +21,7 @@
 #include "xray/base/rangeless/fn.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
 using namespace std;
 namespace fn = rangeless::fn;
@@ -288,8 +289,10 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
 }
 
 tl::optional<GraphicsPipeline>
-GraphicsPipelineBuilder::create(VkDevice device, const VkPipelineRenderingCreateInfo& render_create_info)
+GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 {
+    VkDevice device = renderer.device();
+
     if (_stage_modules.contains(ShaderStage::Vertex)) {
         XR_LOG_CRITICAL("Missing vertex shader stage!");
         return tl::nullopt;
@@ -505,9 +508,22 @@ GraphicsPipelineBuilder::create(VkDevice device, const VkPipelineRenderingCreate
         .pDynamicStates = _dynstate.empty() ? nullptr : _dynstate.data()
     };
 
+    const auto [view_mask, color_attachments, depth_attachment, stencil_attachment] =
+        renderer.pipeline_render_create_info();
+
+    const VkPipelineRenderingCreateInfo pipeline_render_create_inf = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .pNext = nullptr,
+        .viewMask = view_mask,
+        .colorAttachmentCount = static_cast<uint32_t>(color_attachments.size()),
+        .pColorAttachmentFormats = color_attachments.data(),
+        .depthAttachmentFormat = depth_attachment,
+        .stencilAttachmentFormat = stencil_attachment
+    };
+
     const VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = &render_create_info,
+        .pNext = &pipeline_render_create_inf,
         .flags = 0,
         .stageCount = static_cast<uint32_t>(shader_stage_create_info.size()),
         .pStages = shader_stage_create_info.data(),

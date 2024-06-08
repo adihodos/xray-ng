@@ -81,6 +81,13 @@ XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkPipeline, VkDevice, vkDestroyPipeline)
 XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkFence, VkDevice, vkDestroyFence)
 XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkSemaphore, VkDevice, vkDestroySemaphore)
 
+struct GraphicsPipeline
+{
+    xrUniqueVkPipeline pipeline{ nullptr, VkResourceDeleter_VkPipeline{ nullptr } };
+    xrUniqueVkPipelineLayout layout{ nullptr, VkResourceDeleter_VkPipelineLayout{ nullptr } };
+    std::vector<xrUniqueVkDescriptorSetLayout> descriptor_set_layout;
+};
+
 struct UniqueBuffer
 {
     xrUniqueVkBuffer buffer;

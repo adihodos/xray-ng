@@ -30,18 +30,15 @@
 
 #pragma once
 
+#include "xray/xray.hpp"
 #include "demo_base.hpp"
 #include "xray/rendering/opengl/gl_handles.hpp"
 #include "xray/rendering/opengl/gpu_program.hpp"
 #include "xray/rendering/opengl/program_pipeline.hpp"
 #include "xray/rendering/opengl/scoped_opengl_setting.hpp"
-#include "xray/xray.hpp"
 
 #include <cstdint>
 #include <string_view>
-#include <tuple>
-
-#include <tl/optional.hpp>
 
 namespace app {
 
@@ -54,7 +51,7 @@ struct fractal_params
     uint32_t iterations{ 0 };
 };
 
-class FractalDemo : public demo_base
+class FractalDemo : public DemoBase
 {
   private:
     struct ConstructToken
@@ -71,7 +68,7 @@ class FractalDemo : public demo_base
                 xray::rendering::vertex_program vs,
                 xray::rendering::fragment_program fs,
                 xray::rendering::program_pipeline pp)
-        : demo_base{ ctx }
+        : DemoBase{ ctx }
         , _quad_vb{ std::move(vb) }
         , _quad_ib{ std::move(ib) }
         , _quad_layout{ std::move(layout) }
@@ -84,17 +81,15 @@ class FractalDemo : public demo_base
     ~FractalDemo();
 
     virtual void event_handler(const xray::ui::window_event& evt) override;
-    virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void loop_event(const RenderEvent&) override;
 
     static std::string_view short_desc() noexcept { return "Julia fractal."; }
-
     static std::string_view detailed_desc() noexcept
     {
         return "Julia fractal eplorer. Navigate the awesome and mesmerizing Julia "
                "fractal.";
     }
-
-    static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
+    static xray::base::unique_pointer<app::DemoBase> create(const init_context_t& initContext);
 
   private:
     void init();

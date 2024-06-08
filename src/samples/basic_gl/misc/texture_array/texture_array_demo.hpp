@@ -42,14 +42,13 @@
 
 namespace app {
 
-class texture_array_demo : public demo_base
+class texture_array_demo : public DemoBase
 {
   public:
     texture_array_demo(const init_context_t& init_ctx);
-
     ~texture_array_demo();
 
-    virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void loop_event(const RenderEvent&) override;
     virtual void event_handler(const xray::ui::window_event& evt) override;
 
   private:

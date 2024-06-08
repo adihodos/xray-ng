@@ -34,9 +34,9 @@
 #include "xray/ui/events.hpp"
 #include "xray/xray.hpp"
 
+#include <bitset>
 #include <cstdint>
 #include <tuple>
-#include <bitset>
 
 namespace xray {
 namespace scene {
@@ -46,35 +46,37 @@ class camera_controller;
 namespace ui {
 class user_interface;
 }
+
+#if defined(XRAY_GRAPHICS_API_VULKAN)
+namespace rendering {
+class VulkanRenderer;
+} // namespace rendering
+#endif
+
 } // namespace xray
 
 namespace app {
 
-class demo_base;
-using demo_bundle_t =
-    std::tuple<xray::base::unique_pointer<demo_base>, xray::ui::window_event_delegate, xray::ui::loop_event_delegate>;
+struct RenderEvent
+{
+    xray::ui::window_loop_event loop_event;
+    xray::rendering::VulkanRenderer* renderer;
+};
 
-class demo_base
+class DemoBase
 {
   public:
-    demo_base(const init_context_t& init_ctx);
+    DemoBase(const init_context_t& init_ctx);
 
-    virtual ~demo_base();
-
-    virtual void poll_start(const xray::ui::poll_start_event&);
-    virtual void poll_end(const xray::ui::poll_end_event&);
+    virtual ~DemoBase();
 
     virtual void event_handler(const xray::ui::window_event& evt) = 0;
-    virtual void loop_event(const xray::ui::window_loop_event&) = 0;
-
-    bool valid() const noexcept { return _valid; }
-    explicit operator bool() const noexcept { return valid(); }
+    virtual void loop_event(const RenderEvent&) = 0;
 
   protected:
-    bool _valid{ false };
     xray::base::fast_delegate<void()> _quit_receiver;
     xray::ui::user_interface* _ui;
-	std::bitset<256> _keyboard{};
+    std::bitset<256> _keyboard{};
 };
 
 } // namespace app

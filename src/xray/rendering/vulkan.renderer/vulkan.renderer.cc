@@ -1052,7 +1052,13 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     return tl::make_optional<VulkanRenderer>(
         PrivateConstructionToken{},
         detail::InstanceState{ std::move(vkinstance), std::move(dbg_msgr) },
-        detail::RenderState{ phys_device, std::move(logical_device), std::move(qs) },
+        detail::RenderState{ phys_device,
+                             std::move(logical_device),
+                             std::move(qs),
+                             detail::RenderingAttachments{ .view_mask = 0,
+                                                           .attachments = { surface_info.format.format,
+                                                                            surface_info.depth_stencil_format,
+                                                                            surface_info.depth_stencil_format } } },
         detail::PresentationState{
             0,
             max_frames,

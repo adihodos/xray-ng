@@ -27,40 +27,18 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "demo_base.hpp"
-
-#include <algorithm>
-#include <vector>
-
 #include "init_context.hpp"
-#include "xray/base/app_config.hpp"
-#include "xray/base/debug_output.hpp"
 
-using namespace std;
-
-// void build_fonts_list(const char*                       root_path,
-//                       std::vector<xray::ui::font_info>* fli) {
-// }
-
-app::demo_base::demo_base(const init_context_t& init_ctx)
+app::DemoBase::DemoBase(const init_context_t& init_ctx)
     : _quit_receiver{ init_ctx.quit_receiver }
     , _ui{ init_ctx.ui }
 {
 }
 
-app::demo_base::~demo_base() {}
+app::DemoBase::~DemoBase() {}
 
 void
-app::demo_base::poll_start(const xray::ui::poll_start_event&)
-{
-}
-
-void
-app::demo_base::poll_end(const xray::ui::poll_end_event&)
-{
-}
-
-void
-app::demo_base::event_handler(const xray::ui::window_event& evt)
+app::DemoBase::event_handler(const xray::ui::window_event& evt)
 {
     using namespace xray::ui;
 

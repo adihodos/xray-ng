@@ -54,7 +54,7 @@ static constexpr const char* TEXTURE_FILES[] = { "ash_uvgrid01.jpg", "ash_uvgrid
                                                  "ash_uvgrid10.jpg" };
 
 app::texture_array_demo::texture_array_demo(const init_context_t& init_ctx)
-    : app::demo_base{ init_ctx }
+    : app::DemoBase{ init_ctx }
 {
     _quad_vb = []() {
         GLuint buffer{};
@@ -152,14 +152,14 @@ app::texture_array_demo::texture_array_demo(const init_context_t& init_ctx)
 
     _ui->set_current();
     _ui->set_global_font("Roboto-Regular");
-    _valid = true;
 }
 
 app::texture_array_demo::~texture_array_demo() {}
 
 void
-app::texture_array_demo::loop_event(const xray::ui::window_loop_event& wle)
+app::texture_array_demo::loop_event(const RenderEvent& render_event)
 {
+    const xray::ui::window_loop_event& wle = render_event.loop_event;
     _ui->tick(1.0f / 60.0f);
     draw(wle.wnd_width, wle.wnd_height);
     draw_ui(wle.wnd_width, wle.wnd_height);
@@ -184,8 +184,6 @@ app::texture_array_demo::event_handler(const xray::ui::window_event& evt)
 void
 app::texture_array_demo::draw(const int32_t surface_width, const int32_t surface_height)
 {
-    assert(valid());
-
     gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, color_palette::web::black.components);
     gl::ViewportIndexedf(0, 0.0f, 0.0f, static_cast<float>(surface_width), static_cast<float>(surface_height));
 

@@ -46,7 +46,7 @@ static constexpr nice_shape_def NICE_SHAPES[] = {
 
 static constexpr uint32_t kIterations[] = { 16, 32, 64, 128, 256, 512, 1024, 2048, 4096 };
 
-tl::optional<app::demo_bundle_t>
+xray::base::unique_pointer<app::DemoBase>
 app::FractalDemo::create(const init_context_t& initContext)
 {
     geometry_data_t quad_mesh;
@@ -72,7 +72,7 @@ app::FractalDemo::create(const init_context_t& initContext)
     }() };
 
     if (!quad_vb)
-        return tl::nullopt;
+        return nullptr;
 
     scoped_buffer quad_ib{ [qm = &quad_mesh]() {
         GLuint ib{};
@@ -82,7 +82,7 @@ app::FractalDemo::create(const init_context_t& initContext)
     }() };
 
     if (!quad_ib)
-        return tl::nullopt;
+        return nullptr;
 
     scoped_vertex_array quad_layout{ [vb = raw_handle(quad_vb), ib = raw_handle(quad_ib)]() {
         GLuint vao{};
@@ -98,21 +98,21 @@ app::FractalDemo::create(const init_context_t& initContext)
     }() };
 
     if (!quad_layout)
-        return tl::nullopt;
+        return nullptr;
 
     vertex_program vs{
         gpu_program_builder{}.add_file("shaders/misc/fractals/fractal_vert.glsl").build<render_stage::e::vertex>()
     };
 
     if (!vs)
-        return tl::nullopt;
+        return nullptr;
 
     fragment_program fs{
         gpu_program_builder{}.add_file("shaders/misc/fractals/fractal_frag.glsl").build<render_stage::e::fragment>()
     };
 
     if (!fs)
-        return tl::nullopt;
+        return nullptr;
 
     program_pipeline pipeline{ []() {
         GLuint ppl{};
@@ -122,25 +122,22 @@ app::FractalDemo::create(const init_context_t& initContext)
 
     pipeline.use_vertex_program(vs).use_fragment_program(fs);
 
-    auto demoObj = xray::base::make_unique<FractalDemo>(ConstructToken{},
-                                                         initContext,
-                                                         move(quad_vb),
-                                                         move(quad_ib),
-                                                         move(quad_layout),
-                                                         move(vs),
-                                                         move(fs),
-                                                         move(pipeline));
-    auto winEventHandler = make_delegate(*demoObj, &FractalDemo::event_handler);
-    auto loopEventHandler = make_delegate(*demoObj, &FractalDemo::loop_event);
-
-    return tl::make_optional<demo_bundle_t>(move(demoObj), winEventHandler, loopEventHandler);
+    return xray::base::make_unique<FractalDemo>(ConstructToken{},
+                                                initContext,
+                                                std::move(quad_vb),
+                                                std::move(quad_ib),
+                                                std::move(quad_layout),
+                                                std::move(vs),
+                                                std::move(fs),
+                                                std::move(pipeline));
 }
 
 app::FractalDemo::~FractalDemo() {}
 
 void
-app::FractalDemo::loop_event(const xray::ui::window_loop_event& wle)
+app::FractalDemo::loop_event(const RenderEvent& render_event)
 {
+    const xray::ui::window_loop_event& wle = render_event.loop_event;
     _ui->tick(1.0f / 60.0f);
     draw(wle.wnd_width, wle.wnd_height);
     draw_ui(wle.wnd_width, wle.wnd_height);
@@ -201,7 +198,6 @@ app::FractalDemo::draw(const int32_t surface_w, const int32_t surface_h)
 void
 app::FractalDemo::draw_ui(const int32_t surface_w, const int32_t surface_h)
 {
-
     _ui->new_frame(surface_w, surface_h);
 
     ImGui::SetNextWindowPos({ 0, 0 }, ImGuiCond_Appearing);

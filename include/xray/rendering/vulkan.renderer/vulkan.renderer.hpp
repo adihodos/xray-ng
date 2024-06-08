@@ -2,6 +2,8 @@
 
 #include "xray/xray.hpp"
 
+#include <span>
+#include <tuple>
 #include <vector>
 
 #include <tl/optional.hpp>
@@ -95,11 +97,20 @@ struct Queue
     xrUniqueVkCommandPool cmd_pool;
 };
 
+struct RenderingAttachments
+{
+    uint32_t view_mask;
+    // [0, size - 2) - color attachments
+    // [size - 2, ...) - dept + stencil
+    std::vector<VkFormat> attachments;
+};
+
 struct RenderState
 {
     PhysicalDeviceData dev_physical;
     xrUniqueVkDevice dev_logical;
     std::vector<Queue> queues;
+    RenderingAttachments attachments;
 };
 
 } // namespace detail
@@ -141,7 +152,20 @@ class VulkanRenderer
     void wait_device_idle() noexcept;
 
     VkDevice device() const noexcept { return xray::base::raw_ptr(_render_state.dev_logical); }
+
     const detail::SurfaceState& surface_state() const noexcept { return _presentation_state.surface_state; }
+
+    std::tuple<uint32_t, std::span<const VkFormat>, VkFormat, VkFormat> pipeline_render_create_info() const noexcept
+    {
+        const size_t att_count = _render_state.attachments.attachments.size();
+
+        return {
+            _render_state.attachments.view_mask,
+            std::span{ _render_state.attachments.attachments.cbegin(), att_count - 2 },
+            _render_state.attachments.attachments[att_count - 2],
+            _render_state.attachments.attachments[att_count - 1],
+        };
+    }
 
     std::pair<uint32_t, uint32_t> buffering_setup() const noexcept
     {

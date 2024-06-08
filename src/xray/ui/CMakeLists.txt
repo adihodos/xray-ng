@@ -21,6 +21,9 @@ set(PROJECT_SOURCES_MAIN
     ${proj_inc_dir}/key_sym.hpp
     ${proj_inc_dir}/user_interface.hpp
     ${proj_src_dir}/user_interface.cc
+    ${proj_inc_dir}/user_interface_backend_opengl.hpp
+    ${proj_src_dir}/user_interface_backend_opengl.cc
+    ${proj_inc_dir}/user_interface_render_context.hpp
 #    ${proj_inc_dir}/ui.hpp
 #    ${proj_src_dir}/ui.cc
     ${platform_sources})

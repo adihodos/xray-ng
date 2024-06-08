@@ -55,7 +55,7 @@ struct mesh_load_info
 };
 
 app::mesh_demo::mesh_demo(const init_context_t& init_ctx)
-    : demo_base{ init_ctx }
+    : DemoBase{ init_ctx }
 {
     _camera.set_projection(
         perspective_symmetric(static_cast<float>(init_ctx.surface_width) / static_cast<float>(init_ctx.surface_height),
@@ -72,8 +72,6 @@ app::mesh_demo::~mesh_demo() {}
 void
 app::mesh_demo::init()
 {
-    assert(!valid());
-
     //
     // turn off these so we don't get spammed
     gl::DebugMessageControl(gl::DONT_CARE, gl::DONT_CARE, gl::DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, gl::FALSE_);
@@ -159,14 +157,11 @@ app::mesh_demo::init()
 
     gl::Enable(gl::DEPTH_TEST);
     gl::Enable(gl::CULL_FACE);
-
-    _valid = true;
 }
 
 void
 app::mesh_demo::draw(const float surface_width, const float surface_height)
 {
-    assert(valid());
 
     gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, color_palette::web::black.components);
     gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0);
@@ -321,17 +316,10 @@ app::mesh_demo::event_handler(const xray::ui::window_event& evt)
     }
 }
 
-// void app::mesh_demo::poll_start(const xray::ui::poll_start_event&) {
-//  _ui.input.begin();
-//}
-
-// void app::mesh_demo::poll_end(const xray::ui::poll_end_event&) {
-//  _ui.input.end();
-//}
-
 void
-app::mesh_demo::loop_event(const xray::ui::window_loop_event& wle)
+app::mesh_demo::loop_event(const RenderEvent& render_event)
 {
+    const xray::ui::window_loop_event& wle = render_event.loop_event;
     _camcontrol.update_camera(_camera);
     _ui->tick(1.0f / 60.0f);
 

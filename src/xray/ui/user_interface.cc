@@ -469,108 +469,14 @@ xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
 
 #else
 
-    _rendercontext._vertex_buffer = []() {
-        GLuint vbuff{};
-        gl::CreateBuffers(1, &vbuff);
-        gl::NamedBufferStorage(vbuff, user_interface::VERTEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
-
-        return vbuff;
-    }();
-
-    if (!_rendercontext._vertex_buffer) {
-        XR_LOG_ERR("Failed to create vertex buffer!");
-        return;
-    }
-
-    _rendercontext._index_buffer = []() {
-        GLuint ibuff{};
-        gl::CreateBuffers(1, &ibuff);
-        gl::NamedBufferStorage(ibuff, user_interface::INDEX_BUFFER_SIZE, nullptr, gl::MAP_WRITE_BIT);
-        return ibuff;
-    }();
-
-    if (!_rendercontext._index_buffer)
-        return;
-
-    _rendercontext._vertex_arr = [vbh = raw_handle(_rendercontext._vertex_buffer),
-                                  ibh = raw_handle(_rendercontext._index_buffer)]() {
-        GLuint vao{};
-        gl::CreateVertexArrays(1, &vao);
-
-        gl::VertexArrayVertexBuffer(vao, 0, vbh, 0, sizeof(ImDrawVert));
-        gl::VertexArrayElementBuffer(vao, ibh);
-
-        gl::EnableVertexArrayAttrib(vao, 0);
-        gl::EnableVertexArrayAttrib(vao, 1);
-        gl::EnableVertexArrayAttrib(vao, 2);
-
-        gl::VertexArrayAttribFormat(vao, 0, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(ImDrawVert, pos));
-        gl::VertexArrayAttribFormat(vao, 1, 2, gl::FLOAT, gl::FALSE_, XR_U32_OFFSETOF(ImDrawVert, uv));
-        gl::VertexArrayAttribFormat(vao, 2, 4, gl::UNSIGNED_BYTE, gl::TRUE_, XR_U32_OFFSETOF(ImDrawVert, col));
-
-        gl::VertexArrayAttribBinding(vao, 0, 0);
-        gl::VertexArrayAttribBinding(vao, 1, 0);
-        gl::VertexArrayAttribBinding(vao, 2, 0);
-
-        return vao;
-    }();
-
-    _rendercontext._vs = gpu_program_builder{}.add_string(IMGUI_VERTEX_SHADER).build<render_stage::e::vertex>();
-
-    if (!_rendercontext._vs) {
-        XR_LOG_ERR("Failed to create vertex shader!");
-        return;
-    }
-
-    _rendercontext._fs = gpu_program_builder{}.add_string(IMGUI_FRAGMENT_SHADER).build<render_stage::e::fragment>();
-
-    if (!_rendercontext._vs || !_rendercontext._fs) {
-        XR_LOG_ERR("Failed to create vertex/fragment shaders!");
-        return;
-    }
-
-    _rendercontext._pipeline = program_pipeline{ []() {
-        GLuint phandle{};
-        gl::CreateProgramPipelines(1, &phandle);
-        return phandle;
-    }() };
-
-    _rendercontext._pipeline.use_vertex_program(_rendercontext._vs).use_fragment_program(_rendercontext._fs);
-
     load_fonts(fonts, num_fonts);
-    _rendercontext._font_texture = [this]() {
-        GLuint texh{};
-
-        ImGuiIO& io = ImGui::GetIO();
-        font_img_data font_img;
-        io.Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
-
-        gl::CreateTextures(gl::TEXTURE_2D, 1, &texh);
-        gl::TextureStorage2D(texh, 1, gl::RGBA8, font_img.width, font_img.height);
-        gl::TextureSubImage2D(
-            texh, 0, 0, 0, font_img.width, font_img.height, gl::RGBA, gl::UNSIGNED_BYTE, font_img.pixels);
-
-        XR_LOG_INFO("Fonts {}", io.Fonts->Fonts.size());
-
-        return texh;
-    }();
-
-    ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->TexID = reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
-
-    _rendercontext._font_sampler = []() {
-        GLuint smph{};
-        gl::CreateSamplers(1, &smph);
-        gl::SamplerParameteri(smph, gl::TEXTURE_MIN_FILTER, gl::LINEAR);
-        gl::SamplerParameteri(smph, gl::TEXTURE_MAG_FILTER, gl::LINEAR);
-
-        return smph;
-    }();
+    // ImGuiIO& io = ImGui::GetIO();
+    // font_img_data font_img;
+    // io.Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
+    //
+    // io.Fonts->TexID = reinterpret_cast<void*>(raw_handle(_rendercontext._font_texture));
 
 #endif
-
-    // setup_key_mappings();
-    _rendercontext._valid = true;
 }
 
 void
@@ -633,7 +539,7 @@ xray::ui::user_interface::~user_interface() noexcept
     ImGui::Shutdown();
 }
 
-void
+tl::optional<xray::ui::UserInterfaceRenderContext>
 xray::ui::user_interface::draw()
 {
     ImGui::Render();
@@ -728,124 +634,15 @@ xray::ui::user_interface::draw()
     }
 
 #else
-
     ImGuiIO& io = ImGui::GetIO();
     const auto fb_width = static_cast<int32_t>(io.DisplaySize.x * io.DisplayFramebufferScale.x);
     const auto fb_height = static_cast<int32_t>(io.DisplaySize.y * io.DisplayFramebufferScale.y);
     if (fb_width == 0 || fb_height == 0)
-        return;
+        return tl::nullopt;
 
     draw_data->ScaleClipRects(io.DisplayFramebufferScale);
 
-    struct opengl_state_save_restore
-    {
-        GLint last_blend_src;
-        GLint last_blend_dst;
-        GLint last_blend_eq_rgb;
-        GLint last_blend_eq_alpha;
-        GLint last_viewport[4];
-        GLint blend_enabled;
-        GLint cullface_enabled;
-        GLint depth_enabled;
-        GLint scissors_enabled;
-
-        opengl_state_save_restore()
-        {
-            gl::GetIntegerv(gl::BLEND_SRC, &last_blend_src);
-            gl::GetIntegerv(gl::BLEND_DST, &last_blend_dst);
-            gl::GetIntegerv(gl::BLEND_EQUATION_RGB, &last_blend_eq_rgb);
-            gl::GetIntegerv(gl::BLEND_EQUATION_ALPHA, &last_blend_eq_alpha);
-            gl::GetIntegerv(gl::VIEWPORT, last_viewport);
-            blend_enabled = gl::IsEnabled(gl::BLEND);
-            cullface_enabled = gl::IsEnabled(gl::CULL_FACE);
-            depth_enabled = gl::IsEnabled(gl::DEPTH_TEST);
-            scissors_enabled = gl::IsEnabled(gl::SCISSOR_TEST);
-        }
-
-        ~opengl_state_save_restore()
-        {
-            gl::BlendEquationSeparate(last_blend_eq_rgb, last_blend_eq_alpha);
-            gl::BlendFunc(last_blend_src, last_blend_dst);
-            blend_enabled ? gl::Enable(gl::BLEND) : gl::Disable(gl::BLEND);
-            cullface_enabled ? gl::Enable(gl::CULL_FACE) : gl::Disable(gl::CULL_FACE);
-            depth_enabled ? gl::Enable(gl::DEPTH_TEST) : gl::Disable(gl::DEPTH_TEST);
-            scissors_enabled ? gl::Enable(gl::SCISSOR_TEST) : gl::Disable(gl::SCISSOR_TEST);
-            gl::Viewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
-        }
-    } state_save_restore{};
-
-    gl::Enable(gl::BLEND);
-    gl::BlendEquation(gl::FUNC_ADD);
-    gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-    gl::Disable(gl::CULL_FACE);
-    gl::Disable(gl::DEPTH_TEST);
-    gl::Enable(gl::SCISSOR_TEST);
-
-    gl::Viewport(0, 0, fb_width, fb_height);
-
-    const auto projection_mtx =
-        orthographic(0.0f, static_cast<float>(fb_width), 0.0f, static_cast<float>(fb_height), -1.0f, +1.0f);
-
-    _rendercontext._vs.set_uniform_block("matrix_pack", projection_mtx);
-    _rendercontext._fs.set_uniform("font_texture", 0);
-    _rendercontext._pipeline.use();
-    gl::BindVertexArray(raw_handle(_rendercontext._vertex_arr));
-
-    {
-        const GLuint bound_samplers[] = { raw_handle(_rendercontext._font_sampler) };
-        gl::BindSamplers(0, 1, bound_samplers);
-    }
-
-    for (int32_t lst_idx = 0; lst_idx < draw_data->CmdListsCount; ++lst_idx) {
-        const auto cmd_lst = draw_data->CmdLists[lst_idx];
-        const ImDrawIdx* idx_buff_offset = nullptr;
-
-        {
-            scoped_resource_mapping vb_map{ raw_handle(_rendercontext._vertex_buffer),
-                                            gl::MAP_WRITE_BIT,
-                                            user_interface::VERTEX_BUFFER_SIZE };
-
-            if (!vb_map)
-                return;
-
-            const auto vertex_bytes = cmd_lst->VtxBuffer.size() * sizeof(cmd_lst->VtxBuffer[0]);
-            assert(vertex_bytes <= user_interface::VERTEX_BUFFER_SIZE);
-            memcpy(vb_map.memory(), &cmd_lst->VtxBuffer[0], vertex_bytes);
-        }
-
-        {
-            scoped_resource_mapping ib_map{ raw_handle(_rendercontext._index_buffer),
-                                            gl::MAP_WRITE_BIT,
-                                            user_interface::INDEX_BUFFER_SIZE };
-
-            if (!ib_map)
-                return;
-
-            const auto index_bytes = cmd_lst->IdxBuffer.size() * sizeof(cmd_lst->IdxBuffer[0]);
-            assert(index_bytes <= user_interface::INDEX_BUFFER_SIZE);
-            memcpy(ib_map.memory(), &cmd_lst->IdxBuffer[0], index_bytes);
-        }
-
-        for (auto cmd_itr = cmd_lst->CmdBuffer.begin(), cmd_end = cmd_lst->CmdBuffer.end(); cmd_itr != cmd_end;
-             ++cmd_itr) {
-
-            const GLuint textures_to_bind[] = { (GLuint)(intptr_t)cmd_itr->TextureId };
-            gl::BindTextures(0, 1, textures_to_bind);
-
-            gl::Scissor(static_cast<int32_t>(cmd_itr->ClipRect.x),
-                        fb_height - static_cast<int32_t>(cmd_itr->ClipRect.w),
-                        static_cast<int32_t>(cmd_itr->ClipRect.z - cmd_itr->ClipRect.x),
-                        static_cast<int32_t>(cmd_itr->ClipRect.w - cmd_itr->ClipRect.y));
-
-            gl::DrawElements(gl::TRIANGLES,
-                             cmd_itr->ElemCount,
-                             sizeof(ImDrawIdx) == 2 ? gl::UNSIGNED_SHORT : gl::UNSIGNED_INT,
-                             idx_buff_offset);
-
-            idx_buff_offset += cmd_itr->ElemCount;
-        }
-    }
-
+    return tl::make_optional<UserInterfaceRenderContext>(draw_data, fb_width, fb_height);
 #endif
 }
 

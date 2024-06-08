@@ -30,8 +30,8 @@
 
 /// \file   input_event.hpp
 
-#include "xray/base/fast_delegate.hpp"
 #include "xray/base/unique_pointer.hpp"
+#include "xray/ui/user_interface_render_context.hpp"
 #include "xray/xray.hpp"
 
 #if defined(XRAY_RENDERER_DIRECTX)
@@ -40,9 +40,6 @@
 #include "xray/rendering/directx/vertex_shader.hpp"
 #include <d3d11.h>
 #else
-#include "xray/rendering/opengl/gl_handles.hpp"
-#include "xray/rendering/opengl/gpu_program.hpp"
-#include "xray/rendering/opengl/program_pipeline.hpp"
 #endif
 
 #include <cassert>
@@ -54,6 +51,8 @@
 #include <imgui/IconsFontAwesome.h>
 #include <imgui/imconfig.h>
 #include <imgui/imgui.h>
+
+#include <tl/optional.hpp>
 
 struct ImGuiIO;
 struct ImFont;
@@ -99,7 +98,8 @@ class user_interface
 
     void new_frame(const int32_t wnd_width, const int32_t wnd_height);
     void tick(const float delta);
-    void draw();
+
+    tl::optional<UserInterfaceRenderContext> draw();
 
     void set_global_font(const char* name);
     void push_font(const char* name);
@@ -144,16 +144,7 @@ class user_interface
         xray::base::com_ptr<ID3D11RasterizerState> raster_state;
         xray::base::com_ptr<ID3D11DepthStencilState> depth_stencil_state;
 #else
-        xray::rendering::scoped_buffer _vertex_buffer;
-        xray::rendering::scoped_buffer _index_buffer;
-        xray::rendering::scoped_vertex_array _vertex_arr;
-        xray::rendering::vertex_program _vs;
-        xray::rendering::fragment_program _fs;
-        xray::rendering::program_pipeline _pipeline;
-        xray::rendering::scoped_texture _font_texture;
-        xray::rendering::scoped_sampler _font_sampler;
 #endif
-        bool _valid{ false };
     } _rendercontext;
 
     xray::base::unique_pointer<ImGuiContext, imcontext_deleter> _imcontext;

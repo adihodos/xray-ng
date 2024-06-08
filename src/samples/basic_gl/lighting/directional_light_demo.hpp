@@ -39,7 +39,6 @@
 #include <vector>
 
 #include <itlib/small_vector.hpp>
-#include <tl/optional.hpp>
 
 #include "demo_base.hpp"
 #include "xray/base/basic_timer.hpp"
@@ -88,34 +87,38 @@ struct GraphicsObject
         Visible,
         DrawBoundingBox,
         DrawSurfaceNormals,
-		RotateX,
-		RotateY,
-		RotateZ
+        RotateX,
+        RotateY,
+        RotateZ
     };
 
     xray::rendering::basic_mesh* mesh{};
     xray::math::vec3f pos{ xray::math::vec3f::stdc::zero };
     xray::math::vec3f rotation{ xray::math::vec3f::stdc::zero };
-	xray::math::mat4f world_matrix;
+    xray::math::mat4f world_matrix;
     float scale{ 1.0f };
     std::bitset<8> state_bits{ 0b1 };
-	uint32_t material{0};
-	bool cull_faces{true};
+    uint32_t material{ 0 };
+    bool cull_faces{ true };
 };
 
-class DirectionalLightDemo : public demo_base
+class DirectionalLightDemo : public DemoBase
 {
+  private:
+    struct PrivateConstructionToken
+    {
+        explicit PrivateConstructionToken() = default;
+    };
+
   public:
     ~DirectionalLightDemo();
 
     virtual void event_handler(const xray::ui::window_event& evt) override;
-    virtual void loop_event(const xray::ui::window_loop_event&) override;
-    virtual void poll_start(const xray::ui::poll_start_event&) override;
-    virtual void poll_end(const xray::ui::poll_end_event&) override;
+    virtual void loop_event(const RenderEvent& render_event) override;
 
     static std::string_view short_desc() noexcept { return "Directional lighting."; }
     static std::string_view detailed_desc() noexcept { return "Demonstrates the use of directional lighting."; }
-    static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
+    static xray::base::unique_pointer<DemoBase> create(const init_context_t& initContext);
 
   private:
     enum class SwitchMeshOpt
@@ -192,9 +195,14 @@ class DirectionalLightDemo : public demo_base
 
     xray::base::FileSystemWatcher mFsWatcher{};
 
-  private:
-    DirectionalLightDemo(const init_context_t& ctx, RenderState&& rs, const DemoOptions& ds, Scene&& s);
+  public:
+    DirectionalLightDemo(PrivateConstructionToken,
+                         const init_context_t& ctx,
+                         RenderState&& rs,
+                         const DemoOptions& ds,
+                         Scene&& s);
 
+  private:
     void adjust_model_transforms();
 
     XRAY_NO_COPY(DirectionalLightDemo);

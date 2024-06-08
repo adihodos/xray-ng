@@ -77,6 +77,8 @@
 #include "misc/procedural_city/procedural_city_demo.hpp"
 #include "misc/texture_array/texture_array_demo.hpp"
 
+#include "vulkan/triangle/triangle.hpp"
+
 // #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
 
 using namespace xray;
@@ -90,31 +92,23 @@ xray::base::ConfigSystem* xr_app_config{ nullptr };
 
 namespace app {
 
-struct DemoInfo
+struct RegisteredDemo
 {
-    std::string_view shortDesc;
-    std::string_view detailedDesc;
-    fast_delegate<tl::optional<demo_bundle_t>(const init_context_t&)> createFn;
+    std::string_view short_desc;
+    std::string_view detailed_desc;
+    fast_delegate<unique_pointer<DemoBase>(const init_context_t&)> create_demo_fn;
 };
 
 template<typename... Ts>
-struct RegisteredDemosList;
-
-template<typename T, typename... Rest>
-struct RegisteredDemosList<T, Rest...>
+std::vector<RegisteredDemo>
+register_demos()
 {
-    static void registerDemo(vector<DemoInfo>& demoList)
-    {
-        demoList.emplace_back(T::short_desc(), T::detailed_desc(), make_delegate(T::create));
-        RegisteredDemosList<Rest...>::registerDemo(demoList);
-    }
-};
+    std::vector<RegisteredDemo> demos;
+    demos.resize(sizeof...(Ts));
+    ((demos.push_back(RegisteredDemo{ Ts::short_desc(), Ts::detailed_desc(), make_delegate(Ts::create) })), ...);
 
-template<>
-struct RegisteredDemosList<>
-{
-    static void registerDemo(vector<DemoInfo>&) {}
-};
+    return demos;
+}
 
 enum class demo_type : int32_t
 {
@@ -144,11 +138,17 @@ class MainRunner
     MainRunner(PrivateConstructToken,
                xray::ui::window window,
                xray::rendering::VulkanRenderer vkrenderer,
-               xray::rendering::ManagedUniqueBuffer scratch_buffer)
+               xray::base::unique_pointer<xray::ui::user_interface> ui)
         : _window{ std::move(window) }
         , _vkrenderer{ std::move(vkrenderer) }
-        , _scratch_buffer{ std::move(scratch_buffer) }
+        , _ui{ std::move(ui) }
+        , _registered_demos{ register_demos<dvk::TriangleDemo>() }
     {
+        hookup_event_delegates();
+        _timer.start();
+
+        _registered_demos >>= pipes::for_each(
+            [](const RegisteredDemo& rd) { XR_LOG_INFO("Registered demo: {} - {}", rd.short_desc, rd.detailed_desc); });
     }
 
     MainRunner(MainRunner&& rhs) = default;
@@ -163,10 +163,10 @@ class MainRunner
     void hookup_event_delegates();
     void demo_quit();
 
-    const DemoInfo& get_demo_info(const size_t idx) const
+    const RegisteredDemo& get_demo_info(const size_t idx) const
     {
-        assert(idx < _registeredDemos.size());
-        return _registeredDemos[idx];
+        assert(idx < _registered_demos.size());
+        return _registered_demos[idx];
     }
 
     /// \group Event handlers
@@ -186,16 +186,13 @@ class MainRunner
 
   private:
     xray::ui::window _window;
-    // TODO: decouple UI logic from rendering
-    //     xray::base::unique_pointer<xray::ui::user_interface> _ui{};
-
     xray::rendering::VulkanRenderer _vkrenderer;
-    xray::base::unique_pointer<demo_base> _demo{};
+    xray::base::unique_pointer<xray::ui::user_interface> _ui{};
+    xray::base::unique_pointer<DemoBase> _demo{};
     xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::deeppurple900 };
     xray::base::timer_highp _timer{};
-    vector<DemoInfo> _registeredDemos{};
+    vector<RegisteredDemo> _registered_demos;
     vector<char> _combo_items{};
-    xray::rendering::ManagedUniqueBuffer _scratch_buffer;
 
     XRAY_NO_COPY(MainRunner);
 };
@@ -241,21 +238,33 @@ MainRunner::create()
         return tl::nullopt;
     }
 
-    //     namespace fs = std::filesystem;
-    //     const vector<xray::ui::font_info> font_list = fs::recursive_directory_iterator(xr_app_config->font_root())
-    //     >>=
-    //         pipes::filter([](const fs::directory_entry& dir_entry) {
-    //             if (!dir_entry.is_regular_file())
-    //                 return false;
-    //
-    //             const std::string_view file_ext{ dir_entry.path().extension().c_str() };
-    //             return file_ext == ".ttf" || file_ext == ".otf";
-    //         }) >>= pipes::transform([](const fs::directory_entry& dir_entry) {
-    //             return xray::ui::font_info{ .path = dir_entry.path(), .pixel_size = 18.0f };
-    //         }) >>= pipes::to_<vector<xray::ui::font_info>>();
-    //
-    //     _ui = xray::base::make_unique<xray::ui::user_interface>(font_list.data(), font_list.size());
-    //     hookup_event_delegates();
+    tl::optional<VulkanRenderer> renderer{ VulkanRenderer::create(
+        WindowPlatformDataXlib{ .display = main_window.native_display(),
+                                .window = main_window.native_window(),
+                                .visual = main_window.native_visual(),
+                                .width = static_cast<uint32_t>(main_window.width()),
+                                .height = static_cast<uint32_t>(main_window.height()) }) };
+
+    if (!renderer) {
+        XR_LOG_CRITICAL("Failed to create Vulkan renderer!");
+        return tl::nullopt;
+    }
+
+    namespace fs = std::filesystem;
+    const vector<xray::ui::font_info> font_list = fs::recursive_directory_iterator(xr_app_config->font_root()) >>=
+        pipes::filter([](const fs::directory_entry& dir_entry) {
+            if (!dir_entry.is_regular_file())
+                return false;
+
+            const std::string_view file_ext{ dir_entry.path().extension().c_str() };
+            return file_ext == ".ttf" || file_ext == ".otf";
+        }) >>= pipes::transform([](const fs::directory_entry& dir_entry) {
+            return xray::ui::font_info{ .path = dir_entry.path(), .pixel_size = 18.0f };
+        }) >>= pipes::to_<vector<xray::ui::font_info>>();
+
+    xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(
+        font_list.data(), font_list.size()) };
+
     //
     //     RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo,
     //     InstancedDrawingDemo>::registerDemo(
@@ -277,42 +286,8 @@ MainRunner::create()
     //     _ui->set_global_font("Roboto-Regular");
     //     _timer.start();
 
-    tl::optional<VulkanRenderer> renderer{ VulkanRenderer::create(
-        WindowPlatformDataXlib{ .display = main_window.native_display(),
-                                .window = main_window.native_window(),
-                                .visual = main_window.native_visual(),
-                                .width = static_cast<uint32_t>(main_window.width()),
-                                .height = static_cast<uint32_t>(main_window.height()) }) };
-
-    if (!renderer) {
-        XR_LOG_CRITICAL("Failed to create Vulkan renderer!");
-        return tl::nullopt;
-    }
-
-    const size_t scratch_buffer_bytes{ [&]() {
-        using namespace xray::rendering;
-        const xray::rendering::detail::SurfaceState& s = renderer->surface_state();
-
-        const VkDeviceSize bytes_size =
-            s.caps.currentExtent.width * s.caps.currentExtent.height * vk_format_bytes_size(s.format.format);
-
-        return bytes_size;
-    }() };
-
-    tl::optional<ManagedUniqueBuffer> scratch_buffer{ renderer->create_buffer(
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        scratch_buffer_bytes,
-        renderer->max_inflight_frames(),
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) };
-
-    if (!scratch_buffer) {
-        return tl::nullopt;
-    }
-
-    return tl::make_optional<MainRunner>(PrivateConstructToken{},
-                                         std::move(main_window),
-                                         std::move(*renderer.take()),
-                                         std::move(*scratch_buffer.take()));
+    return tl::make_optional<MainRunner>(
+        PrivateConstructToken{}, std::move(main_window), std::move(*renderer.take()), std::move(ui));
 }
 
 void
@@ -320,7 +295,7 @@ MainRunner::demo_quit()
 {
     assert(demo_running());
     _demo = nullptr;
-    hookup_event_delegates();
+    //    hookup_event_delegates();
 }
 
 void
@@ -345,7 +320,10 @@ MainRunner::hookup_event_delegates()
 void
 MainRunner::event_handler(const xray::ui::window_event& wnd_evt)
 {
-    assert(!demo_running());
+    if (demo_running()) {
+        _demo->event_handler(wnd_evt);
+        return;
+    }
 
     if (is_input_event(wnd_evt)) {
 
@@ -411,26 +389,6 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 
     const FrameRenderData frd{ _vkrenderer.begin_rendering(render_area) };
 
-    _scratch_buffer.mmap(_vkrenderer.device(), frame_idx).map([&](UniqueMemoryMapping mapped_buffer) {
-        struct Pixel
-        {
-            uint8_t a;
-            uint8_t b;
-            uint8_t g;
-            uint8_t r;
-        };
-
-        Pixel* pixels = static_cast<Pixel*>(mapped_buffer._mapped_memory);
-        const size_t max_width = render_area.extent.width;
-        const size_t max_height = render_area.extent.height;
-
-        for (size_t y = 0; y < max_height; ++y) {
-            for (size_t x = 0; x < max_width; ++x) {
-                pixels[y * max_width + x] = Pixel{ .a = 255, .b = 0, .g = 255, .r = 0 };
-            }
-        }
-    });
-
     const VkViewport viewport{ .x = 0.0f,
                                .y = 0.0f,
                                .width = static_cast<float>(loop_event.wnd_width),
@@ -445,13 +403,12 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
                                                   static_cast<uint32_t>(viewport.height) } };
     vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
 
-    //
-    // _vkrenderer.clear_attachments(frd.cmd_buf,
-    //                               _clear_color.r,
-    //                               _clear_color.g,
-    //                               _clear_color.b,
-    //                               static_cast<uint32_t>(viewport.width),
-    //                               static_cast<uint32_t>(viewport.height));
+    _vkrenderer.clear_attachments(frd.cmd_buf,
+                                  _clear_color.r,
+                                  _clear_color.g,
+                                  _clear_color.b,
+                                  static_cast<uint32_t>(viewport.width),
+                                  static_cast<uint32_t>(viewport.height));
 
     _vkrenderer.end_rendering();
 

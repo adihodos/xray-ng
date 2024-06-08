@@ -172,8 +172,11 @@ app::SimpleWorld::draw(const xray::scene::camera* cam)
     gl::DrawElements(gl::TRIANGLES, _world.index_count(), gl::UNSIGNED_INT, nullptr);
 }
 
-app::InstancedDrawingDemo::InstancedDrawingDemo(const init_context_t& init_ctx, RenderState rs, InstancingState ins)
-    : demo_base(init_ctx)
+app::InstancedDrawingDemo::InstancedDrawingDemo(PrivateConstructionToken,
+                                                const init_context_t& init_ctx,
+                                                RenderState rs,
+                                                InstancingState ins)
+    : DemoBase(init_ctx)
     , _obj_instances(std::move(ins))
     , _render_state(std::move(rs))
 {
@@ -195,16 +198,15 @@ app::InstancedDrawingDemo::InstancedDrawingDemo(const init_context_t& init_ctx, 
     gl::ViewportIndexedf(
         0, 0.0f, 0.0f, static_cast<float>(init_ctx.surface_width), static_cast<float>(init_ctx.surface_height));
 
-    _valid = true;
     _render_state._timer.start();
 }
 
-tl::optional<app::demo_bundle_t>
+xray::base::unique_pointer<app::DemoBase>
 app::InstancedDrawingDemo::create(const init_context_t& initContext)
 {
     tl::optional<SimpleWorld> sw{ SimpleWorld::create(initContext) };
     if (!sw)
-        return tl::nullopt;
+        return nullptr;
 
     itlib::small_vector<mesh_loader, 4> mloaders;
 
@@ -329,7 +331,7 @@ app::InstancedDrawingDemo::create(const init_context_t& initContext)
                                     .build_ex<render_stage::e::vertex>() };
 
     if (!vert_shader) {
-        return tl::nullopt;
+        return nullptr;
     }
 
     fragment_program frag_shader{ gpu_program_builder{}
@@ -337,7 +339,7 @@ app::InstancedDrawingDemo::create(const init_context_t& initContext)
                                       .build_ex<render_stage::e::fragment>() };
 
     if (!frag_shader) {
-        return tl::nullopt;
+        return nullptr;
     }
 
     scoped_program_pipeline_handle pipeline{ create_program_pipeline(vert_shader, frag_shader) };
@@ -419,33 +421,30 @@ app::InstancedDrawingDemo::create(const init_context_t& initContext)
         return scoped_sampler{ smp };
     }();
 
-    unique_pointer<InstancedDrawingDemo> monka_mega{ new InstancedDrawingDemo{
+    return xray::base::make_unique<InstancedDrawingDemo>(
+        PrivateConstructionToken{},
         initContext,
-        RenderState{ move(vertex_buffer),
-                     move(index_buffer),
-                     move(draw_cmds_buffer),
-                     move(vertexarray),
-                     move(vert_shader),
-                     move(frag_shader),
-                     move(pipeline),
-                     move(textures),
-                     move(sampler),
+        RenderState{ std::move(vertex_buffer),
+                     std::move(index_buffer),
+                     std::move(draw_cmds_buffer),
+                     std::move(vertexarray),
+                     std::move(vert_shader),
+                     std::move(frag_shader),
+                     std::move(pipeline),
+                     std::move(textures),
+                     std::move(sampler),
                      vec2i32{ initContext.surface_width, initContext.surface_height },
                      timer_highp{},
-                     move(*sw.take()) },
-        InstancingState{ move(instances), move(buffer_transforms) } } };
-
-    auto winEventHandler = make_delegate(*monka_mega, &InstancedDrawingDemo::event_handler);
-    auto loopEventHandler = make_delegate(*monka_mega, &InstancedDrawingDemo::loop_event);
-
-    return tl::make_optional<demo_bundle_t>(move(monka_mega), winEventHandler, loopEventHandler);
+                     std::move(*sw.take()) },
+        InstancingState{ std::move(instances), std::move(buffer_transforms) });
 }
 
 app::InstancedDrawingDemo::~InstancedDrawingDemo() {}
 
 void
-app::InstancedDrawingDemo::loop_event(const xray::ui::window_loop_event& wle)
+app::InstancedDrawingDemo::loop_event(const app::RenderEvent& render_event)
 {
+    const xray::ui::window_loop_event& wle = render_event.loop_event;
     //
     // process input
     _scene.cam_control.process_input(_keyboard);
@@ -584,7 +583,7 @@ app::InstancedDrawingDemo::compose_ui(const int32_t surface_width, const int32_t
 void
 app::InstancedDrawingDemo::event_handler(const xray::ui::window_event& evt)
 {
-    demo_base::event_handler(evt);
+    DemoBase::event_handler(evt);
 
     if (evt.type == event_type::configure) {
         RenderState* r = &_render_state;
@@ -619,7 +618,7 @@ app::InstancedDrawingDemo::event_handler(const xray::ui::window_event& evt)
                 return;
             }
 
-			_scene.cam_control.input_event(evt);
+            _scene.cam_control.input_event(evt);
         }
         return;
     }

@@ -53,10 +53,11 @@ static constexpr const char* const TEXTURES[] = { "uv_grids/ash_uvgrid01.jpg", "
                                                   "uv_grids/ash_uvgrid05.jpg", "uv_grids/ash_uvgrid06.jpg",
                                                   "uv_grids/ash_uvgrid07.jpg", "uv_grids/ash_uvgrid08.jpg" };
 
-app::procedural_city_demo::procedural_city_demo(const app::init_context_t& initctx,
-                                                app::procedural_city_demo::RenderState&& renderState)
-    : demo_base(initctx)
-    , mRenderState(move(renderState))
+app::ProceduralCityDemo::ProceduralCityDemo(PrivateConstructionToken,
+                                                const app::init_context_t& initctx,
+                                                app::ProceduralCityDemo::RenderState&& renderState)
+    : DemoBase(initctx)
+    , mRenderState(std::move(renderState))
 {
     camera_lens_parameters lp{};
     lp.farplane = 1000.0f;
@@ -65,10 +66,10 @@ app::procedural_city_demo::procedural_city_demo(const app::init_context_t& initc
     mRenderState._camcontrol.set_lens_parameters(lp);
 }
 
-app::procedural_city_demo::~procedural_city_demo() {}
+app::ProceduralCityDemo::~ProceduralCityDemo() {}
 
 void
-app::procedural_city_demo::draw(const xray::ui::window_loop_event& loopEvent)
+app::ProceduralCityDemo::draw(const xray::ui::window_loop_event& loopEvent)
 {
 
     gl::ViewportIndexedf(0, 0.0f, 0.0f, (float)loopEvent.wnd_width, (float)loopEvent.wnd_height);
@@ -115,7 +116,7 @@ app::procedural_city_demo::draw(const xray::ui::window_loop_event& loopEvent)
 }
 
 void
-app::procedural_city_demo::event_handler(const xray::ui::window_event& evt)
+app::ProceduralCityDemo::event_handler(const xray::ui::window_event& evt)
 {
 
     if (evt.type == event_type::configure) {
@@ -142,8 +143,9 @@ app::procedural_city_demo::event_handler(const xray::ui::window_event& evt)
 }
 
 void
-app::procedural_city_demo::loop_event(const xray::ui::window_loop_event& loopEvent)
+app::ProceduralCityDemo::loop_event(const RenderEvent& render_event)
 {
+    const xray::ui::window_loop_event& loopEvent = render_event.loop_event;
     _ui->tick(1.0f / 60.0f);
     mRenderState._camcontrol.update_camera(mRenderState._camera);
     draw(loopEvent);
@@ -151,17 +153,7 @@ app::procedural_city_demo::loop_event(const xray::ui::window_loop_event& loopEve
 }
 
 void
-app::procedural_city_demo::poll_start(const xray::ui::poll_start_event&)
-{
-}
-
-void
-app::procedural_city_demo::poll_end(const xray::ui::poll_end_event&)
-{
-}
-
-void
-app::procedural_city_demo::draw_ui(const xray::ui::window_loop_event& loopEvent)
+app::ProceduralCityDemo::draw_ui(const xray::ui::window_loop_event& loopEvent)
 {
     _ui->new_frame(loopEvent.wnd_width, loopEvent.wnd_height);
 
@@ -201,8 +193,8 @@ struct per_instance_data
     int32_t pad[3];
 };
 
-tl::optional<app::demo_bundle_t>
-app::procedural_city_demo::create(const init_context_t& initContext)
+xray::base::unique_pointer<app::DemoBase>
+app::ProceduralCityDemo::create(const init_context_t& initContext)
 {
     //
     // basic cube mesh that will be instanced to produce our buildings
@@ -255,13 +247,13 @@ app::procedural_city_demo::create(const init_context_t& initContext)
         gpu_program_builder{}.add_file("shaders/misc/procedural_city/vs.glsl").build<render_stage::e::vertex>();
 
     if (!vertexShader)
-        return tl::nullopt;
+        return nullptr;
 
     fragment_program fragmentShader =
         gpu_program_builder{}.add_file("shaders/misc/procedural_city/fs.glsl").build<render_stage::e::fragment>();
 
     if (!fragmentShader)
-        return tl::nullopt;
+        return nullptr;
 
     program_pipeline programPipeline{ []() {
         GLuint pp;
@@ -301,21 +293,17 @@ app::procedural_city_demo::create(const init_context_t& initContext)
     gl::SamplerParameteri(raw_handle(textureSampler), gl::TEXTURE_MIN_FILTER, gl::LINEAR);
     gl::SamplerParameteri(raw_handle(textureSampler), gl::TEXTURE_MAG_FILTER, gl::LINEAR);
 
-    unique_pointer<procedural_city_demo> objectPtr{ new procedural_city_demo{ initContext,
-                                                                              { move(cubeMesh),
-                                                                                move(instanceBuffer),
-                                                                                move(vertexShader),
-                                                                                move(fragmentShader),
-                                                                                move(programPipeline),
-                                                                                move(textureCollection),
-                                                                                move(textureSampler),
-                                                                                {}, // default camera
-                                                                                fps_camera_controller{ nullptr } } } };
-
-    auto winEventHandler = make_delegate(*objectPtr, &procedural_city_demo::event_handler);
-    auto loopEventHandler = make_delegate(*objectPtr, &procedural_city_demo::loop_event);
-
-    return tl::make_optional<demo_bundle_t>(std::move(objectPtr), winEventHandler, loopEventHandler);
+    return xray::base::make_unique<ProceduralCityDemo>(PrivateConstructionToken{},
+                                                         initContext,
+                                                         RenderState{ std::move(cubeMesh),
+                                                                      std::move(instanceBuffer),
+                                                                      std::move(vertexShader),
+                                                                      std::move(fragmentShader),
+                                                                      std::move(programPipeline),
+                                                                      std::move(textureCollection),
+                                                                      std::move(textureSampler),
+                                                                      {}, // default camera
+                                                                      fps_camera_controller{ nullptr } });
 }
 
 app::simple_fluid::simple_fluid() noexcept
@@ -330,7 +318,7 @@ app::simple_fluid::parameters::check_numerical_constraints() const noexcept
 
     if ((wavespeed < 0.0f) || (wavespeed > k_speedmax)) {
         XR_LOG_DEBUG("Speed constraints not satisfied, waves will diverge "
-                       "to infinity");
+                     "to infinity");
     }
 
     const float k0 = wavespeed * wavespeed / cellwidth * cellwidth;
@@ -338,7 +326,7 @@ app::simple_fluid::parameters::check_numerical_constraints() const noexcept
 
     if ((timefactor < 0.0f) || (timefactor > k_timefactormax)) {
         XR_LOG_DEBUG("Time step constraints not satified, waves will diverge "
-                       "to infinity");
+                     "to infinity");
     }
 }
 

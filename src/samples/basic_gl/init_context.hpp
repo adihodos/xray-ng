@@ -40,6 +40,13 @@ class ConfigSystem;
 namespace ui {
 class user_interface;
 }
+
+#if !defined(XRAY_RENNDERER_OPENGL)
+namespace rendering {
+class VulkanRenderer;
+} // namespace rendering
+#endif
+
 } // namespace xray
 
 namespace app {
@@ -50,6 +57,9 @@ struct init_context_t
     int32_t surface_height;
     xray::base::ConfigSystem* cfg;
     xray::ui::user_interface* ui;
+#if !defined(XRAY_RENDERER_OPENGL)
+    xray::rendering::VulkanRenderer* renderer;
+#endif
     xray::base::fast_delegate<void()> quit_receiver;
 };
 

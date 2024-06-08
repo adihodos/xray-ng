@@ -57,11 +57,12 @@ using namespace std;
 
 extern xray::base::ConfigSystem* xr_app_config;
 
-app::DirectionalLightDemo::DirectionalLightDemo(const init_context_t& ctx,
+app::DirectionalLightDemo::DirectionalLightDemo(PrivateConstructionToken,
+                                                const init_context_t& ctx,
                                                 RenderState&& rs,
                                                 const DemoOptions& ds,
                                                 Scene&& s)
-    : demo_base{ ctx }
+    : DemoBase{ ctx }
     , mRenderState{ std::move(rs) }
     , mDemoOptions{ ds }
     , mScene{ std::move(s) }
@@ -159,7 +160,7 @@ make_lights()
     return lightsCollection;
 }
 
-tl::optional<app::demo_bundle_t>
+xray::base::unique_pointer<app::DemoBase>
 app::DirectionalLightDemo::create(const app::init_context_t& initContext)
 {
     namespace fs = std::filesystem;
@@ -236,14 +237,14 @@ app::DirectionalLightDemo::create(const app::init_context_t& initContext)
                                     .build<render_stage::e::vertex>();
 
     if (!vertShader)
-        return tl::nullopt;
+        return nullptr;
 
     fragment_program fragShader = gpu_program_builder{}
                                       .add_file(initContext.cfg->shader_path("lighting/directional.frag").c_str())
                                       .build<render_stage::e::fragment>();
 
     if (!fragShader)
-        return tl::nullopt;
+        return nullptr;
 
     program_pipeline pipeline = program_pipeline{ []() {
         GLuint ppl{};
@@ -282,34 +283,31 @@ app::DirectionalLightDemo::create(const app::init_context_t& initContext)
 
     tl::optional<RenderDebugDraw> debugDraw{ RenderDebugDraw::create() };
     if (!debugDraw)
-        return tl::nullopt;
+        return nullptr;
 
-    unique_pointer<DirectionalLightDemo> object{ new DirectionalLightDemo{ // base
-                                                                           initContext,
-                                                                           // renderstate
-                                                                           { surface_normal_visualizer{},
-                                                                             move(geometryObjects),
-                                                                             {},
-                                                                             move(vertShader),
-                                                                             move(fragShader),
-                                                                             move(pipeline),
-                                                                             move(colorTextures),
-                                                                             move(sampler),
-                                                                             move(*debugDraw.take()) },
-                                                                           // demo options
-                                                                           demoOptions,
-                                                                           // scene
-                                                                           move(s) } };
-
-    auto winEventHandler = make_delegate(*object, &DirectionalLightDemo::event_handler);
-    auto loopEventHandler = make_delegate(*object, &DirectionalLightDemo::loop_event);
-
-    return tl::make_optional<demo_bundle_t>(std::move(object), winEventHandler, loopEventHandler);
+    return xray::base::make_unique<DirectionalLightDemo>( // base
+        PrivateConstructionToken{},
+        initContext,
+        // renderstate
+        RenderState{ surface_normal_visualizer{},
+                     std::move(geometryObjects),
+                     {},
+                     std::move(vertShader),
+                     std::move(fragShader),
+                     std::move(pipeline),
+                     std::move(colorTextures),
+                     std::move(sampler),
+                     std::move(*debugDraw.take()) },
+        // demo options
+        demoOptions,
+        // scene
+        std::move(s));
 }
 
 void
-app::DirectionalLightDemo::loop_event(const xray::ui::window_loop_event& wle)
+app::DirectionalLightDemo::loop_event(const RenderEvent& render_event)
 {
+    const xray::ui::window_loop_event& wle = render_event.loop_event;
     mFsWatcher.poll();
     _ui->tick(1.0f / 60.0f);
     mScene.timer.update_and_reset();
@@ -650,16 +648,6 @@ app::DirectionalLightDemo::draw_ui(const int32_t surface_w, const int32_t surfac
 }
 
 void
-app::DirectionalLightDemo::poll_start(const xray::ui::poll_start_event&)
-{
-}
-
-void
-app::DirectionalLightDemo::poll_end(const xray::ui::poll_end_event&)
-{
-}
-
-void
 app::DirectionalLightDemo::switch_mesh(const SwitchMeshOpt switchMeshOpt)
 {
     if (switchMeshOpt == SwitchMeshOpt::LoadFromFile) {
@@ -703,7 +691,7 @@ app::DirectionalLightDemo::filesys_event_handler(const xray::base::FileSystemEve
             vertex_program prg = gpu_program_builder{}.add_file(e->file.c_str()).build<render_stage::e::vertex>();
             if (prg) {
                 XR_LOG_INFO("::: reloaded vertex program - file {} :::", e->file.string());
-                mRenderState.vs = move(prg);
+                mRenderState.vs = std::move(prg);
                 mRenderState.pipeline.use_vertex_program(mRenderState.vs);
             }
 
@@ -714,7 +702,7 @@ app::DirectionalLightDemo::filesys_event_handler(const xray::base::FileSystemEve
             fragment_program prg = gpu_program_builder{}.add_file(e->file.c_str()).build<render_stage::e::fragment>();
             if (prg) {
                 XR_LOG_INFO("::: reloaded fragment program - file {} ::: ", e->file.string());
-                mRenderState.fs = move(prg);
+                mRenderState.fs = std::move(prg);
                 mRenderState.pipeline.use_fragment_program(mRenderState.fs);
             }
             return;

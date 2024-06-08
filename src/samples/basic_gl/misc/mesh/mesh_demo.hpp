@@ -49,15 +49,14 @@
 
 namespace app {
 
-class mesh_demo : public demo_base
+class mesh_demo : public DemoBase
 {
   public:
     mesh_demo(const init_context_t& init_ctx);
-
     ~mesh_demo();
 
     virtual void event_handler(const xray::ui::window_event& evt) override;
-    virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void loop_event(const RenderEvent&) override;
 
   private:
     struct mesh_info

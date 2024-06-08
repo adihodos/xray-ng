@@ -43,17 +43,12 @@ struct DepthStencilState
     float max_depth{ 1.0f };
 };
 
-struct GraphicsPipeline
-{
-    xrUniqueVkPipeline pipeline;
-    xrUniqueVkPipelineLayout layout;
-    std::vector<xrUniqueVkDescriptorSetLayout> descriptor_set_layout;
-};
+class VulkanRenderer;
 
 class GraphicsPipelineBuilder
 {
   public:
-    GraphicsPipelineBuilder();
+    GraphicsPipelineBuilder() = default;
 
     GraphicsPipelineBuilder& add_shader(const uint32_t stage, std::string_view code)
     {
@@ -97,8 +92,7 @@ class GraphicsPipelineBuilder
         return *this;
     }
 
-    tl::optional<GraphicsPipeline> create(VkDevice device,
-                                              const VkPipelineRenderingCreateInfo& rendering_create_info);
+    tl::optional<GraphicsPipeline> create(const VulkanRenderer& renderer);
 
   private:
     using ShaderModuleSource = swl::variant<std::string_view, std::filesystem::path>;

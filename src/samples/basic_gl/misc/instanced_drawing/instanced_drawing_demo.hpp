@@ -33,12 +33,12 @@
 #include "xray/xray.hpp"
 
 #include <cstdint>
-#include <tl/optional.hpp>
 #include <vector>
 
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "xray/base/basic_timer.hpp"
+#include "xray/base/unique_pointer.hpp"
 #include "xray/base/random.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
@@ -70,17 +70,23 @@ class SimpleWorld
     xray::math::vec2ui32 _worldsize;
 };
 
-class InstancedDrawingDemo : public demo_base
+class InstancedDrawingDemo : public DemoBase
 {
+  private:
+    struct PrivateConstructionToken
+    {
+        explicit PrivateConstructionToken() = default;
+    };
+
   public:
     ~InstancedDrawingDemo();
 
     virtual void event_handler(const xray::ui::window_event& evt) override;
-    virtual void loop_event(const xray::ui::window_loop_event&) override;
+    virtual void loop_event(const RenderEvent&) override;
 
     static std::string_view short_desc() noexcept { return "Instanced drawing demo."; }
     static std::string_view detailed_desc() noexcept { return "Instanced drawing demo."; }
-    static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
+    static xray::base::unique_pointer<DemoBase> create(const init_context_t& initContext);
 
   private:
     void compose_ui(const int32_t surface_width, const int32_t surface_height);
@@ -140,8 +146,8 @@ class InstancedDrawingDemo : public demo_base
         int32_t instance_count{ InstancingState::instance_count };
     } _demo_opts;
 
-  private:
-    InstancedDrawingDemo(const init_context_t& init_ctx, RenderState rs, InstancingState ins);
+  public:
+    InstancedDrawingDemo(PrivateConstructionToken, const init_context_t& init_ctx, RenderState rs, InstancingState ins);
 };
 
 } // namespace app

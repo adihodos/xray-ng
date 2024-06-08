@@ -33,9 +33,8 @@
 #include <cstdint>
 #include <random>
 
-#include <tl/optional.hpp>
-
 #include "demo_base.hpp"
+#include "xray/base/unique_pointer.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/geometry/surface_normal_visualizer.hpp"
@@ -122,26 +121,28 @@ class simple_fluid
     xray::rendering::scoped_texture _fluid_tex{};
 };
 
-class procedural_city_demo : public demo_base
+class ProceduralCityDemo : public DemoBase
 {
+  private:
+    struct PrivateConstructionToken
+    {
+        explicit PrivateConstructionToken() = default;
+    };
+
   public:
-    ~procedural_city_demo();
+    ~ProceduralCityDemo();
 
     virtual void event_handler(const xray::ui::window_event& evt) override;
-    virtual void loop_event(const xray::ui::window_loop_event&) override;
-    virtual void poll_start(const xray::ui::poll_start_event&) override;
-    virtual void poll_end(const xray::ui::poll_end_event&) override;
+    virtual void loop_event(const RenderEvent&) override;
 
     static std::string_view short_desc() noexcept { return "Procedural city."; }
-
     static std::string_view detailed_desc() noexcept { return "Procedurally generated city."; }
-
-    static tl::optional<demo_bundle_t> create(const init_context_t& initContext);
+    static xray::base::unique_pointer<DemoBase> create(const init_context_t& initContext);
 
   private:
     void init();
     void draw_ui(const xray::ui::window_loop_event& loopEvent);
-	void draw(const xray::ui::window_loop_event& loopEvent);
+    void draw(const xray::ui::window_loop_event& loopEvent);
 
   private:
     struct RenderState
@@ -167,15 +168,18 @@ class procedural_city_demo : public demo_base
         bool draw_buildings{ true };
     } mDemoOptions;
 
-	struct RasterizerState {
-		xray::rendering::ScopedGlCap mEnabledDepthTesting{gl::DEPTH_TEST, xray::rendering::GlCapabilityState::On};
-		xray::rendering::ScopedGlCap mEnableFaceCulling{gl::CULL_FACE, xray::rendering::GlCapabilityState::On};
-		xray::rendering::ScopedCullFaceMode mCullBackFaces{gl::BACK};
-	} mRasterizerState{};
+    struct RasterizerState
+    {
+        xray::rendering::ScopedGlCap mEnabledDepthTesting{ gl::DEPTH_TEST, xray::rendering::GlCapabilityState::On };
+        xray::rendering::ScopedGlCap mEnableFaceCulling{ gl::CULL_FACE, xray::rendering::GlCapabilityState::On };
+        xray::rendering::ScopedCullFaceMode mCullBackFaces{ gl::BACK };
+    } mRasterizerState{};
 
   private:
-    procedural_city_demo(const init_context_t& initCtx, RenderState&& renderState);
-    XRAY_NO_COPY(procedural_city_demo);
+    XRAY_NO_COPY(ProceduralCityDemo);
+
+  public:
+    ProceduralCityDemo(PrivateConstructionToken, const init_context_t& initCtx, RenderState&& renderState);
 };
 
 } // namespace app
