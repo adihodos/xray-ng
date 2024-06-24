@@ -37,7 +37,6 @@
 #include <cstdint>
 #include <string>
 
-#include "xray/base/fast_delegate.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4.hpp"

@@ -131,7 +131,7 @@ app::mesh_demo::init()
         return ppl;
     }() };
 
-    texture_loader tldr{ xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg").c_str() };
+    texture_loader tldr{ xr_app_config->texture_path("uv_grids/ash_uvgrid01.jpg") };
 
     if (!tldr) {
         return;
@@ -259,7 +259,7 @@ app::mesh_demo::draw_ui(const int32_t surface_width, const int32_t surface_heigh
             XR_LOG_DEBUG("Changing mesh from {} to {}", _sel_id, selected);
             _sel_id = selected;
 
-            _mesh_info = load_mesh(xr_app_config->model_path(loadable_meshes[_sel_id].file_name).c_str());
+            _mesh_info = load_mesh(xr_app_config->model_path(loadable_meshes[_sel_id].file_name).generic_string().c_str());
         }
 
         if (_mesh_info) {

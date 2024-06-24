@@ -28,7 +28,7 @@
 
 #pragma once
 
-#include "xray/base/fast_delegate.hpp"
+#include "xray/base/delegate.hpp"
 #include "xray/xray.hpp"
 #include <cstdint>
 
@@ -60,7 +60,7 @@ struct init_context_t
 #if !defined(XRAY_RENDERER_OPENGL)
     xray::rendering::VulkanRenderer* renderer;
 #endif
-    xray::base::fast_delegate<void()> quit_receiver;
+    cpp::delegate<void()> quit_receiver;
 };
 
 } // namespace app

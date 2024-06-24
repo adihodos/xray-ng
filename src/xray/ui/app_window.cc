@@ -7,7 +7,6 @@
 #include <dwmapi.h>
 #include <dxgi.h>
 #include <memory>
-#include <stlsoft/memory/auto_buffer.hpp>
 #include <string>
 #include <tchar.h>
 #include <tuple>

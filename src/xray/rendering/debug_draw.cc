@@ -1,16 +1,16 @@
 #include "xray/rendering/debug_draw.hpp"
+
+#include <algorithm>
+
+#include <Lz/Lz.hpp>
+#include <itlib/small_vector.hpp>
+
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
-
-#include <algorithm>
-
-#include <itertools.hpp>
-#include <itlib/small_vector.hpp>
-#include <pipes/pipes.hpp>
 
 namespace internal {
 
@@ -82,8 +82,9 @@ RenderDebugDraw::draw_box(const std::span<const math::vec3f> points, const rgb_c
     assert(points.size() == 8);
     constexpr const uint8_t indices[] = { 0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7 };
     static_assert(std::size(indices) % 2 == 0);
-    for (auto&& primitive : iter::chunked(indices, 2)) {
-        draw_line(points[primitive[0]], points[primitive[1]], c);
+    for (auto&& primitive : lz::chunks(indices, 2)) {
+        const auto pts = primitive.toArray<2>();
+        draw_line(points[pts[0]], points[pts[1]], c);
     }
 }
 
@@ -104,12 +105,14 @@ RenderDebugDraw::draw_frustrum(const math::MatrixWithInvertedMatrixPair4f& mtx, 
     };
 
     // NDC -> view space
-    const itlib::small_vector<math::vec3f, 8> points = planes_points >>=
-        pipes::transform([&mtx](const math::vec3f& p) { return math::mul_point(mtx.inverted, math::vec4f{ p }); }) >>=
-        pipes::filter([](const math::vec4f& p) { return std::fabs(p.w) > 1.0e-4; }) >>=
-        pipes::transform([](const math::vec4f& p) {
-            return math::vec3f{ p.x / p.w, p.y / p.w, p.z / p.w };
-        }) >>= pipes::to_<itlib::small_vector<math::vec3f, 8>>();
+    const itlib::small_vector<math::vec3f, 8> points =
+        lz::chain(planes_points)
+            .map([&mtx](const math::vec3f& p) { return math::mul_point(mtx.inverted, math::vec4f{ p }); })
+            .filter([](const math::vec4f& p) { return std::fabs(p.w) > 1.0e-4; })
+            .map([](const math::vec4f& p) {
+                return math::vec3f{ p.x / p.w, p.y / p.w, p.z / p.w };
+            })
+            .to<itlib::small_vector<math::vec3f, 8>>();
 
     if (points.size() == 8)
         draw_box(std::span{ points }, color);
@@ -137,9 +140,11 @@ RenderDebugDraw::draw_oriented_box(const math::vec3f& org,
 
     const uint32_t kIndices[] = { 0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7 };
 
-    kIndices >>= pipes::transform([kVertices, c](const uint32_t idx) {
-        return vertex_pc{ kVertices[idx], c };
-    }) >>= pipes::push_back(mRenderState.mVertices);
+    lz::chain(kIndices)
+        .map([kVertices, c](const uint32_t idx) {
+            return vertex_pc{ kVertices[idx], c };
+        })
+        .copyTo(std::back_inserter(mRenderState.mVertices));
 
     draw_cross(org, u, v, w, std::min({ eu, ev, ew }) * 0.25f, c);
 }
@@ -248,9 +253,9 @@ RenderDebugDraw::draw_arrow(const math::vec3f& from, const math::vec3f& to, cons
 
     const uint32_t kIndices[] = { 1, 2, 2, 3, 3, 4, 4, 1, 0, 1, 0, 2, 0, 3, 0, 4, 2, 4, 1, 3 };
 
-    kIndices >>= pipes::transform([kVertices, c](const uint32_t idx) {
+    lz::chain(kIndices).transformTo(std::back_inserter(mRenderState.mVertices), [kVertices, c](const uint32_t idx) {
         return vertex_pc{ kVertices[idx], c };
-    }) >>= pipes::push_back(mRenderState.mVertices);
+    });
 }
 
 void
@@ -275,9 +280,9 @@ RenderDebugDraw::draw_plane(const math::vec3f& origin, const math::vec3f& normal
     };
 
     constexpr const uint32_t kIndices[] = { 0, 1, 1, 2, 2, 3, 3, 0 };
-    kIndices >>= pipes::transform([kVertices, c](const uint32_t idx) {
+    lz::chain(kIndices).transformTo(std::back_inserter(mRenderState.mVertices), [kVertices, c](const uint32_t idx) {
         return vertex_pc{ kVertices[idx], c };
-    }) >>= pipes::push_back(mRenderState.mVertices);
+    });
 
     draw_arrow(origin, origin + normal * scale * 0.5f, c);
 }
@@ -293,7 +298,7 @@ RenderDebugDraw::draw_circle(const math::vec3f& origin,
 
     const auto [u, v, w] = math::make_frame_vectors(normal);
 
-    iter::range(kSteps) >>= pipes::for_each([=, this](const uint32_t idx) {
+    for (const uint32_t idx : lz::range(kSteps)) {
         const math::vec3f v0 = origin + v * kSinCosTable[idx].s * radius + w * kSinCosTable[idx].t * radius;
         const math::vec3f v1 =
             origin + v * kSinCosTable[(idx + 1) % kSteps].s * radius + w * kSinCosTable[(idx + 1) % kSteps].t * radius;
@@ -301,7 +306,7 @@ RenderDebugDraw::draw_circle(const math::vec3f& origin,
         if (draw_options & Draw_CircleSegments)
             draw_line(origin, v0, c);
         draw_line(v0, v1, c);
-    });
+    }
 
     if (draw_options & Draw_CircleNormal)
         draw_arrow(origin, origin + normal * radius * 0.5f, c);
@@ -327,41 +332,41 @@ RenderDebugDraw::draw_cone(const math::vec3f origin,
 
     const auto [u, v, w] = math::make_frame_vectors(normal);
     if (math::is_zero(apex)) {
-        iter::range(kSteps) >>=
-            pipes::for_each([origin, height, radius = base, c, u, v, w, normal, this](const uint32_t idx) {
-                const math::vec3f v0 = origin + v * kSinCosTable[idx].s * radius + w * kSinCosTable[idx].t * radius;
-                const math::vec3f v1 = origin + v * kSinCosTable[(idx + 1) % kSteps].s * radius +
-                                       w * kSinCosTable[(idx + 1) % kSteps].t * radius;
+        for (const uint32_t idx : lz::range(kSteps)) {
+            const auto radius = base;
+            const math::vec3f v0 = origin + v * kSinCosTable[idx].s * radius + w * kSinCosTable[idx].t * radius;
+            const math::vec3f v1 = origin + v * kSinCosTable[(idx + 1) % kSteps].s * radius +
+                                   w * kSinCosTable[(idx + 1) % kSteps].t * radius;
 
-                draw_line(origin, v0, c);
-                draw_line(v0, v1, c);
-                draw_line(origin + normal * height, v0, c);
-                draw_line(origin + normal * height, v1, c);
-            });
+            draw_line(origin, v0, c);
+            draw_line(v0, v1, c);
+            draw_line(origin + normal * height, v0, c);
+            draw_line(origin + normal * height, v1, c);
+        }
     } else {
-        iter::range(kSteps) >>= pipes::for_each(
-            [origin, apex_org = origin + normal * height, radius = base, apex_r = apex, c, u, v, w, this](
-                const uint32_t idx) {
-                // base
-                const math::vec3f v0 = origin + v * kSinCosTable[idx].s * radius + w * kSinCosTable[idx].t * radius;
-                const math::vec3f v1 = origin + v * kSinCosTable[(idx + 1) % kSteps].s * radius +
-                                       w * kSinCosTable[(idx + 1) % kSteps].t * radius;
+        for (const uint32_t idx : lz::range(kSteps)) {
+            const auto apex_org = origin + normal * height;
+            const auto radius = base;
+            const auto apex_r = apex;
 
-                draw_line(origin, v0, c);
-                draw_line(v0, v1, c);
+            const math::vec3f v0 = origin + v * kSinCosTable[idx].s * radius + w * kSinCosTable[idx].t * radius;
+            const math::vec3f v1 = origin + v * kSinCosTable[(idx + 1) % kSteps].s * radius +
+                                   w * kSinCosTable[(idx + 1) % kSteps].t * radius;
 
-                // apex
-                const math::vec3f apxv0 =
-                    apex_org + v * kSinCosTable[idx].s * apex_r + w * kSinCosTable[idx].t * apex_r;
-                const math::vec3f apxv1 = apex_org + v * kSinCosTable[(idx + 1) % kSteps].s * apex_r +
-                                          w * kSinCosTable[(idx + 1) % kSteps].t * apex_r;
+            draw_line(origin, v0, c);
+            draw_line(v0, v1, c);
 
-                draw_line(apex_org, apxv0, c);
-                draw_line(apxv0, apxv1, c);
+            // apex
+            const math::vec3f apxv0 = apex_org + v * kSinCosTable[idx].s * apex_r + w * kSinCosTable[idx].t * apex_r;
+            const math::vec3f apxv1 = apex_org + v * kSinCosTable[(idx + 1) % kSteps].s * apex_r +
+                                      w * kSinCosTable[(idx + 1) % kSteps].t * apex_r;
 
-                // lines from apex to base
-                draw_line(v0, apxv0, c);
-            });
+            draw_line(apex_org, apxv0, c);
+            draw_line(apxv0, apxv1, c);
+
+            // lines from apex to base
+            draw_line(v0, apxv0, c);
+        }
     }
 }
 
@@ -417,8 +422,11 @@ RenderDebugDraw::create()
     graphicsPipeline.use_vertex_program(vertexShader).use_fragment_program(fragmentShader);
 
     using std::move;
-    return tl::optional<RenderDebugDraw>{ RenderDebugDraw{
-        move(vertexBuffer), move(vertexArray), move(vertexShader), move(fragmentShader), move(graphicsPipeline) } };
+    return tl::optional<RenderDebugDraw>{ RenderDebugDraw{ std::move(vertexBuffer),
+                                                           std::move(vertexArray),
+                                                           std::move(vertexShader),
+                                                           std::move(fragmentShader),
+                                                           std::move(graphicsPipeline) } };
 }
 
 void

@@ -54,7 +54,6 @@
 #include "xray/rendering/render_stage.hpp"
 #include "xray/xray_types.hpp"
 
-
 namespace xray {
 namespace rendering {
 
@@ -565,20 +564,23 @@ class gpu_program_builder
   public:
     gpu_program_builder() noexcept {}
 
-	gpu_program_builder& push_string_block(std::string_view sv) {
-		_build_blocks.emplace_back(sv);
-		return *this;
-	}
+    gpu_program_builder& push_string_block(std::string_view sv)
+    {
+        _build_blocks.emplace_back(sv);
+        return *this;
+    }
 
-	gpu_program_builder& push_file_block(std::filesystem::path path) {
-		_build_blocks.emplace_back(std::move(path));
-		return *this;
-	}
+    gpu_program_builder& push_file_block(std::filesystem::path path)
+    {
+        _build_blocks.emplace_back(std::move(path));
+        return *this;
+    }
 
-	gpu_program_builder& push_binary_block(blob_span_t blob) {
-		_build_blocks.emplace_back(blob);
-		return *this;
-	}
+    gpu_program_builder& push_binary_block(blob_span_t blob)
+    {
+        _build_blocks.emplace_back(blob);
+        return *this;
+    }
 
     gpu_program_builder& add_string(const char* str) { return add_string(shader_source_string{ str }); }
 
@@ -611,7 +613,7 @@ class gpu_program_builder
     {
         return gpu_program_t<stage>{ build_program(xray_to_opengl<stage>::shader_type) };
     }
-	
+
     template<render_stage::e stage>
     gpu_program_t<stage> build_ex() const
     {
@@ -636,7 +638,7 @@ class gpu_program_builder
     uint8_t _sources_count{ 0 };
     bool _binary{ false };
 
-	itlib::small_vector<ShaderBuildingBlock, 4> _build_blocks;
+    itlib::small_vector<ShaderBuildingBlock, 4> _build_blocks;
 };
 
 } // namespace rendering

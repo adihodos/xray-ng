@@ -36,8 +36,18 @@
 #include <cstddef>
 #include <cstdint>
 
+#if __has_include(<source_location>)
+#include <source_location>
+#define XRAY_FUNCTION_NAME (std::source_location::current().function_name())
+#define XRAY_QUALIFIED_FUNCTION_NAME XRAY_FUNCTION_NAME
+#else
 #define XRAY_FUNCTION_NAME __FUNCTION__
+#if defined(XRAY_COMPILER_IS_MSVC)
+#define XRAY_QUALIFIED_FUNCTION_NAME __FUNCSIG__
+#else
 #define XRAY_QUALIFIED_FUNCTION_NAME __PRETTY_FUNCTION__
+#endif
+#endif
 
 #define XRAY_STRINGIZE_a(x) #x
 #define XRAY_STRINGIZE_w(x) L## #x

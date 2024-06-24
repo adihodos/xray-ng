@@ -32,7 +32,6 @@
 #include <algorithm>
 #include <d3dcompiler.h>
 #include <numeric>
-#include <stlsoft/memory/auto_buffer.hpp>
 
 using namespace xray::base;
 using namespace std;

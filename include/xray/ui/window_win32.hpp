@@ -32,6 +32,7 @@
 
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
+#include "xray/ui/window.common.core.hpp"
 #include "xray/ui/window_params.hpp"
 #include "xray/xray.hpp"
 #include <atomic>
@@ -93,13 +94,7 @@ using scoped_window = base::unique_pointer<std::remove_pointer_t<HWND>, wnd_dele
 class window
 {
   public:
-    struct
-    {
-        loop_event_delegate loop;
-        window_event_delegate window;
-        poll_start_event_delegate poll_start;
-        poll_end_event_delegate poll_end;
-    } events;
+    WindowCommonCore core;
 
     /// \name Construction and destruction.
     /// @{
@@ -107,12 +102,15 @@ class window
     using handle_type = HWND;
 
     explicit window(const window_params_t& wparam);
+    window(window&&);
 
     ~window();
 
     /// @}
 
     handle_type handle() const noexcept { return _window; }
+    handle_type native_window() const noexcept { return _window; }
+    HMODULE native_module() const noexcept { return GetModuleHandle(nullptr); }
 
     void disable_cursor() noexcept;
     void enable_cursor() noexcept;
@@ -133,20 +131,11 @@ class window
 
     /// @}
 
-    int32_t width() const noexcept
-    {
-        return _wnd_width;
-    }
-    int32_t height() const noexcept
-    {
-        return _wnd_height;
-    }
+    int32_t width() const noexcept { return _wnd_width; }
+    int32_t height() const noexcept { return _wnd_height; }
 
     void message_loop();
-    void quit() noexcept
-    {
-        _quit_flag = true;
-    }
+    void quit() noexcept { _quit_flag = true; }
 
   private:
     static LRESULT WINAPI window_proc_stub(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam);

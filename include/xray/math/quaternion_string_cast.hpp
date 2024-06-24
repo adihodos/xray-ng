@@ -28,24 +28,37 @@
 
 #pragma once
 
-#include "xray/math/quaternion.hpp"
 #include "xray/xray.hpp"
-#include <cstdio>
-#include <stlsoft/memory/auto_buffer.hpp>
-#include <string>
+#include "xray/math/quaternion.hpp"
 
-namespace xray {
-namespace math {
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
+#include <fmt/core.h>
+#include <fmt/format.h>
+#endif
+
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
+
+namespace fmt {
 
 template<typename T>
-std::string
-string_cast(const quaternion<T>& q)
+struct formatter<xray::math::quaternion<T>> : nested_formatter<T>
 {
-    stlsoft::auto_buffer<char, 256u> tmp_buff{ 256u };
-    snprintf(tmp_buff.data(), tmp_buff.size(), "quaternion [%f, (%f, %f, %f)]", q.w, q.x, q.y, q.z);
 
-    return static_cast<const char*>(tmp_buff.data());
-}
+    // Formats value using the parsed format specification stored in this
+    // formatter and writes the output to ctx.out().
+    auto format(const xray::math::scalar3<T>& value, format_context& ctx) const
+    {
+        return this->write_padded(ctx, [this, value](auto out) {
+            return fmt::format_to(out,
+                                  "quaternion [ .w = {}, (.x = {}, .y = {}, .z = {}) ]",
+                                  this->nested(value.w),
+                                  this->nested(value.x),
+                                  this->nested(value.y),
+                                  this->nested(value.z));
+        });
+    }
+};
 
-} // namespace math
-} // namespace xray
+} // namespace fmt
+
+#endif

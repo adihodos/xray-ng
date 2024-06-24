@@ -3,7 +3,7 @@
 #include "phong_material_component.hpp"
 #include "xray/base/config_settings.hpp"
 #include "xray/base/containers/fixed_stack.hpp"
-#include "xray/base/fast_delegate.hpp"
+#include "xray/base/delegate.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/scalar4.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
@@ -12,7 +12,6 @@
 #include "xray/rendering/vertex_format/vertex_format.hpp"
 #include "xray/scene/point_light.hpp"
 #include "xray/xray.hpp"
-#include <platformstl/filesystem/path.hpp>
 
 namespace app {
 
@@ -24,7 +23,10 @@ struct entry_as;
     template<>                                                                                                         \
     struct entry_as<type>                                                                                              \
     {                                                                                                                  \
-        static type at(const xray::base::config_entry& e, const uint32_t idx) noexcept { return e.fn##_at(idx); }      \
+        static type at(const xray::base::config_entry& e, const uint32_t idx) noexcept                                 \
+        {                                                                                                              \
+            return e.fn##_at(idx);                                                                                     \
+        }                                                                                                              \
     }
 
 ENTRY_AS_SPECIALIZATION(float, float);

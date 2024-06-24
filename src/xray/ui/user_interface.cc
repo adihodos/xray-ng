@@ -234,7 +234,7 @@ static constexpr const char* IMGUI_FRAGMENT_SHADER =
     "\n"
     "}";
 
-#else
+#elif defined(XRAY_RENDERER_DIRECTX)
 
 extern ID3D11Device* xr_render_device;
 extern ID3D11DeviceContext* xr_render_device_context;
@@ -492,7 +492,7 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
     config.MergeMode = true;
     static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
     auto font_awesome =
-        io.Fonts->AddFontFromFileTTF(ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").c_str(),
+        io.Fonts->AddFontFromFileTTF(ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").generic_string().c_str(),
                                      13.0f,
                                      &config,
                                      icon_ranges);
@@ -506,7 +506,7 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
         config.GlyphExtraSpacing.x = 1.0f;
 
         auto fnt = ImGui::GetIO().Fonts->AddFontFromFileTTF(
-            fi.path.c_str(), fi.pixel_size, &config, ImGui::GetIO().Fonts->GetGlyphRangesDefault());
+            fi.path.generic_string().c_str(), fi.pixel_size, &config, ImGui::GetIO().Fonts->GetGlyphRangesDefault());
 
         if (!fnt) {
             XR_LOG_INFO("Failed to load font {}", fi.path.string());
@@ -689,7 +689,7 @@ xray::ui::user_interface::input_event(const xray::ui::window_event& in_evt)
     if (in_evt.type == event_type::char_input) {
         const char_input_event* ch_in = &in_evt.event.char_input;
         ImGuiIO& io = ImGui::GetIO();
-        if (ch_in->wnd->key_sym_handling == window::InputKeySymHandling::Unicode)
+        if (ch_in->wnd->core.key_sym_handling == InputKeySymHandling::Unicode)
             io.AddInputCharacter(ch_in->unicode_point);
         else
             io.AddInputCharactersUTF8(ch_in->utf8);

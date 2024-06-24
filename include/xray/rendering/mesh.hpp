@@ -37,6 +37,7 @@
 #include <cstdint>
 #include <span>
 #include <vector>
+#include <filesystem>
 
 #include "xray/base/maybe.hpp"
 #include "xray/base/unique_pointer.hpp"
@@ -87,7 +88,7 @@ class basic_mesh
     basic_mesh() noexcept = default;
     XRAY_DEFAULT_MOVE(basic_mesh);
 
-    basic_mesh(const char* path, const mesh_type type = mesh_type::readonly);
+    basic_mesh(const std::filesystem::path& path, const mesh_type type = mesh_type::readonly);
 
     basic_mesh(const xray::rendering::vertex_pnt* vertices,
                const size_t num_vertices,

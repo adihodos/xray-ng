@@ -178,8 +178,7 @@ target_link_libraries(
           xray-math
           TBB::tbb
           itlib::itlib
-          joboccara::pipes
-          cppitertools::cppitertools
+          cpp-lazy::cpp-lazy
           reflectcpp
           spdlog::spdlog)
 

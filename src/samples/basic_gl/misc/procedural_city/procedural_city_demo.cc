@@ -1,4 +1,14 @@
 #include "misc/procedural_city/procedural_city_demo.hpp"
+
+#include <array>
+#include <random>
+#include <span>
+#include <vector>
+
+#include <fmt/core.h>
+#include <itlib/small_vector.hpp>
+#include <Lz/Lz.hpp>
+
 #include "init_context.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
@@ -26,18 +36,6 @@
 #include "xray/ui/user_interface.hpp"
 #include <opengl/opengl.hpp>
 
-#include <array>
-#include <random>
-#include <span>
-#include <vector>
-
-#include <fmt/core.h>
-
-#include <enumerate.hpp>
-#include <itlib/small_vector.hpp>
-#include <pipes/pipes.hpp>
-#include <range.hpp>
-
 using namespace xray::base;
 using namespace xray::rendering;
 using namespace xray::math;
@@ -54,8 +52,8 @@ static constexpr const char* const TEXTURES[] = { "uv_grids/ash_uvgrid01.jpg", "
                                                   "uv_grids/ash_uvgrid07.jpg", "uv_grids/ash_uvgrid08.jpg" };
 
 app::ProceduralCityDemo::ProceduralCityDemo(PrivateConstructionToken,
-                                                const app::init_context_t& initctx,
-                                                app::ProceduralCityDemo::RenderState&& renderState)
+                                            const app::init_context_t& initctx,
+                                            app::ProceduralCityDemo::RenderState&& renderState)
     : DemoBase(initctx)
     , mRenderState(std::move(renderState))
 {
@@ -202,10 +200,12 @@ app::ProceduralCityDemo::create(const init_context_t& initContext)
         geometry_data_t blob;
         geometry_factory::box(1.0f, 1.0f, 1.0f, &blob);
 
-        const itlib::small_vector<vertex_pnt, 36> cubeVertices = blob.vertex_span() >>=
-            pipes::transform([](const vertex_pntt& vsin) {
-                return vertex_pnt{ vsin.position, vsin.normal, vsin.texcoords };
-            }) >>= pipes::to_<itlib::small_vector<vertex_pnt, 36>>();
+        const itlib::small_vector<vertex_pnt, 36> cubeVertices =
+            lz::chain(blob.vertex_span())
+                .map([](const vertex_pntt& vsin) {
+                    return vertex_pnt{ vsin.position, vsin.normal, vsin.texcoords };
+                })
+                .to<itlib::small_vector<vertex_pnt, 36>>();
 
         return basic_mesh{ cubeVertices.data(), cubeVertices.size(), raw_ptr(blob.indices), blob.index_count };
     }();
@@ -213,23 +213,26 @@ app::ProceduralCityDemo::create(const init_context_t& initContext)
     random_engine rng{};
     rng.set_float_range(0.0f, 1.0f);
 
-    const vector<per_instance_data> instances = iter::range(INSTANCE_COUNT) >>=
-        pipes::transform([r = &rng](const uint32_t instanceId) {
-            const auto xpos = floor(r->next_float() * 200.0f - 100.0f) * 10.0f;
-            const auto zpos = floor(r->next_float() * 200.0f - 100.0f) * 10.0f;
-            const auto yrot = r->next_float() * two_pi<float>;
-            const auto sx = r->next_float() * 50.0f + 10.0f;
-            const auto sy = r->next_float() * sx * 8.0f + 8.0f;
-            const auto sz = sx;
+    const vector<per_instance_data> instances =
+        lz::chain(lz::range(INSTANCE_COUNT))
+            .map([r = &rng](const uint32_t instanceId) {
+                const auto xpos = floor(r->next_float() * 200.0f - 100.0f) * 10.0f;
+                const auto zpos = floor(r->next_float() * 200.0f - 100.0f) * 10.0f;
+                const auto yrot = r->next_float() * two_pi<float>;
+                const auto sx = r->next_float() * 50.0f + 10.0f;
+                const auto sy = r->next_float() * sx * 8.0f + 8.0f;
+                const auto sz = sx;
 
-            per_instance_data data;
-            data.tfworld = R4::translate(xpos, 0.0f, zpos) * mat4f{ R3::rotate_y(yrot) * R3::scale_xyz(sx, sy, sz) } *
-                           R4::translate(0.0f, 0.5f, 0.0f);
-            data.color = rgb_color{ 1.0f - r->next_float() };
-            data.texid = instanceId % size(TEXTURES);
+                per_instance_data data;
+                data.tfworld = R4::translate(xpos, 0.0f, zpos) *
+                               mat4f{ R3::rotate_y(yrot) * R3::scale_xyz(sx, sy, sz) } *
+                               R4::translate(0.0f, 0.5f, 0.0f);
+                data.color = rgb_color{ 1.0f - r->next_float() };
+                data.texid = instanceId % size(TEXTURES);
 
-            return data;
-        }) >>= pipes::to_<vector<per_instance_data>>();
+                return data;
+            })
+            .to<vector<per_instance_data>>();
 
     // auto& water_inst = instances[instances.size() - 1];
     // water_inst.tfworld = mat4f::stdc::identity;
@@ -268,7 +271,7 @@ app::ProceduralCityDemo::create(const init_context_t& initContext)
     gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, raw_handle_ptr(textureCollection));
     gl::TextureStorage3D(raw_handle(textureCollection), 1, gl::RGBA8, 1024, 1024, XR_U32_COUNTOF(TEXTURES));
 
-    iter::enumerate(TEXTURES) >>= pipes::for_each([texid = raw_handle(textureCollection)](auto&& instIdWithPath) {
+    lz::chain(lz::enumerate(TEXTURES)).forEach([texid = raw_handle(textureCollection)](auto&& instIdWithPath) {
         auto&& [instanceIndex, texturePath] = instIdWithPath;
         texture_loader tex_ldr{ xr_app_config->texture_path(texturePath).c_str() };
         if (!tex_ldr) {
@@ -294,16 +297,16 @@ app::ProceduralCityDemo::create(const init_context_t& initContext)
     gl::SamplerParameteri(raw_handle(textureSampler), gl::TEXTURE_MAG_FILTER, gl::LINEAR);
 
     return xray::base::make_unique<ProceduralCityDemo>(PrivateConstructionToken{},
-                                                         initContext,
-                                                         RenderState{ std::move(cubeMesh),
-                                                                      std::move(instanceBuffer),
-                                                                      std::move(vertexShader),
-                                                                      std::move(fragmentShader),
-                                                                      std::move(programPipeline),
-                                                                      std::move(textureCollection),
-                                                                      std::move(textureSampler),
-                                                                      {}, // default camera
-                                                                      fps_camera_controller{ nullptr } });
+                                                       initContext,
+                                                       RenderState{ std::move(cubeMesh),
+                                                                    std::move(instanceBuffer),
+                                                                    std::move(vertexShader),
+                                                                    std::move(fragmentShader),
+                                                                    std::move(programPipeline),
+                                                                    std::move(textureCollection),
+                                                                    std::move(textureSampler),
+                                                                    {}, // default camera
+                                                                    fps_camera_controller{ nullptr } });
 }
 
 app::simple_fluid::simple_fluid() noexcept

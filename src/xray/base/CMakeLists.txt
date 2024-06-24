@@ -1,11 +1,5 @@
 project(xray-base)
 
-CPMAddPackage(
-  NAME STLSoft
-  GITHUB_REPOSITORY adihodos/STLSoft-1.10
-  GIT_TAG fixes
-  OPTIONS "BUILD_TESTING OFF")
-
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/base")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
@@ -17,8 +11,7 @@ set(project_headers
     ${proj_inc_dir}/config_settings.hpp
     ${proj_inc_dir}/containers/fixed_vector.hpp
     ${proj_inc_dir}/debug_output.hpp
-    ${proj_inc_dir}/delegate_list.hpp
-    ${proj_inc_dir}/fast_delegate.hpp
+    ${proj_inc_dir}/delegate.hpp
     ${proj_inc_dir}/fnv_hash.hpp
     ${proj_inc_dir}/maybe.hpp
     ${proj_inc_dir}/nothing.hpp
@@ -73,6 +66,6 @@ target_compile_definitions(
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC config fmt::fmt spdlog::spdlog STLSoft
+  PUBLIC config fmt::fmt spdlog::spdlog libconfig
   PRIVATE itlib::itlib joboccara::pipes
 )
