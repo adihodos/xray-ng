@@ -30,7 +30,7 @@
 
 /// \file   input_event.hpp
 
-#include "xray/base/fast_delegate.hpp"
+#include "xray/base/delegate.hpp"
 #include "xray/base/resource_holder.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"

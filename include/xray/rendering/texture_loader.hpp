@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <opengl/opengl.hpp>
 #include <string>
+#include <filesystem>
 
 namespace xray {
 namespace rendering {
@@ -60,13 +61,13 @@ class texture_loader
     texture_loader() = default;
     ~texture_loader();
 
-    explicit texture_loader(const std::string& file_path,
-                            const texture_load_options load_opts = texture_load_options::none)
-        : texture_loader{ file_path.c_str(), load_opts }
-    {
-    }
+    //explicit texture_loader(const std::string& file_path,
+    //                        const texture_load_options load_opts = texture_load_options::none)
+    //    : texture_loader{ file_path.c_str(), load_opts }
+    //{
+    //}
 
-    explicit texture_loader(const char* file_path, const texture_load_options load_opts = texture_load_options::none);
+    explicit texture_loader(const std::filesystem::path& file_path, const texture_load_options load_opts = texture_load_options::none);
 
     texture_loader& operator=(texture_loader&&) = default;
     texture_loader(texture_loader&&) = default;

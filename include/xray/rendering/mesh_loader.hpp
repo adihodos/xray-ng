@@ -32,13 +32,12 @@
 
 #include "xray/xray.hpp"
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <utility>
+#include <filesystem>
 
-#include "xray/base/maybe.hpp"
 #include "xray/math/objects/aabb3.hpp"
 #include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/vertex_format/vertex_pnt.hpp"
@@ -91,14 +90,14 @@ struct mesh_load_option
 class mesh_loader
 {
   public:
-	mesh_loader(mesh_loader&&) = default;
-	
+    mesh_loader(mesh_loader&&) = default;
+
     explicit mesh_loader(mio::mmap_source mmfile) noexcept
         : _mfile{ std::move(mmfile) }
     {
     }
 
-    static tl::optional<mesh_loader> load(const char* file_path,
+    static tl::optional<mesh_loader> load(const std::filesystem::path& file_path,
                                           const uint32_t load_opts = mesh_load_option::remove_points_lines);
 
     ///   \brief  Returns the header data of the mesh file.

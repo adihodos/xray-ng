@@ -27,7 +27,6 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/base/logger.hpp"
-#include <array>
 #include <cassert>
 #include <cstdarg>
 
@@ -35,9 +34,9 @@
 void
 xray::base::log(const LogLevel level, fmt::string_view format, fmt::format_args args)
 {
-    static thread_local std::array<char, 2048> scratch_buffer;
-    const auto [itr, cch] = fmt::vformat_to_n(scratch_buffer.data(), scratch_buffer.size(), format, args);
-    if (itr >= scratch_buffer.end())
+    static thread_local char scratch_buffer[2048];
+    const auto [itr, cch] = fmt::vformat_to_n(std::begin(scratch_buffer), std::size(scratch_buffer), format, args);
+    if (itr >= std::cend(scratch_buffer))
         return;
 
     *itr = 0;
@@ -47,7 +46,7 @@ xray::base::log(const LogLevel level, fmt::string_view format, fmt::format_args 
         spdlog::level::warn,  spdlog::level::err,   spdlog::level::critical,
     };
 
-    spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer.data());
+    spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer);
 }
 
 void
@@ -57,14 +56,14 @@ xray::base::log_file_line(const LogLevel level,
                           fmt::string_view format,
                           fmt::format_args args)
 {
-    static thread_local std::array<char, 2048> scratch_buffer;
-    const auto [itr, cch] = fmt::format_to_n(scratch_buffer.data(), scratch_buffer.size(), "{}:{}\n", file, line);
+    static thread_local char scratch_buffer[2048];
+    const auto [itr, cch] = fmt::format_to_n(std::begin(scratch_buffer), std::size(scratch_buffer), "{}:{}\n", file, line);
 
-    if (itr >= scratch_buffer.end())
+    if (itr >= std::cend(scratch_buffer))
         return;
 
-    const auto [itr1, cch1] = fmt::vformat_to_n(itr, scratch_buffer.end() - itr, format, args);
-    if (itr1 >= scratch_buffer.cend())
+    const auto [itr1, cch1] = fmt::vformat_to_n(itr, std::cend(scratch_buffer) - itr, format, args);
+    if (itr1 >= std::cend(scratch_buffer))
         return;
 
     *itr1 = 0;
@@ -74,5 +73,5 @@ xray::base::log_file_line(const LogLevel level,
         spdlog::level::warn,  spdlog::level::err,   spdlog::level::critical,
     };
 
-    spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer.data());
+    spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer);
 }

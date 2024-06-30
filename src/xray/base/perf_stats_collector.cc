@@ -1,8 +1,12 @@
 #include "xray/base/perf_stats_collector.hpp"
-#include "xray/base/array_dimension.hpp"
-#include "xray/base/debug_output.hpp"
-#include <fmt/format.h>
+
+#include <filesystem>
 #include <type_traits>
+
+#include <itlib/small_vector.hpp>
+#include <fmt/format.h>
+
+#include "xray/base/logger.hpp"
 
 using namespace xray::base;
 
@@ -38,21 +42,28 @@ xray::base::stats_thread::run()
                                                                 "Virtual Bytes Peak", "Working Set Peak" };
 
     {
-        stlsoft::auto_buffer<char, 512> mod_path{ 512 };
-        platformstl::system_traits<char>::get_module_filename(nullptr, mod_path.data(), mod_path.size());
-        platformstl::path p{ mod_path.data() };
-        const auto process_name = p.pop_ext().pop_sep().get_file();
+        char mod_path[512];
 
-        char counter_path_buff[1024];
+#if defined(XRAY_OS_IS_WINDOWS)
+        const size_t chars_count = GetModuleFileNameA(nullptr, mod_path, static_cast<DWORD>(std::size(mod_path)));
+        mod_path[chars_count] = 0;
+#else
+#endif
+        const std::filesystem::path p{ mod_path };
+        const auto process_name = p.filename().stem().generic_string();
+
+        itlib::small_vector<char, 1024> counter_path_buff;
 
         for (uint32_t i = 0; i < counter_type::last; ++i) {
-            fmt::ArrayWriter awr{ counter_path_buff };
-            awr.write("\\Process({})\\{}", process_name, PERF_COUNTER_NAMES[i]);
+            auto itr = fmt::format_to(
+                std::back_inserter(counter_path_buff), "\\Process({})\\{}", process_name, PERF_COUNTER_NAMES[i]);
+            *itr = 0;
 
-            const auto result = PdhAddCounter(raw_handle(_proc_stats.query), awr.c_str(), 0, &_proc_stats.counters[i]);
+            const auto result =
+                PdhAddCounter(raw_handle(_proc_stats.query), counter_path_buff.data(), 0, &_proc_stats.counters[i]);
 
             if (result != ERROR_SUCCESS)
-                XR_LOG_DEBUG("Failed to add counter {}", awr.c_str());
+                XR_LOG_DEBUG("Failed to add counter {}", counter_path_buff.data());
         }
     }
 

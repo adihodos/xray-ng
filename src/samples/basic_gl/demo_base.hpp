@@ -29,7 +29,7 @@
 #pragma once
 
 #include "fwd_app.hpp"
-#include "xray/base/fast_delegate.hpp"
+#include "xray/base/delegate.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/xray.hpp"
@@ -74,7 +74,7 @@ class DemoBase
     virtual void loop_event(const RenderEvent&) = 0;
 
   protected:
-    xray::base::fast_delegate<void()> _quit_receiver;
+    cpp::delegate<void()> _quit_receiver;
     xray::ui::user_interface* _ui;
     std::bitset<256> _keyboard{};
 };

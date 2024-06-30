@@ -34,8 +34,6 @@
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/maybe.hpp"
 #include "xray/xray.hpp"
-//#include "xray/base/shims/stl_type_traits_shims.hpp"
-//#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <libconfig.h>

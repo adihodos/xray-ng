@@ -118,9 +118,9 @@ app::texture_array_demo::texture_array_demo(const init_context_t& init_ctx)
         for_each(begin(TEXTURE_FILES), end(TEXTURE_FILES), [texture, &z_offset](const char* texfile) {
             const auto full_path = xr_app_config->texture_path((string{ "uv_grids/" } + texfile).c_str());
 
-            texture_loader tex_ldr{ full_path.c_str(), texture_load_options::flip_y };
+            texture_loader tex_ldr{ full_path, texture_load_options::flip_y };
             if (!tex_ldr) {
-                XR_LOG_CRITICAL("Cannot open texture file {}", full_path.c_str());
+                XR_LOG_CRITICAL("Cannot open texture file {}", full_path.generic_string());
                 XR_NOT_REACHED();
             }
 

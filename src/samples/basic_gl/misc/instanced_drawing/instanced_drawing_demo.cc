@@ -10,6 +10,11 @@
 #include <span>
 #include <vector>
 
+#include <imgui/imgui.h>
+#include <itlib/small_vector.hpp>
+#include <opengl/opengl.hpp>
+#include <Lz/Lz.hpp>
+
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
 #include "xray/math/constants.hpp"
@@ -37,43 +42,11 @@
 #include "xray/ui/events.hpp"
 #include "xray/ui/user_interface.hpp"
 
-#include <imgui/imgui.h>
-#include <itertools.hpp>
-#include <itlib/small_vector.hpp>
-#include <opengl/opengl.hpp>
-#include <pipes/pipes.hpp>
-
-#include <cxxabi.h>
-
 using namespace xray::base;
 using namespace xray::rendering;
 using namespace xray::math;
 using namespace xray::ui;
 using namespace std;
-
-template<class T>
-std::string
-type_name()
-{
-    typedef typename std::remove_reference<T>::type TR;
-    std::unique_ptr<char, void (*)(void*)> own(
-#ifndef _MSC_VER
-        abi::__cxa_demangle(typeid(TR).name(), nullptr, nullptr, nullptr),
-#else
-        nullptr,
-#endif
-        std::free);
-    std::string r = own != nullptr ? own.get() : typeid(TR).name();
-    if (std::is_const<TR>::value)
-        r += " const";
-    if (std::is_volatile<TR>::value)
-        r += " volatile";
-    if (std::is_lvalue_reference<T>::value)
-        r += "&";
-    else if (std::is_rvalue_reference<T>::value)
-        r += "&&";
-    return r;
-}
 
 extern xray::base::ConfigSystem* xr_app_config;
 
@@ -150,8 +123,13 @@ app::SimpleWorld::create(const init_context_t& init_ctx)
 
     pipeline.use_vertex_program(vs).use_fragment_program(fs);
 
-    return tl::make_optional<SimpleWorld>(
-        move(world), move(vs), move(fs), move(pipeline), move(heightmap), move(sampler), worldsize);
+    return tl::make_optional<SimpleWorld>(std::move(world),
+                                          std::move(vs),
+                                          std::move(fs),
+                                          std::move(pipeline),
+                                          std::move(heightmap),
+                                          std::move(sampler),
+                                          worldsize);
 }
 
 void
@@ -210,11 +188,13 @@ app::InstancedDrawingDemo::create(const init_context_t& initContext)
 
     itlib::small_vector<mesh_loader, 4> mloaders;
 
-    std::initializer_list<const char*>{ "f15/f15c.bin", "typhoon/typhoon.bin" } >>=
-        pipes::transform([init_ctx = &initContext](const char* mdl_file) {
+    lz::chain(std::initializer_list<const char*>{ "f15/f15c.bin", "typhoon/typhoon.bin" })
+        .map([init_ctx = &initContext](const char* mdl_file) {
             return mesh_loader::load(init_ctx->cfg->model_path(mdl_file).c_str());
-        }) >>= pipes::filter([](auto&& ml) { return ml != tl::nullopt; }) >>=
-        pipes::transform([](auto&& ml) { return *ml.take(); }) >>= pipes::push_back(mloaders);
+        })
+        .filter([](auto&& ml) { return ml != tl::nullopt; })
+        .map([](auto&& ml) { return *ml.take(); })
+        .copyTo(std::back_inserter(mloaders));
 
     if (mloaders.empty()) {
         XR_LOG_CRITICAL("Could not load a single model file ...");
@@ -241,11 +221,16 @@ app::InstancedDrawingDemo::create(const init_context_t& initContext)
             return vertex_buffer;
         }
 
-        accumulate(
-            begin(mloaders), end(mloaders), 0u, [dst = bmap.memory()](const size_t offset, const mesh_loader& ml) {
-                memcpy(static_cast<uint8_t*>(dst) + offset, ml.vertex_data(), ml.vertex_bytes());
-                return offset + ml.vertex_bytes();
-            });
+        {
+            const auto ignored =
+                accumulate(begin(mloaders),
+                           end(mloaders),
+                           size_t{ 0u },
+                           [dst = bmap.memory()](const size_t offset, const mesh_loader& ml) {
+                               memcpy(static_cast<uint8_t*>(dst) + offset, ml.vertex_data(), ml.vertex_bytes());
+                               return offset + ml.vertex_bytes();
+                           });
+        }
 
         GL_MARK_BUFFER(vertex_buffer, "Combined vertex buffer");
 
@@ -264,33 +249,40 @@ app::InstancedDrawingDemo::create(const init_context_t& initContext)
             return index_buffer;
         }
 
-        accumulate(
-            begin(mloaders), end(mloaders), 0u, [dst = imap.memory()](const size_t offset, const mesh_loader& ml) {
-                memcpy(static_cast<uint8_t*>(dst) + offset, ml.index_data(), ml.index_bytes());
-                return offset + ml.index_bytes();
-            });
+        {
+            const auto ignored =
+                accumulate(begin(mloaders),
+                           end(mloaders),
+                           size_t{ 0u },
+                           [dst = imap.memory()](const size_t offset, const mesh_loader& ml) {
+                               memcpy(static_cast<uint8_t*>(dst) + offset, ml.index_data(), ml.index_bytes());
+                               return offset + ml.index_bytes();
+                           });
+        }
 
         GL_MARK_BUFFER(index_buffer, "Combined index buffer");
 
         return index_buffer;
     }() };
 
-    const auto draw_cmds_data = mloaders >>=
-        pipes::transform([acc = draw_elements_indirect_command{ 0, 0, 0, 0, 0 }](const mesh_loader& mdl) mutable {
-            const draw_elements_indirect_command draw_cmd{
-                .count = mdl.header().index_count,
-                .instance_count = 16,
-                .first_index = acc.count,
-                .base_vertex = acc.base_vertex,
-                .base_instance = acc.instance_count,
-            };
+    const auto draw_cmds_data =
+        lz::chain(mloaders)
+            .map([acc = draw_elements_indirect_command{ 0, 0, 0, 0, 0 }](const mesh_loader& mdl) mutable {
+                const draw_elements_indirect_command draw_cmd{
+                    .count = mdl.header().index_count,
+                    .instance_count = 16,
+                    .first_index = acc.count,
+                    .base_vertex = acc.base_vertex,
+                    .base_instance = acc.instance_count,
+                };
 
-            acc.count += mdl.header().index_count;
-            acc.instance_count += 16;
-            acc.base_vertex += mdl.header().vertex_count;
+                acc.count += mdl.header().index_count;
+                acc.instance_count += 16;
+                acc.base_vertex += mdl.header().vertex_count;
 
-            return draw_cmd;
-        }) >>= pipes::to_<itlib::small_vector<draw_elements_indirect_command, 4>>();
+                return draw_cmd;
+            })
+            .to<itlib::small_vector<draw_elements_indirect_command, 4>>();
 
     scoped_buffer draw_cmds_buffer{ [&draw_cmds_data]() {
         GLuint cmd_buff{};
@@ -351,21 +343,25 @@ app::InstancedDrawingDemo::create(const init_context_t& initContext)
         gl::CreateTextures(gl::TEXTURE_2D_ARRAY, 1, &tex);
 
         namespace fs = std::filesystem;
-        itlib::small_vector<fs::path, 8> texture_files{
-            fs::recursive_directory_iterator{ initContext.cfg->texture_path("uv_grids") } >>=
-            pipes::filter([](const fs::directory_entry& de) { return de.is_regular_file(); }) >>=
-            pipes::transform([](const fs::directory_entry& de) { return de.path(); }) >>=
-            pipes::to_<itlib::small_vector<fs::path, 8>>()
-        };
+
+        itlib::small_vector<fs::path, 4> texture_files;
+        for (const fs::directory_entry& de :
+             fs::recursive_directory_iterator{ initContext.cfg->texture_path("uv_grids") }) {
+            if (!de.is_regular_file())
+                continue;
+
+            texture_files.emplace_back(de.path());
+        }
 
         if (texture_files.empty()) {
             XR_LOG_CRITICAL("No textures found ...");
             return 0u;
         }
 
-        texture_files >>=
-            pipes::for_each([tex, tex_storage_alloc = false, tex_idx = 0u, tex_count = texture_files.size()](
-                                const fs::path& tex_file) mutable {
+        std::ranges::for_each(
+            texture_files,
+            [tex, tex_storage_alloc = false, tex_idx = 0u, tex_count = texture_files.size()](
+                const fs::path& tex_file) mutable {
                 texture_loader tl{ tex_file.c_str(), texture_load_options::flip_y };
                 if (!tl) {
                     return;
@@ -386,22 +382,23 @@ app::InstancedDrawingDemo::create(const init_context_t& initContext)
     //
     // Create instances
     random_number_generator rng{};
-    const vector<instance_info> instances{ iter::range(InstancingState::instance_count) >>=
-                                           pipes::transform([r = &rng](const uint32_t idx) {
-                                               static constexpr auto OBJ_DST = 50.0f;
+    const vector<instance_info> instances{ lz::chain(lz::range(InstancingState::instance_count))
+                                               .map([r = &rng](const uint32_t idx) {
+                                                   static constexpr auto OBJ_DST = 50.0f;
 
-                                               instance_info new_inst;
-                                               new_inst.pitch = r->next_float(0.0f, two_pi<float>);
-                                               new_inst.roll = r->next_float(0.0f, two_pi<float>);
-                                               new_inst.yaw = r->next_float(0.0f, two_pi<float>);
-                                               new_inst.scale = idx < 16 ? 1.0f : 1.0f;
-                                               new_inst.texture_id = r->next_uint(0, 10);
-                                               new_inst.position = vec3f{ r->next_float(-OBJ_DST, +OBJ_DST),
-                                                                          r->next_float(OBJ_DST, +2.0f * OBJ_DST),
-                                                                          r->next_float(-OBJ_DST, +OBJ_DST) };
+                                                   instance_info new_inst;
+                                                   new_inst.pitch = r->next_float(0.0f, two_pi<float>);
+                                                   new_inst.roll = r->next_float(0.0f, two_pi<float>);
+                                                   new_inst.yaw = r->next_float(0.0f, two_pi<float>);
+                                                   new_inst.scale = idx < 16 ? 1.0f : 1.0f;
+                                                   new_inst.texture_id = r->next_uint(0, 10);
+                                                   new_inst.position = vec3f{ r->next_float(-OBJ_DST, +OBJ_DST),
+                                                                              r->next_float(OBJ_DST, +2.0f * OBJ_DST),
+                                                                              r->next_float(-OBJ_DST, +OBJ_DST) };
 
-                                               return new_inst;
-                                           }) >>= pipes::to_<vector<instance_info>>() };
+                                                   return new_inst;
+                                               })
+                                               .to<vector<instance_info>>() };
 
     scoped_buffer buffer_transforms{ [byte_size = instances.size() * sizeof(InstanceXData)]() {
         XR_LOG_INFO("Creating instance transform buffer, byte size {}", byte_size);
@@ -466,27 +463,29 @@ app::InstancedDrawingDemo::loop_event(const app::RenderEvent& render_event)
     r->_world.draw(&s->camera);
 
     {
-        is->instances >>= pipes::transform([pv = s->camera.projection_view()](instance_info& ii) {
-            ii.pitch += instance_info::rotation_speed;
-            ii.roll += instance_info::rotation_speed;
-            ii.yaw += instance_info::rotation_speed;
+        lz::chain(is->instances)
+            .map([pv = s->camera.projection_view()](instance_info& ii) {
+                ii.pitch += instance_info::rotation_speed;
+                ii.roll += instance_info::rotation_speed;
+                ii.yaw += instance_info::rotation_speed;
 
-            if (ii.pitch > two_pi<float>) {
-                ii.pitch -= two_pi<float>;
-            }
+                if (ii.pitch > two_pi<float>) {
+                    ii.pitch -= two_pi<float>;
+                }
 
-            if (ii.roll > two_pi<float>) {
-                ii.roll -= two_pi<float>;
-            }
+                if (ii.roll > two_pi<float>) {
+                    ii.roll -= two_pi<float>;
+                }
 
-            if (ii.yaw > two_pi<float>) {
-                ii.yaw -= two_pi<float>;
-            }
-            const auto obj_rotation = mat4f{ R3::rotate_xyz(ii.roll, ii.yaw, ii.pitch) };
+                if (ii.yaw > two_pi<float>) {
+                    ii.yaw -= two_pi<float>;
+                }
+                const auto obj_rotation = mat4f{ R3::rotate_xyz(ii.roll, ii.yaw, ii.pitch) };
 
-            return InstanceXData{ pv * R4::translate(ii.position) * obj_rotation * mat4f{ R3::scale(ii.scale) },
-                                  obj_rotation };
-        }) >>= pipes::override(is->scratch_buffer);
+                return InstanceXData{ pv * R4::translate(ii.position) * obj_rotation * mat4f{ R3::scale(ii.scale) },
+                                      obj_rotation };
+            })
+            .copyTo(is->scratch_buffer.begin());
 
         ScopedResourceMapping::create(raw_handle(is->buffer_transforms),
                                       gl::MAP_WRITE_BIT | gl::MAP_INVALIDATE_RANGE_BIT,
@@ -549,7 +548,7 @@ app::InstancedDrawingDemo::compose_ui(const int32_t surface_width, const int32_t
 
             array<char, 512> tmp_buf{};
 
-            iter::enumerate(_obj_instances.instances) >>= pipes::for_each([&](auto&& idx_instance_pair) {
+            lz::chain(lz::enumerate(_obj_instances.instances)).forEach([&](auto&& idx_instance_pair) {
                 auto&& [idx, ii] = idx_instance_pair;
 
                 const uintptr_t node_id{ reinterpret_cast<uintptr_t>(&idx_instance_pair.second) };

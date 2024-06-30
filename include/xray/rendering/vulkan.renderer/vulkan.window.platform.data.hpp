@@ -10,7 +10,16 @@
 #include <xcb/xcb.h>
 #include <vulkan/vulkan_xcb.h>
 
+#elif defined(XRAY_OS_IS_WINDOWS)
+#include <Windows.h>
+#include <vulkan/vulkan_win32.h>
+#else
+#error "unsupported OS"
+#endif
+
 namespace xray::rendering {
+
+#if defined(XRAY_OS_IS_POSIX_FAMILY)
 
 struct WindowPlatformDataXcb
 {
@@ -30,6 +39,16 @@ struct WindowPlatformDataXlib
     uint32_t height;
 };
 
-}
+#elif defined(XRAY_OS_IS_WINDOWS)
+
+struct WindowPlatformDataWin32
+{
+    HMODULE module;
+    HWND window;
+    uint32_t width;
+    uint32_t height;
+};
 
 #endif
+
+} // namespace xray::rendering

@@ -17,15 +17,16 @@ xray::rendering::detail::stbi_img_deleter::operator()(uint8_t* mem) const noexce
 
 xray::rendering::texture_loader::~texture_loader() {}
 
-xray::rendering::texture_loader::texture_loader(const char* file_path, const texture_load_options load_opts)
+xray::rendering::texture_loader::texture_loader(const std::filesystem::path& file_path,
+                                                const texture_load_options load_opts)
 {
-    assert(file_path != nullptr);
-
     std::error_code err_code{};
-    const mio::mmap_source tex_file{ mio::make_mmap_source(file_path, err_code) };
+    const mio::mmap_source tex_file{ mio::make_mmap_source(file_path.generic_string(), err_code) };
     if (err_code) {
-        XR_LOG_ERR(
-            "Failed to open texture file: {}, error {:#x} - {}", file_path, err_code.value(), err_code.message());
+        XR_LOG_ERR("Failed to open texture file: {}, error {:#x} - {}",
+                   file_path.generic_string(),
+                   err_code.value(),
+                   err_code.message());
         return;
     }
 

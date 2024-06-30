@@ -11,8 +11,8 @@
 #include <oneapi/tbb/parallel_for_each.h>
 #include <oneapi/tbb/parallel_reduce.h>
 
+#include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
-#include <pipes/pipes.hpp>
 
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/logger.hpp"
@@ -34,14 +34,14 @@ using namespace xray::base;
 using namespace xray::math;
 using namespace xray::rendering;
 
-xray::rendering::basic_mesh::basic_mesh(const char* path, const mesh_type type)
+xray::rendering::basic_mesh::basic_mesh(const std::filesystem::path& path, const mesh_type type)
     : _mtype{ type }
 {
     using namespace xray::rendering;
 
-    tl::optional<mesh_loader> mloader{ path };
+    tl::optional<mesh_loader> mloader{ mesh_loader::load(path) };
     if (!mloader) {
-        XR_LOG_CRITICAL("Failed to load mesh {}", path);
+        XR_LOG_CRITICAL("Failed to load mesh {}", path.generic_string());
         return;
     }
 
@@ -237,16 +237,16 @@ xray::rendering::basic_mesh::set_instance_data(const instance_descriptor* instan
                                                const size_t vertex_attributes_count)
 {
     assert(valid());
-
-    std::span<const instance_descriptor> instance_span{ instances, instances + instance_count };
-
     itlib::small_vector<GLuint, 16> buffers;
     itlib::small_vector<GLsizei, 16> strides;
     itlib::small_vector<GLintptr, 16> offsets;
 
-    instance_span >>= pipes::transform([](const instance_descriptor& inst_desc) {
-        return std::make_tuple(inst_desc.buffer_handle, inst_desc.element_stride, inst_desc.buffer_offset);
-    }) >>= pipes::unzip(pipes::push_back(buffers), pipes::push_back(strides), pipes::push_back(offsets));
+    for (size_t idx = 0; idx < instance_count; ++idx) {
+        const instance_descriptor& id = instances[idx];
+        buffers.emplace_back(id.buffer_handle);
+        strides.emplace_back(id.element_stride);
+        offsets.emplace_back(id.buffer_offset);
+    }
 
     const auto vao = raw_handle(_vertexarray);
 

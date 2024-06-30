@@ -74,6 +74,6 @@ xray::base::ConfigSystem::ConfigSystem(const char* cfg_path /*= nullptr*/)
         assert(std::filesystem::exists(*path_load_info.path));
         assert(std::filesystem::is_directory(*path_load_info.path));
 
-        XR_LOG_INFO("{} -> {}", path_load_info.conf_file_entry_name, path_load_info.path->c_str());
+        XR_LOG_INFO("{} -> {}", path_load_info.conf_file_entry_name, path_load_info.path->generic_string());
     }
 }

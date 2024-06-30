@@ -33,7 +33,6 @@
 #include "xray/base/unique_handle.hpp"
 #include "xray/xray.hpp"
 #include <atomic>
-#include <platformstl/synch/util/features.h>
 #include <thread>
 #include <vector>
 

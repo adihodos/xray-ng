@@ -92,6 +92,6 @@ target_link_libraries(
          itlib::itlib
          Vulkan::Vulkan
          swl-variant
-  PRIVATE TBB::tbb cppitertools::cppitertools joboccara::pipes
+  PRIVATE TBB::tbb cpp-lazy::cpp-lazy
           Vulkan::shaderc_combined spirv-reflect-static
           $<$<PLATFORM_ID:Linux>:Xinerama>)

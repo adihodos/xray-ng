@@ -6,10 +6,10 @@
 
 #include <fmt/core.h>
 #include <itlib/small_vector.hpp>
-#include <pipes/pipes.hpp>
 #include <tl/optional.hpp>
 #include <swl/variant.hpp>
 #include <mio/mmap.hpp>
+#include <Lz/Lz.hpp>
 
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_enums.hpp>
@@ -43,15 +43,17 @@ struct ShaderTraits
 };
 
 tl::optional<ShaderTraits>
-shader_traits_from_file_extension(const char* file_ext)
+shader_traits_from_shader_file(const std::filesystem::path& shader_file)
 {
-    if (strcmp(".vert", file_ext) == 0)
+    assert(shader_file.has_extension());
+
+    if (shader_file.extension() == ".vert")
         return ShaderTraits{ VK_SHADER_STAGE_VERTEX_BIT, shaderc_shader_kind::shaderc_vertex_shader };
 
-    if (strcmp(".geom", file_ext) == 0)
+    if (shader_file.extension() == ".geom")
         return ShaderTraits{ VK_SHADER_STAGE_GEOMETRY_BIT, shaderc_shader_kind::shaderc_geometry_shader };
 
-    if (strcmp(".frag", file_ext) == 0)
+    if (shader_file.extension() == ".frag")
         return ShaderTraits{ VK_SHADER_STAGE_FRAGMENT_BIT, shaderc_shader_kind::shaderc_fragment_shader };
 
     return tl::nullopt;
@@ -125,22 +127,23 @@ create_shader_module_from_string(VkDevice device,
 tl::optional<ShaderModuleWithSpirVBlob>
 create_shader_module_from_file(VkDevice device, const std::filesystem::path& fs_path, const bool optimize)
 {
-    const auto shader_traits = shader_traits_from_file_extension(fs_path.extension().c_str());
+    const auto shader_traits = shader_traits_from_shader_file(fs_path);
     if (!shader_traits) {
-        XR_LOG_ERR("Cannot determine shader stage base on file extension: {}", fs_path.c_str());
+        XR_LOG_ERR("Cannot determine shader stage base on file extension: {}", fs_path.generic_string());
         return {};
     }
 
+    const auto path_gs{ fs_path.generic_string() };
+
     std::error_code err_code{};
-    const mio::mmap_source shader_file{ mio::make_mmap_source(fs_path.c_str(), err_code) };
+    const mio::mmap_source shader_file{ mio::make_mmap_source(path_gs.c_str(), err_code) };
     if (err_code) {
-        XR_LOG_ERR(
-            "Failed to read shader file {}, error {:#x} - {}", fs_path.c_str(), err_code.value(), err_code.message());
+        XR_LOG_ERR("Failed to read shader file {}, error {:#x} - {}", path_gs, err_code.value(), err_code.message());
         return {};
     }
 
     return create_shader_module_from_string(
-        device, string_view{ shader_file.data(), shader_file.size() }, fs_path.c_str(), *shader_traits, optimize);
+        device, string_view{ shader_file.data(), shader_file.size() }, path_gs.c_str(), *shader_traits, optimize);
 }
 
 struct SpirVReflectionResult
@@ -282,7 +285,8 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
         return tl::make_optional<SpirVReflectionResult>(
             std::move(dsets),
             std::move(push_constant_ranges),
-            tl::optional{ std::pair{ stride, std::move(input_attribute_descriptions) } });
+            tl::optional<std::pair<uint32_t, vector<VkVertexInputAttributeDescription>>>{
+                std::pair{ stride, std::move(input_attribute_descriptions) } });
     } else {
         return tl::make_optional<SpirVReflectionResult>(std::move(dsets), std::move(push_constant_ranges), tl::nullopt);
     }
@@ -381,9 +385,10 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 
     xrUniqueVkPipelineLayout pipeline_layout{
         [&]() {
-            const small_vec_4<VkDescriptorSetLayout> dsl = descriptor_set_layouts >>=
-                pipes::transform([](const xrUniqueVkDescriptorSetLayout& layout) { return base::raw_ptr(layout); }) >>=
-                pipes::to_<small_vec_4<VkDescriptorSetLayout>>();
+            const small_vec_4<VkDescriptorSetLayout> dsl =
+                lz::chain(descriptor_set_layouts)
+                    .map([](const xrUniqueVkDescriptorSetLayout& layout) { return base::raw_ptr(layout); })
+                    .to<small_vec_4<VkDescriptorSetLayout>>();
 
             const VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -429,7 +434,7 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .pNext = nullptr,
         .flags = 0,
         .topology = _input_assembly.topology,
-        .primitiveRestartEnable = _input_assembly.topology
+        .primitiveRestartEnable = _input_assembly.restart_enabled
     };
 
     const VkViewport dummy_viewport = { .x = 0, .y = 0, .width = 64, .height = 64, .minDepth = 0.0f, .maxDepth = 1.0f };

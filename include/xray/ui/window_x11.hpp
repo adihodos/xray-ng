@@ -34,6 +34,7 @@
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/window_params.hpp"
+#include "xray/ui/window.common.core.hpp"
 #include "xray/xray.hpp"
 
 #include <X11/Xlib.h>
@@ -124,20 +125,6 @@ class window
 {
 
   public:
-    enum class InputKeySymHandling
-    {
-        Utf8,
-        Unicode
-    };
-
-    struct
-    {
-        loop_event_delegate loop;
-        window_event_delegate window;
-        poll_start_event_delegate poll_start;
-        poll_end_event_delegate poll_end;
-    } events;
-
     /// \name Construction and destruction.
     /// @{
   public:
@@ -179,8 +166,6 @@ class window
     void message_loop();
     void quit() noexcept { _quit_flag = true; }
     void swap_buffers() noexcept;
-
-    InputKeySymHandling key_sym_handling{ InputKeySymHandling::Unicode };
 
   private:
     void event_mouse_button(const XButtonEvent* x11evt);

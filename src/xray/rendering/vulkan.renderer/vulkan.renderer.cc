@@ -10,14 +10,18 @@
 
 #include <fmt/core.h>
 #include <itlib/small_vector.hpp>
-#include <pipes/pipes.hpp>
 #include <tl/optional.hpp>
 #include <swl/variant.hpp>
 #include <mio/mmap.hpp>
+#include <Lz/Lz.hpp>
 
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_to_string.hpp>
+
+#if defined(XRAY_OS_IS_WINDOWS)
+#include <vulkan/vulkan_win32.h>
+#endif
 
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/logger.hpp"
@@ -52,7 +56,7 @@ r_find_pos(const Container& c, BinaryPredicate bp) noexcept
 {
     const auto itr = find_if(cbegin(c), cend(c), bp);
     if (itr != cend(c)) {
-        return tl::optional{ distance(cbegin(c), itr) };
+        return tl::optional<size_t>{ distance(cbegin(c), itr) };
     }
     return tl::nullopt;
 }
@@ -300,7 +304,7 @@ check_display_presentation_support(span<const char*> extensions_list, VkPhysical
     if (attached_displays.empty())
         return tl::nullopt;
 
-    attached_displays >>= pipes::for_each([](const DisplayData& dp) {
+    for (const DisplayData& dp : attached_displays) {
         XR_LOG_INFO("display : {}, physical dimension {}, physical resolution {}",
                     dp.properties.displayName,
                     dp.properties.physicalResolution,
@@ -311,7 +315,7 @@ check_display_presentation_support(span<const char*> extensions_list, VkPhysical
                         disp_mode.parameters.refreshRate,
                         disp_mode.parameters.visibleRegion);
         }
-    });
+    }
 
     //
     // get list of display planes for this device
@@ -456,6 +460,9 @@ check_display_presentation_support(span<const char*> extensions_list, VkPhysical
         });
 }
 
+#if defined(XRAY_OS_IS_WINDOWS)
+#else
+
 tl::optional<PresentToSurface>
 create_xcb_surface(const WindowPlatformDataXcb& win_platform_data, VkInstance instance)
 {
@@ -504,6 +511,8 @@ create_xlib_surface(const WindowPlatformDataXlib& win_platform_data, VkInstance 
     return tl::make_optional<PresentToSurface>(PresentToWindowSurface{ win_platform_data, std::move(surface_khr) });
 }
 
+#endif
+
 uint32_t
 find_allocation_memory_type(const VkPhysicalDeviceMemoryProperties& memory_properties,
                             const uint32_t memory_requirements,
@@ -542,25 +551,34 @@ tl::optional<VulkanRenderer>
 VulkanRenderer::create(const WindowPlatformData& win_data)
 {
     const itlib::small_vector<VkExtensionProperties, 4> supported_extensions{ enumerate_instance_extensions() };
-    supported_extensions >>= pipes::for_each(
-        [](const VkExtensionProperties& e) { XR_LOG_INFO("extension: {} - {:#0x}", e.extensionName, e.specVersion); });
+    for (const VkExtensionProperties& e : supported_extensions) {
+        XR_LOG_INFO("extension: {} - {:#0x}", e.extensionName, e.specVersion);
+    }
 
     const small_vec_4<const char*> extensions_list{ [&supported_extensions]() {
-        small_vec_4<const char*> exts_list{ VK_KHR_SURFACE_EXTENSION_NAME,
-                                            VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
-                                            VK_KHR_XCB_SURFACE_EXTENSION_NAME,
-                                            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-                                            VK_EXT_DEBUG_REPORT_EXTENSION_NAME };
+        small_vec_4<const char*> exts_list
+        {
+            VK_KHR_SURFACE_EXTENSION_NAME,
+#if defined(XRAY_OS_IS_WINDOWS)
+                VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+#else
+                VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+#endif
+                    VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+                VK_EXT_DEBUG_REPORT_EXTENSION_NAME
+        };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
             VK_KHR_DISPLAY_EXTENSION_NAME, VK_KHR_DISPLAY_SWAPCHAIN_EXTENSION_NAME
         };
 
-        display_extensions_list >>= pipes::filter([&supported_extensions](const char* ext_name) {
-            return supported_extensions % fn::exists_where([ext_name](const VkExtensionProperties& e) {
-                       return strcmp(e.extensionName, ext_name) == 0;
-                   });
-        }) >>= pipes::push_back(exts_list);
+        lz::chain(display_extensions_list)
+            .filter([&supported_extensions](const char* ext_name) {
+                return supported_extensions % fn::exists_where([ext_name](const VkExtensionProperties& e) {
+                           return strcmp(e.extensionName, ext_name) == 0;
+                       });
+            })
+            .copyTo(std::back_inserter(exts_list));
 
         return exts_list;
     }() };
@@ -640,6 +658,8 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                                                                  VkInstance instance,
                                                                  VkPhysicalDevice device,
                                                                  const uint32_t queue_index) {
+#if defined(XRAY_OS_IS_WINDOWS)
+#else
         if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
             PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR get_physical_device_xlib_presentation_support_khr =
                 reinterpret_cast<PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR>(
@@ -659,86 +679,87 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             return get_physical_device_xcb_presentation_support_khr(
                        device, queue_index, xcb->connection, xcb->visual) == VK_TRUE;
         }
-
+#endif
         assert(false && "Unhandled WindowPlatformData!");
         return false;
     };
 
     small_vec_4<tuple<detail::PhysicalDeviceData, size_t, size_t>> phys_devices_data{};
 
-    phys_devices >>= pipes::transform([instance = raw_ptr(vkinstance),
-                                       &win_data,
-                                       check_physical_device_presentation_surface_support](VkPhysicalDevice phys_device)
-                                          -> tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> {
-        const detail::PhysicalDeviceData pdd{ phys_device };
+    lz::chain(phys_devices)
+        .map([instance = raw_ptr(vkinstance), &win_data, check_physical_device_presentation_surface_support](
+                 VkPhysicalDevice phys_device) -> tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> {
+            const detail::PhysicalDeviceData pdd{ phys_device };
 
-        XR_LOG_INFO("Checking device {} suitability ...", pdd.properties.base.properties.deviceName);
+            XR_LOG_INFO("Checking device {} suitability ...", pdd.properties.base.properties.deviceName);
 
-        constexpr const uint32_t suitable_device_types[] = { VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
-                                                             VK_PHYSICAL_DEVICE_TYPE_CPU,
-                                                             VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU };
+            constexpr const uint32_t suitable_device_types[] = { VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
+                                                                 VK_PHYSICAL_DEVICE_TYPE_CPU,
+                                                                 VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU };
 
-        const bool is_requested_device_type{
-            suitable_device_types % fn::exists_where([device_type = pdd.properties.base.properties.deviceType](
-                                                         const uint32_t required) { return required == device_type; })
-        };
+            const bool is_requested_device_type{
+                suitable_device_types %
+                fn::exists_where([device_type = pdd.properties.base.properties.deviceType](const uint32_t required) {
+                    return required == device_type;
+                })
+            };
 
-        if (!is_requested_device_type) {
-            XR_LOG_INFO("Rejecting device {}, unsuitable type {:#x}",
-                        pdd.properties.base.properties.deviceName,
-                        static_cast<uint32_t>(pdd.properties.base.properties.deviceType));
-            return tl::nullopt;
-        }
+            if (!is_requested_device_type) {
+                XR_LOG_INFO("Rejecting device {}, unsuitable type {:#x}",
+                            pdd.properties.base.properties.deviceName,
+                            static_cast<uint32_t>(pdd.properties.base.properties.deviceType));
+                return tl::nullopt;
+            }
 
-        const auto graphics_q_idx = r_find_pos(
-            pdd.queue_props, [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_GRAPHICS_BIT; });
+            const auto graphics_q_idx = r_find_pos(
+                pdd.queue_props, [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_GRAPHICS_BIT; });
 
-        if (!graphics_q_idx) {
-            XR_LOG_INFO("Rejecting device {}, no graphics queue support.", pdd.properties.base.properties.deviceName);
-            return tl::nullopt;
-        }
+            if (!graphics_q_idx) {
+                XR_LOG_INFO("Rejecting device {}, no graphics queue support.",
+                            pdd.properties.base.properties.deviceName);
+                return tl::nullopt;
+            }
 
-        // surface presentation support
+            // surface presentation support
 
-        if (!check_physical_device_presentation_surface_support(win_data, instance, pdd.device, *graphics_q_idx)) {
-            XR_LOG_INFO("Rejecting device {}, no surface presentation support (queue family index {})",
-                        pdd.properties.base.properties.deviceName,
-                        *graphics_q_idx);
-            return tl::nullopt;
-        }
+            if (!check_physical_device_presentation_surface_support(win_data, instance, pdd.device, *graphics_q_idx)) {
+                XR_LOG_INFO("Rejecting device {}, no surface presentation support (queue family index {})",
+                            pdd.properties.base.properties.deviceName,
+                            *graphics_q_idx);
+                return tl::nullopt;
+            }
 
-        const auto transfer_q_idx = r_find_pos(
-            pdd.queue_props, [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_TRANSFER_BIT; });
+            const auto transfer_q_idx = r_find_pos(
+                pdd.queue_props, [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_TRANSFER_BIT; });
 
-        if (!transfer_q_idx) {
-            XR_LOG_INFO("Rejecting device {}, no graphics queue support.", pdd.properties.base.properties.deviceName);
-            return tl::nullopt;
-        }
+            if (!transfer_q_idx) {
+                XR_LOG_INFO("Rejecting device {}, no graphics queue support.",
+                            pdd.properties.base.properties.deviceName);
+                return tl::nullopt;
+            }
 
-        small_vec_4<VkExtensionProperties> device_extensions{ [dev = pdd.device]() {
-            uint32_t extensions_count{};
-            WRAP_VULKAN_FUNC(vkEnumerateDeviceExtensionProperties, dev, nullptr, &extensions_count, nullptr);
-            small_vec_4<VkExtensionProperties> device_extensions{ extensions_count };
-            WRAP_VULKAN_FUNC(
-                vkEnumerateDeviceExtensionProperties, dev, nullptr, &extensions_count, device_extensions.data());
+            small_vec_4<VkExtensionProperties> device_extensions{ [dev = pdd.device]() {
+                uint32_t extensions_count{};
+                WRAP_VULKAN_FUNC(vkEnumerateDeviceExtensionProperties, dev, nullptr, &extensions_count, nullptr);
+                small_vec_4<VkExtensionProperties> device_extensions{ extensions_count };
+                WRAP_VULKAN_FUNC(
+                    vkEnumerateDeviceExtensionProperties, dev, nullptr, &extensions_count, device_extensions.data());
 
-            return device_extensions;
-        }() };
+                return device_extensions;
+            }() };
 
-        device_extensions % fn::for_each([](const VkExtensionProperties& ext_props) {
-            XR_LOG_INFO("{} - {:#x}", ext_props.extensionName, ext_props.specVersion);
-        });
-
-        return tl::make_optional(make_tuple(pdd, *graphics_q_idx, *transfer_q_idx));
-    }) >>= pipes::filter([](tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> data) {
-        return data.has_value();
-    }) >>=
-        pipes::for_each(
-            [&phys_devices_data](tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> pd) mutable {
-                pd.take().map([&phys_devices_data](tuple<detail::PhysicalDeviceData, size_t, size_t>&& pd) mutable {
-                    phys_devices_data.push_back(pd);
-                });
+            device_extensions % fn::for_each([](const VkExtensionProperties& ext_props) {
+                XR_LOG_INFO("{} - {:#x}", ext_props.extensionName, ext_props.specVersion);
             });
+
+            return tl::make_optional(make_tuple(pdd, *graphics_q_idx, *transfer_q_idx));
+        })
+        .filter([](tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> data) { return data.has_value(); })
+        .forEach([&phys_devices_data](tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> pd) mutable {
+            pd.take().map([&phys_devices_data](tuple<detail::PhysicalDeviceData, size_t, size_t>&& pd) mutable {
+                phys_devices_data.push_back(pd);
+            });
+        });
 
     if (phys_devices_data.empty()) {
         XR_LOG_ERR("No suitable physical devices present in the system");
@@ -812,6 +833,8 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     XR_LOG_INFO("Device created successfully");
 
     tl::optional<PresentToSurface> present_to_surface{ [&win_data, instance = raw_ptr(vkinstance)]() {
+#if defined(XRAY_OS_IS_WINDOWS)
+#else
         if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
             return create_xlib_surface(*xlib, instance);
         }
@@ -819,7 +842,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
             return create_xcb_surface(*xcb, instance);
         }
-
+#endif
         assert(false && "Unhandled WindowPlatformData");
         return tl::optional<PresentToSurface>{};
     }() };
@@ -874,9 +897,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 return fmts;
             }() };
 
-            supported_surface_fmts >>= pipes::for_each([](const VkSurfaceFormatKHR& fmt) {
+            for (const VkSurfaceFormatKHR& fmt : supported_surface_fmts) {
                 XR_LOG_INFO("{}", vk::to_string(static_cast<vk::Format>(fmt.format)));
-            });
+            }
 
             const small_vec_4<VkPresentModeKHR> supported_presentation_modes{ [device = pd->device, surface]() {
                 uint32_t present_modes_count{};
@@ -917,12 +940,20 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
             const uint32_t swapchain_image_count = min(surface_caps.minImageCount + 2, surface_caps.maxImageCount);
             const VkExtent3D swapchain_dimensions = swl::visit(
-                VariantVisitor{ [](const WindowPlatformDataXcb& xcb) {
-                                   return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
-                               },
-                                [](const WindowPlatformDataXlib& xlib) {
-                                    return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                                } },
+                VariantVisitor {
+#if defined(XRAY_OS_IS_WINDOWS)
+                    [](const WindowPlatformDataWin32& win32) {
+                        return VkExtent3D{ .width = win32.width, .height = win32.height, .depth = 1 };
+                    }
+#else
+                    [](const WindowPlatformDataXcb& xcb) {
+                        return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
+                    },
+                        [](const WindowPlatformDataXlib& xlib) {
+                            return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
+                        }
+#endif
+                },
                 win_data);
 
             const SwapchainStateCreationInfo swapchain_state_create_info{

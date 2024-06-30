@@ -39,21 +39,16 @@
 #include <tuple>
 #include <vector>
 
-#include <xcb/xcb.h>
-
 #include <oneapi/tbb/info.h>
 #include <oneapi/tbb/task_arena.h>
 
-// #include <opengl/opengl.hpp>
-
-#include <itertools.hpp>
-#include <pipes/pipes.hpp>
+#include <Lz/Lz.hpp>
 #include <swl/variant.hpp>
 
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/debug_output.hpp"
-#include "xray/base/fast_delegate.hpp"
+#include "xray/base/delegate.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/random.hpp"
 #include "xray/base/scoped_guard.hpp"
@@ -96,7 +91,7 @@ struct RegisteredDemo
 {
     std::string_view short_desc;
     std::string_view detailed_desc;
-    fast_delegate<unique_pointer<DemoBase>(const init_context_t&)> create_demo_fn;
+    cpp::delegate<unique_pointer<DemoBase>(const init_context_t&)> create_demo_fn;
 };
 
 template<typename... Ts>
@@ -105,7 +100,7 @@ register_demos()
 {
     std::vector<RegisteredDemo> demos;
     demos.resize(sizeof...(Ts));
-    ((demos.push_back(RegisteredDemo{ Ts::short_desc(), Ts::detailed_desc(), make_delegate(Ts::create) })), ...);
+    ((demos.push_back(RegisteredDemo{ Ts::short_desc(), Ts::detailed_desc(), cpp::bind<&Ts::create>() })), ...);
 
     return demos;
 }
@@ -147,8 +142,9 @@ class MainRunner
         hookup_event_delegates();
         _timer.start();
 
-        _registered_demos >>= pipes::for_each(
-            [](const RegisteredDemo& rd) { XR_LOG_INFO("Registered demo: {} - {}", rd.short_desc, rd.detailed_desc); });
+        lz::chain(_registered_demos).forEach([](const RegisteredDemo& rd) {
+            XR_LOG_INFO("Registered demo: {} - {}", rd.short_desc, rd.detailed_desc);
+        });
     }
 
     MainRunner(MainRunner&& rhs) = default;
@@ -173,11 +169,8 @@ class MainRunner
     /// @{
 
     void loop_event(const xray::ui::window_loop_event& loop_evt);
-
     void event_handler(const xray::ui::window_event& wnd_evt);
-
     void poll_start(const xray::ui::poll_start_event&);
-
     void poll_end(const xray::ui::poll_end_event&);
 
     /// @}
@@ -224,11 +217,11 @@ MainRunner::create()
     xr_app_config = &app_cfg;
 
     XR_LOG_INFO("Configured paths");
-    XR_LOG_INFO("Root {}", xr_app_config->root_directory().c_str());
-    XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").c_str());
-    XR_LOG_INFO("Models {}", xr_app_config->model_path("").c_str());
-    XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").c_str());
-    XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").c_str());
+    XR_LOG_INFO("Root {}", xr_app_config->root_directory().generic_string());
+    XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").generic_string());
+    XR_LOG_INFO("Models {}", xr_app_config->model_path("").generic_string());
+    XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").generic_string());
+    XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").generic_string());
 
     const window_params_t wnd_params{ "OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false };
 
@@ -238,12 +231,23 @@ MainRunner::create()
         return tl::nullopt;
     }
 
-    tl::optional<VulkanRenderer> renderer{ VulkanRenderer::create(
-        WindowPlatformDataXlib{ .display = main_window.native_display(),
-                                .window = main_window.native_window(),
-                                .visual = main_window.native_visual(),
-                                .width = static_cast<uint32_t>(main_window.width()),
-                                .height = static_cast<uint32_t>(main_window.height()) }) };
+    tl::optional<VulkanRenderer> renderer
+    {
+        VulkanRenderer::create(
+#if defined(XRAY_OS_IS_WINDOWS)
+            WindowPlatformDataWin32{ .module = main_window.native_module(),
+                                     .window = main_window.native_window(),
+                                     .width = static_cast<uint32_t>(main_window.width()),
+                                     .height = static_cast<uint32_t>(main_window.height()) }
+#else
+            WindowPlatformDataXlib{ .display = main_window.native_display(),
+                                    .window = main_window.native_window(),
+                                    .visual = main_window.native_visual(),
+                                    .width = static_cast<uint32_t>(main_window.width()),
+                                    .height = static_cast<uint32_t>(main_window.height()) }
+#endif
+        )
+    };
 
     if (!renderer) {
         XR_LOG_CRITICAL("Failed to create Vulkan renderer!");
@@ -251,16 +255,17 @@ MainRunner::create()
     }
 
     namespace fs = std::filesystem;
-    const vector<xray::ui::font_info> font_list = fs::recursive_directory_iterator(xr_app_config->font_root()) >>=
-        pipes::filter([](const fs::directory_entry& dir_entry) {
-            if (!dir_entry.is_regular_file())
-                return false;
+    vector<xray::ui::font_info> font_list;
+    for (const fs::directory_entry& dir_entry : fs::recursive_directory_iterator(xr_app_config->font_root())) {
+        if (!dir_entry.is_regular_file() || !dir_entry.path().has_extension())
+            continue;
 
-            const std::string_view file_ext{ dir_entry.path().extension().c_str() };
-            return file_ext == ".ttf" || file_ext == ".otf";
-        }) >>= pipes::transform([](const fs::directory_entry& dir_entry) {
-            return xray::ui::font_info{ .path = dir_entry.path(), .pixel_size = 18.0f };
-        }) >>= pipes::to_<vector<xray::ui::font_info>>();
+        const fs::path file_ext{ dir_entry.path().extension() };
+        if (file_ext != ".ttf" || file_ext != ".otf")
+            continue;
+
+        font_list.emplace_back(dir_entry.path(), 18.0f);
+    };
 
     xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(
         font_list.data(), font_list.size()) };
@@ -295,7 +300,6 @@ MainRunner::demo_quit()
 {
     assert(demo_running());
     _demo = nullptr;
-    //    hookup_event_delegates();
 }
 
 void
@@ -311,10 +315,10 @@ MainRunner::poll_end(const xray::ui::poll_end_event&)
 void
 MainRunner::hookup_event_delegates()
 {
-    _window.events.loop = make_delegate(*this, &MainRunner::loop_event);
-    _window.events.poll_start = make_delegate(*this, &MainRunner::poll_start);
-    _window.events.poll_end = make_delegate(*this, &MainRunner::poll_end);
-    _window.events.window = make_delegate(*this, &MainRunner::event_handler);
+    _window.core.events.loop = cpp::bind<&MainRunner::loop_event>(this);
+    _window.core.events.poll_start = cpp::bind<&MainRunner::poll_start>(this);
+    _window.core.events.poll_end = cpp::bind<&MainRunner::poll_end>(this);
+    _window.core.events.window = cpp::bind<&MainRunner::event_handler>(this);
 }
 
 void

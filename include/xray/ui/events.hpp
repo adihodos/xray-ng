@@ -30,7 +30,7 @@
 
 #pragma once
 
-#include "xray/base/fast_delegate.hpp"
+#include "xray/base/delegate.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/xray.hpp"
 #include <cstddef>
@@ -260,10 +260,10 @@ struct poll_end_event
     int32_t surface_height;
 };
 
-using loop_event_delegate = base::fast_delegate<void(const window_loop_event&)>;
-using window_event_delegate = base::fast_delegate<void(const window_event&)>;
-using poll_start_event_delegate = base::fast_delegate<void(const poll_start_event&)>;
-using poll_end_event_delegate = base::fast_delegate<void(const poll_end_event&)>;
+using loop_event_delegate = cpp::delegate<void(const window_loop_event&)>;
+using window_event_delegate = cpp::delegate<void(const window_event&)>;
+using poll_start_event_delegate = cpp::delegate<void(const poll_start_event&)>;
+using poll_end_event_delegate = cpp::delegate<void(const poll_end_event&)>;
 
 } // namespace ui
 } // namespace xray

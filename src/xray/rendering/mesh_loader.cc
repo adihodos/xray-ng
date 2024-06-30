@@ -8,13 +8,13 @@ using namespace xray::math;
 using namespace xray::rendering;
 
 tl::optional<mesh_loader>
-xray::rendering::mesh_loader::load(const char* file_path,
+xray::rendering::mesh_loader::load(const std::filesystem::path& file_path,
                                    const uint32_t load_opts /*= mesh_load_option::remove_points_lines*/)
 {
     std::error_code error;
-    mio::mmap_source mmap = mio::make_mmap_source(file_path, error);
+    mio::mmap_source mmap = mio::make_mmap_source(file_path.generic_string(), error);
     if (error) {
-        XR_LOG_ERR("Failed to load file {}, error {}", file_path, error.message());
+        XR_LOG_ERR("Failed to load file {}, error {}", file_path.generic_string(), error.message());
         return tl::nullopt;
     }
 
@@ -66,7 +66,10 @@ xray::rendering::mesh_loader::read_header(const char* file_path)
 
     mesh_header mhdr;
     const auto result{ (fread(&mhdr, sizeof(mhdr), 1, fp.get())) };
+    if (result != 1)
+        return tl::nullopt;
+
     static_cast<void>(result);
 
-    return tl::optional{ mhdr };
+    return tl::optional<mesh_header>{ mhdr };
 }

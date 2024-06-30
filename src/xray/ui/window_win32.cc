@@ -17,80 +17,272 @@ using namespace xray::ui;
 using namespace xray::ui::detail;
 using namespace std;
 
-static constexpr auto kWindowClassName = "__@@##!!__WindowsOpenGL__!!##@@__";
+static constexpr auto kWindowClassName = "__@@##!!__Windows_XRAY__!!##@@__";
 
-static constexpr const xray::ui::KeySym WIN32_KEYS_MAPPING_TABLE[] = {
-    KeySym::unknown,    KeySym::unknown,     KeySym::unknown,      KeySym::unknown,
-    KeySym::unknown,    KeySym::unknown,     KeySym::unknown,      KeySym::unknown,
-    KeySym::backspace,  KeySym::tab,         KeySym::unknown,      KeySym::unknown,
-    KeySym::clear,      KeySym::enter,       KeySym::unknown,      KeySym::unknown,
-    KeySym::unknown,    KeySym::unknown,     KeySym::unknown,      KeySym::pause,
-    KeySym::unknown,    KeySym::unknown,     KeySym::unknown,      KeySym::unknown,
-    KeySym::unknown,    KeySym::unknown,     KeySym::unknown,      KeySym::escape,
-    KeySym::unknown,    KeySym::unknown,     KeySym::unknown,      KeySym::unknown,
-    KeySym::space,      KeySym::page_up,     KeySym::page_down,    KeySym::end,
-    KeySym::home,       KeySym::left,        KeySym::up,           KeySym::right,
-    KeySym::down,       KeySym::select,      KeySym::print_screen, KeySym::unknown,
-    KeySym::unknown,    KeySym::insert,      KeySym::del,          KeySym::unknown,
-    KeySym::key_0,      KeySym::key_1,       KeySym::key_2,        KeySym::key_3,
-    KeySym::key_4,      KeySym::key_5,       KeySym::key_6,        KeySym::key_7,
-    KeySym::key_8,      KeySym::key_9,       KeySym::unknown,      KeySym::unknown,
-    KeySym::unknown,    KeySym::unknown,     KeySym::unknown,      KeySym::unknown,
-    KeySym::unknown,    KeySym::key_a,       KeySym::key_b,        KeySym::key_c,
-    KeySym::key_d,      KeySym::key_e,       KeySym::key_f,        KeySym::key_g,
-    KeySym::key_h,      KeySym::key_i,       KeySym::key_j,        KeySym::key_k,
-    KeySym::key_l,      KeySym::key_m,       KeySym::key_n,        KeySym::key_o,
-    KeySym::key_p,      KeySym::key_q,       KeySym::key_r,        KeySym::key_s,
-    KeySym::key_t,      KeySym::key_u,       KeySym::key_v,        KeySym::key_w,
-    KeySym::key_x,      KeySym::key_y,       KeySym::key_z,        KeySym::left_win,
-    KeySym::right_win,  KeySym::unknown,     KeySym::unknown,      KeySym::unknown,
-    KeySym::kp0,        KeySym::kp1,         KeySym::kp2,          KeySym::kp3,
-    KeySym::kp4,        KeySym::kp5,         KeySym::kp6,          KeySym::kp7,
-    KeySym::kp8,        KeySym::kp9,         KeySym::kp_multiply,  KeySym::kp_add,
-    KeySym::unknown,    KeySym::kp_minus,    KeySym::unknown,      KeySym::kp_divide,
-    KeySym::f1,         KeySym::f2,          KeySym::f3,           KeySym::f4,
-    KeySym::f5,         KeySym::f6,          KeySym::f7,           KeySym::f8,
-    KeySym::f9,         KeySym::f10,         key_sym::e::f11,          key_sym::e::f12,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::scrol_lock,  key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::left_shift, key_sym::e::right_shift, key_sym::e::left_control, key_sym::e::right_control,
-    key_sym::e::left_menu,  key_sym::e::right_menu,  key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
-    key_sym::e::unknown,    key_sym::e::unknown,     key_sym::e::unknown,      key_sym::e::unknown,
+static constexpr const xray::ui::KeySymbol WIN32_KEYS_MAPPING_TABLE[] = {
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::backspace,
+    KeySymbol::tab,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::clear,
+    KeySymbol::enter,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::pause,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::escape,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::space,
+    KeySymbol::page_up,
+    KeySymbol::page_down,
+    KeySymbol::end,
+    KeySymbol::home,
+    KeySymbol::left,
+    KeySymbol::up,
+    KeySymbol::right,
+    KeySymbol::down,
+    KeySymbol::select,
+    KeySymbol::print_screen,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::insert,
+    KeySymbol::del,
+    KeySymbol::unknown,
+    KeySymbol::key_0,
+    KeySymbol::key_1,
+    KeySymbol::key_2,
+    KeySymbol::key_3,
+    KeySymbol::key_4,
+    KeySymbol::key_5,
+    KeySymbol::key_6,
+    KeySymbol::key_7,
+    KeySymbol::key_8,
+    KeySymbol::key_9,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::key_a,
+    KeySymbol::key_b,
+    KeySymbol::key_c,
+    KeySymbol::key_d,
+    KeySymbol::key_e,
+    KeySymbol::key_f,
+    KeySymbol::key_g,
+    KeySymbol::key_h,
+    KeySymbol::key_i,
+    KeySymbol::key_j,
+    KeySymbol::key_k,
+    KeySymbol::key_l,
+    KeySymbol::key_m,
+    KeySymbol::key_n,
+    KeySymbol::key_o,
+    KeySymbol::key_p,
+    KeySymbol::key_q,
+    KeySymbol::key_r,
+    KeySymbol::key_s,
+    KeySymbol::key_t,
+    KeySymbol::key_u,
+    KeySymbol::key_v,
+    KeySymbol::key_w,
+    KeySymbol::key_x,
+    KeySymbol::key_y,
+    KeySymbol::key_z,
+    KeySymbol::left_win,
+    KeySymbol::right_win,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::unknown,
+    KeySymbol::kp0,
+    KeySymbol::kp1,
+    KeySymbol::kp2,
+    KeySymbol::kp3,
+    KeySymbol::kp4,
+    KeySymbol::kp5,
+    KeySymbol::kp6,
+    KeySymbol::kp7,
+    KeySymbol::kp8,
+    KeySymbol::kp9,
+    KeySymbol::kp_multiply,
+    KeySymbol::kp_add,
+    KeySymbol::unknown,
+    KeySymbol::kp_minus,
+    KeySymbol::unknown,
+    KeySymbol::kp_divide,
+    KeySymbol::f1,
+    KeySymbol::f2,
+    KeySymbol::f3,
+    KeySymbol::f4,
+    KeySymbol::f5,
+    KeySymbol::f6,
+    KeySymbol::f7,
+    KeySymbol::f8,
+    KeySymbol::f9,
+    KeySymbol::f10,
+    KeySymbol ::f11,
+    KeySymbol ::f12,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::scrol_lock,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::left_shift,
+    KeySymbol ::right_shift,
+    KeySymbol ::left_control,
+    KeySymbol ::right_control,
+    KeySymbol ::left_menu,
+    KeySymbol ::right_menu,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
+    KeySymbol ::unknown,
 };
 
-static key_sym::e
+static KeySymbol
 map_key(const int32_t key_code)
 {
     if (key_code == VK_MENU) {
-        return key_sym::e::unknown;
+        return KeySymbol ::unknown;
     }
 
     if (key_code < XR_I32_COUNTOF(WIN32_KEYS_MAPPING_TABLE)) {
@@ -98,7 +290,7 @@ map_key(const int32_t key_code)
     }
 
     XR_LOG_INFO("Unmaped key code {}", key_code);
-    return key_sym::e::unknown;
+    return KeySymbol ::unknown;
 }
 
 static POINT
@@ -140,6 +332,20 @@ xray::ui::window::window(const window_params_t& wparam)
 }
 
 xray::ui::window::~window() {}
+
+xray::ui::window::window(window&& other)
+    : core{ std::move(other.core) }
+    , _window{ other._window }
+#if defined(XRAY_RENDERER_OPENGL)
+    , _pixelformat_id{ other._pixelformat_id }
+    , _window_dc{ std::move(other._window_dc) }
+    , _glcontext{ std::move(other._glcontext) }
+#endif
+    , _wnd_width{ other._wnd_width }
+    , _wnd_height{ other._wnd_height }
+    , _quit_flag{ other._quit_flag.load() }
+{
+}
 
 void
 xray::ui::window::initialize(const window_params_t* wp)
@@ -504,7 +710,7 @@ xray::ui::window::message_loop()
 
     for (; _quit_flag == false;) {
 
-        events.poll_start({});
+        core.events.poll_start({});
 
         while (PeekMessage(&wnd_msg, nullptr, 0, 0, PM_NOREMOVE) && !_quit_flag) {
             const auto res = GetMessage(&wnd_msg, nullptr, 0, 0);
@@ -517,11 +723,11 @@ xray::ui::window::message_loop()
             DispatchMessage(&wnd_msg);
         }
 
-        events.poll_end({});
+        core.events.poll_end({});
 
         //
         // user loop event
-        events.loop({ _wnd_width, _wnd_height, this });
+        core.events.loop({ _wnd_width, _wnd_height, this });
 
 #if defined(XRAY_RENDERER_OPENGL)
         SwapBuffers(raw_ptr(_window_dc));
@@ -554,7 +760,7 @@ xray::ui::window::event_mouse_button(const uint32_t type, const WPARAM wp, const
     we.type = event_type::mouse_button;
     we.event.button = mbe;
 
-    events.window(we);
+    core.events.window(we);
 }
 
 void
@@ -579,7 +785,7 @@ xray::ui::window::event_mouse_wheel(const WPARAM wparam, const LPARAM lparam)
     we.type = event_type::mouse_wheel;
     we.event.wheel = mwe;
 
-    events.window(we);
+    core.events.window(we);
 }
 
 void
@@ -600,11 +806,11 @@ xray::ui::window::event_key(const uint32_t type, const WPARAM wp, const LPARAM l
     ke.keycode = map_key(wp);
     ke.pointer_x = cursor_pos.x;
     ke.pointer_y = cursor_pos.y;
-    ke.button1 = (GetAsyncKeyState(VK_LBUTTON) & (1 << 15)) != 0;
-    ke.button2 = (GetAsyncKeyState(VK_MBUTTON) & (1 << 15)) != 0;
-    ke.button3 = (GetAsyncKeyState(VK_RBUTTON) & (1 << 15)) != 0;
-    ke.button4 = (GetAsyncKeyState(VK_XBUTTON1) & (1 << 15)) != 0;
-    ke.button5 = (GetAsyncKeyState(VK_XBUTTON2) & (1 << 15)) != 0;
+    // ke.button1 = (GetAsyncKeyState(VK_LBUTTON) & (1 << 15)) != 0;
+    // ke.button2 = (GetAsyncKeyState(VK_MBUTTON) & (1 << 15)) != 0;
+    // ke.button3 = (GetAsyncKeyState(VK_RBUTTON) & (1 << 15)) != 0;
+    // ke.button4 = (GetAsyncKeyState(VK_XBUTTON1) & (1 << 15)) != 0;
+    // ke.button5 = (GetAsyncKeyState(VK_XBUTTON2) & (1 << 15)) != 0;
     ke.shift = (GetAsyncKeyState(VK_SHIFT) & (1 << 15)) != 0;
     ke.control = (GetAsyncKeyState(VK_CONTROL) & (1 << 15)) != 0;
 
@@ -614,7 +820,7 @@ xray::ui::window::event_key(const uint32_t type, const WPARAM wp, const LPARAM l
     we.type = event_type::key;
     we.event.key = ke;
 
-    events.window(we);
+    core.events.window(we);
 }
 
 void
@@ -636,7 +842,7 @@ xray::ui::window::event_motion_notify(const WPARAM wparam, const LPARAM lparam)
     we.type = event_type::mouse_motion;
     we.event.motion = mme;
 
-    events.window(we);
+    core.events.window(we);
 }
 
 void
@@ -658,5 +864,5 @@ xray::ui::window::event_configure(const WPARAM wparam, const LPARAM lparam)
     we.type = event_type::configure;
     we.event.configure = cfg_evt;
 
-    events.window(we);
+    core.events.window(we);
 }

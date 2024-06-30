@@ -23,4 +23,4 @@ target_include_directories(
 )
 
 
-target_link_libraries(${PROJECT_NAME}  xray-glloader tl::optional STLSoft mio::mio)
+target_link_libraries(${PROJECT_NAME}  xray-glloader tl::optional mio::mio)

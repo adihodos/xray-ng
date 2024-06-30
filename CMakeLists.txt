@@ -19,7 +19,6 @@ cpmaddpackage("gh:TartanLlama/optional@1.1.0")
 # CPMAddPackage("gh:tinyobjloader/tinyobjloader#release")
 cpmaddpackage("gh:vimpunk/mio#master")
 cpmaddpackage("gh:iboB/itlib#master")
-# CPMAddPackage("gh:odygrd/quill@3.8.0")
 cpmaddpackage("gh:getml/reflect-cpp#main")
 
 cpmaddpackage(
@@ -31,6 +30,12 @@ cpmaddpackage(
   master
   OPTIONS
   "BUILD_TESTING OFF")
+
+cpmaddpackage(
+  NAME cpp-lazy
+  GITHUB_REPOSITORY MarcDirven/cpp-lazy
+  GIT_TAG v8.0.0
+  OPTIONS "CPP-LAZY_USE_STANDALONE ON")
 
 cpmaddpackage(
   NAME
@@ -59,8 +64,7 @@ cpmaddpackage(
   "BUILD_SHARED_LIBS OFF"
   "BUILD_TESTS OFF")
 
-# CPMAddPackage("gh:ericniebler/range-v3#master")
-cpmaddpackage("gh:groundswellaudio/swl-variant#main")
+cpmaddpackage("gh:adihodos/swl-variant#main")
 cpmaddpackage(
   NAME
   spirv-reflect

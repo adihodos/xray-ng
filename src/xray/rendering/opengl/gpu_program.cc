@@ -23,7 +23,6 @@
 
 #include <itlib/small_vector.hpp>
 #include <mio/mmap.hpp>
-#include <pipes/pipes.hpp>
 #include <tl/optional.hpp>
 
 using namespace xray::base;
@@ -190,20 +189,20 @@ xray::rendering::gpu_program_builder::build_program_ex(const GLenum stg) const n
     itlib::small_vector<mio::mmap_source, 4> mem_mapped_files;
     itlib::small_vector<const char*, 4> source_string_ptrs;
 
-    _build_blocks >>= pipes::for_each([&mem_mapped_files, &source_string_ptrs](const ShaderBuildingBlock& bblock) {
+    for (const ShaderBuildingBlock& bblock : _build_blocks) {
         if (const filesystem::path* p = get_if<filesystem::path>(&bblock)) {
             std::error_code err_code{};
             mio::mmap_source mapped_file = mio::make_mmap_source(p->c_str(), err_code);
             if (!err_code) {
                 source_string_ptrs.emplace_back(mapped_file.cbegin());
-                mem_mapped_files.emplace_back(move(mapped_file));
+                mem_mapped_files.emplace_back(std::move(mapped_file));
             } else {
-                XR_LOG_CRITICAL("Cannot open shader file {}", p->c_str());
+                XR_LOG_CRITICAL("Cannot open shader file {}", p->generic_string());
             }
         } else if (const std::string_view* strv = get_if<std::string_view>(&bblock)) {
             source_string_ptrs.emplace_back(strv->data());
         }
-    });
+    }
 
     auto gpu_prg =
         scoped_program_handle{ gl::CreateShaderProgramv(stg, source_string_ptrs.size(), source_string_ptrs.data()) };
@@ -252,13 +251,14 @@ xray::rendering::gpu_program_builder::build_program_ex(const GLenum stg) const n
                    "Failed to compile/link {} program, error:\n[[{}]]\nDumping building blocks:\n",
                    stage_id,
                    &log_buff[0]);
-    _build_blocks >>= pipes::for_each([&](const ShaderBuildingBlock& bblock) {
+
+    for (const ShaderBuildingBlock& bblock : _build_blocks) {
         if (const filesystem::path* p = get_if<filesystem::path>(&bblock)) {
-            fmt::format_to(back_inserter(sbuf), " - shader file: {}\n", p->c_str());
+            fmt::format_to(back_inserter(sbuf), " - shader file: {}\n", p->generic_string());
         } else if (const std::string_view* strv = get_if<std::string_view>(&bblock)) {
             fmt::format_to(back_inserter(sbuf), " - shader code: {}", strv->data());
         }
-    });
+    }
 
     XR_LOG_CRITICAL("{}", sbuf);
     return scoped_program_handle{ 0 };
