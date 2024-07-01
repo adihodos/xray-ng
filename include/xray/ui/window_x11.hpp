@@ -125,6 +125,7 @@ class window
 {
 
   public:
+    WindowCommonCore core;
     /// \name Construction and destruction.
     /// @{
   public:

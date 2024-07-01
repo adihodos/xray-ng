@@ -87,11 +87,9 @@ target_link_libraries(
   PUBLIC xray-glloader
          tl::optional
          xray-base
-         STLSoft
          mio::mio
          itlib::itlib
          Vulkan::Vulkan
          swl-variant
-  PRIVATE TBB::tbb cpp-lazy::cpp-lazy
-          Vulkan::shaderc_combined spirv-reflect-static
-          $<$<PLATFORM_ID:Linux>:Xinerama>)
+  PRIVATE TBB::tbb cpp-lazy::cpp-lazy Vulkan::shaderc_combined
+          spirv-reflect-static $<$<PLATFORM_ID:Linux>:Xinerama>)

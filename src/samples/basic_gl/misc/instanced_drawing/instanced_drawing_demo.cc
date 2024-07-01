@@ -555,7 +555,7 @@ app::InstancedDrawingDemo::compose_ui(const int32_t surface_width, const int32_t
 
                 if (ImGui::TreeNodeEx(reinterpret_cast<const void*>(node_id),
                                       ImGuiTreeNodeFlags_CollapsingHeader,
-                                      "Instance #%zu",
+                                      "Instance #%u",
                                       idx)) {
 
                     ImGui::SliderFloat("Roll", &ii.roll, -two_pi<float>, two_pi<float>);

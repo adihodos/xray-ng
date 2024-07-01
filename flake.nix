@@ -25,6 +25,7 @@
         }
         {
           packages = with pkgs; [
+            gcc
             gdb
             seer
             #pwndbg
@@ -34,6 +35,7 @@
             cmake
             cmake-format
             pkg-config
+
             vulkan-tools
             vulkan-headers
             vulkan-loader
@@ -42,6 +44,7 @@
             vulkan-utility-libraries
             vulkan-caps-viewer
             vulkan-validation-layers
+
             shaderc
             shaderc.bin
             shaderc.static

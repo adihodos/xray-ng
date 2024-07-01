@@ -973,7 +973,7 @@ xray::ui::window::window(const window_params_t& wparam)
 }
 
 xray::ui::window::window(window&& rhs)
-    : events{ std::move(rhs.events) }
+    : core{ std::move(rhs.core) }
     , _display(std::move(rhs._display))
     , _window(std::move(rhs._window))
 #ifndef XRAY_GRAPHICS_API_VULKAN
@@ -1023,11 +1023,10 @@ void
 xray::ui::window::message_loop()
 {
     assert(valid());
-    assert(events.loop != nullptr);
 
     while (_quit_flag == 0) {
 
-        events.poll_start({});
+        core.events.poll_start(poll_start_event {});
 
         while ((_quit_flag == 0) && XEventsQueued(raw_ptr(_display), QueuedAfterFlush)) {
 
@@ -1110,11 +1109,11 @@ xray::ui::window::message_loop()
             }
         }
 
-        events.poll_end({});
+        core.events.poll_end(poll_end_event{});
 
         //
         // user loop
-        events.loop({ _wnd_width, _wnd_height, this });
+        core.events.loop(window_loop_event{ _wnd_width, _wnd_height, this });
 #if !defined(XRAY_GRAPHICS_API_VULKAN)
         glXSwapBuffers(raw_ptr(_display), raw_ptr(_window));
 #endif
@@ -1140,7 +1139,7 @@ xray::ui::window::event_motion_notify(const XMotionEvent* x11evt)
     we.type = event_type::mouse_motion;
     we.event.motion = mme;
 
-    events.window(we);
+    core.events.window(we);
 }
 
 void
@@ -1183,7 +1182,7 @@ xray::ui::window::event_mouse_button(const XButtonEvent* x11evt)
             we.type = event_type::mouse_button;
             we.event.button = mbe;
 
-            events.window(we);
+            core.events.window(we);
             return;
         }
     }
@@ -1205,7 +1204,7 @@ xray::ui::window::event_mouse_button(const XButtonEvent* x11evt)
     we.type = event_type::mouse_wheel;
     we.event.wheel = mwe;
 
-    events.window(we);
+    core.events.window(we);
 }
 
 void
@@ -1243,7 +1242,7 @@ xray::ui::window::event_key(const XKeyEvent* x11evt)
         we.type = event_type::key;
         we.event.key = ke;
 
-        events.window(we);
+        core.events.window(we);
     }
 
     if (x11evt->type == KeyPress) {
@@ -1257,14 +1256,14 @@ xray::ui::window::event_key(const XKeyEvent* x11evt)
         ch_input.wnd = this;
         ch_input.key_code = ke.keycode;
 
-        if (this->key_sym_handling == InputKeySymHandling::Unicode) {
+        if (this->core.key_sym_handling == InputKeySymHandling::Unicode) {
             ch_input.unicode_point = xkb_state_key_get_utf32(raw_ptr(_input_helper.xkb_state), key_code);
 
             if (ch_input.unicode_point != 0) {
                 window_event we;
                 we.type = event_type::char_input;
                 we.event.char_input = ch_input;
-                events.window(we);
+                core.events.window(we);
             }
         } else {
             KeySym x11_key_sym;
@@ -1279,7 +1278,7 @@ xray::ui::window::event_key(const XKeyEvent* x11evt)
                 window_event we;
                 we.type = event_type::char_input;
                 we.event.char_input = ch_input;
-                events.window(we);
+                core.events.window(we);
             }
         }
     }
@@ -1300,5 +1299,5 @@ xray::ui::window::event_configure(const XConfigureEvent* x11evt)
     we.type = event_type::configure;
     we.event.configure = cfg_evt;
 
-    events.window(we);
+    core.events.window(we);
 }

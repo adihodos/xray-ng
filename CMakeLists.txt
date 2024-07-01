@@ -32,10 +32,14 @@ cpmaddpackage(
   "BUILD_TESTING OFF")
 
 cpmaddpackage(
-  NAME cpp-lazy
-  GITHUB_REPOSITORY MarcDirven/cpp-lazy
-  GIT_TAG v8.0.0
-  OPTIONS "CPP-LAZY_USE_STANDALONE ON")
+  NAME
+  cpp-lazy
+  GITHUB_REPOSITORY
+  MarcDirven/cpp-lazy
+  GIT_TAG
+  v8.0.0
+  OPTIONS
+  "CPP-LAZY_USE_STANDALONE ON")
 
 cpmaddpackage(
   NAME

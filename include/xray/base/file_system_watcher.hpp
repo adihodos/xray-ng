@@ -61,7 +61,7 @@ class FileSystemWatcher
     struct FsWatchInstanceEntry
     {
         std::filesystem::path path;
-        fast_delegate<void(const FileSystemEvent&)> observer;
+        cpp::delegate<void(const FileSystemEvent&)> observer;
     };
 
     xray::base::unique_handle<InotifyHandleTraits> _inotify_handle{ syscall_wrapper(inotify_init1, IN_NONBLOCK) };
