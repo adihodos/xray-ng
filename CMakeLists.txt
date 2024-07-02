@@ -37,7 +37,8 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   MarcDirven/cpp-lazy
   GIT_TAG
-  v8.0.0
+  # v8.0.0
+  master
   OPTIONS
   "CPP-LAZY_USE_STANDALONE ON")
 

@@ -30,6 +30,13 @@ using WindowPlatformData = swl::variant<WindowPlatformDataXcb, WindowPlatformDat
 
 namespace detail {
 
+struct SyncState
+{
+    std::vector<xrUniqueVkFence> fences;
+    std::vector<xrUniqueVkSemaphore> rendering_sem;
+    std::vector<xrUniqueVkSemaphore> present_sem;
+};
+
 struct SwapchainState
 {
     xrUniqueVkSwapchainKHR swapchain;
@@ -37,6 +44,7 @@ struct SwapchainState
     std::vector<xrUniqueVkImageView> swapchain_imageviews;
     std::vector<UniqueImage> depth_stencil_images;
     std::vector<xrUniqueVkImageView> depth_stencil_image_views;
+    SyncState sync;
 };
 
 struct SurfaceState
@@ -57,9 +65,6 @@ struct PresentationState
     uint32_t state_bits{};
     SurfaceState surface_state;
     SwapchainState swapchain_state;
-    std::vector<xrUniqueVkFence> fences;
-    std::vector<xrUniqueVkSemaphore> rendering_sem;
-    std::vector<xrUniqueVkSemaphore> present_sem;
     std::vector<VkCommandBuffer> command_buffers;
 };
 

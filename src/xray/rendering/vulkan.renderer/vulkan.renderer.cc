@@ -442,7 +442,7 @@ check_display_presentation_support(span<const char*> extensions_list, VkPhysical
                 .transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
                 .globalAlpha = 1.0f,
                 .alphaMode = VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR,
-                .imageExtent = dddpi.display_plane_caps.maxDstExtent
+                .imageExtent = dddpi.display_plane_caps.maxDstExtent,
             };
 
             VkSurfaceKHR display_surface{};
@@ -466,11 +466,13 @@ check_display_presentation_support(span<const char*> extensions_list, VkPhysical
 tl::optional<PresentToSurface>
 create_xcb_surface(const WindowPlatformDataXcb& win_platform_data, VkInstance instance)
 {
-    const VkXcbSurfaceCreateInfoKHR surface_create_info = { .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
-                                                            .pNext = nullptr,
-                                                            .flags = 0,
-                                                            .connection = win_platform_data.connection,
-                                                            .window = win_platform_data.window };
+    const VkXcbSurfaceCreateInfoKHR surface_create_info = {
+        .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
+        .connection = win_platform_data.connection,
+        .window = win_platform_data.window,
+    };
 
     xrUniqueVkSurfaceKHR surface_khr{ [instance, &surface_create_info]() {
                                          VkSurfaceKHR surface{};
@@ -490,11 +492,13 @@ create_xcb_surface(const WindowPlatformDataXcb& win_platform_data, VkInstance in
 tl::optional<PresentToSurface>
 create_xlib_surface(const WindowPlatformDataXlib& win_platform_data, VkInstance instance)
 {
-    const VkXlibSurfaceCreateInfoKHR surface_create_info = { .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
-                                                             .pNext = nullptr,
-                                                             .flags = 0,
-                                                             .dpy = win_platform_data.display,
-                                                             .window = win_platform_data.window };
+    const VkXlibSurfaceCreateInfoKHR surface_create_info = {
+        .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
+        .dpy = win_platform_data.display,
+        .window = win_platform_data.window,
+    };
 
     xrUniqueVkSurfaceKHR surface_khr{ [&]() {
                                          VkSurfaceKHR surface{};
@@ -583,13 +587,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         return exts_list;
     }() };
 
-    const VkApplicationInfo app_info = { .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                                         .pNext = nullptr,
-                                         .pApplicationName = "xray-ng-app",
-                                         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-                                         .pEngineName = "xray-engine",
-                                         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-                                         .apiVersion = VK_API_VERSION_1_3 };
+    const VkApplicationInfo app_info = {
+        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        .pNext = nullptr,
+        .pApplicationName = "xray-ng-app",
+        .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+        .pEngineName = "xray-engine",
+        .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+        .apiVersion = VK_API_VERSION_1_3,
+    };
 
     constexpr const char* const kRequiredLayers[] = { "VK_LAYER_KHRONOS_validation" };
 
@@ -602,19 +608,19 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
         .pfnUserCallback = log_vk_debug_output,
-        .pUserData = nullptr
+        .pUserData = nullptr,
     };
 
-    const VkInstanceCreateInfo instance_create_info = { .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-                                                        .pNext = &dbg_utils_msg_create_ext,
-                                                        .flags = 0,
-                                                        .pApplicationInfo = &app_info,
-                                                        .enabledLayerCount =
-                                                            static_cast<uint32_t>(std::size(kRequiredLayers)),
-                                                        .ppEnabledLayerNames = kRequiredLayers,
-                                                        .enabledExtensionCount =
-                                                            static_cast<uint32_t>(std::size(extensions_list)),
-                                                        .ppEnabledExtensionNames = extensions_list.data() };
+    const VkInstanceCreateInfo instance_create_info = {
+        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .pNext = &dbg_utils_msg_create_ext,
+        .flags = 0,
+        .pApplicationInfo = &app_info,
+        .enabledLayerCount = static_cast<uint32_t>(std::size(kRequiredLayers)),
+        .ppEnabledLayerNames = kRequiredLayers,
+        .enabledExtensionCount = static_cast<uint32_t>(std::size(extensions_list)),
+        .ppEnabledExtensionNames = extensions_list.data(),
+    };
 
     xrUniqueVkInstance vkinstance{ [&]() {
                                       VkInstance instance{};
@@ -925,10 +931,12 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
             constexpr const VkPresentModeKHR preferred_presentation_modes[] = { VK_PRESENT_MODE_MAILBOX_KHR,
                                                                                 VK_PRESENT_MODE_IMMEDIATE_KHR,
+                                                                                VK_PRESENT_MODE_FIFO_RELAXED_KHR,
                                                                                 VK_PRESENT_MODE_FIFO_KHR };
 
             const auto best_preferred_supported_mode =
                 ranges::find_first_of(preferred_presentation_modes, supported_presentation_modes);
+
             if (best_preferred_supported_mode == cend(supported_presentation_modes)) {
                 XR_LOG_CRITICAL("None of the preferred presentation modes is suppored!");
                 return tl::nullopt;
@@ -987,55 +995,6 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         return tl::nullopt;
     }
 
-    vector<xrUniqueVkFence> fences = [&swapchain_state, device = raw_ptr(logical_device)]() {
-        vector<xrUniqueVkFence> fences{};
-        fences.reserve(swapchain_state->swapchain_state.swapchain_imageviews.size());
-
-        for (uint32_t idx = 0; idx < swapchain_state->swapchain_state.swapchain_imageviews.size(); ++idx) {
-            const VkFenceCreateInfo fence_create_info = {
-                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-            };
-
-            VkFence fence{};
-            WRAP_VULKAN_FUNC(vkCreateFence, device, &fence_create_info, nullptr, &fence);
-
-            if (!fence)
-                break;
-
-            fences.emplace_back(fence, VkResourceDeleter_VkFence{ device });
-        }
-
-        return fences;
-    }();
-
-    auto make_semaphores_fn = [&swapchain_state, device = raw_ptr(logical_device)]() {
-        vector<xrUniqueVkSemaphore> semaphores{};
-        semaphores.reserve(swapchain_state->swapchain_state.swapchain_imageviews.size());
-
-        for (uint32_t idx = 0,
-                      image_count = static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_imageviews.size());
-             idx < image_count;
-             ++idx) {
-            const VkSemaphoreCreateInfo semaphore_create_info = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                                                                  .pNext = nullptr,
-                                                                  .flags = 0 };
-
-            VkSemaphore semaphore{};
-            WRAP_VULKAN_FUNC(vkCreateSemaphore, device, &semaphore_create_info, nullptr, &semaphore);
-
-            if (!semaphore)
-                break;
-
-            semaphores.emplace_back(semaphore, VkResourceDeleter_VkSemaphore{ device });
-        }
-
-        return semaphores;
-    };
-
-    vector<xrUniqueVkSemaphore> rendering_semaphores{ make_semaphores_fn() };
-    vector<xrUniqueVkSemaphore> presentation_semaphore{ make_semaphores_fn() };
     vector<detail::Queue> qs{ [&]() {
         const array<uint32_t, 2> queue_flags{ VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
                                               VK_COMMAND_POOL_CREATE_TRANSIENT_BIT };
@@ -1108,9 +1067,6 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                                   surface_info.depth_stencil_format },
 
             std::move(swapchain),
-            std::move(fences),
-            std::move(rendering_semaphores),
-            std::move(presentation_semaphore),
             std::move(command_buffers) });
 }
 
@@ -1129,7 +1085,8 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
 {
     //
     // wait for previously submitted work to finish
-    const VkFence fences[] = { raw_ptr(_presentation_state.fences[_presentation_state.frame_index]) };
+    const VkFence fences[] = { raw_ptr(
+        _presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index]) };
     const VkResult wait_fence_result{ WRAP_VULKAN_FUNC(
         vkWaitForFences, raw_ptr(_render_state.dev_logical), 1, fences, true, numeric_limits<uint64_t>::max()) };
 
@@ -1145,13 +1102,14 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
         raw_ptr(_render_state.dev_logical),
         raw_ptr(_presentation_state.swapchain_state.swapchain),
         numeric_limits<uint64_t>::max(),
-        raw_ptr(_presentation_state.present_sem[_presentation_state.frame_index]),
+        raw_ptr(_presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
         nullptr,
         &_presentation_state.acquired_image) };
 
     if (acquire_image_result == VK_SUBOPTIMAL_KHR || acquire_image_result == VK_ERROR_OUT_OF_DATE_KHR ||
         _presentation_state.state_bits & detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL) {
-        // TODO: handle this
+
+        XR_LOG_INFO("Swapchain is sub-optimal/out-of-date, trying to recreate ...");
 
         VkSurfaceCapabilitiesKHR surface_caps;
         const VkResult query_result = WRAP_VULKAN_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
@@ -1180,9 +1138,12 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
                 .present_mode = _presentation_state.surface_state.present_mode,
                 .mem_props = _render_state.dev_physical.memory,
                 .image_count = static_cast<uint32_t>(_presentation_state.max_frames),
-                .dimensions = VkExtent3D{ .width = surface_caps.currentExtent.width,
-                                          .height = surface_caps.currentExtent.height,
-                                          .depth = 1 },
+                .dimensions =
+                    VkExtent3D{
+                        .width = surface_caps.currentExtent.width,
+                        .height = surface_caps.currentExtent.height,
+                        .depth = 1,
+                    },
                 .depth_att_format = _presentation_state.surface_state.depth_stencil_format,
             };
 
@@ -1195,19 +1156,23 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
 
                         const uint32_t previous_acquired_image{ _presentation_state.acquired_image };
 
-                        WRAP_VULKAN_FUNC(vkAcquireNextImageKHR,
-                                         raw_ptr(_render_state.dev_logical),
-                                         raw_ptr(_presentation_state.swapchain_state.swapchain),
-                                         numeric_limits<uint64_t>::max(),
-                                         raw_ptr(_presentation_state.present_sem[_presentation_state.frame_index]),
-                                         nullptr,
-                                         &_presentation_state.acquired_image);
+                        WRAP_VULKAN_FUNC(
+                            vkAcquireNextImageKHR,
+                            raw_ptr(_render_state.dev_logical),
+                            raw_ptr(_presentation_state.swapchain_state.swapchain),
+                            numeric_limits<uint64_t>::max(),
+                            raw_ptr(
+                                _presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
+                            nullptr,
+                            &_presentation_state.acquired_image);
 
                         XR_LOG_INFO("swapchain recreation previous acquired image {}, re-acquired image {}",
                                     previous_acquired_image,
                                     _presentation_state.acquired_image);
 
-                        // reset fences ??
+                        const VkFence reset_fences[] = { raw_ptr(
+                            _presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index]) };
+                        WRAP_VULKAN_FUNC(vkResetFences, this->device(), 1, reset_fences);
                     },
                     []() { XR_LOG_CRITICAL("Could not create new swapchain state"); });
         }
@@ -1217,10 +1182,12 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
     //
     // reset command buffer
     WRAP_VULKAN_FUNC(vkResetCommandBuffer, _presentation_state.command_buffers[_presentation_state.frame_index], 0);
-    const VkCommandBufferBeginInfo cmd_buf_begin_info = { .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                                                          .pNext = nullptr,
-                                                          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-                                                          .pInheritanceInfo = nullptr };
+    const VkCommandBufferBeginInfo cmd_buf_begin_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
     WRAP_VULKAN_FUNC(vkBeginCommandBuffer,
                      _presentation_state.command_buffers[_presentation_state.frame_index],
                      &cmd_buf_begin_info);
@@ -1235,7 +1202,7 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
         .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue = VkClearValue{}
+        .clearValue = VkClearValue{},
     };
 
     const VkRenderingAttachmentInfo depth_attachment = {
@@ -1248,39 +1215,40 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
         .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue = VkClearValue{}
+        .clearValue = VkClearValue{},
     };
 
-    const VkRenderingInfo rendering_info = { .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-                                             .pNext = nullptr,
-                                             .flags = 0,
-                                             .renderArea = render_area,
-                                             .layerCount = 1,
-                                             .viewMask = 0,
-                                             .colorAttachmentCount = 1,
-                                             .pColorAttachments = &color_attachment,
-                                             .pDepthAttachment = &depth_attachment,
-                                             .pStencilAttachment = &depth_attachment
-
+    const VkRenderingInfo rendering_info = VkRenderingInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .renderArea = render_area,
+        .layerCount = 1,
+        .viewMask = 0,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &color_attachment,
+        .pDepthAttachment = &depth_attachment,
+        .pStencilAttachment = &depth_attachment,
     };
 
     const VkImageMemoryBarrier2 attachments_to_optimal[] = {
-        VkImageMemoryBarrier2{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                               .pNext = nullptr,
-                               .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                               .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                               .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                               .dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                               .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                               .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                               .srcQueueFamilyIndex = 0,
-                               .dstQueueFamilyIndex = 0,
-                               .image = _presentation_state.swapchain_state.swapchain_images[acquired_image],
-                               .subresourceRange = VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                                            .baseMipLevel = 0,
-                                                                            .levelCount = 1,
-                                                                            .baseArrayLayer = 0,
-                                                                            .layerCount = 1 }
+        VkImageMemoryBarrier2{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .pNext = nullptr,
+            .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .srcQueueFamilyIndex = 0,
+            .dstQueueFamilyIndex = 0,
+            .image = _presentation_state.swapchain_state.swapchain_images[acquired_image],
+            .subresourceRange = VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                                         .baseMipLevel = 0,
+                                                         .levelCount = 1,
+                                                         .baseArrayLayer = 0,
+                                                         .layerCount = 1 },
 
         },
         VkImageMemoryBarrier2{
@@ -1300,28 +1268,35 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
                                          .baseMipLevel = 0,
                                          .levelCount = 1,
                                          .baseArrayLayer = 0,
-                                         .layerCount = 1 } }
+                                         .layerCount = 1 },
+        },
     };
 
-    const VkDependencyInfo dependency_info = { .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                                               .pNext = nullptr,
-                                               .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-                                               .memoryBarrierCount = 0,
-                                               .pMemoryBarriers = nullptr,
-                                               .bufferMemoryBarrierCount = 0,
-                                               .pBufferMemoryBarriers = nullptr,
-                                               .imageMemoryBarrierCount = size(attachments_to_optimal),
-                                               .pImageMemoryBarriers = attachments_to_optimal };
+    const VkDependencyInfo dependency_info = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .pNext = nullptr,
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        .memoryBarrierCount = 0,
+        .pMemoryBarriers = nullptr,
+        .bufferMemoryBarrierCount = 0,
+        .pBufferMemoryBarriers = nullptr,
+        .imageMemoryBarrierCount = size(attachments_to_optimal),
+        .pImageMemoryBarriers = attachments_to_optimal,
+    };
 
+    //
+    // move rendering attachments from undefined to optimal layout
     WRAP_VULKAN_FUNC(
         vkCmdPipelineBarrier2, _presentation_state.command_buffers[_presentation_state.frame_index], &dependency_info);
 
     WRAP_VULKAN_FUNC(
         vkCmdBeginRendering, _presentation_state.command_buffers[_presentation_state.frame_index], &rendering_info);
 
-    return FrameRenderData{ .id = _presentation_state.frame_index,
-                            .max_frames = _presentation_state.max_frames,
-                            .cmd_buf = _presentation_state.command_buffers[_presentation_state.frame_index] };
+    return FrameRenderData{
+        .id = _presentation_state.frame_index,
+        .max_frames = _presentation_state.max_frames,
+        .cmd_buf = _presentation_state.command_buffers[_presentation_state.frame_index],
+    };
 }
 
 void
@@ -1330,8 +1305,8 @@ VulkanRenderer::end_rendering()
     vkCmdEndRendering(_presentation_state.command_buffers[_presentation_state.frame_index]);
 
     //
-    // move image from ATTACHMENT_OPTIMAL to SRC_PRESENT
-    const VkImageMemoryBarrier2 att_optimal_to_src_present = {
+    // move rendered image from ATTACHMENT_OPTIMAL to SRC_PRESENT
+    const VkImageMemoryBarrier2 color_attachment_optimal_to_src_present = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
         .pNext = nullptr,
         .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1343,22 +1318,28 @@ VulkanRenderer::end_rendering()
         .srcQueueFamilyIndex = 0,
         .dstQueueFamilyIndex = 0,
         .image = _presentation_state.swapchain_state.swapchain_images[_presentation_state.acquired_image],
-        .subresourceRange = VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                     .baseMipLevel = 0,
-                                                     .levelCount = VK_REMAINING_MIP_LEVELS,
-                                                     .baseArrayLayer = 0,
-                                                     .layerCount = VK_REMAINING_ARRAY_LAYERS }
+        .subresourceRange =
+            VkImageSubresourceRange{
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = VK_REMAINING_MIP_LEVELS,
+                .baseArrayLayer = 0,
+                .layerCount = VK_REMAINING_ARRAY_LAYERS,
+            },
     };
 
-    const VkDependencyInfo dependency_info = { .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                                               .pNext = nullptr,
-                                               .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-                                               .memoryBarrierCount = 0,
-                                               .pMemoryBarriers = nullptr,
-                                               .bufferMemoryBarrierCount = 0,
-                                               .pBufferMemoryBarriers = nullptr,
-                                               .imageMemoryBarrierCount = 1,
-                                               .pImageMemoryBarriers = &att_optimal_to_src_present };
+    const VkDependencyInfo dependency_info = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .pNext = nullptr,
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        .memoryBarrierCount = 0,
+        .pMemoryBarriers = nullptr,
+        .bufferMemoryBarrierCount = 0,
+        .pBufferMemoryBarriers = nullptr,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &color_attachment_optimal_to_src_present,
+    };
+
     WRAP_VULKAN_FUNC(
         vkCmdPipelineBarrier2, _presentation_state.command_buffers[_presentation_state.frame_index], &dependency_info);
 
@@ -1367,7 +1348,7 @@ VulkanRenderer::end_rendering()
     const VkSemaphoreSubmitInfo semaphore_wait_img_available = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
         .pNext = nullptr,
-        .semaphore = raw_ptr(_presentation_state.present_sem[_presentation_state.frame_index]),
+        .semaphore = raw_ptr(_presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
         .value = 0,
         .stageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
         .deviceIndex = 0
@@ -1376,7 +1357,7 @@ VulkanRenderer::end_rendering()
     const VkSemaphoreSubmitInfo semaphore_signal_rendering_done = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
         .pNext = nullptr,
-        .semaphore = raw_ptr(_presentation_state.rendering_sem[_presentation_state.frame_index]),
+        .semaphore = raw_ptr(_presentation_state.swapchain_state.sync.rendering_sem[_presentation_state.frame_index]),
         .value = 0,
         .stageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
         .deviceIndex = 0
@@ -1389,22 +1370,24 @@ VulkanRenderer::end_rendering()
         .deviceMask = 0
     };
 
-    const VkSubmitInfo2 submit_info = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-                                        .pNext = nullptr,
-                                        .flags = 0,
-                                        .waitSemaphoreInfoCount = 1,
-                                        .pWaitSemaphoreInfos = &semaphore_wait_img_available,
-                                        .commandBufferInfoCount = 1,
-                                        .pCommandBufferInfos = &cmd_buffer_submit_info,
-                                        .signalSemaphoreInfoCount = 1,
-                                        .pSignalSemaphoreInfos = &semaphore_signal_rendering_done };
+    const VkSubmitInfo2 submit_info = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .pNext = nullptr,
+        .flags = 0,
+        .waitSemaphoreInfoCount = 1,
+        .pWaitSemaphoreInfos = &semaphore_wait_img_available,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &cmd_buffer_submit_info,
+        .signalSemaphoreInfoCount = 1,
+        .pSignalSemaphoreInfos = &semaphore_signal_rendering_done,
+    };
 
     const VkResult submit_result{ WRAP_VULKAN_FUNC(
         vkQueueSubmit2,
         _render_state.queues[0].handle,
         1,
         &submit_info,
-        raw_ptr(_presentation_state.fences[_presentation_state.frame_index])) };
+        raw_ptr(_presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index])) };
 
     if (submit_result != VK_SUCCESS) {
         // TODO: handle submit error ??!!
@@ -1412,23 +1395,27 @@ VulkanRenderer::end_rendering()
 
     const VkSwapchainKHR swap_chains[] = { raw_ptr(_presentation_state.swapchain_state.swapchain) };
     const VkSemaphore present_wait_semaphores[] = { raw_ptr(
-        _presentation_state.rendering_sem[_presentation_state.frame_index]) };
+        _presentation_state.swapchain_state.sync.rendering_sem[_presentation_state.frame_index]) };
     const uint32_t swapchain_image_index[] = { _presentation_state.acquired_image };
 
-    const VkPresentInfoKHR present_info = { .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-                                            .pNext = nullptr,
-                                            .waitSemaphoreCount = static_cast<uint32_t>(size(present_wait_semaphores)),
-                                            .pWaitSemaphores = present_wait_semaphores,
-                                            .swapchainCount = static_cast<uint32_t>(size(swap_chains)),
-                                            .pSwapchains = swap_chains,
-                                            .pImageIndices = swapchain_image_index,
-                                            .pResults = nullptr };
+    const VkPresentInfoKHR present_info = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext = nullptr,
+        .waitSemaphoreCount = static_cast<uint32_t>(size(present_wait_semaphores)),
+        .pWaitSemaphores = present_wait_semaphores,
+        .swapchainCount = static_cast<uint32_t>(size(swap_chains)),
+        .pSwapchains = swap_chains,
+        .pImageIndices = swapchain_image_index,
+        .pResults = nullptr,
+    };
 
     const VkResult present_result{ WRAP_VULKAN_FUNC(vkQueuePresentKHR, _render_state.queues[0].handle, &present_info) };
     _presentation_state.frame_index = (_presentation_state.frame_index + 1) % _presentation_state.max_frames;
 
     if (present_result != VK_SUCCESS) {
         if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
+            //
+            // this is handled when begin_rendering is called next frame ...
             _presentation_state.state_bits |= detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL;
         }
     }
@@ -1445,12 +1432,16 @@ VulkanRenderer::clear_attachments(VkCommandBuffer cmd_buf,
                                   const uint32_t stencil)
 {
     const VkClearAttachment clear_attachments[] = {
-        VkClearAttachment{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                           .colorAttachment = 0,
-                           .clearValue = VkClearValue{ .color = VkClearColorValue{ red, green, blue, 1.0f } } },
-        VkClearAttachment{ .aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT | VK_IMAGE_ASPECT_DEPTH_BIT,
-                           .colorAttachment = 0,
-                           .clearValue = VkClearValue{ .depthStencil = VkClearDepthStencilValue{ depth, stencil } } }
+        VkClearAttachment{
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .colorAttachment = 0,
+            .clearValue = VkClearValue{ .color = VkClearColorValue{ red, green, blue, 1.0f } },
+        },
+        VkClearAttachment{
+            .aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT | VK_IMAGE_ASPECT_DEPTH_BIT,
+            .colorAttachment = 0,
+            .clearValue = VkClearValue{ .depthStencil = VkClearDepthStencilValue{ depth, stencil } },
+        }
     };
 
     const VkRect2D clear_area{ .offset = { 0, 0 }, .extent = { width, height } };
@@ -1470,9 +1461,8 @@ VulkanRenderer::clear_attachments(VkCommandBuffer cmd_buf,
 void
 VulkanRenderer::wait_device_idle() noexcept
 {
-    for (const detail::Queue& q : _render_state.queues) {
-        WRAP_VULKAN_FUNC(vkQueueWaitIdle, q.handle);
-    }
+    XR_LOG_INFO("Waiting GPU device idle ...");
+    WRAP_VULKAN_FUNC(vkDeviceWaitIdle, this->device());
 }
 
 tl::optional<ManagedUniqueBuffer>
@@ -1505,14 +1495,16 @@ VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
         aligned_bytes,
         aligned_allocation_size);
 
-    const VkBufferCreateInfo buffer_create_info = { .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                                                    .pNext = nullptr,
-                                                    .flags = 0,
-                                                    .size = aligned_allocation_size,
-                                                    .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                                    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                                                    .queueFamilyIndexCount = 0,
-                                                    .pQueueFamilyIndices = nullptr };
+    const VkBufferCreateInfo buffer_create_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .size = aligned_allocation_size,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+    };
 
     VkBuffer buffer;
     WRAP_VULKAN_FUNC(vkCreateBuffer, this->device(), &buffer_create_info, nullptr, &buffer);
@@ -1521,11 +1513,16 @@ VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
 
     xrUniqueVkBuffer sb{ buffer, VkResourceDeleter_VkBuffer{ this->device() } };
 
-    const VkBufferMemoryRequirementsInfo2 mem_req_info = { .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
-                                                           .pNext = nullptr,
-                                                           .buffer = raw_ptr(sb) };
+    const VkBufferMemoryRequirementsInfo2 mem_req_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+        .pNext = nullptr,
+        .buffer = raw_ptr(sb),
+    };
 
-    VkMemoryRequirements2 mem_req = { .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2, .pNext = nullptr };
+    VkMemoryRequirements2 mem_req = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        .pNext = nullptr,
+    };
 
     vkGetBufferMemoryRequirements2(this->device(), &mem_req_info, &mem_req);
 
@@ -1534,7 +1531,7 @@ VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
         .pNext = nullptr,
         .allocationSize = mem_req.memoryRequirements.size,
         .memoryTypeIndex = find_allocation_memory_type(
-            _render_state.dev_physical.memory, mem_req.memoryRequirements.memoryTypeBits, memory_properties)
+            _render_state.dev_physical.memory, mem_req.memoryRequirements.memoryTypeBits, memory_properties),
     };
 
     VkDeviceMemory buffer_mem;
@@ -1577,13 +1574,14 @@ UniqueMemoryMapping::create(VkDevice device,
 UniqueMemoryMapping::~UniqueMemoryMapping()
 {
     if (_mapped_memory) {
-        const VkMappedMemoryRange mapped_memory_range = { .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                                                          .pNext = nullptr,
-                                                          .memory = _device_memory,
-                                                          .offset = _mapped_offset,
-                                                          .size = _mapped_size
-
+        const VkMappedMemoryRange mapped_memory_range = {
+            .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+            .pNext = nullptr,
+            .memory = _device_memory,
+            .offset = _mapped_offset,
+            .size = _mapped_size,
         };
+
         WRAP_VULKAN_FUNC(vkFlushMappedMemoryRanges, _device, 1, &mapped_memory_range);
         WRAP_VULKAN_FUNC(vkUnmapMemory, _device, _device_memory);
     }
@@ -1977,6 +1975,8 @@ vk_format_bytes_size(const VkFormat format)
 tl::optional<detail::SwapchainState>
 create_swapchain_state(const SwapchainStateCreationInfo& create_info)
 {
+    //
+    // SwapchainKHR object
     xrUniqueVkSwapchainKHR swapchain{
         [&]() {
             const VkSwapchainCreateInfoKHR swapchain_create_info = {
@@ -2009,6 +2009,8 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
 
     XR_LOG_INFO("Swapchain created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(swapchain)));
 
+    //
+    // acquire images
     vector<VkImage> swapchain_images{ [&]() {
         uint32_t swapchain_image_count{};
         WRAP_VULKAN_FUNC(
@@ -2024,21 +2026,27 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
         return swapchain_images;
     }() };
 
+    //
+    // create image_views
     vector<xrUniqueVkImageView> swapchain_image_views =
         swapchain_images % fn::transform([&](VkImage image) {
-            const VkImageViewCreateInfo imageview_create_info = { .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                                                                  .pNext = nullptr,
-                                                                  .flags = 0,
-                                                                  .image = image,
-                                                                  .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                                                                  .format = create_info.fmt.format,
-                                                                  .components = VkComponentMapping{},
-                                                                  .subresourceRange = VkImageSubresourceRange{
-                                                                      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                                      .baseMipLevel = 0,
-                                                                      .levelCount = 1,
-                                                                      .baseArrayLayer = 0,
-                                                                      .layerCount = 1 } };
+            const VkImageViewCreateInfo imageview_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .image = image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = create_info.fmt.format,
+                .components = VkComponentMapping{},
+                .subresourceRange =
+                    VkImageSubresourceRange{
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    },
+            };
 
             VkImageView image_view{};
             WRAP_VULKAN_FUNC(vkCreateImageView, create_info.device, &imageview_create_info, nullptr, &image_view);
@@ -2061,23 +2069,25 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
     vector<UniqueImage> depth_stencil_images;
 
     for (uint32_t idx = 0; idx < create_info.image_count; ++idx) {
-        const VkImageCreateInfo image_create_info = { .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                                      .pNext = nullptr,
-                                                      .flags = 0,
-                                                      .imageType = VK_IMAGE_TYPE_2D,
-                                                      .format = create_info.depth_att_format,
-                                                      .extent = VkExtent3D{ .width = create_info.dimensions.width,
-                                                                            .height = create_info.dimensions.height,
-                                                                            .depth = 1 },
-                                                      .mipLevels = 1,
-                                                      .arrayLayers = 1,
-                                                      .samples = VK_SAMPLE_COUNT_1_BIT,
-                                                      .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                                      .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                                                      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                                                      .queueFamilyIndexCount = 0,
-                                                      .pQueueFamilyIndices = nullptr,
-                                                      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED };
+        const VkImageCreateInfo image_create_info = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = create_info.depth_att_format,
+            .extent = VkExtent3D{ .width = create_info.dimensions.width,
+                                  .height = create_info.dimensions.height,
+                                  .depth = 1 },
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 0,
+            .pQueueFamilyIndices = nullptr,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
 
         xrUniqueVkImage ds_image{ [&]() {
                                      VkImage image{};
@@ -2099,9 +2109,9 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
                     .pNext = nullptr,
                     .allocationSize = mem_req.size,
                     .memoryTypeIndex = find_allocation_memory_type(
-                        create_info.mem_props, mem_req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-
+                        create_info.mem_props, mem_req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
                 };
+
                 VkDeviceMemory image_memory{};
                 WRAP_VULKAN_FUNC(vkAllocateMemory, create_info.device, &mem_alloc_info, nullptr, &image_memory);
                 if (image_memory)
@@ -2120,11 +2130,13 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
             .format = create_info.depth_att_format,
             .components = VkComponentMapping{},
             .subresourceRange =
-                VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-                                         .baseMipLevel = 0,
-                                         .levelCount = 1,
-                                         .baseArrayLayer = 0,
-                                         .layerCount = 1 }
+                VkImageSubresourceRange{
+                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
         };
 
         xrUniqueVkImageView ds_image_view{ [&]() {
@@ -2152,11 +2164,70 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
         return tl::nullopt;
     }
 
+    //
+    // sync objects
+    const size_t sync_objects_count = swapchain_image_views.size();
+    vector<xrUniqueVkFence> fences = [sync_objects_count, &create_info]() {
+        vector<xrUniqueVkFence> fences{};
+        fences.reserve(sync_objects_count);
+
+        for (size_t idx = 0; idx < sync_objects_count; ++idx) {
+            const VkFenceCreateInfo fence_create_info = {
+                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+            };
+
+            VkFence fence{};
+            WRAP_VULKAN_FUNC(vkCreateFence, create_info.device, &fence_create_info, nullptr, &fence);
+
+            if (!fence)
+                break;
+
+            fences.emplace_back(fence, VkResourceDeleter_VkFence{ create_info.device });
+        }
+
+        return fences;
+    }();
+
+    auto make_semaphores_fn = [sync_objects_count, device = create_info.device]() {
+        vector<xrUniqueVkSemaphore> semaphores{};
+        semaphores.reserve(sync_objects_count);
+
+        for (size_t idx = 0; idx < sync_objects_count; ++idx) {
+            const VkSemaphoreCreateInfo semaphore_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+            };
+
+            VkSemaphore semaphore{};
+            WRAP_VULKAN_FUNC(vkCreateSemaphore, device, &semaphore_create_info, nullptr, &semaphore);
+
+            if (!semaphore)
+                break;
+
+            semaphores.emplace_back(semaphore, VkResourceDeleter_VkSemaphore{ device });
+        }
+
+        return semaphores;
+    };
+
+    vector<xrUniqueVkSemaphore> rendering_semaphores{ make_semaphores_fn() };
+    vector<xrUniqueVkSemaphore> presentation_semaphores{ make_semaphores_fn() };
+
+    assert(rendering_semaphores.size() == sync_objects_count && presentation_semaphores.size() == sync_objects_count);
+
     return tl::make_optional<detail::SwapchainState>(std::move(swapchain),
                                                      std::move(swapchain_images),
                                                      std::move(swapchain_image_views),
                                                      std::move(depth_stencil_images),
-                                                     std::move(depth_stencil_image_views));
+                                                     std::move(depth_stencil_image_views),
+                                                     detail::SyncState{
+                                                         std::move(fences),
+                                                         std::move(presentation_semaphores),
+                                                         std::move(rendering_semaphores),
+                                                     });
 }
 
 } // namespace
