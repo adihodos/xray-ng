@@ -299,6 +299,7 @@ void
 MainRunner::demo_quit()
 {
     assert(demo_running());
+    _vkrenderer.wait_device_idle();
     _demo = nullptr;
 }
 
@@ -346,6 +347,19 @@ MainRunner::event_handler(const xray::ui::window_event& wnd_evt)
 void
 MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 {
+    static bool doing_ur_mom{ false };
+    if (!doing_ur_mom && !_demo) {
+        _demo = dvk::TriangleDemo::create(app::init_context_t{
+            .surface_width = _window.width(),
+            .surface_height = _window.height(),
+            .cfg = xr_app_config,
+            .ui = raw_ptr(_ui),
+            .renderer = &_vkrenderer,
+            .quit_receiver = cpp::bind<&MainRunner::demo_quit>(this),
+        });
+        doing_ur_mom = true;
+    }
+
     _timer.update_and_reset();
     //     _ui->tick(_timer.elapsed_millis());
     //     _ui->new_frame(levt.wnd_width, levt.wnd_height);
@@ -385,26 +399,38 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     //     0.0f, 0.0f, static_cast<float>(loop_event.wnd_width), static_cast<float>(loop_event.wnd_height)
     // };
     //
-    const auto [frame_idx, max_frames] = _vkrenderer.buffering_setup();
+    // const auto [frame_idx, max_frames] = _vkrenderer.buffering_setup();
 
-    const VkRect2D render_area{ .offset = { .x = 0, .y = 0 },
-                                .extent = { .width = static_cast<uint32_t>(loop_event.wnd_width),
-                                            .height = static_cast<uint32_t>(loop_event.wnd_height) } };
+    // const VkRect2D render_area{
+    //     .offset = { .x = 0, .y = 0 },
+    //     .extent = { .width = static_cast<uint32_t>(loop_event.wnd_width),
+    //                 .height = static_cast<uint32_t>(loop_event.wnd_height) },
+    // };
 
-    const FrameRenderData frd{ _vkrenderer.begin_rendering(render_area) };
+    if (_demo) {
+        _demo->loop_event(RenderEvent{ loop_event, &_vkrenderer });
+        std::this_thread::yield();
+        return;
+    }
 
-    const VkViewport viewport{ .x = 0.0f,
-                               .y = 0.0f,
-                               .width = static_cast<float>(loop_event.wnd_width),
-                               .height = static_cast<float>(loop_event.wnd_height),
-                               .minDepth = 0.0f,
-                               .maxDepth = 1.0f };
+    const FrameRenderData frd{ _vkrenderer.begin_rendering() };
+
+    const VkViewport viewport{
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = static_cast<float>(loop_event.wnd_width),
+        .height = static_cast<float>(loop_event.wnd_height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
 
     vkCmdSetViewport(frd.cmd_buf, 0, 1, &viewport);
 
-    const VkRect2D scissor{ .offset = VkOffset2D{ 0, 0 },
-                            .extent = VkExtent2D{ static_cast<uint32_t>(viewport.width),
-                                                  static_cast<uint32_t>(viewport.height) } };
+    const VkRect2D scissor{
+        .offset = VkOffset2D{ 0, 0 },
+        .extent = VkExtent2D{ static_cast<uint32_t>(viewport.width), static_cast<uint32_t>(viewport.height) },
+    };
+
     vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
 
     _vkrenderer.clear_attachments(frd.cmd_buf,

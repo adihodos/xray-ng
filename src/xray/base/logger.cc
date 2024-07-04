@@ -34,7 +34,7 @@
 void
 xray::base::log(const LogLevel level, fmt::string_view format, fmt::format_args args)
 {
-    static thread_local char scratch_buffer[2048];
+    static thread_local char scratch_buffer[4096];
     const auto [itr, cch] = fmt::vformat_to_n(std::begin(scratch_buffer), std::size(scratch_buffer), format, args);
     if (itr >= std::cend(scratch_buffer))
         return;
@@ -57,7 +57,8 @@ xray::base::log_file_line(const LogLevel level,
                           fmt::format_args args)
 {
     static thread_local char scratch_buffer[2048];
-    const auto [itr, cch] = fmt::format_to_n(std::begin(scratch_buffer), std::size(scratch_buffer), "{}:{}\n", file, line);
+    const auto [itr, cch] =
+        fmt::format_to_n(std::begin(scratch_buffer), std::size(scratch_buffer), "{}:{}\n", file, line);
 
     if (itr >= std::cend(scratch_buffer))
         return;

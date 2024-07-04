@@ -105,14 +105,13 @@ log_vk_debug_output(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                     void* pUserData)
 {
-
     array<char, 2048> msg_buf;
     const auto [iter, cch] = fmt::format_to_n(msg_buf.data(),
-                                              msg_buf.size(),
+                                              msg_buf.size() - 1,
                                               "[vulkan]: {} :: {:#x} - {}",
-                                              pCallbackData->pMessageIdName,
+                                              pCallbackData->pMessageIdName ? pCallbackData->pMessageIdName : "unknown",
                                               pCallbackData->messageIdNumber,
-                                              pCallbackData->pMessage);
+                                              pCallbackData->pMessage ? pCallbackData->pMessage : "unknown");
 
     if (cch > 0) {
         msg_buf[cch] = 0;
@@ -474,13 +473,14 @@ create_xcb_surface(const WindowPlatformDataXcb& win_platform_data, VkInstance in
         .window = win_platform_data.window,
     };
 
-    xrUniqueVkSurfaceKHR surface_khr{ [instance, &surface_create_info]() {
-                                         VkSurfaceKHR surface{};
-                                         WRAP_VULKAN_FUNC(
-                                             vkCreateXcbSurfaceKHR, instance, &surface_create_info, nullptr, &surface);
-                                         return surface;
-                                     }(),
-                                      VkResourceDeleter_VkSurfaceKHR{ instance } };
+    xrUniqueVkSurfaceKHR surface_khr{
+        [instance, &surface_create_info]() {
+            VkSurfaceKHR surface{};
+            WRAP_VULKAN_FUNC(vkCreateXcbSurfaceKHR, instance, &surface_create_info, nullptr, &surface);
+            return surface;
+        }(),
+        VkResourceDeleter_VkSurfaceKHR{ instance },
+    };
 
     if (!surface_khr)
         return tl::nullopt;
@@ -500,19 +500,23 @@ create_xlib_surface(const WindowPlatformDataXlib& win_platform_data, VkInstance 
         .window = win_platform_data.window,
     };
 
-    xrUniqueVkSurfaceKHR surface_khr{ [&]() {
-                                         VkSurfaceKHR surface{};
-                                         WRAP_VULKAN_FUNC(
-                                             vkCreateXlibSurfaceKHR, instance, &surface_create_info, nullptr, &surface);
-                                         return surface;
-                                     }(),
-                                      VkResourceDeleter_VkSurfaceKHR{ instance } };
+    xrUniqueVkSurfaceKHR surface_khr{
+        [&]() {
+            VkSurfaceKHR surface{};
+            WRAP_VULKAN_FUNC(vkCreateXlibSurfaceKHR, instance, &surface_create_info, nullptr, &surface);
+            return surface;
+        }(),
+        VkResourceDeleter_VkSurfaceKHR{ instance },
+    };
 
     if (!surface_khr)
         return tl::nullopt;
 
     XR_LOG_INFO("Surface created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(surface_khr)));
-    return tl::make_optional<PresentToSurface>(PresentToWindowSurface{ win_platform_data, std::move(surface_khr) });
+    return tl::make_optional<PresentToSurface>(PresentToWindowSurface{
+        win_platform_data,
+        std::move(surface_khr),
+    });
 }
 
 #endif
@@ -569,7 +573,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
                     VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-                VK_EXT_DEBUG_REPORT_EXTENSION_NAME
+                VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
@@ -699,9 +703,11 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
             XR_LOG_INFO("Checking device {} suitability ...", pdd.properties.base.properties.deviceName);
 
-            constexpr const uint32_t suitable_device_types[] = { VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
-                                                                 VK_PHYSICAL_DEVICE_TYPE_CPU,
-                                                                 VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU };
+            constexpr const uint32_t suitable_device_types[] = {
+                VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
+                VK_PHYSICAL_DEVICE_TYPE_CPU,
+                VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
+            };
 
             const bool is_requested_device_type{
                 suitable_device_types %
@@ -788,7 +794,6 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         .queueFamilyIndex = static_cast<uint32_t>(queue_graphics),
         .queueCount = 1,
         .pQueuePriorities = queue_priorities,
-
     });
 
     if (queue_graphics == queue_transfer) {
@@ -804,21 +809,23 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         });
     }
 
-    static constexpr initializer_list<const char*> device_extensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-                                                                         VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME };
+    static constexpr initializer_list<const char*> device_extensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+    };
 
-    const VkDeviceCreateInfo device_create_info = { .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                                                    .pNext = &phys_device.features.base,
-                                                    .flags = 0,
-                                                    .queueCreateInfoCount =
-                                                        static_cast<uint32_t>(size(queue_create_info)),
-                                                    .pQueueCreateInfos = queue_create_info.data(),
-                                                    .enabledLayerCount = 0,
-                                                    .ppEnabledLayerNames = nullptr,
-                                                    .enabledExtensionCount =
-                                                        static_cast<uint32_t>(size(device_extensions)),
-                                                    .ppEnabledExtensionNames = device_extensions.begin(),
-                                                    .pEnabledFeatures = nullptr };
+    const VkDeviceCreateInfo device_create_info = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pNext = &phys_device.features.base,
+        .flags = 0,
+        .queueCreateInfoCount = static_cast<uint32_t>(size(queue_create_info)),
+        .pQueueCreateInfos = queue_create_info.data(),
+        .enabledLayerCount = 0,
+        .ppEnabledLayerNames = nullptr,
+        .enabledExtensionCount = static_cast<uint32_t>(size(device_extensions)),
+        .ppEnabledExtensionNames = device_extensions.begin(),
+        .pEnabledFeatures = nullptr,
+    };
 
     xrUniqueVkDevice logical_device{
         [physical_device = phys_device.device, &device_create_info]() {
@@ -876,10 +883,10 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         present_to_surface.and_then([pd = &phys_device, &win_data, vkdev = raw_ptr(logical_device)](
                                         const PresentToSurface& ps) -> tl::optional<SwapchainStateWithSurfaceInfo> {
             VkSurfaceKHR surface =
-                swl::visit(VariantVisitor{ [](const PresentToWindowSurface& win) { return raw_ptr(win.surface); },
-                                           [](const PresentToDisplaySurface& display) {
-                                               return raw_ptr(display.display_surface);
-                                           } },
+                swl::visit(VariantVisitor{
+                               [](const PresentToWindowSurface& win) { return raw_ptr(win.surface); },
+                               [](const PresentToDisplaySurface& display) { return raw_ptr(display.display_surface); },
+                           },
                            ps);
 
             VkSurfaceCapabilitiesKHR surface_caps;
@@ -959,7 +966,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                     },
                         [](const WindowPlatformDataXlib& xlib) {
                             return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                        }
+                        },
 #endif
                 },
                 win_data);
@@ -1002,11 +1009,12 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         vector<detail::Queue> qs;
 
         for (size_t i = 0; i < 2; ++i) {
-            const VkCommandPoolCreateInfo cmd_pool_create_info = { .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                                                                   .pNext = nullptr,
-                                                                   .flags = queue_flags[i],
-                                                                   .queueFamilyIndex =
-                                                                       static_cast<uint32_t>(queue_indices[i]) };
+            const VkCommandPoolCreateInfo cmd_pool_create_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = queue_flags[i],
+                .queueFamilyIndex = static_cast<uint32_t>(queue_indices[i]),
+            };
 
             VkCommandPool cmd_pool{};
             WRAP_VULKAN_FUNC(vkCreateCommandPool, raw_ptr(logical_device), &cmd_pool_create_info, nullptr, &cmd_pool);
@@ -1026,7 +1034,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             .pNext = nullptr,
             .commandPool = raw_ptr(qs[0].cmd_pool),
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_imageviews.size())
+            .commandBufferCount = static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_imageviews.size()),
         };
 
         vector<VkCommandBuffer> cmd_buffers{ swapchain_state->swapchain_state.swapchain_imageviews.size() };
@@ -1041,33 +1049,42 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
     return tl::make_optional<VulkanRenderer>(
         PrivateConstructionToken{},
-        detail::InstanceState{ std::move(vkinstance), std::move(dbg_msgr) },
-        detail::RenderState{ phys_device,
-                             std::move(logical_device),
-                             std::move(qs),
-                             detail::RenderingAttachments{ .view_mask = 0,
-                                                           .attachments = { surface_info.format.format,
-                                                                            surface_info.depth_stencil_format,
-                                                                            surface_info.depth_stencil_format } } },
+        detail::InstanceState{
+            std::move(vkinstance),
+            std::move(dbg_msgr),
+        },
+        detail::RenderState{
+            phys_device,
+            std::move(logical_device),
+            std::move(qs),
+            detail::RenderingAttachments{
+                .view_mask = 0,
+                .attachments = { surface_info.format.format,
+                                 surface_info.depth_stencil_format,
+                                 surface_info.depth_stencil_format },
+            },
+        },
         detail::PresentationState{
             0,
             max_frames,
             0,
             0,
-            detail::SurfaceState{ swl::visit(VariantVisitor{ [](PresentToWindowSurface&& win_surface) {
-                                                                return std::move(win_surface.surface);
-                                                            },
-                                                             [](PresentToDisplaySurface&& display_surface) {
-                                                                 return std::move(display_surface.display_surface);
-                                                             } },
-                                             std::move(*present_to_surface.take())),
-                                  surface_info.caps,
-                                  surface_info.format,
-                                  surface_info.present_mode,
-                                  surface_info.depth_stencil_format },
-
+            detail::SurfaceState{
+                swl::visit(VariantVisitor{
+                               [](PresentToWindowSurface&& win_surface) { return std::move(win_surface.surface); },
+                               [](PresentToDisplaySurface&& display_surface) {
+                                   return std::move(display_surface.display_surface);
+                               },
+                           },
+                           std::move(*present_to_surface.take())),
+                surface_info.caps,
+                surface_info.format,
+                surface_info.present_mode,
+                surface_info.depth_stencil_format,
+            },
             std::move(swapchain),
-            std::move(command_buffers) });
+            std::move(command_buffers),
+        });
 }
 
 VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
@@ -1081,7 +1098,7 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
 }
 
 FrameRenderData
-VulkanRenderer::begin_rendering(const VkRect2D& render_area)
+VulkanRenderer::begin_rendering()
 {
     //
     // wait for previously submitted work to finish
@@ -1218,6 +1235,11 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
         .clearValue = VkClearValue{},
     };
 
+    const VkRect2D render_area{
+        .offset = VkOffset2D{ .x = 0, .y = 0 },
+        .extent = _presentation_state.surface_state.caps.currentExtent,
+    };
+
     const VkRenderingInfo rendering_info = VkRenderingInfo{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .pNext = nullptr,
@@ -1244,12 +1266,14 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
             .srcQueueFamilyIndex = 0,
             .dstQueueFamilyIndex = 0,
             .image = _presentation_state.swapchain_state.swapchain_images[acquired_image],
-            .subresourceRange = VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                         .baseMipLevel = 0,
-                                                         .levelCount = 1,
-                                                         .baseArrayLayer = 0,
-                                                         .layerCount = 1 },
-
+            .subresourceRange =
+                VkImageSubresourceRange{
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
         },
         VkImageMemoryBarrier2{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -1264,11 +1288,13 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
             .dstQueueFamilyIndex = 0,
             .image = raw_ptr(_presentation_state.swapchain_state.depth_stencil_images[acquired_image].image),
             .subresourceRange =
-                VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-                                         .baseMipLevel = 0,
-                                         .levelCount = 1,
-                                         .baseArrayLayer = 0,
-                                         .layerCount = 1 },
+                VkImageSubresourceRange{
+                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
         },
     };
 
@@ -1296,6 +1322,7 @@ VulkanRenderer::begin_rendering(const VkRect2D& render_area)
         .id = _presentation_state.frame_index,
         .max_frames = _presentation_state.max_frames,
         .cmd_buf = _presentation_state.command_buffers[_presentation_state.frame_index],
+        .fbsize = _presentation_state.surface_state.caps.currentExtent,
     };
 }
 
@@ -1351,7 +1378,7 @@ VulkanRenderer::end_rendering()
         .semaphore = raw_ptr(_presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
         .value = 0,
         .stageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-        .deviceIndex = 0
+        .deviceIndex = 0,
     };
 
     const VkSemaphoreSubmitInfo semaphore_signal_rendering_done = {
@@ -1360,14 +1387,14 @@ VulkanRenderer::end_rendering()
         .semaphore = raw_ptr(_presentation_state.swapchain_state.sync.rendering_sem[_presentation_state.frame_index]),
         .value = 0,
         .stageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
-        .deviceIndex = 0
+        .deviceIndex = 0,
     };
 
     const VkCommandBufferSubmitInfo cmd_buffer_submit_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
         .pNext = nullptr,
         .commandBuffer = _presentation_state.command_buffers[_presentation_state.frame_index],
-        .deviceMask = 0
+        .deviceMask = 0,
     };
 
     const VkSubmitInfo2 submit_info = {
@@ -2051,7 +2078,10 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
             VkImageView image_view{};
             WRAP_VULKAN_FUNC(vkCreateImageView, create_info.device, &imageview_create_info, nullptr, &image_view);
 
-            return xrUniqueVkImageView{ image_view, VkResourceDeleter_VkImageView{ create_info.device } };
+            return xrUniqueVkImageView{
+                image_view,
+                VkResourceDeleter_VkImageView{ create_info.device },
+            };
         }) %
         fn::where([](const xrUniqueVkImageView& img_view) { return static_cast<bool>(img_view); }) %
         fn::to(vector<xrUniqueVkImageView>{});
@@ -2089,16 +2119,17 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         };
 
-        xrUniqueVkImage ds_image{ [&]() {
-                                     VkImage image{};
-                                     WRAP_VULKAN_FUNC(
-                                         vkCreateImage, create_info.device, &image_create_info, nullptr, &image);
-                                     if (!image) {
-                                         XR_LOG_CRITICAL("Failed to create depth-stencil attachment");
-                                     }
-                                     return image;
-                                 }(),
-                                  VkResourceDeleter_VkImage{ create_info.device } };
+        xrUniqueVkImage ds_image{
+            [&]() {
+                VkImage image{};
+                WRAP_VULKAN_FUNC(vkCreateImage, create_info.device, &image_create_info, nullptr, &image);
+                if (!image) {
+                    XR_LOG_CRITICAL("Failed to create depth-stencil attachment");
+                }
+                return image;
+            }(),
+            VkResourceDeleter_VkImage{ create_info.device },
+        };
 
         xrUniqueVkDeviceMemory ds_image_memory{
             [&]() {
@@ -2118,7 +2149,7 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
                     WRAP_VULKAN_FUNC(vkBindImageMemory, create_info.device, raw_ptr(ds_image), image_memory, 0);
                 return image_memory;
             }(),
-            VkResourceDeleter_VkDeviceMemory{ create_info.device }
+            VkResourceDeleter_VkDeviceMemory{ create_info.device },
         };
 
         const VkImageViewCreateInfo depth_stencil_view_create_info = {
@@ -2139,16 +2170,15 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
                 },
         };
 
-        xrUniqueVkImageView ds_image_view{ [&]() {
-                                              VkImageView image_view{};
-                                              WRAP_VULKAN_FUNC(vkCreateImageView,
-                                                               create_info.device,
-                                                               &depth_stencil_view_create_info,
-                                                               nullptr,
-                                                               &image_view);
-                                              return image_view;
-                                          }(),
-                                           VkResourceDeleter_VkImageView{ create_info.device } };
+        xrUniqueVkImageView ds_image_view{
+            [&]() {
+                VkImageView image_view{};
+                WRAP_VULKAN_FUNC(
+                    vkCreateImageView, create_info.device, &depth_stencil_view_create_info, nullptr, &image_view);
+                return image_view;
+            }(),
+            VkResourceDeleter_VkImageView{ create_info.device },
+        };
 
         if (ds_image && ds_image_view) {
             depth_stencil_images.emplace_back(std::move(ds_image), std::move(ds_image_memory));

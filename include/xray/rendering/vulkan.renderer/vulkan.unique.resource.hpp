@@ -5,6 +5,7 @@
 
 #include <string_view>
 #include <type_traits>
+#include <span>
 
 #include <tl/optional.hpp>
 
@@ -86,6 +87,15 @@ struct GraphicsPipeline
     xrUniqueVkPipeline pipeline{ nullptr, VkResourceDeleter_VkPipeline{ nullptr } };
     xrUniqueVkPipelineLayout layout{ nullptr, VkResourceDeleter_VkPipelineLayout{ nullptr } };
     std::vector<xrUniqueVkDescriptorSetLayout> descriptor_set_layout;
+
+    VkPipeline pipeline_handle() const noexcept { return xray::base::raw_ptr(pipeline); }
+
+    VkPipelineLayout layout_handle() const noexcept { return xray::base::raw_ptr(layout); }
+
+    std::span<const xrUniqueVkDescriptorSetLayout> descriptor_sets_layout_range() const noexcept
+    {
+        return std::span{ descriptor_set_layout };
+    }
 };
 
 struct UniqueBuffer

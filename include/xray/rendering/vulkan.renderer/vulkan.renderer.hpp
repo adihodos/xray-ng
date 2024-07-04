@@ -130,6 +130,7 @@ struct FrameRenderData
     uint32_t id;
     uint32_t max_frames;
     VkCommandBuffer cmd_buf;
+    VkExtent2D fbsize;
 };
 
 class VulkanRenderer
@@ -148,7 +149,7 @@ class VulkanRenderer
                    detail::RenderState render_state,
                    detail::PresentationState presentation_state);
 
-    FrameRenderData begin_rendering(const VkRect2D& render_area);
+    FrameRenderData begin_rendering();
     void end_rendering();
     void clear_attachments(VkCommandBuffer cmd_buf,
                            const float red,

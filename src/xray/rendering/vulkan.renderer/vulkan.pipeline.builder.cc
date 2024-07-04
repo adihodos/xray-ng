@@ -3,6 +3,7 @@
 #include <span>
 #include <vector>
 #include <unordered_map>
+#include <memory_resource>
 
 #include <fmt/core.h>
 #include <itlib/small_vector.hpp>
@@ -18,6 +19,7 @@
 #include <spirv_reflect.h>
 
 #include "xray/base/logger.hpp"
+#include "xray/base/scoped_guard.hpp"
 #include "xray/base/rangeless/fn.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
@@ -105,6 +107,7 @@ create_shader_module_from_string(VkDevice device,
 
     if (compilation_result.GetCompilationStatus() != shaderc_compilation_status_success) {
         XR_LOG_CRITICAL("{}", compilation_result.GetErrorMessage());
+        XR_LOG_INFO("Dumping shader code:\n{}", source_code);
         return tl::nullopt;
     }
 
@@ -297,7 +300,7 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 {
     VkDevice device = renderer.device();
 
-    if (_stage_modules.contains(ShaderStage::Vertex)) {
+    if (!_stage_modules.contains(ShaderStage::Vertex)) {
         XR_LOG_CRITICAL("Missing vertex shader stage!");
         return tl::nullopt;
     }
@@ -314,7 +317,7 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
                     return create_shader_module_from_string(
                         device,
                         *sv,
-                        "urmom",
+                        "string_view_shader",
                         *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(shader_stage)),
                         shader_opt);
                 } else {
@@ -379,9 +382,32 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
             })
             .map([&vertex_input_state](pair<uint32_t, vector<VkVertexInputAttributeDescription>> ia) {
                 assert(!vertex_input_state.has_value());
+
                 vertex_input_state = std::move(ia);
             });
     }
+
+    std::pmr::monotonic_buffer_resource buffer_resource{ 4096 };
+    std::pmr::polymorphic_allocator<char> palloc{ &buffer_resource };
+    std::pmr::string dbg_str{ palloc };
+
+    XRAY_SCOPE_EXIT
+    {
+        dbg_str.append(1, '\0');
+        XR_LOG_INFO("Pipeline creation info:\n{}", dbg_str);
+    };
+
+    fmt::format_to(std::back_inserter(dbg_str), "Vertex input description {} = {{\n", vertex_input_state->first);
+    for (const VkVertexInputAttributeDescription& vtx_desc : vertex_input_state->second) {
+        fmt::format_to(std::back_inserter(dbg_str),
+                       "\n={{\n\t.location = {}\n\t.format = {}\n\t.offset = {}\n\t.binding = {}\n}},",
+                       vtx_desc.location,
+                       vk::to_string(static_cast<vk::Format>(vtx_desc.format)),
+                       vtx_desc.offset,
+                       vtx_desc.binding);
+    }
+
+    dbg_str.append("\n}\n");
 
     xrUniqueVkPipelineLayout pipeline_layout{
         [&]() {
@@ -405,7 +431,7 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 
             return pipeline_layout;
         }(),
-        VkResourceDeleter_VkPipelineLayout{ device }
+        VkResourceDeleter_VkPipelineLayout{ device },
     };
 
     if (!pipeline_layout) {
@@ -416,17 +442,20 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
     assert(vertex_input_state.has_value());
 
     const VkVertexInputBindingDescription vertex_input_binding_description = {
-        .binding = 0, .stride = vertex_input_state->first, .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        .binding = 0,
+        .stride = vertex_input_state->first,
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
     };
 
     const VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .vertexBindingDescriptionCount = 1,
-        .pVertexBindingDescriptions = &vertex_input_binding_description,
+        .vertexBindingDescriptionCount = static_cast<uint32_t>(vertex_input_state->second.empty() ? 0 : 1),
+        .pVertexBindingDescriptions = vertex_input_state->second.empty() ? nullptr : &vertex_input_binding_description,
         .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_input_state->second.size()),
-        .pVertexAttributeDescriptions = vertex_input_state->second.data()
+        .pVertexAttributeDescriptions =
+            vertex_input_state->second.empty() ? nullptr : vertex_input_state->second.data(),
     };
 
     const VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {
@@ -437,7 +466,23 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .primitiveRestartEnable = _input_assembly.restart_enabled
     };
 
-    const VkViewport dummy_viewport = { .x = 0, .y = 0, .width = 64, .height = 64, .minDepth = 0.0f, .maxDepth = 1.0f };
+    {
+        const auto ia = &input_assembly_create_info;
+        fmt::format_to(std::back_inserter(dbg_str),
+                       "InputAssembly = {{\n\t.topology = {}\n\t.primitiveRestartEnabled = {}\n}}\n",
+                       vk::to_string(static_cast<vk::PrimitiveTopology>(ia->topology)),
+                       ia->primitiveRestartEnable ? "true" : "false");
+    }
+
+    const VkViewport dummy_viewport = {
+        .x = 0,
+        .y = 0,
+        .width = 64,
+        .height = 64,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
     const VkRect2D dummy_scissor = {};
 
     const VkPipelineViewportStateCreateInfo viewport_state_create_info = {
@@ -466,6 +511,25 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .lineWidth = _raster.line_width
     };
 
+    {
+        const auto r = &rasterization_state_create_info;
+        fmt::format_to(std::back_inserter(dbg_str),
+                       "Rasterizer state = {{\n"
+                       "\t.depthClampEnable = {}\n"
+                       "\t.rasterizerDiscardEnable = {}\n"
+                       "\t.polygonMode = {}\n"
+                       "\t.cullMode = {}\n"
+                       "\t.frontFace = {}\n"
+                       "}}\n",
+                       r->depthClampEnable,
+                       r->rasterizerDiscardEnable,
+                       vk::to_string(static_cast<vk::PolygonMode>(r->polygonMode)),
+                       vk::to_string(static_cast<vk::CullModeFlags>(r->cullMode)),
+                       vk::to_string(static_cast<vk::FrontFace>(r->frontFace))
+
+        );
+    }
+
     const VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .pNext = nullptr,
@@ -493,6 +557,23 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .maxDepthBounds = _depth_stencil.max_depth
     };
 
+    {
+        const auto d = &depth_stencil_create_info;
+        fmt::format_to(std::back_inserter(dbg_str),
+                       "Depth stencil state = {{\n"
+                       "\t.depthBoundsTestEnable = {}\n"
+                       "\t.depthWriteEnable = {}\n"
+                       "\t.depthCompareOp = {}\n"
+                       "\t.minDepthBounds = {}\n"
+                       "\t.maxDepthBounds = {}\n"
+                       "}}\n",
+                       d->depthBoundsTestEnable,
+                       d->depthWriteEnable,
+                       vk::to_string(static_cast<vk::CompareOp>(d->depthCompareOp)),
+                       d->minDepthBounds,
+                       d->maxDepthBounds);
+    }
+
     const VkPipelineColorBlendStateCreateInfo colorblend_state_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .pNext = nullptr,
@@ -505,6 +586,39 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 
     };
 
+    {
+        const auto cb = &colorblend_state_create_info;
+        fmt::format_to(std::back_inserter(dbg_str),
+                       "ColorblendStateCreateInfo = {{\n\t.logicOpEnable = {}\n\t.logicOp = {}\n\t.attachmentCount = "
+                       "{}\n\t.pAttachments = {{\n",
+                       cb->logicOpEnable ? "true" : "false",
+                       vk::to_string(static_cast<vk::LogicOp>(cb->logicOp)),
+                       cb->attachmentCount);
+
+        for (uint32_t i = 0; i < cb->attachmentCount; ++i) {
+            const auto* a = cb->pAttachments + i;
+            fmt::format_to(std::back_inserter(dbg_str),
+                           "\t\t{{ .blendEnable = {}"
+                           "\n\t\t .srcColorBlendFactor = {}"
+                           "\n\t\t .dstColorBlendFactor = {}"
+                           "\n\t\t .colorBlendOp = {}"
+                           "\n\t\t .srcAlphaBlendFactor = {}"
+                           "\n\t\t .dstAlphaBlendFactor = {}"
+                           "\n\t\t .alphaBlendOp = {}"
+                           "\n\t\t .colorWriteMask = {}\n\t\t}},\n",
+                           a->blendEnable ? "true" : "false",
+                           vk::to_string(static_cast<vk::BlendFactor>(a->srcColorBlendFactor)),
+                           vk::to_string(static_cast<vk::BlendFactor>(a->dstColorBlendFactor)),
+                           vk::to_string(static_cast<vk::BlendOp>(a->colorBlendOp)),
+                           vk::to_string(static_cast<vk::BlendFactor>(a->srcAlphaBlendFactor)),
+                           vk::to_string(static_cast<vk::BlendFactor>(a->dstAlphaBlendFactor)),
+                           vk::to_string(static_cast<vk::BlendOp>(a->alphaBlendOp)),
+                           a->colorWriteMask);
+        }
+
+        dbg_str.append("}\n");
+    }
+
     const VkPipelineDynamicStateCreateInfo dynamic_state_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         .pNext = nullptr,
@@ -512,6 +626,14 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .dynamicStateCount = static_cast<uint32_t>(_dynstate.size()),
         .pDynamicStates = _dynstate.empty() ? nullptr : _dynstate.data()
     };
+
+    {
+        dbg_str.append("DynamicState = {\n");
+        for (const VkDynamicState ds : _dynstate) {
+            fmt::format_to(std::back_inserter(dbg_str), "\t{},\n", vk::to_string(static_cast<vk::DynamicState>(ds)));
+        }
+        dbg_str.append("}\n");
+    }
 
     const auto [view_mask, color_attachments, depth_attachment, stencil_attachment] =
         renderer.pipeline_render_create_info();
@@ -523,8 +645,25 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .colorAttachmentCount = static_cast<uint32_t>(color_attachments.size()),
         .pColorAttachmentFormats = color_attachments.data(),
         .depthAttachmentFormat = depth_attachment,
-        .stencilAttachmentFormat = stencil_attachment
+        .stencilAttachmentFormat = stencil_attachment,
     };
+
+    {
+        const auto r = &pipeline_render_create_inf;
+        fmt::format_to(std::back_inserter(dbg_str),
+                       "PipelineRenderingCreateInfo = {{\n\t.viewMask = {},\n\t.colorAttactmentCount = "
+                       "{},\n\t.pColorAttachmentFormats = {{",
+                       r->viewMask,
+                       r->colorAttachmentCount);
+
+        for (const VkFormat fmt : color_attachments) {
+            fmt::format_to(std::back_inserter(dbg_str), "\n\t\t{},", vk::to_string(static_cast<vk::Format>(fmt)));
+        }
+        fmt::format_to(std::back_inserter(dbg_str),
+                       "\n\t}},\n\t.depthAtrtachmentFormat = {},\n\t.stencilAttachmentFormat = {},\n}}\n",
+                       vk::to_string(static_cast<vk::Format>(r->depthAttachmentFormat)),
+                       vk::to_string(static_cast<vk::Format>(r->stencilAttachmentFormat)));
+    }
 
     const VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -555,7 +694,7 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
                 vkCreateGraphicsPipelines, device, nullptr, 1, &graphics_pipeline_create_info, nullptr, &pipeline);
             return pipeline;
         }(),
-        VkResourceDeleter_VkPipeline{ device }
+        VkResourceDeleter_VkPipeline{ device },
     };
 
     return tl::make_optional<GraphicsPipeline>(
