@@ -37,6 +37,7 @@
 #include <numeric>
 #include <thread>
 #include <tuple>
+#include <chrono>
 #include <vector>
 
 #include <oneapi/tbb/info.h>
@@ -409,6 +410,7 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 
     if (_demo) {
         _demo->loop_event(RenderEvent{ loop_event, &_vkrenderer });
+        // std::this_thread::sleep_for(std::chrono::milliseconds{ 25 });
         std::this_thread::yield();
         return;
     }

@@ -25,6 +25,7 @@ class TriangleDemo : public app::DemoBase
 
   private:
     xray::rendering::GraphicsPipeline _pipeline;
+    float _angle{};
 
   public:
     TriangleDemo(PrivateConstructionToken,

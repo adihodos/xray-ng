@@ -6,6 +6,12 @@
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/ui/events.hpp"
 #include "init_context.hpp"
+#include "xray/math/scalar3x3.hpp"
+#include "xray/math/scalar3x3_math.hpp"
+#include "xray/math/transforms_r3.hpp"
+#include "xray/math/transforms_r2.hpp"
+#include "xray/math/scalar2x3_math.hpp"
+#include "xray/math/constants.hpp"
 
 using namespace std;
 using namespace xray::rendering;
@@ -18,6 +24,7 @@ dvk::TriangleDemo::TriangleDemo(PrivateConstructionToken,
     : app::DemoBase{ init_context }
     , _pipeline{ std::move(pipeline) }
 {
+    _timer.start();
 }
 
 xray::base::unique_pointer<app::DemoBase>
@@ -46,8 +53,13 @@ out VS_OUT_FS_IN {
     layout (location = 0) vec3 color;
 } vs_out;
 
+layout (push_constant, row_major) uniform ShaderGlobalData {
+    mat2 rotation;
+} g_data;
+
 void main() {
-    gl_Position = vec4(TriangleVertices[gl_VertexIndex], 0.0, 1.0);
+    const vec2 pos = g_data.rotation * TriangleVertices[gl_VertexIndex];
+    gl_Position = vec4(pos.xy, 0.0, 1.0);
     vs_out.color = TriangleColors[gl_VertexIndex];
 }
     )#";
@@ -94,6 +106,18 @@ dvk::TriangleDemo::event_handler(const xray::ui::window_event& evt)
 void
 dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 {
+    static constexpr const auto sixty_herz = std::chrono::duration<float, std::milli>{ 1000.0f / 60.0f };
+
+    _timer.end();
+    const auto elapsed_duration = std::chrono::duration<float, std::milli>{ _timer.ts_end() - _timer.ts_start() };
+
+    if (elapsed_duration > sixty_herz) {
+        _angle += 0.025f;
+        if (_angle >= xray::math::two_pi<float>)
+            _angle -= xray::math::two_pi<float>;
+        _timer.update_and_reset();
+    }
+
     const FrameRenderData frt{ render_event.renderer->begin_rendering() };
 
     const VkViewport viewport{
@@ -116,7 +140,16 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
     render_event.renderer->clear_attachments(frt.cmd_buf, 1.0f, 0.0f, 1.0f, frt.fbsize.width, frt.fbsize.height);
 
+    const xray::math::scalar2x3<float> r = xray::math::R2::rotate(_angle);
+    const std::array<float, 4> vkmtx{ r.a00, r.a01, r.a10, r.a11 };
+
     vkCmdBindPipeline(frt.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline.pipeline_handle());
+    vkCmdPushConstants(frt.cmd_buf,
+                       _pipeline.layout_handle(),
+                       VK_SHADER_STAGE_VERTEX_BIT,
+                       0,
+                       static_cast<uint32_t>(vkmtx.size() * sizeof(float)),
+                       vkmtx.data());
     vkCmdDraw(frt.cmd_buf, 3, 1, 0, 0);
 
     render_event.renderer->end_rendering();

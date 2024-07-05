@@ -42,6 +42,7 @@ template<typename precise_type>
 class basic_timer
 {
   public:
+    using timepoint_type = std::chrono::time_point<std::chrono::high_resolution_clock>;
     basic_timer()
         : start_{ std::chrono::high_resolution_clock::now() }
         , end_{ std::chrono::high_resolution_clock::now() }
@@ -63,10 +64,10 @@ class basic_timer
     }
 
     precise_type elapsed_millis() const { return interval_.count(); }
+    timepoint_type ts_start() const noexcept { return start_; }
+    timepoint_type ts_end() const noexcept { return end_; }
 
   private:
-    using timepoint_type = std::chrono::time_point<std::chrono::high_resolution_clock>;
-
     timepoint_type start_;
     timepoint_type end_;
     std::chrono::duration<precise_type, std::milli> interval_;

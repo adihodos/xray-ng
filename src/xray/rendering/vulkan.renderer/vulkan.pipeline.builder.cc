@@ -123,8 +123,14 @@ create_shader_module_from_string(VkDevice device,
     WRAP_VULKAN_FUNC(vkCreateShaderModule, device, &shader_module_create_info, nullptr, &shader_module);
 
     return tl::make_optional<ShaderModuleWithSpirVBlob>(
-        xrUniqueVkShaderModule{ shader_module, VkResourceDeleter_VkShaderModule{ device } },
-        vector<uint32_t>{ compilation_result.cbegin(), compilation_result.cend() });
+        xrUniqueVkShaderModule{
+            shader_module,
+            VkResourceDeleter_VkShaderModule{ device },
+        },
+        vector<uint32_t>{
+            compilation_result.cbegin(),
+            compilation_result.cend(),
+        });
 }
 
 tl::optional<ShaderModuleWithSpirVBlob>
@@ -159,9 +165,11 @@ struct SpirVReflectionResult
 tl::optional<SpirVReflectionResult>
 parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
 {
-    spv_reflect::ShaderModule shader_module{ spirv_binary.size() * 4,
-                                             static_cast<const void*>(spirv_binary.data()),
-                                             SPV_REFLECT_MODULE_FLAG_NO_COPY };
+    spv_reflect::ShaderModule shader_module{
+        spirv_binary.size() * 4,
+        static_cast<const void*>(spirv_binary.data()),
+        SPV_REFLECT_MODULE_FLAG_NO_COPY,
+    };
 
     const SpvReflectResult reflect_result = shader_module.GetResult();
     if (reflect_result != SPV_REFLECT_RESULT_SUCCESS) {
@@ -202,8 +210,7 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
                                          reflected_binding->array.dims + reflected_binding->array.dims_count } %
                                    fn::foldl(1u, [](uint32_t a, const uint32_t i) { return a * i; }),
                 .stageFlags = VK_SHADER_STAGE_ALL,
-                .pImmutableSamplers = nullptr
-
+                .pImmutableSamplers = nullptr,
             };
 
             descriptor_set_layout_bindings.push_back(descriptor_set_layout_binding);
@@ -223,15 +230,17 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
 
     for (uint32_t idx = 0; idx < push_constants_count; ++idx) {
         const SpvReflectBlockVariable* reflect_push_const = push_constants[idx];
-        XR_LOG_INFO("Push constant {}, size = {}, padded size {}",
+        XR_LOG_INFO("Push constant {}, size = {}, padded size {}, stage = {}",
                     reflect_push_const->name ? reflect_push_const->name : "unnamed",
                     reflect_push_const->size,
-                    reflect_push_const->padded_size);
-        push_constant_ranges.emplace_back(
-            reflect_push_const->flags, reflect_push_const->offset, reflect_push_const->size);
+                    reflect_push_const->padded_size,
+                    vk::to_string(static_cast<vk::ShaderStageFlags>(shader_module.GetShaderStage())));
+        push_constant_ranges.emplace_back(static_cast<VkShaderStageFlagBits>(shader_module.GetShaderStage()),
+                                          reflect_push_const->offset,
+                                          reflect_push_const->size);
     }
 
-    if (shader_module.GetShaderModule().shader_stage == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) {
+    if (shader_module.GetShaderStage() == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) {
         uint32_t input_vars_count{};
         spvReflectEnumerateInputVariables(&shader_module.GetShaderModule(), &input_vars_count, nullptr);
 
@@ -275,6 +284,7 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
         const VkVertexInputBindingDescription vertex_input_binding_description = {
             .binding = 0, .stride = stride, .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
         };
+
         const VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
             .pNext = nullptr,
@@ -282,7 +292,7 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
             .vertexBindingDescriptionCount = 1,
             .pVertexBindingDescriptions = &vertex_input_binding_description,
             .vertexAttributeDescriptionCount = static_cast<uint32_t>(input_attribute_descriptions.size()),
-            .pVertexAttributeDescriptions = input_attribute_descriptions.data()
+            .pVertexAttributeDescriptions = input_attribute_descriptions.data(),
         };
 
         return tl::make_optional<SpirVReflectionResult>(
@@ -420,9 +430,9 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                 .pNext = nullptr,
                 .flags = 0,
-                .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
+                .setLayoutCount = static_cast<uint32_t>(dsl.size()),
                 .pSetLayouts = dsl.data(),
-                .pushConstantRangeCount = static_cast<uint32_t>(dsl.size()),
+                .pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size()),
                 .pPushConstantRanges = push_constant_ranges.data()
             };
 

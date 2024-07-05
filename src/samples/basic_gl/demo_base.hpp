@@ -33,6 +33,7 @@
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/xray.hpp"
+#include "xray/base/basic_timer.hpp"
 
 #include <bitset>
 #include <cstdint>
@@ -77,6 +78,7 @@ class DemoBase
     cpp::delegate<void()> _quit_receiver;
     xray::ui::user_interface* _ui;
     std::bitset<256> _keyboard{};
+    xray::base::timer_stdp _timer{};
 };
 
 } // namespace app
