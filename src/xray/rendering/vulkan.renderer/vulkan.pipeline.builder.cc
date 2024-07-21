@@ -230,14 +230,22 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
 
     for (uint32_t idx = 0; idx < push_constants_count; ++idx) {
         const SpvReflectBlockVariable* reflect_push_const = push_constants[idx];
-        XR_LOG_INFO("Push constant {}, size = {}, padded size {}, stage = {}",
+        XR_LOG_INFO("Push constant {}, size = {}, padded size {}, stage = {}, offset = {}, word offset = {}, absolute "
+                    "offset = {}",
                     reflect_push_const->name ? reflect_push_const->name : "unnamed",
                     reflect_push_const->size,
                     reflect_push_const->padded_size,
-                    vk::to_string(static_cast<vk::ShaderStageFlags>(shader_module.GetShaderStage())));
-        push_constant_ranges.emplace_back(static_cast<VkShaderStageFlagBits>(shader_module.GetShaderStage()),
-                                          reflect_push_const->offset,
-                                          reflect_push_const->size);
+                    vk::to_string(static_cast<vk::ShaderStageFlags>(shader_module.GetShaderStage())),
+                    reflect_push_const->offset,
+                    reflect_push_const->word_offset.offset,
+                    reflect_push_const->absolute_offset);
+
+        push_constant_ranges.emplace_back(
+            // do I force VK_SHADER_STAGE_ALL here to simplify logic ??
+            // static_cast<VkShaderStageFlagBits>(shader_module.GetShaderStage()),
+            VK_SHADER_STAGE_ALL,
+            reflect_push_const->offset,
+            reflect_push_const->size);
     }
 
     if (shader_module.GetShaderStage() == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) {
@@ -385,8 +393,14 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
                     descriptor_set_layouts.emplace_back(set_layout, VkResourceDeleter_VkDescriptorSetLayout{ device });
                 }
 
-                push_constant_ranges.insert(
-                    push_constant_ranges.end(), cbegin(reflection.push_constants), cend(reflection.push_constants));
+                push_constant_ranges = std::move(reflection.push_constants);
+
+                for (const VkPushConstantRange& pcr : reflection.push_constants) {
+                    XR_LOG_INFO("Push constant range {{ .size = {}, .offset = {}, .stageFlags = {} }}",
+                                pcr.size,
+                                pcr.offset,
+                                pcr.stageFlags);
+                }
 
                 return reflection.vertex_inputs;
             })

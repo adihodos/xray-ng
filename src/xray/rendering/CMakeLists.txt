@@ -64,7 +64,11 @@ set(vk-project-sources
     ${vk-proj-inc-dir}/vulkan.renderer.hpp
     ${vk-proj-src-dir}/vulkan.renderer.cc
     ${vk-proj-inc-dir}/vulkan.pipeline.builder.hpp
-    ${vk-proj-src-dir}/vulkan.pipeline.builder.cc)
+    ${vk-proj-src-dir}/vulkan.pipeline.builder.cc
+    ${vk-proj-inc-dir}/vulkan.image.hpp
+    ${vk-proj-src-dir}/vulkan.image.cc
+    ${vk-proj-inc-dir}/vulkan.error.hpp
+    ${vk-proj-src-dir}/vulkan.error.cc)
 
 add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl}
                                    ${vk-project-sources})
@@ -86,6 +90,7 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC xray-glloader
          tl::optional
+         tl::expected
          xray-base
          mio::mio
          itlib::itlib

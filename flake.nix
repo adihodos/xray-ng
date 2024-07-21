@@ -33,6 +33,7 @@
             gf
             renderdoc
             cmake
+            cmakeCurses
             cmake-format
             pkg-config
 
@@ -53,6 +54,8 @@
             glslang
             bashInteractive
             python3
+
+            qtcreator
 
             # (python311.withPackages (python-pkgs: [
             #   # select Python packages here

@@ -24,8 +24,6 @@ struct VulkanResourceDeleterBase
 {
     using pointer = VulkanResourceType;
 
-    // VulkanResourceDeleterBase() = default;
-
     explicit VulkanResourceDeleterBase(VulkanResourceOwner owner,
                                        const VkAllocationCallbacks* alloc_cb = nullptr) noexcept
         : _owner{ owner }
@@ -81,6 +79,9 @@ XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkPipelineLayout, VkDevice, vkDestroyPipelineL
 XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkPipeline, VkDevice, vkDestroyPipeline)
 XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkFence, VkDevice, vkDestroyFence)
 XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkSemaphore, VkDevice, vkDestroySemaphore)
+XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkDescriptorPool, VkDevice, vkDestroyDescriptorPool)
+XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkBufferView, VkDevice, vkDestroyBufferView)
+XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkSampler, VkDevice, vkDestroySampler)
 
 struct GraphicsPipeline
 {
@@ -114,7 +115,36 @@ struct UniqueImage
 
 struct UniqueMemoryMapping
 {
+    UniqueMemoryMapping() = default;
+    UniqueMemoryMapping(void* mapped_addr,
+                        VkDeviceMemory device_mem,
+                        VkDevice device,
+                        const uint64_t mapped_size,
+                        const uint64_t mapped_offset) noexcept
+        : _mapped_memory{ mapped_addr }
+        , _device_memory{ device_mem }
+        , _device{ device }
+        , _mapped_size{ mapped_size }
+        , _mapped_offset{ mapped_offset }
+    {
+    }
+
     ~UniqueMemoryMapping();
+
+    UniqueMemoryMapping(UniqueMemoryMapping&& rhs)
+    {
+        memcpy(this, &rhs, sizeof(*this));
+        memset(&rhs, 0, sizeof(rhs));
+    }
+
+    UniqueMemoryMapping& operator=(UniqueMemoryMapping&& rhs)
+    {
+        if (this != &rhs) {
+            memcpy(this, &rhs, sizeof(*this));
+            memset(&rhs, 0, sizeof(rhs));
+        }
+        return *this;
+    }
 
     static tl::optional<UniqueMemoryMapping> create(VkDevice device,
                                                     VkDeviceMemory memory,

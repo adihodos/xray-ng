@@ -65,7 +65,7 @@ namespace base {
 /// \endcode
 /// \note The "veneer" concept is described in detail in this paper :
 ///  http://synesis.com.au/resources/articles/cpp/veneers.pdf
-template<typename container_type, typename element_destructor_fn>
+template<typename container_type, typename element_destructor>
 class sequence_container_veneer : public container_type
 {
   public:
@@ -77,21 +77,27 @@ class sequence_container_veneer : public container_type
 
     typedef typename base_class::value_type value_type;
 
-    typedef sequence_container_veneer<container_type, element_destructor_fn> class_type;
+    typedef sequence_container_veneer<container_type, element_destructor> class_type;
 
   public:
     /// \name Constructors
     /// @{
 
     /// Default constructor.
-    sequence_container_veneer()
-        : base_class()
+    sequence_container_veneer() = default;
+
+    /// Construct with user specified allocator.
+    explicit sequence_container_veneer(std::remove_reference_t<element_destructor>&& destructor,
+                                       const allocator_type& alloc = allocator_type{})
+        : base_class(alloc)
+        , _destructor(std::move(destructor))
     {
     }
 
-    /// Construct with user specified allocator.
-    explicit sequence_container_veneer(const allocator_type& alloc)
+    explicit sequence_container_veneer(const element_destructor& destructor,
+                                       const allocator_type& alloc = allocator_type{})
         : base_class(alloc)
+        , _destructor(destructor)
     {
     }
 
@@ -106,20 +112,34 @@ class sequence_container_veneer : public container_type
     /// \param count Number of elements.
     /// \param val Value to assign to each element.
     /// \param alloc Allocator.
-    sequence_container_veneer(size_type count, const value_type& val, const allocator_type& alloc = allocator_type())
+    sequence_container_veneer(const element_destructor& destructor,
+                              size_type count,
+                              const value_type& val,
+                              const allocator_type& alloc = allocator_type())
         : base_class(count, val, alloc)
+        , _destructor(destructor)
     {
     }
 
+    sequence_container_veneer(std::remove_reference_t<element_destructor>&& destructor,
+                              size_type count,
+                              const value_type& val,
+                              const allocator_type& alloc = allocator_type())
+        : base_class(count, val, alloc)
+        , _destructor(std::move(destructor))
+    {
+    }
     /// Copy construct from an existing veneer.
     sequence_container_veneer(const class_type& rhs)
         : base_class(rhs)
+        , _destructor(rhs._destructor)
     {
     }
 
     /// Construct from temporary (C++11 only).
     sequence_container_veneer(class_type&& rhs)
-        : base_class(std::move(rhs))
+        : base_class(std::move(std::forward<base_class&&>(rhs)))
+        , _destructor(std::move(rhs._destructor))
     {
     }
 
@@ -131,11 +151,24 @@ class sequence_container_veneer : public container_type
 
     /// Construct from existing sequence.
     template<typename input_iterator>
-    sequence_container_veneer(input_iterator first, input_iterator last, const allocator_type& alloc = allocator_type())
+    sequence_container_veneer(const element_destructor& destructor,
+                              input_iterator first,
+                              input_iterator last,
+                              const allocator_type& alloc = allocator_type())
         : base_class(first, last, alloc)
+        , _destructor(destructor)
     {
     }
 
+    template<typename input_iterator>
+    sequence_container_veneer(std::remove_reference_t<element_destructor>&& destructor,
+                              input_iterator first,
+                              input_iterator last,
+                              const allocator_type& alloc = allocator_type())
+        : base_class(first, last, alloc)
+        , _destructor(std::move(destructor))
+    {
+    }
     /// @}
 
     /// Destructs the elements, calling the element destruction functor for
@@ -147,7 +180,7 @@ class sequence_container_veneer : public container_type
         typename base_class::iterator itr_last = this_ptr->end();
 
         for (; itr_first != itr_last; ++itr_first) {
-            element_destructor_fn()(*itr_first);
+            _destructor(*itr_first);
         }
     }
 
@@ -178,6 +211,8 @@ class sequence_container_veneer : public container_type
     /// @}
 
   private:
+    [[no_unique_address]] element_destructor _destructor;
+
     void* operator new(size_t) = delete;
     void operator delete(void*, size_t) = delete;
 };

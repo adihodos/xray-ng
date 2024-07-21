@@ -10,7 +10,6 @@ set(project_headers
     ${proj_inc_dir}/basic_timer.hpp
     ${proj_inc_dir}/config_settings.hpp
     ${proj_inc_dir}/containers/fixed_vector.hpp
-    ${proj_inc_dir}/debug_output.hpp
     ${proj_inc_dir}/delegate.hpp
     ${proj_inc_dir}/fnv_hash.hpp
     ${proj_inc_dir}/maybe.hpp
@@ -29,11 +28,8 @@ set(project_headers
     ${proj_inc_dir}/file_system_watcher.hpp)
 
 set(project_sources
-    ${proj_src_dir}/app_config.cc
-    ${proj_src_dir}/config_settings.cc
-    ${proj_src_dir}/debug_output.cc
-    ${proj_src_dir}/logger.cc
-    ${proj_src_dir}/perf_stats_collector.cc
+    ${proj_src_dir}/app_config.cc ${proj_src_dir}/config_settings.cc
+    ${proj_src_dir}/logger.cc ${proj_src_dir}/perf_stats_collector.cc
     ${proj_src_dir}/file_system_watcher.cc)
 
 add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_headers})
@@ -53,5 +49,5 @@ target_compile_definitions(
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC config fmt::fmt spdlog::spdlog libconfig::libconfig
+  PUBLIC fmt::fmt spdlog::spdlog libconfig::libconfig
   PRIVATE itlib::itlib joboccara::pipes)

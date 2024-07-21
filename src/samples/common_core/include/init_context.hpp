@@ -28,87 +28,39 @@
 
 #pragma once
 
-#include "xray/base/shims/stl_type_traits_shims.hpp"
-#include "xray/math/constants.hpp"
+#include "xray/base/delegate.hpp"
 #include "xray/xray.hpp"
-#include <cassert>
-#include <cmath>
 #include <cstdint>
-#include <type_traits>
 
 namespace xray {
-namespace math {
-namespace detail {
-
-struct floating_point_tag
-{};
-struct integral_tag
-{};
-
-template<typename T>
-inline bool
-is_zero_impl(const T fp_val, detail::floating_point_tag) noexcept
-{
-    return std::abs(fp_val) < epsilon<T>;
+namespace base {
+class ConfigSystem;
 }
 
-template<typename T>
-inline bool
-is_zero_impl(const T int_val, detail::integral_tag) noexcept
-{
-    return int_val == T{};
+namespace ui {
+class user_interface;
 }
 
-template<typename T>
-inline bool
-is_equal_impl(const T a, const T b, detail::floating_point_tag) noexcept
+#if !defined(XRAY_RENNDERER_OPENGL)
+namespace rendering {
+class VulkanRenderer;
+} // namespace rendering
+#endif
+
+} // namespace xray
+
+namespace app {
+
+struct init_context_t
 {
-    return is_zero_impl(a - b, detail::floating_point_tag{});
-}
-
-template<typename T>
-inline bool
-is_equal_impl(const T a, const T b, detail::integral_tag) noexcept
-{
-    return a == b;
-}
-
-} // namespace detail
-
-/// \addtogroup __GroupXrayMath
-/// @{
-
-template<typename T>
-inline bool
-is_zero(const T arith_val) noexcept
-{
-    static_assert(base::std_is_arithmetic<T>, "Duh!!");
-
-    return detail::is_zero_impl(
-        arith_val,
-        base::std_conditional<base::std_is_floating_point<T>, detail::floating_point_tag, detail::integral_tag>{});
-}
-
-template<typename T>
-inline bool
-is_equal(const T a, const T b) noexcept
-{
-    static_assert(base::std_is_arithmetic<T>, "Duh!!");
-
-    return detail::is_equal_impl(
-        a,
-        b,
-        base::std_conditional<base::std_is_floating_point<T>, detail::floating_point_tag, detail::integral_tag>{});
-}
-
-template<typename T>
-inline T
-roundup_to(const T bytes, const T alignment) noexcept
-{
-    return ((bytes + alignment - 1) / alignment) * alignment;
+    int32_t surface_width;
+    int32_t surface_height;
+    xray::base::ConfigSystem* cfg;
+    xray::ui::user_interface* ui;
+#if !defined(XRAY_RENDERER_OPENGL)
+    xray::rendering::VulkanRenderer* renderer;
+#endif
+    cpp::delegate<void()> quit_receiver;
 };
 
-/// @}
-
-} // namespace math
-} // namespace xray
+} // namespace app

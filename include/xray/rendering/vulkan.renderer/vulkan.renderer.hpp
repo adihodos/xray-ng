@@ -123,6 +123,11 @@ struct RenderState
     RenderingAttachments attachments;
 };
 
+struct DescriptorPoolState
+{
+    xrUniqueVkDescriptorPool handle;
+};
+
 } // namespace detail
 
 struct FrameRenderData
@@ -131,6 +136,12 @@ struct FrameRenderData
     uint32_t max_frames;
     VkCommandBuffer cmd_buf;
     VkExtent2D fbsize;
+};
+
+struct RenderBufferingSetup
+{
+    uint32_t frame_id;
+    uint32_t buffers;
 };
 
 class VulkanRenderer
@@ -147,7 +158,8 @@ class VulkanRenderer
     VulkanRenderer(PrivateConstructionToken,
                    detail::InstanceState instance_state,
                    detail::RenderState render_state,
-                   detail::PresentationState presentation_state);
+                   detail::PresentationState presentation_state,
+                   detail::DescriptorPoolState pool_state);
 
     FrameRenderData begin_rendering();
     void end_rendering();
@@ -164,6 +176,8 @@ class VulkanRenderer
 
     VkDevice device() const noexcept { return xray::base::raw_ptr(_render_state.dev_logical); }
 
+    const detail::PhysicalDeviceData& physical() const noexcept { return _render_state.dev_physical; }
+
     const detail::SurfaceState& surface_state() const noexcept { return _presentation_state.surface_state; }
 
     std::tuple<uint32_t, std::span<const VkFormat>, VkFormat, VkFormat> pipeline_render_create_info() const noexcept
@@ -178,7 +192,7 @@ class VulkanRenderer
         };
     }
 
-    std::pair<uint32_t, uint32_t> buffering_setup() const noexcept
+    RenderBufferingSetup buffering_setup() const noexcept
     {
         return { _presentation_state.frame_index, _presentation_state.max_frames };
     }
@@ -190,6 +204,9 @@ class VulkanRenderer
                                                     const size_t frames,
                                                     const VkMemoryPropertyFlags memory_properties) noexcept;
 
+    uint32_t find_allocation_memory_type(const uint32_t memory_requirements,
+                                         const VkMemoryPropertyFlags required_flags) const noexcept;
+
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
     const detail::Queue& transfer_queue() const noexcept { return _render_state.queues[1]; }
@@ -197,6 +214,7 @@ class VulkanRenderer
     detail::InstanceState _instance_state;
     detail::RenderState _render_state;
     detail::PresentationState _presentation_state;
+    detail::DescriptorPoolState _dpool_state;
 };
 
 uint32_t

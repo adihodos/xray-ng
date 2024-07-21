@@ -1,10 +1,7 @@
-if (XRAY_USE_DIRECTX10)
-    message("Building DirectX10 samples")
-    add_subdirectory(directx10)
-elseif(XRAY_USE_DIRECTX11)
-    message("Building DirectX11 samples")
-    add_subdirectory(directx11)
-else()
-    message("Building OpenGL samples")
-    add_subdirectory(basic_gl)
-endif()
+add_subdirectory(common_core)
+add_subdirectory(vulkan)
+
+# if (XRAY_USE_DIRECTX10) message("Building DirectX10 samples")
+# add_subdirectory(directx10) elseif(XRAY_USE_DIRECTX11) message("Building
+# DirectX11 samples") add_subdirectory(directx11) else() message("Building
+# OpenGL samples") add_subdirectory(basic_gl) endif()

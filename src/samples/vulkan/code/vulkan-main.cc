@@ -65,16 +65,7 @@
 
 #include "demo_base.hpp"
 #include "init_context.hpp"
-#include "lighting/directional_light_demo.hpp"
-#include "misc/fractals/fractal_demo.hpp"
-#include "misc/instanced_drawing/instanced_drawing_demo.hpp"
-#include "misc/mesh/mesh_demo.hpp"
-#include "misc/procedural_city/procedural_city_demo.hpp"
-#include "misc/texture_array/texture_array_demo.hpp"
-
-#include "vulkan/triangle/triangle.hpp"
-
-// #include "misc/geometric_shapes/geometric_shapes_demo.hpp"
+#include "triangle/triangle.hpp"
 
 using namespace xray;
 using namespace xray::base;
@@ -213,17 +204,10 @@ MainRunner::create()
     const int num_threads = oneapi::tbb::info::default_concurrency();
     XR_LOG_INFO("Default concurency {}", num_threads);
 
-    ConfigSystem app_cfg{ "config/app_config.conf" };
+    static ConfigSystem app_cfg{ "config/app_config.conf" };
     xr_app_config = &app_cfg;
 
-    XR_LOG_INFO("Configured paths");
-    XR_LOG_INFO("Root {}", xr_app_config->root_directory().generic_string());
-    XR_LOG_INFO("Shaders {}", xr_app_config->shader_config_path("").generic_string());
-    XR_LOG_INFO("Models {}", xr_app_config->model_path("").generic_string());
-    XR_LOG_INFO("Textures {}", xr_app_config->texture_path("").generic_string());
-    XR_LOG_INFO("Fonts {}", xr_app_config->font_path("").generic_string());
-
-    const window_params_t wnd_params{ "OpenGL Demo", 4, 5, 24, 8, 32, 0, 1, false };
+    const window_params_t wnd_params{ "Vulkan Demo", 4, 5, 24, 8, 32, 0, 1, false };
 
     window main_window{ wnd_params };
     if (!main_window) {

@@ -72,6 +72,8 @@ log_fwd(const LogLevel level, fmt::format_string<Ts...> format, Ts&&... args)
     return log(level, format, fmt::make_format_args(args...));
 }
 
+void
+setup_logging();
 }
 
 #define XR_LOG_ERR(msg, ...)                                                                                           \

@@ -4,6 +4,7 @@
 #include "demo_base.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 
 namespace dvk {
 
@@ -25,6 +26,10 @@ class TriangleDemo : public app::DemoBase
 
   private:
     xray::rendering::GraphicsPipeline _pipeline;
+    xray::rendering::ManagedImage _pixel_buffer;
+    // xray::rendering::UniqueBuffer _pixelbuffer;
+    // xray::rendering::xrUniqueImageWithMemory _pixelsimage;
+    // xray::rendering::xrUniqueVkImageView _imageview;
     float _angle{};
 
   public:

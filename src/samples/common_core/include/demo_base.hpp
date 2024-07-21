@@ -28,87 +28,57 @@
 
 #pragma once
 
-#include "xray/base/shims/stl_type_traits_shims.hpp"
-#include "xray/math/constants.hpp"
+#include "fwd_app.hpp"
+#include "xray/base/delegate.hpp"
+#include "xray/base/unique_pointer.hpp"
+#include "xray/ui/events.hpp"
 #include "xray/xray.hpp"
-#include <cassert>
-#include <cmath>
+#include "xray/base/basic_timer.hpp"
+
+#include <bitset>
 #include <cstdint>
-#include <type_traits>
+#include <tuple>
 
 namespace xray {
-namespace math {
-namespace detail {
+namespace scene {
+class camera_controller;
+} // namespace scene
 
-struct floating_point_tag
-{};
-struct integral_tag
-{};
-
-template<typename T>
-inline bool
-is_zero_impl(const T fp_val, detail::floating_point_tag) noexcept
-{
-    return std::abs(fp_val) < epsilon<T>;
+namespace ui {
+class user_interface;
 }
 
-template<typename T>
-inline bool
-is_zero_impl(const T int_val, detail::integral_tag) noexcept
+#if defined(XRAY_GRAPHICS_API_VULKAN)
+namespace rendering {
+class VulkanRenderer;
+} // namespace rendering
+#endif
+
+} // namespace xray
+
+namespace app {
+
+struct RenderEvent
 {
-    return int_val == T{};
-}
-
-template<typename T>
-inline bool
-is_equal_impl(const T a, const T b, detail::floating_point_tag) noexcept
-{
-    return is_zero_impl(a - b, detail::floating_point_tag{});
-}
-
-template<typename T>
-inline bool
-is_equal_impl(const T a, const T b, detail::integral_tag) noexcept
-{
-    return a == b;
-}
-
-} // namespace detail
-
-/// \addtogroup __GroupXrayMath
-/// @{
-
-template<typename T>
-inline bool
-is_zero(const T arith_val) noexcept
-{
-    static_assert(base::std_is_arithmetic<T>, "Duh!!");
-
-    return detail::is_zero_impl(
-        arith_val,
-        base::std_conditional<base::std_is_floating_point<T>, detail::floating_point_tag, detail::integral_tag>{});
-}
-
-template<typename T>
-inline bool
-is_equal(const T a, const T b) noexcept
-{
-    static_assert(base::std_is_arithmetic<T>, "Duh!!");
-
-    return detail::is_equal_impl(
-        a,
-        b,
-        base::std_conditional<base::std_is_floating_point<T>, detail::floating_point_tag, detail::integral_tag>{});
-}
-
-template<typename T>
-inline T
-roundup_to(const T bytes, const T alignment) noexcept
-{
-    return ((bytes + alignment - 1) / alignment) * alignment;
+    xray::ui::window_loop_event loop_event;
+    xray::rendering::VulkanRenderer* renderer;
 };
 
-/// @}
+class DemoBase
+{
+  public:
+    DemoBase(const init_context_t& init_ctx);
 
-} // namespace math
-} // namespace xray
+    virtual ~DemoBase();
+
+    virtual void event_handler(const xray::ui::window_event& evt) = 0;
+    virtual void loop_event(const RenderEvent&) = 0;
+
+  protected:
+    cpp::delegate<void()> _quit_receiver;
+    xray::ui::user_interface* _ui;
+    std::bitset<256> _keyboard{};
+    xray::base::timer_stdp _timer{};
+};
+
+} // namespace app

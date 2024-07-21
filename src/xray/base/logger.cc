@@ -27,18 +27,16 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/base/logger.hpp"
-#include <cassert>
-#include <cstdarg>
-
 #include "spdlog/spdlog.h"
+#include "spdlog/async.h"
+#include "spdlog/sinks/basic_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 void
 xray::base::log(const LogLevel level, fmt::string_view format, fmt::format_args args)
 {
     static thread_local char scratch_buffer[4096];
-    const auto [itr, cch] = fmt::vformat_to_n(std::begin(scratch_buffer), std::size(scratch_buffer), format, args);
-    if (itr >= std::cend(scratch_buffer))
-        return;
-
+    const auto [itr, cch] = fmt::vformat_to_n(std::begin(scratch_buffer), std::size(scratch_buffer) - 1, format, args);
     *itr = 0;
 
     constexpr const spdlog::level::level_enum log_levels[] = {
@@ -56,17 +54,11 @@ xray::base::log_file_line(const LogLevel level,
                           fmt::string_view format,
                           fmt::format_args args)
 {
-    static thread_local char scratch_buffer[2048];
+    static thread_local char scratch_buffer[4096];
     const auto [itr, cch] =
-        fmt::format_to_n(std::begin(scratch_buffer), std::size(scratch_buffer), "{}:{}\n", file, line);
+        fmt::format_to_n(std::begin(scratch_buffer), std::size(scratch_buffer) - 1, "{}:{}\n", file, line);
 
-    if (itr >= std::cend(scratch_buffer))
-        return;
-
-    const auto [itr1, cch1] = fmt::vformat_to_n(itr, std::cend(scratch_buffer) - itr, format, args);
-    if (itr1 >= std::cend(scratch_buffer))
-        return;
-
+    const auto [itr1, cch1] = fmt::vformat_to_n(itr, std::cend(scratch_buffer) - itr - 1, format, args);
     *itr1 = 0;
 
     constexpr const spdlog::level::level_enum log_levels[] = {
@@ -75,4 +67,18 @@ xray::base::log_file_line(const LogLevel level,
     };
 
     spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer);
+}
+
+void
+xray::base::setup_logging()
+{
+    spdlog::init_thread_pool(8192, 1);
+    auto stdout_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+    auto rotating_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("app.log", true);
+    std::vector<spdlog::sink_ptr> sinks{ stdout_sink, rotating_sink };
+
+    // auto logger = std::make_shared<spdlog::async_logger>(
+    //     "xray-logger", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
+    auto logger = std::make_shared<spdlog::logger>("xray-logger", sinks.begin(), sinks.end());
+    spdlog::set_default_logger(logger);
 }

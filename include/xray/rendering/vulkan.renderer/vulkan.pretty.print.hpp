@@ -63,8 +63,8 @@ struct fmt::formatter<VkSurfaceCapabilitiesKHR>
     {
         return fmt::format_to(
             ctx.out(),
-            "VkSurfaceCapabilitiesKHR = {{ \n.minImageCount = {},\n.maxImageCount = {},\n.currentExtent = "
-            "{},\n.minImageExtent = {},\n.maxImageExtent = {} }}",
+            "VkSurfaceCapabilitiesKHR = {{\n\t.minImageCount = {},\n\t.maxImageCount = {},\n\t.currentExtent = "
+            "{},\n\t.minImageExtent = {},\n\t.maxImageExtent = {}\n}}",
             caps.minImageCount,
             caps.maxImageCount,
             caps.currentExtent,

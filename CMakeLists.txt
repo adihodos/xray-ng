@@ -16,6 +16,7 @@ include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 cpmaddpackage("gh:oneapi-src/oneTBB@2021.12.0")
 cpmaddpackage("gh:fmtlib/fmt#10.2.1")
 cpmaddpackage("gh:TartanLlama/optional@1.1.0")
+cpmaddpackage("gh:TartanLlama/expected@1.1.0")
 # CPMAddPackage("gh:tinyobjloader/tinyobjloader#release")
 cpmaddpackage("gh:vimpunk/mio#master")
 cpmaddpackage("gh:iboB/itlib#master")
@@ -94,6 +95,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS
 
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_library(xray-set-compile-options-lib INTERFACE)
+set(debug_flags -ggdb3 -O0)
+target_compile_options(xray-set-compile-options-lib
+                       INTERFACE $<$<CONFIG:Debug>:${debug_flags}>)
+target_compile_definitions(
+  xray-set-compile-options-lib INTERFACE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
+                                         XRAY_MATH_ENABLE_FMT_SUPPORT)
+set(gcc_like_cxx "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU>")
 
 # if (MSVC) option(XRAY_USE_DIRECTX11 "DirectX 11" OFF) endif()
 

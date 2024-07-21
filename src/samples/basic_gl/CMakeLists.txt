@@ -164,13 +164,10 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_include_directories(${PROJECT_NAME} PRIVATE ${proj_inc_dir}
                                                    ${proj_src_dir})
 
-target_compile_definitions(
-  ${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
-                          XRAY_MATH_ENABLE_FMT_SUPPORT)
-
 target_link_libraries(
   ${PROJECT_NAME}
-  PRIVATE xray-base
+  PRIVATE xray-set-compile-options-lib
+          xray-base
           xray-rendering
           xray-physics
           xray-scene

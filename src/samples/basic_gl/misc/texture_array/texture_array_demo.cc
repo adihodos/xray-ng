@@ -1,7 +1,6 @@
 #include "misc/texture_array/texture_array_demo.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/debug_output.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
@@ -121,7 +120,6 @@ app::texture_array_demo::texture_array_demo(const init_context_t& init_ctx)
             texture_loader tex_ldr{ full_path, texture_load_options::flip_y };
             if (!tex_ldr) {
                 XR_LOG_CRITICAL("Cannot open texture file {}", full_path.generic_string());
-                XR_NOT_REACHED();
             }
 
             gl::TextureSubImage3D(texture,

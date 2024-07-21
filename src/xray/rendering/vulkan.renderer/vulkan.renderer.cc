@@ -50,15 +50,29 @@ template<typename T>
 struct variant_type_is_not_handled
 {};
 
+template<typename FwdIter, typename BinaryPredicate>
+tl::optional<size_t>
+r_find_pos(FwdIter first, FwdIter last, BinaryPredicate bp) noexcept
+{
+    const auto itr = find_if(first, last, bp);
+    if (itr != last) {
+        return tl::optional<size_t>{ distance(first, itr) };
+    }
+    return tl::nullopt;
+}
+
 template<typename Container, typename BinaryPredicate>
 tl::optional<size_t>
 r_find_pos(const Container& c, BinaryPredicate bp) noexcept
 {
-    const auto itr = find_if(cbegin(c), cend(c), bp);
-    if (itr != cend(c)) {
-        return tl::optional<size_t>{ distance(cbegin(c), itr) };
-    }
-    return tl::nullopt;
+    return r_find_pos(cbegin(c), cend(c), bp);
+}
+
+template<typename ElementType, typename BinaryPredicate>
+tl::optional<size_t>
+r_find_pos(std::span<ElementType> s, BinaryPredicate bp) noexcept
+{
+    return r_find_pos(cbegin(s), cend(s), bp);
 }
 
 namespace std {
@@ -522,17 +536,27 @@ create_xlib_surface(const WindowPlatformDataXlib& win_platform_data, VkInstance 
 #endif
 
 uint32_t
-find_allocation_memory_type(const VkPhysicalDeviceMemoryProperties& memory_properties,
-                            const uint32_t memory_requirements,
-                            const VkMemoryPropertyFlags required_flags)
+vk_find_allocation_memory_type(const VkPhysicalDeviceMemoryProperties& memory_properties,
+                               const uint32_t memory_requirements,
+                               const VkMemoryPropertyFlags required_flags)
 {
-    for (uint32_t memory_type = 0; memory_type < 32; ++memory_type) {
-        if ((memory_requirements & (1 << memory_type)) == 0)
-            continue;
+    XR_LOG_INFO("Memory required:\n{:0>32b}\n{:0>32b}", memory_requirements, required_flags);
+    for (uint32_t memory_type = 0, memory_types_count = memory_properties.memoryTypeCount;
+         memory_type < memory_types_count;
+         ++memory_type) {
+        const uint32_t memory_type_bits = 1 << memory_type;
 
-        if ((memory_properties.memoryTypes[memory_type].propertyFlags & required_flags) == required_flags) {
+        XR_LOG_INFO("Device memory {:0>32b}, heap index {}, mem type {}",
+                    memory_properties.memoryTypes[memory_type].propertyFlags,
+                    memory_properties.memoryTypes[memory_type].heapIndex,
+                    memory_type);
+
+        const bool is_required_mem_type = memory_requirements & memory_type_bits;
+        const VkMemoryPropertyFlags mem_prop_flags = memory_properties.memoryTypes[memory_type].propertyFlags;
+        const bool has_required_properties = (mem_prop_flags & required_flags) == required_flags;
+
+        if (is_required_mem_type && has_required_properties)
             return memory_type;
-        }
     }
 
     return 0xffffffffu;
@@ -702,6 +726,13 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             const detail::PhysicalDeviceData pdd{ phys_device };
 
             XR_LOG_INFO("Checking device {} suitability ...", pdd.properties.base.properties.deviceName);
+            for (size_t qid = 0, max_queues = pdd.queue_props.size(); qid < max_queues; ++qid) {
+                const VkQueueFamilyProperties* q = &pdd.queue_props[qid];
+                XR_LOG_INFO("Queue family {}, queue count {}, queue flags {}",
+                            qid,
+                            q->queueCount,
+                            vk::to_string(static_cast<vk::QueueFlags>(q->queueFlags)));
+            }
 
             constexpr const uint32_t suitable_device_types[] = {
                 VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
@@ -741,13 +772,23 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 return tl::nullopt;
             }
 
-            const auto transfer_q_idx = r_find_pos(
+            auto transfer_q_idx = r_find_pos(
                 pdd.queue_props, [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_TRANSFER_BIT; });
 
             if (!transfer_q_idx) {
                 XR_LOG_INFO("Rejecting device {}, no graphics queue support.",
                             pdd.properties.base.properties.deviceName);
                 return tl::nullopt;
+            }
+
+            if (transfer_q_idx == graphics_q_idx) {
+                // try to find a different queue with transfer if possible
+
+                if (const auto different_transfer_queue = r_find_pos(
+                        std::span{ std::cbegin(pdd.queue_props) + *transfer_q_idx, std::cend(pdd.queue_props) },
+                        [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_TRANSFER_BIT; })) {
+                    transfer_q_idx = different_transfer_queue;
+                }
             }
 
             small_vec_4<VkExtensionProperties> device_extensions{ [dev = pdd.device]() {
@@ -796,9 +837,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         .pQueuePriorities = queue_priorities,
     });
 
-    if (queue_graphics == queue_transfer) {
-        queue_create_info[0].queueCount += 1;
-    } else {
+    if (queue_graphics != queue_transfer) {
         queue_create_info.emplace_back(VkDeviceQueueCreateInfo{
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             .pNext = nullptr,
@@ -841,7 +880,10 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
     array<VkQueue, 2> queues{};
     vkGetDeviceQueue(raw_ptr(logical_device), queue_graphics, 0, &queues[0]);
-    vkGetDeviceQueue(raw_ptr(logical_device), queue_transfer, (queue_transfer == queue_graphics), &queues[1]);
+    vkGetDeviceQueue(raw_ptr(logical_device), queue_transfer, (queue_transfer != queue_graphics), &queues[1]);
+    XR_LOG_INFO("Queue ids: graphics {}, transfer {}",
+                static_cast<const void*>(queues[0]),
+                static_cast<const void*>(queues[1]));
 
     XR_LOG_INFO("Device created successfully");
 
@@ -896,7 +938,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 return tl::nullopt;
             }
 
-            // XR_LOG_INFO("Surface capabilities: {}", surface_caps);
+            XR_LOG_INFO("Surface capabilities: {}", surface_caps);
 
             small_vec_4<VkSurfaceFormatKHR> supported_surface_fmts{ [device = pd->device, surface]() {
                 small_vec_4<VkSurfaceFormatKHR> fmts;
@@ -953,7 +995,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                         static_cast<uint32_t>(*best_preferred_supported_mode),
                         vk::to_string(static_cast<vk::PresentModeKHR>(*best_preferred_supported_mode)));
 
-            const uint32_t swapchain_image_count = min(surface_caps.minImageCount + 2, surface_caps.maxImageCount);
+            const uint32_t swapchain_image_count = [&surface_caps]() {
+                if (surface_caps.maxImageCount == 0) {
+                    //
+                    // no limit for the maximum number of images
+                    return surface_caps.minImageCount + 4;
+                }
+                return min(surface_caps.minImageCount + 4, surface_caps.maxImageCount);
+            }();
+
             const VkExtent3D swapchain_dimensions = swl::visit(
                 VariantVisitor {
 #if defined(XRAY_OS_IS_WINDOWS)
@@ -1002,6 +1052,39 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         return tl::nullopt;
     }
 
+    //
+    // descriptor pool
+    xrUniqueVkDescriptorPool dpool{
+        [device = raw_ptr(logical_device)]() {
+            const VkDescriptorPoolSize pool_sizes[] = {
+                { .type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1024 },
+                { .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1024 },
+                { .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 1024 },
+            };
+
+            const VkDescriptorPoolCreateInfo pool_create_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+                .maxSets = 1024,
+                .poolSizeCount = static_cast<uint32_t>(std::size(pool_sizes)),
+                .pPoolSizes = pool_sizes,
+            };
+
+            VkDescriptorPool pool{ nullptr };
+            WRAP_VULKAN_FUNC(vkCreateDescriptorPool, device, &pool_create_info, nullptr, &pool);
+            return pool;
+        }(),
+        VkResourceDeleter_VkDescriptorPool{ raw_ptr(logical_device) },
+    };
+
+    if (!dpool) {
+        XR_LOG_ERR("Failed to create descriptor pool !");
+        return tl::nullopt;
+    }
+
+    //
+    // queues
     vector<detail::Queue> qs{ [&]() {
         const array<uint32_t, 2> queue_flags{ VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
                                               VK_COMMAND_POOL_CREATE_TRANSIENT_BIT };
@@ -1028,6 +1111,8 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         return qs;
     }() };
 
+    //
+    // command buffers
     vector<VkCommandBuffer> command_buffers{ [&]() {
         const VkCommandBufferAllocateInfo cmd_buff_alloc_info = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -1084,16 +1169,19 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             },
             std::move(swapchain),
             std::move(command_buffers),
-        });
+        },
+        detail::DescriptorPoolState{ std::move(dpool) });
 }
 
 VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
                                detail::InstanceState instance_state,
                                detail::RenderState render_state,
-                               detail::PresentationState presentation_state)
+                               detail::PresentationState presentation_state,
+                               detail::DescriptorPoolState dpool)
     : _instance_state{ std::move(instance_state) }
     , _render_state{ std::move(render_state) }
     , _presentation_state{ std::move(presentation_state) }
+    , _dpool_state{ std::move(dpool) }
 {
 }
 
@@ -1492,6 +1580,13 @@ VulkanRenderer::wait_device_idle() noexcept
     WRAP_VULKAN_FUNC(vkDeviceWaitIdle, this->device());
 }
 
+uint32_t
+xray::rendering::VulkanRenderer::find_allocation_memory_type(const uint32_t memory_requirements,
+                                                             const VkMemoryPropertyFlags required_flags) const noexcept
+{
+    return vk_find_allocation_memory_type(_render_state.dev_physical.memory, memory_requirements, required_flags);
+}
+
 tl::optional<ManagedUniqueBuffer>
 VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
                               const size_t bytes,
@@ -1557,7 +1652,7 @@ VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .pNext = nullptr,
         .allocationSize = mem_req.memoryRequirements.size,
-        .memoryTypeIndex = find_allocation_memory_type(
+        .memoryTypeIndex = vk_find_allocation_memory_type(
             _render_state.dev_physical.memory, mem_req.memoryRequirements.memoryTypeBits, memory_properties),
     };
 
@@ -1591,7 +1686,7 @@ UniqueMemoryMapping::create(VkDevice device,
 
 {
     void* mapped_addr{};
-    WRAP_VULKAN_FUNC(vkMapMemory, device, memory, offset, size, flags, &mapped_addr);
+    WRAP_VULKAN_FUNC(vkMapMemory, device, memory, offset, size == 0 ? VK_WHOLE_SIZE : 0, flags, &mapped_addr);
     if (!mapped_addr)
         return tl::nullopt;
 
@@ -1601,7 +1696,7 @@ UniqueMemoryMapping::create(VkDevice device,
 UniqueMemoryMapping::~UniqueMemoryMapping()
 {
     if (_mapped_memory) {
-        const VkMappedMemoryRange mapped_memory_range = {
+        const VkMappedMemoryRange mapped_memory_range{
             .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
             .pNext = nullptr,
             .memory = _device_memory,
@@ -2139,7 +2234,7 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
                     .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
                     .pNext = nullptr,
                     .allocationSize = mem_req.size,
-                    .memoryTypeIndex = find_allocation_memory_type(
+                    .memoryTypeIndex = vk_find_allocation_memory_type(
                         create_info.mem_props, mem_req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
                 };
 
