@@ -20,8 +20,31 @@ source_group(code FILES ${project_sources})
 source_group(shaders FILES ${shader_files})
 source_group(configuration FILES ${config_files})
 
-add_executable(${PROJECT_NAME} ${project_sources} ${shader_files}
-                               ${config_files})
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBGIT2 REQUIRED IMPORTED_TARGET libgit2)
+
+add_executable(build-info-tool ${proj_src_dir}/build-info-tool.cc)
+target_compile_features(build-info-tool PRIVATE cxx_std_20)
+target_link_libraries(build-info-tool PRIVATE PkgConfig::LIBGIT2 fmt::fmt)
+
+set(OVERWRITE_APP_CONFIG
+    FALSE
+    CACHE BOOL "Redirect shader directory to the source directory" FORCE)
+
+add_custom_target(
+  WriteBuildInfo
+  COMMAND build-info-tool "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin"
+          --write-build-info
+  BYPRODUCTS "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
+  COMMENT "::: Running build-info-tool (custom target) :::"
+  VERBATIM)
+
+add_executable(
+  ${PROJECT_NAME}
+  ${project_sources} "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
+  ${shader_files} ${config_files})
+
+add_dependencies(${PROJECT_NAME} WriteBuildInfo)
 
 set_target_properties(
   ${PROJECT_NAME}
@@ -33,8 +56,9 @@ set_target_properties(
              "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib")
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
-target_include_directories(${PROJECT_NAME} PRIVATE ${proj_inc_dir}
-                                                   ${proj_src_dir})
+target_include_directories(
+  ${PROJECT_NAME} PRIVATE ${proj_inc_dir} ${proj_src_dir}
+                          "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin")
 
 target_link_libraries(
   ${PROJECT_NAME}
@@ -52,46 +76,33 @@ target_link_libraries(
           reflectcpp
           spdlog::spdlog)
 
-cmake_language(
-  EVAL
-  CODE
-  [=[
-get_target_property(target_output_directory ${PROJECT_NAME} RUNTIME_OUTPUT_DIRECTORY)
-file(GENERATE OUTPUT "${target_output_directory}/config/app_config.override.conf"
-CONTENT "
-directories : {
-    root_win = \"c:/games/xray\";
-    root = \"/home/adi/games/xray\";
-    models = \"assets/models\";
-    textures = \"assets/textures\";
-    shaders = \"${CMAKE_CURRENT_SOURCE_DIR}/shaders\";
-};"
-CONDITION $<CONFIG:Debug>
-NEWLINE_STYLE UNIX)
-]=])
-
 get_target_property(target_output_directory ${PROJECT_NAME}
                     RUNTIME_OUTPUT_DIRECTORY)
-add_custom_target(
-  COPY_SHADERS ALL
+
+add_custom_command(
+  TARGET ${PROJECT_NAME}
+  POST_BUILD
+  # COPY_SHADERS ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders
           ${target_output_directory}/shaders
   COMMENT "::: Copying shader files :::")
 
-add_custom_target(
-  COPY_CONFIG_FILES ALL
+add_custom_command(
+  TARGET ${PROJECT_NAME}
+  POST_BUILD
+  # COPY_CONFIG_FILES ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/config
           ${target_output_directory}/config
   COMMENT "::: Copying configuration files :::")
 
-add_custom_target(
-  OVERWRITE_APP_CONFIG ALL
+add_custom_command(
+  TARGET ${PROJECT_NAME}
+  POST_BUILD
   COMMAND
-    ${CMAKE_COMMAND} -E copy
-    "${target_output_directory}/config/app_config.override.conf"
-    "${target_output_directory}/config/app_config.conf"
-  # DEPENDS COPY_CONFIG_FILES
-  COMMENT
-    "::: WARNING: overwriting main configuration file with a custom one ! :::")
-
-add_dependencies(OVERWRITE_APP_CONFIG COPY_CONFIG_FILES)
+    build-info-tool
+    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin>
+    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:--write-app-config=${PROJECT_SOURCE_DIR}/shaders>
+  BYPRODUCTS
+    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:"${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/config/app_config.conf">
+  COMMENT "::: Running build-info-tool (overwriting app_config.conf) :::"
+  VERBATIM)

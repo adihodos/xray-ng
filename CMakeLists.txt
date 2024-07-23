@@ -32,6 +32,10 @@ cpmaddpackage(
   OPTIONS
   "BUILD_TESTING OFF")
 
+# cpmaddpackage( NAME ktx-tools GITHUB_REPOSITORY KhronosGroup/KTX-Software
+# GIT_TAG v4.3.2 OPTIONS "KTX_FEATURE_STATIC_LIBRARY ON" "KTX_FEATURE_DOC OFF"
+# "KTX_FEATURE_VK_UPLOAD OFF")
+#
 cpmaddpackage(
   NAME
   cpp-lazy
@@ -98,11 +102,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(xray-set-compile-options-lib INTERFACE)
 set(debug_flags -ggdb3 -O0)
+
 target_compile_options(xray-set-compile-options-lib
                        INTERFACE $<$<CONFIG:Debug>:${debug_flags}>)
+
 target_compile_definitions(
   xray-set-compile-options-lib INTERFACE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
                                          XRAY_MATH_ENABLE_FMT_SUPPORT)
+
 set(gcc_like_cxx "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU>")
 
 # if (MSVC) option(XRAY_USE_DIRECTX11 "DirectX 11" OFF) endif()

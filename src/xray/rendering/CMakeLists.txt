@@ -86,6 +86,8 @@ target_compile_definitions(
   PUBLIC XRAY_GRAPHICS_API_VULKAN
   PRIVATE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>)
 
+find_package(Ktx REQUIRED)
+
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC xray-glloader
@@ -96,5 +98,5 @@ target_link_libraries(
          itlib::itlib
          Vulkan::Vulkan
          swl-variant
-  PRIVATE TBB::tbb cpp-lazy::cpp-lazy Vulkan::shaderc_combined
+  PRIVATE TBB::tbb cpp-lazy::cpp-lazy Vulkan::shaderc_combined ktx
           spirv-reflect-static $<$<PLATFORM_ID:Linux>:Xinerama>)

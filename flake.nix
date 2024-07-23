@@ -28,6 +28,9 @@
             gcc
             gdb
             seer
+            libgit2
+            libgit2.dev
+            openssl
             #pwndbg
             #gef
             gf
@@ -45,6 +48,8 @@
             vulkan-utility-libraries
             vulkan-caps-viewer
             vulkan-validation-layers
+            ktx-tools
+            zed-editor
 
             shaderc
             shaderc.bin

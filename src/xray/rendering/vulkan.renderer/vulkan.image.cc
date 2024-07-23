@@ -2,6 +2,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
+
 tl::expected<xray::rendering::ManagedImage, xray::rendering::VulkanError>
 xray::rendering::ManagedImage::create(xray::rendering::VulkanRenderer& renderer,
                                       const VkImageCreateInfo& img_create_info,

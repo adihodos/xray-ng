@@ -74,7 +74,7 @@ xray::base::setup_logging()
 {
     spdlog::init_thread_pool(8192, 1);
     auto stdout_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
-    auto rotating_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("app.log", true);
+    auto rotating_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("xray.log", true);
     std::vector<spdlog::sink_ptr> sinks{ stdout_sink, rotating_sink };
 
     // auto logger = std::make_shared<spdlog::async_logger>(

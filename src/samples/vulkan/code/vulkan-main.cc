@@ -28,6 +28,7 @@
 
 /// \file main.cc
 
+#include "build.config.hpp"
 #include "xray/xray.hpp"
 
 #include <algorithm>
@@ -199,7 +200,9 @@ MainRunner::create()
 
     xray::base::setup_logging();
 
-    XR_LOG_INFO("Starting up ...");
+    XR_LOG_INFO("Xray source commit: {}, built on {}",
+                xray::build::config::commit_hash_str,
+                xray::build::config::build_date_time);
 
     const int num_threads = oneapi::tbb::info::default_concurrency();
     XR_LOG_INFO("Default concurency {}", num_threads);
@@ -750,6 +753,7 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 int
 main(int argc, char** argv)
 {
+
     app::MainRunner::create().map_or_else(
         [](app::MainRunner runner) {
             runner.run();
