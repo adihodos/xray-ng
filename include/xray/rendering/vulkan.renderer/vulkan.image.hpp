@@ -2,6 +2,8 @@
 
 #include "xray/xray.hpp"
 
+#include <filesystem>
+
 #include <tl/expected.hpp>
 
 #include <vulkan/vulkan.h>
@@ -26,6 +28,9 @@ class ManagedImage
         VulkanRenderer& renderer,
         const VkImageCreateInfo& img_create_info,
         const VkMemoryPropertyFlags image_memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    static tl::expected<ManagedImage, VulkanError> from_file(VulkanRenderer& renderer,
+                                                             const std::filesystem::path& texture_file);
 };
 
 }

@@ -66,6 +66,8 @@ dvk::TriangleDemo::TriangleDemo(PrivateConstructionToken,
 xray::base::unique_pointer<app::DemoBase>
 dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 {
+    const char* const tex_file{ "skyboxes/skybox/skybox1/skybox.bc5.ktx2" };
+    auto pixel_buffer{ ManagedImage::from_file(*init_ctx.renderer, init_ctx.cfg->texture_path(tex_file)) };
     tl::optional<GraphicsPipeline> pipeline{
         GraphicsPipelineBuilder{}
             .add_shader(ShaderStage::Vertex, init_ctx.cfg->shader_root() / "triangle/tri.vert")
@@ -76,28 +78,6 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 
     if (!pipeline)
         return nullptr;
-
-    auto pixel_buffer{
-        ManagedImage::create(*init_ctx.renderer,
-                             VkImageCreateInfo{
-                                 .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                 .pNext = nullptr,
-                                 .flags = 0,
-                                 .imageType = VK_IMAGE_TYPE_3D,
-                                 .format = VK_FORMAT_R8G8B8A8_UNORM,
-                                 .extent = VkExtent3D{ .width = 1024, .height = 1024, .depth = 3 },
-                                 .mipLevels = 1,
-                                 .arrayLayers = 1,
-                                 .samples = VK_SAMPLE_COUNT_1_BIT,
-                                 .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                 .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                                 .queueFamilyIndexCount = 0,
-                                 .pQueueFamilyIndices = nullptr,
-                                 .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                             },
-                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-    };
 
     // if (!pixel_buffer) {
     //     XR_LOG_ERR("Error creating image {}", pixel_buffer.error());
