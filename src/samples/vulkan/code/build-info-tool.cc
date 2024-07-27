@@ -12,6 +12,9 @@
 
 #include <git2.h>
 
+#include <pwd.h>
+#include <unistd.h>
+
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -85,12 +88,33 @@ write_build_info(const fs::path& output_dir)
     // }
     //
 
+    const uid_t user_id = getuid();
+
+    const string user_info = [user_id]() {
+        vector<uint8_t> temp_buffer;
+        const auto bsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+        temp_buffer.resize(bsize > 0 ? static_cast<size_t>(bsize) : 16384);
+
+        passwd user_data;
+        passwd* result{};
+        getpwuid_r(user_id, &user_data, reinterpret_cast<char*>(temp_buffer.data()), temp_buffer.size(), &result);
+        return fmt::format(
+            "{} ({}) :: {}", result ? result->pw_name : "unknown", result ? result->pw_gecos : "unknown", user_id);
+    }();
+
+    char hostname[HOST_NAME_MAX];
+    if (gethostname(hostname, size(hostname)) != 0) {
+        snprintf(hostname, size(hostname), "unknown host");
+    }
+
     static constexpr const char* build_file_contents = R"(
 #pragma once
 
 namespace xray::build::config {{
 static constexpr const char* const commit_hash_str = "{commit_hash_str}";
 static constexpr const char* const build_date_time = "{build_time}";
+static constexpr const char* const user_info = "{user_info}";
+static constexpr const char* const machine_info = "{machine_info}";
 }};
 
 )";
@@ -105,10 +129,13 @@ static constexpr const char* const build_date_time = "{build_time}";
     chrono::zoned_time zt{ chrono::current_zone()->name(), chrono::system_clock::now() };
     stringstream stime;
     stime << zt;
+
     fmt::print(out_file.get(),
                build_file_contents,
                fmt::arg("commit_hash_str", commit_sha1),
-               fmt::arg("build_time", stime.str()));
+               fmt::arg("build_time", stime.str()),
+               fmt::arg("user_info", user_info),
+               fmt::arg("machine_info", hostname));
 
     return EXIT_SUCCESS;
 }

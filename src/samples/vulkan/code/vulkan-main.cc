@@ -200,9 +200,11 @@ MainRunner::create()
 
     xray::base::setup_logging();
 
-    XR_LOG_INFO("Xray source commit: {}, built on {}",
+    XR_LOG_INFO("Xray source commit: {}, built on {}, user {}, machine {}",
                 xray::build::config::commit_hash_str,
-                xray::build::config::build_date_time);
+                xray::build::config::build_date_time,
+                xray::build::config::user_info,
+                xray::build::config::machine_info);
 
     const int num_threads = oneapi::tbb::info::default_concurrency();
     XR_LOG_INFO("Default concurency {}", num_threads);
