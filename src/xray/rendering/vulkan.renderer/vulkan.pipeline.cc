@@ -1,4 +1,4 @@
-#include "xray/rendering/vulkan.renderer/vulkan.pipeline.builder.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 
 #include <span>
 #include <vector>
@@ -21,6 +21,7 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/rangeless/fn.hpp"
+#include "xray/base/veneers/sequence_container_veneer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
@@ -209,14 +210,14 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
                 .descriptorCount = span{ reflected_binding->array.dims,
                                          reflected_binding->array.dims + reflected_binding->array.dims_count } %
                                    fn::foldl(1u, [](uint32_t a, const uint32_t i) { return a * i; }),
-                .stageFlags = VK_SHADER_STAGE_ALL,
+                .stageFlags = shader_module.GetShaderStage(),
                 .pImmutableSamplers = nullptr,
             };
 
             descriptor_set_layout_bindings.push_back(descriptor_set_layout_binding);
         }
 
-        dsets.emplace(idx, std::move(descriptor_set_layout_bindings));
+        dsets.emplace(reflected_set->set, std::move(descriptor_set_layout_bindings));
     }
 
     uint32_t push_constants_count{};
@@ -326,17 +327,25 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
     small_vec_4<ShaderModuleWithSpirVBlob> shader_modules;
     vector<VkPipelineShaderStageCreateInfo> shader_stage_create_info;
 
-    for (const pair<uint32_t, ShaderModuleSource>& e : _stage_modules) {
-        const auto& [shader_stage, shader_source] = e;
-        tl::optional<ShaderModuleWithSpirVBlob> shader_with_spirv{
-            [s = &shader_source, shader_stage, device, shader_opt = _optimize_shaders]() {
-                if (const std::string_view* sv = swl::get_if<std::string_view>(s)) {
+    const initializer_list<uint32_t> shader_stages{
+        static_cast<uint32_t>(VK_SHADER_STAGE_VERTEX_BIT),
+        static_cast<uint32_t>(VK_SHADER_STAGE_GEOMETRY_BIT),
+        static_cast<uint32_t>(VK_SHADER_STAGE_FRAGMENT_BIT),
+    };
 
+    for (const uint32_t stage : shader_stages) {
+        if (!_stage_modules.contains(stage))
+            continue;
+
+        const auto& shader_source = _stage_modules[stage];
+        tl::optional<ShaderModuleWithSpirVBlob> shader_with_spirv{
+            [s = &shader_source, stage, device, shader_opt = _optimize_shaders]() {
+                if (const std::string_view* sv = swl::get_if<std::string_view>(s)) {
                     return create_shader_module_from_string(
                         device,
                         *sv,
                         "string_view_shader",
-                        *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(shader_stage)),
+                        *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
                         shader_opt);
                 } else {
                     return create_shader_module_from_file(device, *swl::get_if<filesystem::path>(s), false);
@@ -352,7 +361,7 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         shader_stage_create_info.emplace_back(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                                               nullptr,
                                               0,
-                                              static_cast<VkShaderStageFlagBits>(shader_stage),
+                                              static_cast<VkShaderStageFlagBits>(stage),
                                               base::raw_ptr(shader_with_spirv->module),
                                               "main",
                                               nullptr);
@@ -363,10 +372,10 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 
     assert(_stage_modules.size() == shader_modules.size());
 
-    vector<xrUniqueVkDescriptorSetLayout> descriptor_set_layouts{};
-    vector<VkPushConstantRange> push_constant_ranges{};
-    tl::optional<pair<uint32_t, vector<VkVertexInputAttributeDescription>>> vertex_input_state;
-
+    //
+    // reflect all compiled shader modules and extract info
+    vector<SpirVReflectionResult> reflected_shaders{};
+    uint32_t descriptor_set_count{ 0 };
     for (const ShaderModuleWithSpirVBlob& smb : shader_modules) {
         tl::optional<SpirVReflectionResult> reflect_result{ parse_spirv_binary(device, smb.spirv) };
         if (!reflect_result) {
@@ -374,41 +383,95 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
             return tl::nullopt;
         }
 
-        reflect_result.take()
-            .and_then([&descriptor_set_layouts, device, &push_constant_ranges](SpirVReflectionResult reflection) {
-                for (const pair<uint32_t, vector<VkDescriptorSetLayoutBinding>>& set_with_bindings :
-                     reflection.descriptor_sets_layout_bindings) {
+        descriptor_set_count =
+            std::max(descriptor_set_count,
+                     lz::chain(reflect_result->descriptor_sets_layout_bindings)
+                         .map([](const pair<uint32_t, vector<VkDescriptorSetLayoutBinding>>& e) { return e.first; })
+                         .max());
 
-                    const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
-                        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-                        .pNext = nullptr,
-                        .flags = 0,
-                        .bindingCount = static_cast<uint32_t>(set_with_bindings.second.size()),
-                        .pBindings = set_with_bindings.second.data()
-                    };
+        reflected_shaders.push_back(std::move(*reflect_result.take()));
+    }
 
-                    VkDescriptorSetLayout set_layout{};
-                    WRAP_VULKAN_FUNC(
-                        vkCreateDescriptorSetLayout, device, &descriptor_set_layout_create_info, nullptr, &set_layout);
-                    descriptor_set_layouts.emplace_back(set_layout, VkResourceDeleter_VkDescriptorSetLayout{ device });
-                }
+    xray::base::sequence_container_veneer<vector<VkDescriptorSetLayout>, VkResourceDeleter_VkDescriptorSetLayout>
+        desc_set_layouts{ VkResourceDeleter_VkDescriptorSetLayout{ device } };
 
-                push_constant_ranges = std::move(reflection.push_constants);
+    if (descriptor_set_count != 0) {
+        // desc_set_layouts.reserve(descriptor_set_count + 1);
+        desc_set_layouts.resize(descriptor_set_count + 1, nullptr);
+    }
 
-                for (const VkPushConstantRange& pcr : reflection.push_constants) {
-                    XR_LOG_INFO("Push constant range {{ .size = {}, .offset = {}, .stageFlags = {} }}",
-                                pcr.size,
-                                pcr.offset,
-                                pcr.stageFlags);
-                }
+    vector<VkPushConstantRange> push_constant_ranges{};
+    tl::optional<pair<uint32_t, vector<VkVertexInputAttributeDescription>>> vertex_input_state;
 
-                return reflection.vertex_inputs;
-            })
-            .map([&vertex_input_state](pair<uint32_t, vector<VkVertexInputAttributeDescription>> ia) {
+    //
+    // some stuff gets yoinked from reflection via std::move
+    for (SpirVReflectionResult& reflection : reflected_shaders) {
+        for (const pair<uint32_t, vector<VkDescriptorSetLayoutBinding>>& set_with_bindings :
+             reflection.descriptor_sets_layout_bindings) {
+
+            const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .bindingCount = static_cast<uint32_t>(set_with_bindings.second.size()),
+                .pBindings = set_with_bindings.second.data()
+            };
+
+            VkDescriptorSetLayout set_layout{};
+            WRAP_VULKAN_FUNC(
+                vkCreateDescriptorSetLayout, device, &descriptor_set_layout_create_info, nullptr, &set_layout);
+
+            if (!set_layout) {
+                return tl::nullopt;
+            }
+
+            desc_set_layouts[set_with_bindings.first] = set_layout;
+        }
+
+        for (const VkPushConstantRange& pcr : reflection.push_constants) {
+            XR_LOG_INFO("Push constant range {{ .size = {}, .offset = {}, .stageFlags = {} }}",
+                        pcr.size,
+                        pcr.offset,
+                        pcr.stageFlags);
+        }
+
+        push_constant_ranges = std::move(reflection.push_constants);
+        //
+        // if this was a vertex shader reflection object extract the vertex inputs
+        reflection.vertex_inputs.take().map(
+            [&vertex_input_state](pair<uint32_t, vector<VkVertexInputAttributeDescription>> ia) {
                 assert(!vertex_input_state.has_value());
-
                 vertex_input_state = std::move(ia);
             });
+    }
+
+    //
+    // plug layout holes
+    const bool layout_holes =
+        ranges::any_of(desc_set_layouts, [](VkDescriptorSetLayout dsl) { return dsl != nullptr; });
+
+    if (layout_holes) {
+        const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .bindingCount = 0,
+            .pBindings = nullptr,
+        };
+
+        VkDescriptorSetLayout set_layout{};
+        WRAP_VULKAN_FUNC(vkCreateDescriptorSetLayout, device, &descriptor_set_layout_create_info, nullptr, &set_layout);
+
+        if (!set_layout) {
+            return tl::nullopt;
+        }
+
+        for (size_t idx = 0; idx < desc_set_layouts.size(); ++idx) {
+            if (desc_set_layouts[idx])
+                continue;
+
+            desc_set_layouts[idx] = set_layout;
+        }
     }
 
     std::pmr::monotonic_buffer_resource buffer_resource{ 4096 };
@@ -435,19 +498,14 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 
     xrUniqueVkPipelineLayout pipeline_layout{
         [&]() {
-            const small_vec_4<VkDescriptorSetLayout> dsl =
-                lz::chain(descriptor_set_layouts)
-                    .map([](const xrUniqueVkDescriptorSetLayout& layout) { return base::raw_ptr(layout); })
-                    .to<small_vec_4<VkDescriptorSetLayout>>();
-
             const VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                 .pNext = nullptr,
                 .flags = 0,
-                .setLayoutCount = static_cast<uint32_t>(dsl.size()),
-                .pSetLayouts = dsl.data(),
+                .setLayoutCount = static_cast<uint32_t>(desc_set_layouts.size()),
+                .pSetLayouts = desc_set_layouts.empty() ? nullptr : desc_set_layouts.data(),
                 .pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size()),
-                .pPushConstantRanges = push_constant_ranges.data()
+                .pPushConstantRanges = push_constant_ranges.empty() ? nullptr : push_constant_ranges.data(),
             };
 
             VkPipelineLayout pipeline_layout{};
@@ -711,18 +769,28 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .basePipelineIndex = 0
     };
 
-    xrUniqueVkPipeline pipeline{
-        [&]() {
-            VkPipeline pipeline{};
-            WRAP_VULKAN_FUNC(
-                vkCreateGraphicsPipelines, device, nullptr, 1, &graphics_pipeline_create_info, nullptr, &pipeline);
-            return pipeline;
-        }(),
-        VkResourceDeleter_VkPipeline{ device },
-    };
+    VkPipeline pipeline{};
+    const VkResult pipeline_create_result = WRAP_VULKAN_FUNC(
+        vkCreateGraphicsPipelines, device, nullptr, 1, &graphics_pipeline_create_info, nullptr, &pipeline);
 
+    if (pipeline_create_result != VK_SUCCESS) {
+        return tl::nullopt;
+    }
+
+    desc_set_layouts.clear();
     return tl::make_optional<GraphicsPipeline>(
-        std::move(pipeline), std::move(pipeline_layout), std::move(descriptor_set_layouts));
+        pipeline, xray::base::unique_pointer_release(pipeline_layout), std::move(desc_set_layouts));
+}
+
+void
+GraphicsPipeline::release_resources(VkDevice device, const VkAllocationCallbacks* alloc_cb)
+{
+    for (VkDescriptorSetLayout dsl : descriptor_set_layout) {
+        WRAP_VULKAN_FUNC(vkDestroyDescriptorSetLayout, device, dsl, alloc_cb);
+    }
+
+    WRAP_VULKAN_FUNC(vkDestroyPipelineLayout, device, layout, alloc_cb);
+    WRAP_VULKAN_FUNC(vkDestroyPipeline, device, pipeline, alloc_cb);
 }
 
 } // namespace xray::rendering

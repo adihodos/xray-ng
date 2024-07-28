@@ -28,7 +28,7 @@ target_compile_features(build-info-tool PRIVATE cxx_std_20)
 target_link_libraries(build-info-tool PRIVATE PkgConfig::LIBGIT2 fmt::fmt)
 
 set(OVERWRITE_APP_CONFIG
-    FALSE
+    TRUE
     CACHE BOOL "Redirect shader directory to the source directory" FORCE)
 
 add_custom_target(

@@ -207,7 +207,8 @@ MainRunner::create()
                 xray::build::config::machine_info);
 
     const int num_threads = oneapi::tbb::info::default_concurrency();
-    XR_LOG_INFO("Default concurency {}", num_threads);
+    XR_LOG_INFO(
+        "Default concurency {}\nWorking directory {}", num_threads, std::filesystem::current_path().generic_string());
 
     static ConfigSystem app_cfg{ "config/app_config.conf" };
     xr_app_config = &app_cfg;

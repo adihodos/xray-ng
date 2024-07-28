@@ -63,12 +63,14 @@ set(vk-proj-src-dir "${PROJECT_SOURCE_DIR}/vulkan.renderer")
 set(vk-project-sources
     ${vk-proj-inc-dir}/vulkan.renderer.hpp
     ${vk-proj-src-dir}/vulkan.renderer.cc
-    ${vk-proj-inc-dir}/vulkan.pipeline.builder.hpp
-    ${vk-proj-src-dir}/vulkan.pipeline.builder.cc
+    ${vk-proj-inc-dir}/vulkan.pipeline.hpp
+    ${vk-proj-src-dir}/vulkan.pipeline.cc
     ${vk-proj-inc-dir}/vulkan.image.hpp
     ${vk-proj-src-dir}/vulkan.image.cc
     ${vk-proj-inc-dir}/vulkan.error.hpp
-    ${vk-proj-src-dir}/vulkan.error.cc)
+    ${vk-proj-src-dir}/vulkan.error.cc
+    ${vk-proj-inc-dir}/vulkan.bindless.hpp
+    ${vk-proj-src-dir}/vulkan.bindless.cc)
 
 add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl}
                                    ${vk-project-sources})

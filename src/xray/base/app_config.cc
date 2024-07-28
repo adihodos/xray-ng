@@ -2,6 +2,8 @@
 #include "xray/base/config_settings.hpp"
 #include "xray/base/logger.hpp"
 
+#include <filesystem>
+
 using namespace xray::base;
 
 xray::base::ConfigSystem* xray::base::ConfigSystem::_unique_instance;
@@ -22,8 +24,15 @@ xray::base::ConfigSystem::ConfigSystem(const char* cfg_path /*= nullptr*/)
 
     const auto config_file_path = cfg_path ? cfg_path : "config/app_config.conf";
 
+    namespace fs = std::filesystem;
+    const fs::path absolute_path{ fs::absolute(config_file_path) };
+
+    assert(fs::exists(absolute_path));
+    assert(fs::file_size(absolute_path) > 0);
+
     config_file app_conf_file;
-    if (!app_conf_file.read_file(config_file_path)) {
+    if (!app_conf_file.read_file(absolute_path.generic_string().c_str())) {
+        XR_LOG_CRITICAL("Could not open configuration file {}", absolute_path.generic_string());
         return;
     }
 
@@ -37,6 +46,7 @@ xray::base::ConfigSystem::ConfigSystem(const char* cfg_path /*= nullptr*/)
 #endif
 
     if (!app_conf_file.lookup_value(ROOT_DIR_ENTRY, root_dir)) {
+        XR_LOG_CRITICAL("Missing {} in config file", ROOT_DIR_ENTRY);
         return;
     }
 

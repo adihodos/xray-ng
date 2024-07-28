@@ -4,6 +4,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 
 #include <string_view>
+#include <span>
 #include <unordered_map>
 #include <vector>
 #include <filesystem>
@@ -13,6 +14,25 @@
 #include <tl/optional.hpp>
 
 namespace xray::rendering {
+
+class VulkanRenderer;
+
+//
+// TODO: there's way too many redundant VkDevice handles inside of all
+// these unique handle objects, needs redesigning to avoid this and reduce the
+// memory footprint
+struct GraphicsPipeline
+{
+    VkPipeline pipeline{ nullptr };
+    VkPipelineLayout layout{ nullptr };
+    std::vector<VkDescriptorSetLayout> descriptor_set_layout;
+
+    std::span<const VkDescriptorSetLayout> descriptor_sets() const noexcept
+    {
+        return std::span{ descriptor_set_layout };
+    }
+    void release_resources(VkDevice device, const VkAllocationCallbacks* alloc_cb = nullptr);
+};
 
 struct ShaderStage
 {
@@ -42,8 +62,6 @@ struct DepthStencilState
     float min_depth{ 0.0f };
     float max_depth{ 1.0f };
 };
-
-class VulkanRenderer;
 
 class GraphicsPipelineBuilder
 {

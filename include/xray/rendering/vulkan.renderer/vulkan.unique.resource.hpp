@@ -24,6 +24,7 @@ struct VulkanResourceDeleterBase
 {
     using pointer = VulkanResourceType;
 
+    VulkanResourceDeleterBase() = default;
     explicit VulkanResourceDeleterBase(VulkanResourceOwner owner,
                                        const VkAllocationCallbacks* alloc_cb = nullptr) noexcept
         : _owner{ owner }
@@ -82,22 +83,6 @@ XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkSemaphore, VkDevice, vkDestroySemaphore)
 XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkDescriptorPool, VkDevice, vkDestroyDescriptorPool)
 XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkBufferView, VkDevice, vkDestroyBufferView)
 XR_DECLARE_VULKAN_UNIQUE_RESOURCE(VkSampler, VkDevice, vkDestroySampler)
-
-struct GraphicsPipeline
-{
-    xrUniqueVkPipeline pipeline{ nullptr, VkResourceDeleter_VkPipeline{ nullptr } };
-    xrUniqueVkPipelineLayout layout{ nullptr, VkResourceDeleter_VkPipelineLayout{ nullptr } };
-    std::vector<xrUniqueVkDescriptorSetLayout> descriptor_set_layout;
-
-    VkPipeline pipeline_handle() const noexcept { return xray::base::raw_ptr(pipeline); }
-
-    VkPipelineLayout layout_handle() const noexcept { return xray::base::raw_ptr(layout); }
-
-    std::span<const xrUniqueVkDescriptorSetLayout> descriptor_sets_layout_range() const noexcept
-    {
-        return std::span{ descriptor_set_layout };
-    }
-};
 
 struct UniqueBuffer
 {
@@ -203,6 +188,30 @@ struct VkResourceDeleter<VkBuffer>
         XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         if (buffer)
             vkDestroyBuffer(device, buffer, alloc_cb);
+    }
+};
+
+template<>
+struct VkResourceDeleter<VkDescriptorPool>
+{
+    void operator()(VkDevice device, VkDescriptorPool dpool, const VkAllocationCallbacks* alloc_cb) const noexcept
+    {
+        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        if (dpool)
+            vkDestroyDescriptorPool(device, dpool, alloc_cb);
+    }
+};
+
+template<>
+struct VkResourceDeleter<VkPipelineLayout>
+{
+    void operator()(VkDevice device,
+                    VkPipelineLayout pipeline_layout,
+                    const VkAllocationCallbacks* alloc_cb) const noexcept
+    {
+        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        if (pipeline_layout)
+            vkDestroyPipelineLayout(device, pipeline_layout, alloc_cb);
     }
 };
 

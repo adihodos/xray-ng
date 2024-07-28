@@ -34,6 +34,7 @@
 #include "xray/base/array_dimension.hpp"
 #include "xray/base/maybe.hpp"
 #include "xray/xray.hpp"
+#include "xray/base/logger.hpp"
 #include <cassert>
 #include <cstdint>
 #include <libconfig.h>
@@ -756,6 +757,13 @@ inline bool
 config_file::read_file(const char* file_name) noexcept
 {
     valid_ = config_read_file(&conf_, file_name) == CONFIG_TRUE;
+    if (!valid_) {
+        XR_LOG_ERR("{} config error: type {}, {}:{}",
+                   file_name,
+                   static_cast<int32_t>(config_error_type(&conf_)),
+                   config_error_text(&conf_),
+                   config_error_line(&conf_));
+    }
     return valid_;
 }
 

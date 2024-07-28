@@ -7,7 +7,7 @@
 
 #include <itlib/small_vector.hpp>
 
-#include "xray/rendering/vulkan.renderer/vulkan.pipeline.builder.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/ui/events.hpp"
@@ -67,7 +67,20 @@ xray::base::unique_pointer<app::DemoBase>
 dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 {
     const char* const tex_file{ "skyboxes/skybox/skybox1/skybox.bc5.ktx2" };
-    auto pixel_buffer{ ManagedImage::from_file(*init_ctx.renderer, init_ctx.cfg->texture_path(tex_file)) };
+    auto pixel_buffer{
+        ManagedImage::from_file(*init_ctx.renderer,
+                                init_ctx.cfg->texture_path(tex_file),
+                                VK_IMAGE_USAGE_SAMPLED_BIT,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                VK_IMAGE_TILING_OPTIMAL),
+    };
+
+    if (!pixel_buffer) {
+        return nullptr;
+    }
+
+    auto [image, pkg_future] = std::move(*pixel_buffer);
+
     tl::optional<GraphicsPipeline> pipeline{
         GraphicsPipelineBuilder{}
             .add_shader(ShaderStage::Vertex, init_ctx.cfg->shader_root() / "triangle/tri.vert")
@@ -308,7 +321,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     const xray::math::scalar2x3<float> r = xray::math::R2::rotate(_angle);
     const std::array<float, 4> vkmtx{ r.a00, r.a01, r.a10, r.a11 };
 
-    vkCmdBindPipeline(frt.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline.pipeline_handle());
+    vkCmdBindPipeline(frt.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline.pipeline);
 
     struct PushConstants
     {
@@ -320,7 +333,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     };
 
     vkCmdPushConstants(frt.cmd_buf,
-                       _pipeline.layout_handle(),
+                       _pipeline.layout,
                        VK_SHADER_STAGE_ALL,
                        0,
                        static_cast<uint32_t>(sizeof(push_consts)),

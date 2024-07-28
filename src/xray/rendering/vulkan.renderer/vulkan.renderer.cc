@@ -1182,6 +1182,7 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
     , _render_state{ std::move(render_state) }
     , _presentation_state{ std::move(presentation_state) }
     , _dpool_state{ std::move(dpool) }
+    , _work_queue{ raw_ptr(_render_state.dev_logical), raw_ptr(graphics_queue().cmd_pool) }
 {
 }
 
@@ -1686,7 +1687,7 @@ UniqueMemoryMapping::create(VkDevice device,
 
 {
     void* mapped_addr{};
-    WRAP_VULKAN_FUNC(vkMapMemory, device, memory, offset, size == 0 ? VK_WHOLE_SIZE : 0, flags, &mapped_addr);
+    WRAP_VULKAN_FUNC(vkMapMemory, device, memory, offset, size == 0 ? VK_WHOLE_SIZE : size, flags, &mapped_addr);
     if (!mapped_addr)
         return tl::nullopt;
 
@@ -2355,4 +2356,205 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
                                                      });
 }
 
-} // namespace
+QueuableWorkPackage
+VulkanRenderer::create_work_package(const uint64_t image_size, const uint32_t copy_region_count)
+{
+    //
+    // TODO: reuse the resources instead of allocating new ones each time !
+    const VkBufferCreateInfo buffer_create_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .size = image_size,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+    };
+
+    VkDevice device{ raw_ptr(_render_state.dev_logical) };
+    VkBuffer staging_buffer{};
+    const VkResult result = WRAP_VULKAN_FUNC(vkCreateBuffer, device, &buffer_create_info, nullptr, &staging_buffer);
+
+    //
+    // TODO: error handling
+    assert(staging_buffer != nullptr);
+
+    _work_queue.staging_buffers.emplace_back(staging_buffer);
+
+    const VkBufferMemoryRequirementsInfo2 buf_mem_req_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+        .pNext = nullptr,
+        .buffer = staging_buffer,
+    };
+
+    VkMemoryRequirements2 buf_mem_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        .pNext = nullptr,
+    };
+    vkGetBufferMemoryRequirements2(device, &buf_mem_req_info, &buf_mem_info);
+
+    const VkMemoryAllocateFlagsInfo mem_alloc_flags{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .deviceMask = 0,
+    };
+    const VkMemoryAllocateInfo mem_alloc_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &mem_alloc_flags,
+        .allocationSize = buf_mem_info.memoryRequirements.size,
+        .memoryTypeIndex =
+            find_allocation_memory_type(buf_mem_info.memoryRequirements.memoryTypeBits,
+                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT),
+    };
+
+    VkDeviceMemory allocated_memory{};
+    const VkResult mem_alloc_result =
+        WRAP_VULKAN_FUNC(vkAllocateMemory, device, &mem_alloc_info, nullptr, &allocated_memory);
+
+    if (mem_alloc_result != VK_SUCCESS) {
+        // TODO: error handling! return nullptr;
+    }
+
+    _work_queue.staging_memory.emplace_back(allocated_memory);
+
+    const VkBindBufferMemoryInfo bind_memory_info{
+        .sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
+        .pNext = nullptr,
+        .buffer = staging_buffer,
+        .memory = allocated_memory,
+        .memoryOffset = 0,
+    };
+
+    const VkResult bind_mem_result = WRAP_VULKAN_FUNC(vkBindBufferMemory2, device, 1, &bind_memory_info);
+
+    if (bind_mem_result != VK_SUCCESS) {
+        // TODO: error handling! return nullptr;
+    }
+
+    const VkCommandBufferAllocateInfo cmd_buff_alloc_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .commandPool = raw_ptr(_render_state.queues[0].cmd_pool),
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    VkCommandBuffer cmd_buf{};
+    const VkResult cmd_buff_aloc_res =
+        WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, device, &cmd_buff_alloc_info, &cmd_buf);
+    if (cmd_buff_aloc_res != VK_SUCCESS) {
+        // TODO: error handling!!!
+    }
+
+    _work_queue.cmd_buffers.emplace_back(cmd_buf);
+
+    // TODO: might cause realloc + invalidate iterators/pointers
+    const size_t prev_region_count{ _work_queue.copy_regions.size() };
+    _work_queue.copy_regions.insert(_work_queue.copy_regions.end(), copy_region_count, VkBufferImageCopy{});
+
+    const VkCommandBufferBeginInfo cmd_buf_begin{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
+    vkBeginCommandBuffer(cmd_buf, &cmd_buf_begin);
+
+    return QueuableWorkPackage{
+        .staging_buffer = _work_queue.staging_buffers.back(),
+        .staging_memory = _work_queue.staging_memory.back(),
+        .command_buffer = _work_queue.cmd_buffers.back(),
+        .copy_region =
+            std::span{
+                _work_queue.copy_regions.begin() + prev_region_count,
+                static_cast<size_t>(copy_region_count),
+            },
+    };
+}
+
+WorkPackageFuture
+VulkanRenderer::submit_work_package(const QueuableWorkPackage& pkg)
+{
+    VkDevice device{ raw_ptr(_render_state.dev_logical) };
+
+    vkEndCommandBuffer(pkg.command_buffer);
+
+    const VkFenceCreateInfo fence_create_info{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+    };
+
+    VkFence package_fence{};
+    const VkResult fence_create_res =
+        WRAP_VULKAN_FUNC(vkCreateFence, device, &fence_create_info, nullptr, &package_fence);
+
+    if (fence_create_res != VK_SUCCESS) {
+        // TODO: error handling!!!
+    }
+
+    _work_queue.fences.emplace_back(package_fence);
+
+    const VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 0,
+        .pWaitSemaphores = nullptr,
+        .pWaitDstStageMask = 0,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &_work_queue.cmd_buffers[_work_queue.cmd_buffers.size() - 1],
+        .signalSemaphoreCount = 0,
+        .pSignalSemaphores = nullptr,
+    };
+
+    const VkResult submit_result =
+        WRAP_VULKAN_FUNC(vkQueueSubmit, graphics_queue().handle, 1, &submit_info, package_fence);
+
+    if (submit_result != VK_SUCCESS) {
+        // TODO: handler error !!!
+    }
+
+    return WorkPackageFuture{
+        .fence = package_fence,
+    };
+}
+
+WorkQueueImageCopyState::WorkQueueImageCopyState(VkDevice dev, VkCommandPool cmdpool)
+    : device{ dev }
+    , cmd_pool{ cmdpool }
+{
+    //
+    // should be enough to not cause these vectors to reallocate
+    static constexpr const size_t RESERVE_CAPACITY = 2048;
+    fences.reserve(RESERVE_CAPACITY);
+    submits.reserve(RESERVE_CAPACITY);
+    cmd_buffers.reserve(RESERVE_CAPACITY);
+    copy_regions.reserve(RESERVE_CAPACITY);
+    staging_memory.reserve(RESERVE_CAPACITY);
+    staging_buffers.reserve(RESERVE_CAPACITY);
+}
+
+void
+WorkQueueImageCopyState::release_resources()
+{
+    ranges::for_each(fences, VkResourceDeleter_VkFence{ device });
+
+    if (!cmd_buffers.empty()) {
+        vkFreeCommandBuffers(device, cmd_pool, cmd_buffers.size(), cmd_buffers.data());
+        cmd_buffers.clear();
+    }
+
+    submits.clear();
+    copy_regions.clear();
+    ranges::for_each(staging_memory, VkResourceDeleter_VkDeviceMemory{ device });
+    ranges::for_each(staging_buffers, VkResourceDeleter_VkBuffer{ device });
+}
+
+WorkQueueImageCopyState::~WorkQueueImageCopyState()
+{
+    release_resources();
+}
+
+} // namespace xray::rendering

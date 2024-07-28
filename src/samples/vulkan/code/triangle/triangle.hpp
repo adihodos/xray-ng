@@ -4,6 +4,7 @@
 #include "demo_base.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 
 namespace dvk {

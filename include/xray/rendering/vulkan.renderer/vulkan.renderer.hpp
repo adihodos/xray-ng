@@ -11,6 +11,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
 
 namespace swl {
 template<typename... Ts>
@@ -144,6 +145,30 @@ struct RenderBufferingSetup
     uint32_t buffers;
 };
 
+struct WorkQueueImageCopyState
+{
+    using fence_table_t = std::vector<VkFence>;
+
+    uint32_t batch_size{ 4 };
+    VkDevice device;
+    VkCommandPool cmd_pool;
+    fence_table_t fences;
+    std::vector<VkSubmitInfo> submits;
+    std::vector<VkCommandBuffer> cmd_buffers;
+    std::vector<VkBufferImageCopy> copy_regions;
+    std::vector<VkBuffer> staging_buffers;
+    std::vector<VkDeviceMemory> staging_memory;
+
+    WorkQueueImageCopyState(VkDevice dev, VkCommandPool cmdpool);
+    ~WorkQueueImageCopyState();
+
+    WorkQueueImageCopyState(const WorkQueueImageCopyState&) = delete;
+    WorkQueueImageCopyState& operator=(const WorkQueueImageCopyState&) = delete;
+    WorkQueueImageCopyState(WorkQueueImageCopyState&&) = default;
+
+    void release_resources();
+};
+
 class VulkanRenderer
 {
   private:
@@ -207,6 +232,11 @@ class VulkanRenderer
     uint32_t find_allocation_memory_type(const uint32_t memory_requirements,
                                          const VkMemoryPropertyFlags required_flags) const noexcept;
 
+    QueuableWorkPackage create_work_package(const uint64_t image_size, const uint32_t copy_region_count);
+
+    WorkPackageFuture submit_work_package(const QueuableWorkPackage& pkg);
+    void release_staging_resources() { _work_queue.release_resources(); }
+
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
     const detail::Queue& transfer_queue() const noexcept { return _render_state.queues[1]; }
@@ -215,6 +245,7 @@ class VulkanRenderer
     detail::RenderState _render_state;
     detail::PresentationState _presentation_state;
     detail::DescriptorPoolState _dpool_state;
+    WorkQueueImageCopyState _work_queue;
 };
 
 uint32_t

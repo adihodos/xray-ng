@@ -34,13 +34,15 @@ write_app_config(const fs::path& output_file, const fs::path& shader_redirect_di
 
     static constexpr const char* const cfg_ovr = R"(
 directories : {{ 
-    root_win = "c:/games/xray\"; 
+    root_win = "c:/games/xray"; 
     root = "/home/adi/games/xray";
     models = "assets/models"; 
+    fonts = "assets/fonts";
     textures = "assets/textures"; 
     shaders = "{shader_redirect_dir}";
 }};
     )";
+
     // fmt::print("::: Writing custom file: {} :::", output_file.generic_string());
     unique_ptr<FILE, FileDeleter> out_file{ fopen(output_file.generic_string().c_str(), "wt") };
     if (!out_file) {
@@ -99,12 +101,16 @@ write_build_info(const fs::path& output_dir)
         passwd* result{};
         getpwuid_r(user_id, &user_data, reinterpret_cast<char*>(temp_buffer.data()), temp_buffer.size(), &result);
         return fmt::format(
-            "{} ({}) :: {}", result ? result->pw_name : "unknown", result ? result->pw_gecos : "unknown", user_id);
+            "{} ({}, uid {})", result ? result->pw_name : "unknown", result ? result->pw_gecos : "unknown", user_id);
     }();
 
     char hostname[HOST_NAME_MAX];
-    if (gethostname(hostname, size(hostname)) != 0) {
-        snprintf(hostname, size(hostname), "unknown host");
+    if (const char* env_hostname = getenv("HOSTNAME")) {
+        snprintf(hostname, size(hostname), "%s", env_hostname);
+    } else {
+        if (gethostname(hostname, size(hostname)) != 0) {
+            snprintf(hostname, size(hostname), "unknown host");
+        }
     }
 
     static constexpr const char* build_file_contents = R"(
