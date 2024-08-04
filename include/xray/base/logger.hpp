@@ -41,7 +41,6 @@ enum class LogLevel : uint8_t
     Warn,
     Err,
     Critical,
-
 };
 
 void

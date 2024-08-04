@@ -1,7 +1,6 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 
 #include <string_view>
 #include <span>
@@ -12,6 +11,10 @@
 
 #include <swl/variant.hpp>
 #include <tl/optional.hpp>
+#include <tl/expected.hpp>
+
+#include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 
 namespace xray::rendering {
 
@@ -21,16 +24,40 @@ class VulkanRenderer;
 // TODO: there's way too many redundant VkDevice handles inside of all
 // these unique handle objects, needs redesigning to avoid this and reduce the
 // memory footprint
-struct GraphicsPipeline
-{
-    VkPipeline pipeline{ nullptr };
-    VkPipelineLayout layout{ nullptr };
-    std::vector<VkDescriptorSetLayout> descriptor_set_layout;
 
-    std::span<const VkDescriptorSetLayout> descriptor_sets() const noexcept
+class GraphicsPipelineBuilder;
+
+class GraphicsPipeline
+{
+  private:
+    friend class GraphicsPipelineBuilder;
+    struct BindlessLayout
     {
-        return std::span{ descriptor_set_layout };
+        VkPipelineLayout layout;
+        std::span<const VkDescriptorSetLayout> set_layouts;
+    };
+
+    struct OwnedLayout
+    {
+        VkPipelineLayout layout;
+        std::vector<VkDescriptorSetLayout> set_layouts;
+    };
+
+    using pipeline_layout_t = swl::variant<BindlessLayout, OwnedLayout>;
+
+    xrUniqueVkPipeline _pipeline{};
+    pipeline_layout_t _layout{};
+
+  public:
+    GraphicsPipeline(xrUniqueVkPipeline p, pipeline_layout_t p_layout)
+        : _pipeline{ std::move(p) }
+        , _layout{ std::move(p_layout) }
+    {
     }
+
+    std::span<const VkDescriptorSetLayout> descriptor_sets_layouts() const noexcept;
+    VkPipelineLayout layout() const noexcept;
+    VkPipeline handle() const noexcept { return xray::base::raw_ptr(_pipeline); }
     void release_resources(VkDevice device, const VkAllocationCallbacks* alloc_cb = nullptr);
 };
 
@@ -61,6 +88,14 @@ struct DepthStencilState
     VkCompareOp depth_op{ VK_COMPARE_OP_LESS_OR_EQUAL };
     float min_depth{ 0.0f };
     float max_depth{ 1.0f };
+};
+
+struct GraphicsPipelineCreateData
+{
+    uint16_t uniform_descriptors{ 1 };
+    uint16_t storage_buffer_descriptors{ 1 };
+    uint16_t combined_image_sampler_descriptors{ 1 };
+    uint16_t image_descriptors{ 1 };
 };
 
 class GraphicsPipelineBuilder
@@ -110,26 +145,45 @@ class GraphicsPipelineBuilder
         return *this;
     }
 
-    tl::optional<GraphicsPipeline> create(const VulkanRenderer& renderer);
+    tl::expected<GraphicsPipeline, VulkanError> create(const VulkanRenderer& renderer,
+                                                       const GraphicsPipelineCreateData& pcd)
+    {
+        return create_impl(renderer, PipelineType::Owned, pcd);
+    }
+
+    tl::expected<GraphicsPipeline, VulkanError> create_bindless(const VulkanRenderer& renderer)
+    {
+        return create_impl(renderer, PipelineType::Bindless, GraphicsPipelineCreateData{});
+    }
 
   private:
+    enum class PipelineType
+    {
+        Bindless,
+        Owned,
+    };
+
+    tl::expected<GraphicsPipeline, VulkanError> create_impl(const VulkanRenderer& renderer,
+                                                            const PipelineType pipeline_type,
+                                                            const GraphicsPipelineCreateData& pcd);
+
     using ShaderModuleSource = swl::variant<std::string_view, std::filesystem::path>;
     std::unordered_map<uint32_t, ShaderModuleSource> _stage_modules;
     bool _optimize_shaders{ false };
     InputAssemblyState _input_assembly{};
     RasterizationState _raster{};
     DepthStencilState _depth_stencil{};
-    VkPipelineColorBlendAttachmentState _colorblend{ .blendEnable = false,
-                                                     .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                     .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                     .colorBlendOp = VK_BLEND_OP_ADD,
-                                                     .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                     .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                     .alphaBlendOp = VK_BLEND_OP_ADD,
-                                                     .colorWriteMask =
-                                                         VK_COLOR_COMPONENT_A_BIT | VK_COLOR_COMPONENT_R_BIT |
-                                                         VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT };
-
+    VkPipelineColorBlendAttachmentState _colorblend{
+        .blendEnable = false,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .alphaBlendOp = VK_BLEND_OP_ADD,
+        .colorWriteMask =
+            VK_COLOR_COMPONENT_A_BIT | VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT,
+    };
     std::vector<VkDynamicState> _dynstate;
 };
 

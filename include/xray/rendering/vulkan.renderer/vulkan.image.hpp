@@ -38,6 +38,10 @@ class ManagedImage
     VkImage image() const noexcept { return _image.handle<VkImage>(); }
     VkDeviceMemory memory() const noexcept { return _image.handle<VkDeviceMemory>(); }
 
+    std::tuple<VkImage, VkDeviceMemory> release() noexcept {
+      return _image.release();
+    }
+
     // static tl::expected<ManagedImage, VulkanError> create(
     //     VulkanRenderer& renderer,
     //     const VkImageCreateInfo& img_create_info,

@@ -12,6 +12,8 @@
 
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 
 namespace swl {
 template<typename... Ts>
@@ -169,6 +171,15 @@ struct WorkQueueImageCopyState
     void release_resources();
 };
 
+struct BufferCreationInfo
+{
+    VkBufferUsageFlags usage;
+    VkMemoryPropertyFlags memory_properties;
+    size_t bytes;
+    size_t frames;
+    std::span<const uint8_t> initial_data;
+};
+
 class VulkanRenderer
 {
   private:
@@ -184,7 +195,8 @@ class VulkanRenderer
                    detail::InstanceState instance_state,
                    detail::RenderState render_state,
                    detail::PresentationState presentation_state,
-                   detail::DescriptorPoolState pool_state);
+                   detail::DescriptorPoolState pool_state,
+                   BindlessSystem bindless);
 
     FrameRenderData begin_rendering();
     void end_rendering();
@@ -192,8 +204,6 @@ class VulkanRenderer
                            const float red,
                            const float green,
                            const float blue,
-                           const uint32_t width,
-                           const uint32_t height,
                            const float depth = 1.0,
                            const uint32_t stencil = 0);
 
@@ -224,10 +234,7 @@ class VulkanRenderer
 
     uint32_t max_inflight_frames() const noexcept { return _presentation_state.max_frames; }
 
-    tl::optional<ManagedUniqueBuffer> create_buffer(const VkBufferUsageFlags usage,
-                                                    const size_t bytes,
-                                                    const size_t frames,
-                                                    const VkMemoryPropertyFlags memory_properties) noexcept;
+    tl::expected<ManagedUniqueBuffer, VulkanError> create_buffer(const BufferCreationInfo& create_info) noexcept;
 
     uint32_t find_allocation_memory_type(const uint32_t memory_requirements,
                                          const VkMemoryPropertyFlags required_flags) const noexcept;
@@ -236,6 +243,10 @@ class VulkanRenderer
 
     WorkPackageFuture submit_work_package(const QueuableWorkPackage& pkg);
     void release_staging_resources() { _work_queue.release_resources(); }
+
+    const BindlessSystem& bindless_sys() const noexcept { return _bindless; }
+    BindlessSystem& bindless_sys() noexcept { return _bindless; }
+    VkDescriptorPool descriptor_pool() const noexcept { return xray::base::raw_ptr(_dpool_state.handle); }
 
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
@@ -246,6 +257,7 @@ class VulkanRenderer
     detail::PresentationState _presentation_state;
     detail::DescriptorPoolState _dpool_state;
     WorkQueueImageCopyState _work_queue;
+    BindlessSystem _bindless;
 };
 
 uint32_t

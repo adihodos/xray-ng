@@ -540,16 +540,16 @@ vk_find_allocation_memory_type(const VkPhysicalDeviceMemoryProperties& memory_pr
                                const uint32_t memory_requirements,
                                const VkMemoryPropertyFlags required_flags)
 {
-    XR_LOG_INFO("Memory required:\n{:0>32b}\n{:0>32b}", memory_requirements, required_flags);
+    XR_LOG_TRACE("Memory required:\n{:0>32b}\n{:0>32b}", memory_requirements, required_flags);
     for (uint32_t memory_type = 0, memory_types_count = memory_properties.memoryTypeCount;
          memory_type < memory_types_count;
          ++memory_type) {
         const uint32_t memory_type_bits = 1 << memory_type;
 
-        XR_LOG_INFO("Device memory {:0>32b}, heap index {}, mem type {}",
-                    memory_properties.memoryTypes[memory_type].propertyFlags,
-                    memory_properties.memoryTypes[memory_type].heapIndex,
-                    memory_type);
+        XR_LOG_TRACE("Device memory {:0>32b}, heap index {}, mem type {}",
+                     memory_properties.memoryTypes[memory_type].propertyFlags,
+                     memory_properties.memoryTypes[memory_type].heapIndex,
+                     memory_type);
 
         const bool is_required_mem_type = memory_requirements & memory_type_bits;
         const VkMemoryPropertyFlags mem_prop_flags = memory_properties.memoryTypes[memory_type].propertyFlags;
@@ -851,6 +851,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     static constexpr initializer_list<const char*> device_extensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+        VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
     };
 
     const VkDeviceCreateInfo device_create_info = {
@@ -978,10 +979,12 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                                                      vk::to_string(static_cast<vk::PresentModeKHR>(pm)));
                               }) % fn::foldl(string{ "supported presentation modes: " }, plus<string>{}));
 
-            constexpr const VkPresentModeKHR preferred_presentation_modes[] = { VK_PRESENT_MODE_MAILBOX_KHR,
-                                                                                VK_PRESENT_MODE_IMMEDIATE_KHR,
-                                                                                VK_PRESENT_MODE_FIFO_RELAXED_KHR,
-                                                                                VK_PRESENT_MODE_FIFO_KHR };
+            constexpr const VkPresentModeKHR preferred_presentation_modes[] = {
+                VK_PRESENT_MODE_MAILBOX_KHR,
+                VK_PRESENT_MODE_IMMEDIATE_KHR,
+                VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+                VK_PRESENT_MODE_FIFO_KHR,
+            };
 
             const auto best_preferred_supported_mode =
                 ranges::find_first_of(preferred_presentation_modes, supported_presentation_modes);
@@ -1131,6 +1134,10 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     const uint32_t max_frames{ static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_images.size()) };
 
     auto [swapchain, surface_info] = std::move(*swapchain_state.take());
+    auto bindless_sys{ BindlessSystem::create(raw_ptr(logical_device)) };
+    if (!bindless_sys) {
+        return tl::nullopt;
+    }
 
     return tl::make_optional<VulkanRenderer>(
         PrivateConstructionToken{},
@@ -1170,19 +1177,22 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             std::move(swapchain),
             std::move(command_buffers),
         },
-        detail::DescriptorPoolState{ std::move(dpool) });
+        detail::DescriptorPoolState{ std::move(dpool) },
+        std::move(*bindless_sys));
 }
 
 VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
                                detail::InstanceState instance_state,
                                detail::RenderState render_state,
                                detail::PresentationState presentation_state,
-                               detail::DescriptorPoolState dpool)
+                               detail::DescriptorPoolState dpool,
+                               BindlessSystem bindless)
     : _instance_state{ std::move(instance_state) }
     , _render_state{ std::move(render_state) }
     , _presentation_state{ std::move(presentation_state) }
     , _dpool_state{ std::move(dpool) }
     , _work_queue{ raw_ptr(_render_state.dev_logical), raw_ptr(graphics_queue().cmd_pool) }
+    , _bindless{ std::move(bindless) }
 {
 }
 
@@ -1542,8 +1552,6 @@ VulkanRenderer::clear_attachments(VkCommandBuffer cmd_buf,
                                   const float red,
                                   const float green,
                                   const float blue,
-                                  const uint32_t width,
-                                  const uint32_t height,
                                   const float depth,
                                   const uint32_t stencil)
 {
@@ -1560,7 +1568,8 @@ VulkanRenderer::clear_attachments(VkCommandBuffer cmd_buf,
         }
     };
 
-    const VkRect2D clear_area{ .offset = { 0, 0 }, .extent = { width, height } };
+    const VkExtent2D surface_extent = _presentation_state.surface_state.caps.currentExtent;
+    const VkRect2D clear_area{ .offset = { 0, 0 }, .extent = surface_extent };
 
     const VkClearRect clear_rects[] = {
         VkClearRect{ .rect = clear_area, .baseArrayLayer = 0, .layerCount = 1 },
@@ -1588,13 +1597,10 @@ xray::rendering::VulkanRenderer::find_allocation_memory_type(const uint32_t memo
     return vk_find_allocation_memory_type(_render_state.dev_physical.memory, memory_requirements, required_flags);
 }
 
-tl::optional<ManagedUniqueBuffer>
-VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
-                              const size_t bytes,
-                              const size_t frames,
-                              const VkMemoryPropertyFlags memory_properties) noexcept
+tl::expected<ManagedUniqueBuffer, VulkanError>
+VulkanRenderer::create_buffer(const BufferCreationInfo& create_info) noexcept
 {
-    const VkDeviceSize alignment = [usage, this]() {
+    const VkDeviceSize alignment = [usage = create_info.usage, this]() {
         if (usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
             return _render_state.dev_physical.properties.base.properties.limits.minUniformBufferOffsetAlignment;
         } else if (usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT) {
@@ -1608,12 +1614,14 @@ VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
         return ((bytes + alignment - 1) / alignment) * alignment;
     };
 
-    const size_t aligned_bytes = roundup_to_alignment_fn(bytes, alignment);
-    const size_t aligned_allocation_size = aligned_bytes * frames;
+    const size_t aligned_bytes = roundup_to_alignment_fn(create_info.bytes, alignment);
+    const size_t aligned_allocation_size = aligned_bytes * create_info.frames;
 
-    XR_LOG_INFO(
+    assert(create_info.bytes >= create_info.initial_data.size_bytes());
+
+    XR_LOG_TRACE(
         "Create buffer request, bytes size = {}, alignment = {}, aligned size = {}, aligned allocation size = {}",
-        bytes,
+        create_info.bytes,
         alignment,
         aligned_bytes,
         aligned_allocation_size);
@@ -1623,16 +1631,16 @@ VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
         .pNext = nullptr,
         .flags = 0,
         .size = aligned_allocation_size,
-        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .usage = create_info.usage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
     };
 
     VkBuffer buffer;
-    WRAP_VULKAN_FUNC(vkCreateBuffer, this->device(), &buffer_create_info, nullptr, &buffer);
-    if (!buffer)
-        return tl::nullopt;
+    const VkResult create_result =
+        WRAP_VULKAN_FUNC(vkCreateBuffer, this->device(), &buffer_create_info, nullptr, &buffer);
+    XR_VK_CHECK_RESULT(create_result);
 
     xrUniqueVkBuffer sb{ buffer, VkResourceDeleter_VkBuffer{ this->device() } };
 
@@ -1654,28 +1662,36 @@ VulkanRenderer::create_buffer(const VkBufferUsageFlags usage,
         .pNext = nullptr,
         .allocationSize = mem_req.memoryRequirements.size,
         .memoryTypeIndex = vk_find_allocation_memory_type(
-            _render_state.dev_physical.memory, mem_req.memoryRequirements.memoryTypeBits, memory_properties),
+            _render_state.dev_physical.memory,
+            mem_req.memoryRequirements.memoryTypeBits,
+            create_info.memory_properties |
+                (create_info.initial_data.empty() ? 0 : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)),
     };
 
     VkDeviceMemory buffer_mem;
-    WRAP_VULKAN_FUNC(vkAllocateMemory, this->device(), &mem_alloc_info, nullptr, &buffer_mem);
+    const VkResult alloc_mem_result =
+        WRAP_VULKAN_FUNC(vkAllocateMemory, this->device(), &mem_alloc_info, nullptr, &buffer_mem);
     xrUniqueVkDeviceMemory bm{ buffer_mem, VkResourceDeleter_VkDeviceMemory{ this->device() } };
-
-    if (!buffer_mem) {
-        return tl::nullopt;
-    }
+    XR_VK_CHECK_RESULT(alloc_mem_result);
 
     const VkResult bind_buffer_mem_result{ WRAP_VULKAN_FUNC(
         vkBindBufferMemory, this->device(), raw_ptr(sb), raw_ptr(bm), 0) };
+    XR_VK_CHECK_RESULT(bind_buffer_mem_result);
 
-    if (bind_buffer_mem_result != VK_SUCCESS) {
-        return tl::nullopt;
+    //
+    // ver non optimal way of getting data into the buffer if its immutable
+    if (!create_info.initial_data.empty()) {
+        UniqueMemoryMapping::create(device(), buffer_mem, 0, aligned_bytes, 0)
+            .map([ci = &create_info](UniqueMemoryMapping mapping) {
+                memcpy(mapping._mapped_memory, ci->initial_data.data(), ci->initial_data.size_bytes());
+            });
     }
 
-    return tl::make_optional<ManagedUniqueBuffer>(
+    return ManagedUniqueBuffer{
         xrUniqueBufferWithMemory{ this->device(), unique_pointer_release(sb), unique_pointer_release(bm) },
         static_cast<uint32_t>(aligned_bytes),
-        static_cast<uint32_t>(alignment));
+        static_cast<uint32_t>(alignment),
+    };
 }
 
 tl::optional<UniqueMemoryMapping>

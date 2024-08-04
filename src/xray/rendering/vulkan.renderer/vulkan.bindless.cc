@@ -14,15 +14,23 @@ xray::rendering::BindlessSystem::BindlessSystem(
 xray::rendering::BindlessSystem::~BindlessSystem()
 {
     VkDevice device{ _bindless._owner };
+
     for (VkDescriptorSetLayout sl : _set_layouts) {
         vkDestroyDescriptorSetLayout(device, sl, nullptr);
     }
 
-    WRAP_VULKAN_FUNC(vkFreeDescriptorSets,
-                     device,
-                     _bindless.handle<VkDescriptorPool>(),
-                     static_cast<uint32_t>(_descriptors.size()),
-                     _descriptors.data());
+    // if (!_descriptors.empty()) {
+    //     WRAP_VULKAN_FUNC(vkFreeDescriptorSets,
+    //                      device,
+    //                      _bindless.handle<VkDescriptorPool>(),
+    //                      static_cast<uint32_t>(_descriptors.size()),
+    //                      _descriptors.data());
+    // }
+
+    for (BindlessSystem::BindlessImageResource& img_res : _image_resources) {
+        WRAP_VULKAN_FUNC(vkFreeMemory, device, img_res.memory, nullptr);
+        WRAP_VULKAN_FUNC(vkDestroyImage, device, img_res.handle, nullptr);
+    }
 }
 
 tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError>
@@ -59,6 +67,8 @@ xray::rendering::BindlessSystem::create(VkDevice device)
         return XR_MAKE_VULKAN_ERROR(VK_ERROR_OUT_OF_POOL_MEMORY);
     }
 
+    XR_LOG_INFO("Bindless descriptor pool created @ {}", static_cast<void*>(raw_ptr(dpool)));
+
     struct LayoutBindingsByResourceType
     {
         BindlessResourceType res_type;
@@ -74,17 +84,12 @@ xray::rendering::BindlessSystem::create(VkDevice device)
         },
         LayoutBindingsByResourceType{
             .res_type = BindlessResourceType::StorageBuffer,
-            .descriptor_count = 128,
-            .stage_flags = VK_SHADER_STAGE_ALL,
-        },
-        LayoutBindingsByResourceType{
-            .res_type = BindlessResourceType::Sampler,
-            .descriptor_count = 256,
+            .descriptor_count = 512,
             .stage_flags = VK_SHADER_STAGE_ALL,
         },
         LayoutBindingsByResourceType{
             .res_type = BindlessResourceType::CombinedImageSampler,
-            .descriptor_count = 256,
+            .descriptor_count = 512,
             .stage_flags = VK_SHADER_STAGE_ALL,
         },
     };
@@ -111,43 +116,25 @@ xray::rendering::BindlessSystem::create(VkDevice device)
         VkDescriptorSetLayout set_layout{};
         const VkResult create_res =
             WRAP_VULKAN_FUNC(vkCreateDescriptorSetLayout, device, &set_layout_info, nullptr, &set_layout);
-        if (!create_res) {
+        if (create_res != VK_SUCCESS) {
             return XR_MAKE_VULKAN_ERROR(create_res);
         }
 
         set_layouts.push_back(set_layout);
     }
 
-    const VkDescriptorSetLayout bindless_layout[] = {
-        //
-        // set 0
-        set_layouts[static_cast<size_t>(BindlessResourceType::UniformBuffer)],
-        //
-        // set 1
-        set_layouts[static_cast<size_t>(BindlessResourceType::StorageBuffer)],
-        //
-        // set 2
-        set_layouts[static_cast<size_t>(BindlessResourceType::CombinedImageSampler)],
-        //
-        // set 3
-        set_layouts[static_cast<size_t>(BindlessResourceType::CombinedImageSampler)],
-        //
-        // set 4
-        set_layouts[static_cast<size_t>(BindlessResourceType::CombinedImageSampler)],
-    };
-
     const VkPushConstantRange push_constant_ranges[] = { VkPushConstantRange{
         .stageFlags = VK_SHADER_STAGE_ALL,
         .offset = 0,
-        .size = static_cast<uint32_t>(sizeof(uint64_t)),
+        .size = static_cast<uint32_t>(sizeof(uint32_t)),
     } };
 
     const VkPipelineLayoutCreateInfo bindless_pipeline_layout_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .setLayoutCount = static_cast<uint32_t>(std::size(bindless_layout)),
-        .pSetLayouts = bindless_layout,
+        .setLayoutCount = static_cast<uint32_t>(set_layouts.size()),
+        .pSetLayouts = set_layouts.data(),
         .pushConstantRangeCount = static_cast<uint32_t>(std::size(push_constant_ranges)),
         .pPushConstantRanges = push_constant_ranges,
     };
@@ -160,15 +147,17 @@ xray::rendering::BindlessSystem::create(VkDevice device)
         return XR_MAKE_VULKAN_ERROR(bindless_pcreate_result);
     }
 
+    XR_LOG_INFO("Bindless pipeline layout created @ {}", static_cast<void*>(bindless_pipeline_layout));
+
     const VkDescriptorSetAllocateInfo set_allocate_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .pNext = nullptr,
         .descriptorPool = base::raw_ptr(dpool),
-        .descriptorSetCount = static_cast<uint32_t>(std::size(bindless_layout)),
-        .pSetLayouts = bindless_layout,
+        .descriptorSetCount = static_cast<uint32_t>(set_layouts.size()),
+        .pSetLayouts = set_layouts.data(),
     };
 
-    std::vector<VkDescriptorSet> descriptor_sets{ std::size(bindless_layout), nullptr };
+    std::vector<VkDescriptorSet> descriptor_sets{ set_layouts.size(), nullptr };
     const VkResult alloc_result =
         WRAP_VULKAN_FUNC(vkAllocateDescriptorSets, device, &set_allocate_info, descriptor_sets.data());
 
@@ -185,4 +174,36 @@ xray::rendering::BindlessSystem::create(VkDevice device)
         std::move(set_layouts),
         std::move(descriptor_sets),
     };
+}
+
+xray::rendering::BindlessResourceHandle
+xray::rendering::BindlessSystem::add_image(xray::rendering::ManagedImage img)
+{
+    const auto [image, image_memory] = img.release();
+    _image_resources.emplace_back(image, image_memory, img._info);
+
+    return BindlessResourceHandle{
+        BindlessResourceType::CombinedImageSampler,
+        static_cast<uint32_t>(_image_resources.size() - 1),
+    };
+}
+
+xray::rendering::BindlessResourceHandle
+xray::rendering::BindlessSystem::add_uniform_buffer(ManagedUniqueBuffer ubo)
+{
+    const auto [ubo_handle, ubo_mem] = ubo.buffer.release();
+    _ubo_resources.emplace_back(ubo_handle, ubo_mem);
+
+    return BindlessResourceHandle{ BindlessResourceType::UniformBuffer,
+                                   static_cast<uint32_t>(_ubo_resources.size() - 1) };
+}
+
+xray::rendering::BindlessResourceHandle
+xray::rendering::BindlessSystem::add_storage_buffer(ManagedUniqueBuffer sbo)
+{
+    const auto [sbo_handle, sbo_mem] = sbo.buffer.release();
+    _sbo_resources.emplace_back(sbo_handle, sbo_mem);
+
+    return BindlessResourceHandle{ BindlessResourceType::StorageBuffer,
+                                   static_cast<uint32_t>(_sbo_resources.size() - 1) };
 }

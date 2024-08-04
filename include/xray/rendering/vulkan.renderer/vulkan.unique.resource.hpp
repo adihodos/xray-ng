@@ -137,6 +137,18 @@ struct UniqueMemoryMapping
                                                     const uint64_t size,
                                                     const VkMemoryMapFlags flags);
 
+    template<typename T>
+    T* as() noexcept
+    {
+        return static_cast<T*>(_mapped_memory);
+    }
+
+    template<typename T>
+    const T* as() const noexcept
+    {
+        return static_cast<T*>(_mapped_memory);
+    }
+
     void* _mapped_memory{};
     VkDeviceMemory _device_memory{};
     VkDevice _device{};
@@ -152,7 +164,7 @@ struct VkResourceDeleter<VkImage>
 {
     void operator()(VkDevice device, VkImage image, const VkAllocationCallbacks* alloc_cb) const noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         if (image)
             vkDestroyImage(device, image, alloc_cb);
     }
@@ -163,7 +175,7 @@ struct VkResourceDeleter<VkImageView>
 {
     void operator()(VkDevice device, VkImageView image_view, const VkAllocationCallbacks* alloc_cb) const noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         if (image_view)
             vkDestroyImageView(device, image_view, alloc_cb);
     }
@@ -174,7 +186,7 @@ struct VkResourceDeleter<VkDeviceMemory>
 {
     void operator()(VkDevice device, VkDeviceMemory device_memory, const VkAllocationCallbacks* alloc_cb) const noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         if (device_memory)
             vkFreeMemory(device, device_memory, alloc_cb);
     }
@@ -185,7 +197,7 @@ struct VkResourceDeleter<VkBuffer>
 {
     void operator()(VkDevice device, VkBuffer buffer, const VkAllocationCallbacks* alloc_cb) const noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         if (buffer)
             vkDestroyBuffer(device, buffer, alloc_cb);
     }
@@ -196,7 +208,7 @@ struct VkResourceDeleter<VkDescriptorPool>
 {
     void operator()(VkDevice device, VkDescriptorPool dpool, const VkAllocationCallbacks* alloc_cb) const noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         if (dpool)
             vkDestroyDescriptorPool(device, dpool, alloc_cb);
     }
@@ -209,7 +221,7 @@ struct VkResourceDeleter<VkPipelineLayout>
                     VkPipelineLayout pipeline_layout,
                     const VkAllocationCallbacks* alloc_cb) const noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         if (pipeline_layout)
             vkDestroyPipelineLayout(device, pipeline_layout, alloc_cb);
     }
@@ -222,7 +234,6 @@ struct UniqueVulkanResourcePack
         : _owner{ owner }
         , _resources{ std::forward<Resources>(args)... }
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
     }
 
     UniqueVulkanResourcePack() = default;
@@ -234,13 +245,11 @@ struct UniqueVulkanResourcePack
         : _owner{ rhs._owner }
         , _resources{ std::move(rhs._resources) }
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         rhs._resources = std::make_tuple(Resources{}...);
     }
 
     UniqueVulkanResourcePack& operator=(UniqueVulkanResourcePack&& rhs) noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         if (this != &rhs) {
             std::apply(
                 [this](auto&&... args) {
@@ -255,10 +264,16 @@ struct UniqueVulkanResourcePack
         return *this;
     }
 
+    std::tuple<Resources...> release() noexcept
+    {
+        std::tuple<Resources...> temp{};
+        std::swap(this->_resources, temp);
+        return temp;
+    }
+
     template<typename ResourceHandleType>
     auto handle() const noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         return std::get<ResourceHandleType>(_resources);
     }
 
@@ -269,7 +284,7 @@ struct UniqueVulkanResourcePack
 
     ~UniqueVulkanResourcePack() noexcept
     {
-        XR_LOG_INFO("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         std::apply(
             [this](auto&&... args) {
                 (void((VkResourceDeleter<std::decay_t<decltype(args)>>{})(
@@ -297,6 +312,8 @@ struct ManagedUniqueBuffer
 
     VkDeviceMemory memory_handle() const noexcept { return buffer.handle<VkDeviceMemory>(); }
     VkBuffer buffer_handle() const noexcept { return buffer.handle<VkBuffer>(); }
+
+    auto release() noexcept { buffer.release(); }
 
     tl::optional<UniqueMemoryMapping> mmap(VkDevice device, const uint32_t frame_id = NO_FRAME) const noexcept
     {

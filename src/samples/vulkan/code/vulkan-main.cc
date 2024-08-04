@@ -431,9 +431,7 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     _vkrenderer.clear_attachments(frd.cmd_buf,
                                   _clear_color.r,
                                   _clear_color.g,
-                                  _clear_color.b,
-                                  static_cast<uint32_t>(viewport.width),
-                                  static_cast<uint32_t>(viewport.height));
+                                  _clear_color.b);
 
     _vkrenderer.end_rendering();
 
@@ -756,6 +754,11 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 int
 main(int argc, char** argv)
 {
+
+    //volatile bool ur_mom{false};
+    //while (!ur_mom) {
+    //    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    //}
 
     app::MainRunner::create().map_or_else(
         [](app::MainRunner runner) {

@@ -100,17 +100,30 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# https://dhashe.com/how-to-build-highly-debuggable-c-binaries.html
 add_library(xray-set-compile-options-lib INTERFACE)
-set(debug_flags -ggdb3 -O0)
 
-target_compile_options(xray-set-compile-options-lib
-                       INTERFACE $<$<CONFIG:Debug>:${debug_flags}>)
+set(cxx_is_gcc "$<COMPILE_LANG_AND_ID:CXX,GNU>")
+set(cxx_is_clang "$<COMPILE_LANG_AND_ID:CXX,Clang>")
+set(cxx_is_gcc_like "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU>")
+
+target_compile_options(
+  xray-set-compile-options-lib
+  INTERFACE
+    $<$<CONFIG:Debug>:-O0>
+    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables>
+    $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
+)
+
+set(cxx_stdlib_dbg_flags
+    $<$<AND:$<CONFIG:Debug>,${cxx_is_gcc}>:_GLIBCXX_ASSERTIONS>)
+
+target_compile_definitions(xray-set-compile-options-lib
+                           INTERFACE "${cxx_stdlib_dbg_flags}")
 
 target_compile_definitions(
   xray-set-compile-options-lib INTERFACE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
                                          XRAY_MATH_ENABLE_FMT_SUPPORT)
-
-set(gcc_like_cxx "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU>")
 
 # if (MSVC) option(XRAY_USE_DIRECTX11 "DirectX 11" OFF) endif()
 

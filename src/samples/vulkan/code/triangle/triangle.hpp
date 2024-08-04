@@ -1,6 +1,9 @@
 #pragma once
 
 #include "xray/xray.hpp"
+
+#include <vector>
+
 #include "demo_base.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
@@ -26,17 +29,33 @@ class TriangleDemo : public app::DemoBase
     static xray::base::unique_pointer<app::DemoBase> create(const app::init_context_t& initContext);
 
   private:
+    xray::rendering::ManagedUniqueBuffer _g_ubo;
+    xray::rendering::ManagedUniqueBuffer _g_vertexbuffer;
+    xray::rendering::ManagedUniqueBuffer _g_indexbuffer;
+    xray::rendering::ManagedUniqueBuffer _g_instancebuffer;
     xray::rendering::GraphicsPipeline _pipeline;
     xray::rendering::ManagedImage _pixel_buffer;
-    // xray::rendering::UniqueBuffer _pixelbuffer;
-    // xray::rendering::xrUniqueImageWithMemory _pixelsimage;
-    // xray::rendering::xrUniqueVkImageView _imageview;
+    xray::rendering::xrUniqueVkImageView _imageview;
+    xray::rendering::xrUniqueVkSampler _sampler;
+    std::vector<VkDescriptorSet> _desc_sets;
     float _angle{};
+    uint32_t _vbuffer_handle{};
+    uint32_t _ibuffer_handle{};
 
   public:
     TriangleDemo(PrivateConstructionToken,
                  const app::init_context_t& init_context,
-                 xray::rendering::GraphicsPipeline pipeline);
+                 xray::rendering::ManagedUniqueBuffer g_ubo,
+                 xray::rendering::ManagedUniqueBuffer g_vertexbuffer,
+                 xray::rendering::ManagedUniqueBuffer g_indexbuffer,
+                 xray::rendering::ManagedUniqueBuffer g_instancebuffer,
+                 xray::rendering::GraphicsPipeline pipeline,
+                 xray::rendering::ManagedImage pixel_buffer,
+                 xray::rendering::xrUniqueVkImageView imageview,
+                 xray::rendering::xrUniqueVkSampler sampler,
+                 const uint32_t vbuffer,
+                 const uint32_t ibuffer,
+                 std::vector<VkDescriptorSet> desc_sets);
 };
 
 } //

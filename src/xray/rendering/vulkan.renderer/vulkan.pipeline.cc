@@ -7,6 +7,8 @@
 
 #include <fmt/core.h>
 #include <itlib/small_vector.hpp>
+#include <itlib/flat_map.hpp>
+#include <itlib/static_vector.hpp>
 #include <tl/optional.hpp>
 #include <swl/variant.hpp>
 #include <mio/mmap.hpp>
@@ -21,6 +23,7 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/rangeless/fn.hpp"
+#include "xray/base/variant_visitor.hpp"
 #include "xray/base/veneers/sequence_container_veneer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
@@ -314,14 +317,16 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
     }
 }
 
-tl::optional<GraphicsPipeline>
-GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
+tl::expected<GraphicsPipeline, VulkanError>
+GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
+                                     const PipelineType pipeline_type,
+                                     const GraphicsPipelineCreateData& pcd)
 {
     VkDevice device = renderer.device();
 
     if (!_stage_modules.contains(ShaderStage::Vertex)) {
         XR_LOG_CRITICAL("Missing vertex shader stage!");
-        return tl::nullopt;
+        return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
     }
 
     small_vec_4<ShaderModuleWithSpirVBlob> shader_modules;
@@ -333,6 +338,9 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         static_cast<uint32_t>(VK_SHADER_STAGE_FRAGMENT_BIT),
     };
 
+    //
+    // build and reflect shader modules
+    // TODO: include header support
     for (const uint32_t stage : shader_stages) {
         if (!_stage_modules.contains(stage))
             continue;
@@ -355,7 +363,7 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 
         if (!shader_with_spirv) {
             XR_LOG_CRITICAL("Shader module failure, cannot proceed with pipeline creation");
-            return tl::nullopt;
+            return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
         }
 
         shader_stage_create_info.emplace_back(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -373,48 +381,182 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
     assert(_stage_modules.size() == shader_modules.size());
 
     //
-    // reflect all compiled shader modules and extract info
-    vector<SpirVReflectionResult> reflected_shaders{};
-    uint32_t descriptor_set_count{ 0 };
-    for (const ShaderModuleWithSpirVBlob& smb : shader_modules) {
-        tl::optional<SpirVReflectionResult> reflect_result{ parse_spirv_binary(device, smb.spirv) };
-        if (!reflect_result) {
-            XR_LOG_CRITICAL("Failed to reflect SPIR-V binary!");
-            return tl::nullopt;
+    // element stride, vertex attributes collection
+    pair<uint32_t, vector<VkVertexInputAttributeDescription>> vertex_input_state;
+
+    auto pipeline_layout = [&]() -> tl::expected<GraphicsPipeline::pipeline_layout_t, VulkanError> {
+        //
+        // reflect all compiled shader modules and extract info
+        vector<SpirVReflectionResult> reflected_shaders{};
+        uint32_t descriptor_set_count{ 0 };
+
+        for (const ShaderModuleWithSpirVBlob& smb : shader_modules) {
+            tl::optional<SpirVReflectionResult> reflect_result{ parse_spirv_binary(device, smb.spirv) };
+            if (!reflect_result) {
+                XR_LOG_CRITICAL("Failed to reflect SPIR-V binary!");
+                return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
+            }
+
+            descriptor_set_count =
+                std::max(descriptor_set_count,
+                         lz::chain(reflect_result->descriptor_sets_layout_bindings)
+                             .map([](const pair<uint32_t, vector<VkDescriptorSetLayoutBinding>>& e) { return e.first; })
+                             .max());
+
+            reflected_shaders.push_back(std::move(*reflect_result.take()));
         }
 
-        descriptor_set_count =
-            std::max(descriptor_set_count,
-                     lz::chain(reflect_result->descriptor_sets_layout_bindings)
-                         .map([](const pair<uint32_t, vector<VkDescriptorSetLayoutBinding>>& e) { return e.first; })
-                         .max());
+        //
+        // yoink the vertex inputs from the vertex shader
+        for (SpirVReflectionResult& reflection : reflected_shaders) {
+            if (!reflection.vertex_inputs)
+                continue;
 
-        reflected_shaders.push_back(std::move(*reflect_result.take()));
-    }
+            //
+            // if this was a vertex shader reflection object extract the vertex inputs
+            reflection.vertex_inputs.take().map(
+                [&vertex_input_state](pair<uint32_t, vector<VkVertexInputAttributeDescription>> ia) {
+                    assert(!vertex_input_state.has_value());
+                    vertex_input_state = std::move(ia);
+                });
+        }
 
-    xray::base::sequence_container_veneer<vector<VkDescriptorSetLayout>, VkResourceDeleter_VkDescriptorSetLayout>
-        desc_set_layouts{ VkResourceDeleter_VkDescriptorSetLayout{ device } };
+        if (pipeline_type == PipelineType::Bindless) {
+            //
+            // return here
+            return GraphicsPipeline::BindlessLayout{
+                renderer.bindless_sys().pipeline_layout(),
+                renderer.bindless_sys().descriptor_set_layouts(),
+            };
+        }
 
-    if (descriptor_set_count != 0) {
-        // desc_set_layouts.reserve(descriptor_set_count + 1);
-        desc_set_layouts.resize(descriptor_set_count + 1, nullptr);
-    }
+        using pipeline_layout_definition_table_t =
+            // unordered_map<uint32_t, VkDescriptorSetLayoutBinding>
+            itlib::flat_map<uint32_t,
+                            VkDescriptorSetLayoutBinding,
+                            less<uint32_t>,
+                            itlib::static_vector<pair<uint32_t, VkDescriptorSetLayoutBinding>, 16>>;
 
-    vector<VkPushConstantRange> push_constant_ranges{};
-    tl::optional<pair<uint32_t, vector<VkVertexInputAttributeDescription>>> vertex_input_state;
+        vector<VkPushConstantRange> push_constant_ranges{};
+        pipeline_layout_definition_table_t pipeline_layout_deftable;
 
-    //
-    // some stuff gets yoinked from reflection via std::move
-    for (SpirVReflectionResult& reflection : reflected_shaders) {
-        for (const pair<uint32_t, vector<VkDescriptorSetLayoutBinding>>& set_with_bindings :
-             reflection.descriptor_sets_layout_bindings) {
+        for (SpirVReflectionResult& reflection : reflected_shaders) {
+            //
+            // does not handle multiple bindings for the same set
 
+            for (const auto& [set_id, set_bindings] : reflection.descriptor_sets_layout_bindings) {
+                const VkDescriptorSetLayoutBinding& first_binding = set_bindings[0];
+
+                if (first_binding.descriptorCount == 0) {
+                    //
+                    // not used in this stage, just ignore it
+                    continue;
+                }
+
+                if (auto set_itr = pipeline_layout_deftable.find(set_id); set_itr != end(pipeline_layout_deftable)) {
+                    if (set_itr->second.descriptorType == set_bindings[0].descriptorType) {
+                        set_itr->second.stageFlags |= set_bindings[0].stageFlags;
+                        set_itr->second.descriptorCount =
+                            max(set_itr->second.descriptorCount, set_bindings[0].descriptorCount);
+                    } else {
+                        XR_LOG_ERR(
+                            "Sets alias the same slot {} but the descriptor types are not compatibile ({} vs. {})",
+                            set_id,
+                            static_cast<uint32_t>(set_itr->second.descriptorType),
+                            static_cast<uint32_t>(set_bindings[0].descriptorType));
+                    }
+                } else {
+                    uint32_t descriptor_count = first_binding.descriptorCount;
+                    switch (first_binding.descriptorType) {
+                        case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+                        case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+                            descriptor_count = pcd.uniform_descriptors;
+                            break;
+
+                        case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+                            descriptor_count = pcd.storage_buffer_descriptors;
+                            break;
+
+                        case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+                            descriptor_count = pcd.combined_image_sampler_descriptors;
+                            break;
+
+                        case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+                            descriptor_count = pcd.image_descriptors;
+                            break;
+
+                        default:
+                            break;
+                    }
+
+                    pipeline_layout_deftable[set_id] = set_bindings[0];
+                    pipeline_layout_deftable[set_id].descriptorCount = descriptor_count;
+                }
+            }
+
+            push_constant_ranges = std::move(reflection.push_constants);
+        }
+
+        const uint32_t max_set_id = lz::chain(pipeline_layout_deftable)
+                                        .map([](const pair<uint32_t, VkDescriptorSetLayoutBinding>& dslb) {
+                                            XR_LOG_INFO("Set {}, type {}, count {}, stage {} ",
+                                                        dslb.first,
+                                                        (uint32_t)dslb.second.descriptorType,
+                                                        (uint32_t)dslb.second.descriptorCount,
+                                                        (uint32_t)dslb.second.stageFlags);
+                                            return dslb.first;
+                                        })
+                                        .max();
+
+        vector<VkDescriptorSetLayout> desc_set_layouts =
+            lz::chain(lz::range(max_set_id + 1))
+                .map([device, &pipeline_layout_deftable](const uint32_t set_id) -> VkDescriptorSetLayout {
+                    if (auto itr_set = pipeline_layout_deftable.find(set_id);
+                        itr_set != end(pipeline_layout_deftable)) {
+
+                        const VkDescriptorBindingFlags binding_flags{ VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+                        const VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_create_info{
+                            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+                            .pNext = nullptr,
+                            .bindingCount = 1,
+                            .pBindingFlags = &binding_flags,
+                        };
+
+                        const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+                            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                            .pNext = &binding_flags_create_info,
+                            .flags = 0,
+                            .bindingCount = 1,
+                            .pBindings = &itr_set->second,
+                        };
+
+                        VkDescriptorSetLayout set_layout{};
+                        const VkResult set_layout_create_res = WRAP_VULKAN_FUNC(vkCreateDescriptorSetLayout,
+                                                                                device,
+                                                                                &descriptor_set_layout_create_info,
+                                                                                nullptr,
+                                                                                &set_layout);
+
+                        return set_layout;
+                    } else {
+                        return nullptr;
+                    }
+                })
+                .to<vector<VkDescriptorSetLayout>>();
+
+        //
+        // Plug descriptor set layout holes.
+        // For example a vertex shader might have layout (set = 0, binding = ...)
+        // and the fragment shader might have layout (set = 4, binding = ...)
+        // For sets 1 to 3 we need to create a "null" descriptor set layout with no bindings
+        // and assign it to those slots when creating the pipeline layout.
+        if (const bool layout_holes = lz::contains(desc_set_layouts, nullptr); layout_holes) {
             const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
                 .pNext = nullptr,
                 .flags = 0,
-                .bindingCount = static_cast<uint32_t>(set_with_bindings.second.size()),
-                .pBindings = set_with_bindings.second.data()
+                .bindingCount = 0,
+                .pBindings = nullptr,
             };
 
             VkDescriptorSetLayout set_layout{};
@@ -422,58 +564,44 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
                 vkCreateDescriptorSetLayout, device, &descriptor_set_layout_create_info, nullptr, &set_layout);
 
             if (!set_layout) {
-                return tl::nullopt;
+                return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
             }
 
-            desc_set_layouts[set_with_bindings.first] = set_layout;
+            for (size_t idx = 0; idx < desc_set_layouts.size(); ++idx) {
+                if (desc_set_layouts[idx])
+                    continue;
+
+                desc_set_layouts[idx] = set_layout;
+            }
         }
 
-        for (const VkPushConstantRange& pcr : reflection.push_constants) {
-            XR_LOG_INFO("Push constant range {{ .size = {}, .offset = {}, .stageFlags = {} }}",
-                        pcr.size,
-                        pcr.offset,
-                        pcr.stageFlags);
+        const VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .setLayoutCount = static_cast<uint32_t>(desc_set_layouts.size()),
+            .pSetLayouts = desc_set_layouts.empty() ? nullptr : desc_set_layouts.data(),
+            .pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size()),
+            .pPushConstantRanges = push_constant_ranges.empty() ? nullptr : push_constant_ranges.data(),
+        };
+
+        VkPipelineLayout pipeline_layout{};
+        const VkResult layout_create_res =
+            WRAP_VULKAN_FUNC(vkCreatePipelineLayout, device, &pipeline_layout_create_info, nullptr, &pipeline_layout);
+
+        if (layout_create_res != VK_SUCCESS) {
+            return XR_MAKE_VULKAN_ERROR(layout_create_res);
         }
 
-        push_constant_ranges = std::move(reflection.push_constants);
-        //
-        // if this was a vertex shader reflection object extract the vertex inputs
-        reflection.vertex_inputs.take().map(
-            [&vertex_input_state](pair<uint32_t, vector<VkVertexInputAttributeDescription>> ia) {
-                assert(!vertex_input_state.has_value());
-                vertex_input_state = std::move(ia);
-            });
+        return GraphicsPipeline::OwnedLayout{ pipeline_layout, std::move(desc_set_layouts) };
+    }();
+
+    if (!pipeline_layout) {
+        return tl::unexpected{ pipeline_layout.error() };
     }
 
     //
-    // plug layout holes
-    const bool layout_holes =
-        ranges::any_of(desc_set_layouts, [](VkDescriptorSetLayout dsl) { return dsl != nullptr; });
-
-    if (layout_holes) {
-        const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .bindingCount = 0,
-            .pBindings = nullptr,
-        };
-
-        VkDescriptorSetLayout set_layout{};
-        WRAP_VULKAN_FUNC(vkCreateDescriptorSetLayout, device, &descriptor_set_layout_create_info, nullptr, &set_layout);
-
-        if (!set_layout) {
-            return tl::nullopt;
-        }
-
-        for (size_t idx = 0; idx < desc_set_layouts.size(); ++idx) {
-            if (desc_set_layouts[idx])
-                continue;
-
-            desc_set_layouts[idx] = set_layout;
-        }
-    }
-
+    // dump some debug info
     std::pmr::monotonic_buffer_resource buffer_resource{ 4096 };
     std::pmr::polymorphic_allocator<char> palloc{ &buffer_resource };
     std::pmr::string dbg_str{ palloc };
@@ -484,8 +612,10 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         XR_LOG_INFO("Pipeline creation info:\n{}", dbg_str);
     };
 
-    fmt::format_to(std::back_inserter(dbg_str), "Vertex input description {} = {{\n", vertex_input_state->first);
-    for (const VkVertexInputAttributeDescription& vtx_desc : vertex_input_state->second) {
+    fmt::format_to(
+        std::back_inserter(dbg_str), "Vertex input description (stride {}) = {{\n", vertex_input_state.first);
+
+    for (const VkVertexInputAttributeDescription& vtx_desc : vertex_input_state.second) {
         fmt::format_to(std::back_inserter(dbg_str),
                        "\n={{\n\t.location = {}\n\t.format = {}\n\t.offset = {}\n\t.binding = {}\n}},",
                        vtx_desc.location,
@@ -496,36 +626,9 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
 
     dbg_str.append("\n}\n");
 
-    xrUniqueVkPipelineLayout pipeline_layout{
-        [&]() {
-            const VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .setLayoutCount = static_cast<uint32_t>(desc_set_layouts.size()),
-                .pSetLayouts = desc_set_layouts.empty() ? nullptr : desc_set_layouts.data(),
-                .pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size()),
-                .pPushConstantRanges = push_constant_ranges.empty() ? nullptr : push_constant_ranges.data(),
-            };
-
-            VkPipelineLayout pipeline_layout{};
-            WRAP_VULKAN_FUNC(vkCreatePipelineLayout, device, &pipeline_layout_create_info, nullptr, &pipeline_layout);
-
-            return pipeline_layout;
-        }(),
-        VkResourceDeleter_VkPipelineLayout{ device },
-    };
-
-    if (!pipeline_layout) {
-        XR_LOG_CRITICAL("Failed to create pipeline layout!");
-        return tl::nullopt;
-    }
-
-    assert(vertex_input_state.has_value());
-
     const VkVertexInputBindingDescription vertex_input_binding_description = {
         .binding = 0,
-        .stride = vertex_input_state->first,
+        .stride = vertex_input_state.first,
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
     };
 
@@ -533,11 +636,10 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .vertexBindingDescriptionCount = static_cast<uint32_t>(vertex_input_state->second.empty() ? 0 : 1),
-        .pVertexBindingDescriptions = vertex_input_state->second.empty() ? nullptr : &vertex_input_binding_description,
-        .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_input_state->second.size()),
-        .pVertexAttributeDescriptions =
-            vertex_input_state->second.empty() ? nullptr : vertex_input_state->second.data(),
+        .vertexBindingDescriptionCount = static_cast<uint32_t>(vertex_input_state.second.empty() ? 0 : 1),
+        .pVertexBindingDescriptions = vertex_input_state.second.empty() ? nullptr : &vertex_input_binding_description,
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_input_state.second.size()),
+        .pVertexAttributeDescriptions = vertex_input_state.second.empty() ? nullptr : vertex_input_state.second.data(),
     };
 
     const VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {
@@ -762,7 +864,11 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         .pDepthStencilState = &depth_stencil_create_info,
         .pColorBlendState = &colorblend_state_create_info,
         .pDynamicState = &dynamic_state_create_info,
-        .layout = base::raw_ptr(pipeline_layout),
+        .layout = swl::visit(base::VariantVisitor{
+                                 [](const GraphicsPipeline::OwnedLayout& owl) { return owl.layout; },
+                                 [](const GraphicsPipeline::BindlessLayout& bl) { return bl.layout; },
+                             },
+                             *pipeline_layout),
         .renderPass = VK_NULL_HANDLE,
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE,
@@ -774,23 +880,52 @@ GraphicsPipelineBuilder::create(const VulkanRenderer& renderer)
         vkCreateGraphicsPipelines, device, nullptr, 1, &graphics_pipeline_create_info, nullptr, &pipeline);
 
     if (pipeline_create_result != VK_SUCCESS) {
-        return tl::nullopt;
+        return XR_MAKE_VULKAN_ERROR(pipeline_create_result);
     }
 
-    desc_set_layouts.clear();
-    return tl::make_optional<GraphicsPipeline>(
-        pipeline, xray::base::unique_pointer_release(pipeline_layout), std::move(desc_set_layouts));
+    return GraphicsPipeline{ xrUniqueVkPipeline{ pipeline, VkResourceDeleter_VkPipeline{ renderer.device() } },
+                             std::move(*pipeline_layout) };
 }
 
 void
 GraphicsPipeline::release_resources(VkDevice device, const VkAllocationCallbacks* alloc_cb)
 {
-    for (VkDescriptorSetLayout dsl : descriptor_set_layout) {
-        WRAP_VULKAN_FUNC(vkDestroyDescriptorSetLayout, device, dsl, alloc_cb);
-    }
+    using namespace xray::base;
 
-    WRAP_VULKAN_FUNC(vkDestroyPipelineLayout, device, layout, alloc_cb);
-    WRAP_VULKAN_FUNC(vkDestroyPipeline, device, pipeline, alloc_cb);
+    swl::visit(VariantVisitor{
+                   [device, alloc_cb](OwnedLayout& owned_layout) {
+                       for (VkDescriptorSetLayout dsl : owned_layout.set_layouts) {
+                           WRAP_VULKAN_FUNC(vkDestroyDescriptorSetLayout, device, dsl, alloc_cb);
+                           WRAP_VULKAN_FUNC(vkDestroyPipelineLayout, device, owned_layout.layout, alloc_cb);
+                       }
+                   },
+                   [](BindlessLayout&) {},
+               },
+               _layout);
+}
+
+std::span<const VkDescriptorSetLayout>
+GraphicsPipeline::descriptor_sets_layouts() const noexcept
+{
+    using namespace xray::base;
+
+    return swl::visit(VariantVisitor{
+                          [](const OwnedLayout& owl) { return std::span{ owl.set_layouts }; },
+                          [](const BindlessLayout& bl) { return std::span{ bl.set_layouts }; },
+                      },
+                      _layout);
+}
+
+VkPipelineLayout
+GraphicsPipeline::layout() const noexcept
+{
+    using namespace xray::base;
+
+    return swl::visit(VariantVisitor{
+                          [](const OwnedLayout& owl) { return owl.layout; },
+                          [](const BindlessLayout& bl) { return bl.layout; },
+                      },
+                      _layout);
 }
 
 } // namespace xray::rendering

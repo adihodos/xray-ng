@@ -5,11 +5,14 @@
 #include <cassert>
 #include <cstdint>
 #include <functional>
+#include <bitset>
+
 #include <vulkan/vulkan.h>
 #include <tl/expected.hpp>
 
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 
 namespace xray::rendering {
 
@@ -77,20 +80,52 @@ class BindlessSystem
 {
   public:
     ~BindlessSystem();
+    BindlessSystem(const BindlessSystem&) = delete;
+    BindlessSystem& operator=(const BindlessSystem&) = delete;
     BindlessSystem(BindlessSystem&&) = default;
 
     static tl::expected<BindlessSystem, VulkanError> create(VkDevice device);
 
     VkPipelineLayout pipeline_layout() const noexcept { return _bindless.handle<VkPipelineLayout>(); }
+    std::span<const VkDescriptorSetLayout> descriptor_set_layouts() const noexcept { return _set_layouts; }
+
+    BindlessResourceHandle add_image(ManagedImage img);
+    BindlessResourceHandle add_uniform_buffer(ManagedUniqueBuffer ubo);
+    BindlessResourceHandle add_storage_buffer(ManagedUniqueBuffer sbo);
 
   private:
     BindlessSystem(UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,
                    std::vector<VkDescriptorSetLayout> set_layouts,
                    std::vector<VkDescriptorSet> descriptors);
 
+    struct BindlessImageResource
+    {
+        VkImage handle;
+        VkDeviceMemory memory;
+        VulkanTextureInfo info;
+    };
+
+    struct BindlessUniformBufferResource
+    {
+        VkBuffer handle;
+        VkDeviceMemory memory;
+    };
+
+    struct BindlessStorageBufferResource
+    {
+        VkBuffer handle;
+        VkDeviceMemory memory;
+    };
+
+  private:
     UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> _bindless;
     std::vector<VkDescriptorSetLayout> _set_layouts;
     std::vector<VkDescriptorSet> _descriptors;
+    std::vector<BindlessImageResource> _image_resources;
+    std::vector<BindlessUniformBufferResource> _ubo_resources;
+    std::bitset<1024> _flush_tbl_ubo;
+    std::vector<BindlessStorageBufferResource> _sbo_resources;
+    std::bitset<1024> _flush_tbl_sbo;
 };
 
 } // namespace xray::rendering

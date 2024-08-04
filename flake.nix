@@ -32,13 +32,14 @@
             libgit2.dev
             openssl
             #pwndbg
-            #gef
+            gef
             gf
             renderdoc
             cmake
             cmakeCurses
             cmake-format
             pkg-config
+            libsForQt5.qmake
 
             vulkan-tools
             vulkan-headers
@@ -68,13 +69,13 @@
             #   #python-pkgs.pandas
             # ]))
 
-            (vscode-with-extensions.override {
-              vscodeExtensions = with vscode-extensions; [
-                ms-vscode.cpptools
-                vadimcn.vscode-lldb
-                mkhl.direnv
-              ];
-            })
+            #(vscode-with-extensions.override {
+            #  vscodeExtensions = with vscode-extensions; [
+            #    ms-vscode.cpptools
+            #    vadimcn.vscode-lldb
+            #    mkhl.direnv
+            #  ];
+            #})
 
             # libs
             zlib
@@ -91,6 +92,9 @@
             libxkbcommon.dev
             xorg.libxcb
             xorg.libxcb.dev
+            xorg.xcbutilkeysyms
+            xorg.xcbutilkeysyms.dev
+            xorg.libXdmcp.dev
             libGL
           ];
 

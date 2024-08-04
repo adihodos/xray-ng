@@ -31,10 +31,23 @@ struct VulkanError
     (tl::unexpected{ VulkanError{ vk_err_code, __FILE__, XRAY_FUNCTION_NAME, __LINE__ } })
 #endif
 
-std::string vk_result_to_string(const int32_t vk_result);
+std::string
+vk_result_to_string(const int32_t vk_result);
+
+#define XR_VK_CHECK_RESULT(vkres)                                                                                      \
+    do {                                                                                                               \
+        if (vkres != VK_SUCCESS) {                                                                                     \
+            return XR_MAKE_VULKAN_ERROR(vkres);                                                                        \
+        }                                                                                                              \
+    } while (0)
+
+#define XR_VK_PROPAGATE_ERROR(e)                                                                                       \
+    do {                                                                                                               \
+        if (!e)                                                                                                        \
+            return e;                                                                                                  \
+    } while (0)
 
 } // namespace xray::rendering
-  //
 
 namespace fmt {
 template<>
