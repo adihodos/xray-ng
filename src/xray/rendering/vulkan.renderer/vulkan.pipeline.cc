@@ -416,7 +416,6 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
             // if this was a vertex shader reflection object extract the vertex inputs
             reflection.vertex_inputs.take().map(
                 [&vertex_input_state](pair<uint32_t, vector<VkVertexInputAttributeDescription>> ia) {
-                    assert(!vertex_input_state.has_value());
                     vertex_input_state = std::move(ia);
                 });
         }

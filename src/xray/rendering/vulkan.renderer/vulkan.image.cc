@@ -3,6 +3,8 @@
 #include <cmath>
 #include <system_error>
 
+#include <itlib/small_vector.hpp>
+
 #include <vulkan/vulkan.hpp>
 #include <ktx.h>
 #include <mio/mmap.hpp>
@@ -422,8 +424,9 @@ generateMipmaps(VkCommandBuffer cmd_buf,
 //     };
 // }
 
-tl::expected<std::pair<xray::rendering::ManagedImage, xray::rendering::WorkPackageFuture>, xray::rendering::VulkanError>
+tl::expected<xray::rendering::ManagedImage, xray::rendering::VulkanError>
 xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& renderer,
+                                         const WorkPackageHandle pkg,
                                          const std::filesystem::path& texture_file_path,
                                          const VkImageUsageFlags usage_flags,
                                          const VkImageLayout final_layout,
@@ -448,8 +451,8 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
         return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
     }
 
-    assert(ktx_texture->classId == ktxTexture2_c && "Only KTX2 textures are supported!");
-    assert(This->numFaces == 6 ? This->numDimensions == 2 : VK_TRUE);
+    assert(loaded_ktx->classId == ktxTexture2_c && "Only KTX2 textures are supported!");
+    assert(loaded_ktx->numFaces == 6 ? loaded_ktx->numDimensions == 2 : VK_TRUE);
 
     VkImageCreateFlags img_create_flags{};
     uint32_t numImageLayers = loaded_ktx->numLayers;
@@ -461,7 +464,7 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
     VkImageType imageType{ VK_IMAGE_TYPE_MAX_ENUM };
     VkImageViewType viewType{ VK_IMAGE_VIEW_TYPE_MAX_ENUM };
 
-    assert(ktx_texture->numDimensions >= 1 && ktx_texture->numDimensions <= 3);
+    assert(loaded_ktx->numDimensions >= 1 && loaded_ktx->numDimensions <= 3);
     switch (loaded_ktx->numDimensions) {
         case 1:
             imageType = VK_IMAGE_TYPE_1D;
@@ -480,7 +483,7 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
             /* 3D array textures not supported in Vulkan. Attempts to create or
              * load them should have been trapped long before this.
              */
-            assert(!ktx_texture->isArray);
+            assert(!loaded_ktx->isArray);
             viewType = VK_IMAGE_VIEW_TYPE_3D;
             break;
     }
@@ -527,8 +530,7 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
         VkFormatFeatureFlags formatFeatureFlags;
         VkFormatFeatureFlags neededFeatures = VK_FORMAT_FEATURE_BLIT_DST_BIT | VK_FORMAT_FEATURE_BLIT_SRC_BIT;
 
-        vkGetPhysicalDeviceFormatProperties(renderer.physical().device, vkFormat, &formatProperties);
-        assert(vResult == VK_SUCCESS);
+        WRAP_VULKAN_FUNC(vkGetPhysicalDeviceFormatProperties, renderer.physical().device, vkFormat, &formatProperties);
         if (tiling == VK_IMAGE_TILING_OPTIMAL)
             formatFeatureFlags = formatProperties.optimalTilingFeatures;
         else
@@ -573,12 +575,18 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
         //
         // Create a host-visible staging buffer that contains the raw image data
         const uint32_t numCopyRegions{ loaded_ktx->numLevels };
-        QueuableWorkPackage work_package{ renderer.create_work_package(textureSize, numCopyRegions) };
-        UniqueMemoryMapping::create(renderer.device(), work_package.staging_memory, 0, VK_WHOLE_SIZE, 0)
+
+        auto staging_buffer{ renderer.create_staging_buffer(pkg, textureSize) };
+        if (!staging_buffer)
+            return tl::unexpected{ staging_buffer.error() };
+
+        itlib::small_vector<VkBufferImageCopy> copy_regions{ static_cast<size_t>(numCopyRegions), VkBufferImageCopy{} };
+
+        UniqueMemoryMapping::create(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE, 0)
             .map([&](UniqueMemoryMapping bufmap) {
                 ktx_internal_details::user_cbdata_optimal cbData
                 {
-                    .region = work_package.copy_region.data(), .offset = 0, .numFaces = loaded_ktx->numFaces,
+                    .region = copy_regions.data(), .offset = 0, .numFaces = loaded_ktx->numFaces,
                     .numLayers = loaded_ktx->numLayers, .dest = static_cast<uint8_t*>(bufmap._mapped_memory),
                     .elementSize = elementSize, .numDimensions = loaded_ktx->numDimensions,
 #if defined(_DEBUG)
@@ -690,30 +698,26 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
             .layerCount = numImageLayers,
         };
 
+        VkCommandBuffer cmdbuf = renderer.get_cmd_buf_for_work_package(pkg);
+
         // Image barrier to transition, possibly only the base level, image
         // layout to TRANSFER_DST_OPTIMAL so it can be used as the copy
         // destination.
-        set_image_layout(work_package.command_buffer,
-                         raw_ptr(image),
-                         VK_IMAGE_LAYOUT_UNDEFINED,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         subresource_range);
+        set_image_layout(
+            cmdbuf, raw_ptr(image), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresource_range);
 
-        vkCmdCopyBufferToImage(work_package.command_buffer,
-                               work_package.staging_buffer,
+        vkCmdCopyBufferToImage(cmdbuf,
+                               staging_buffer->buf,
                                raw_ptr(image),
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                               static_cast<uint32_t>(work_package.copy_region.size()),
-                               work_package.copy_region.data());
+                               static_cast<uint32_t>(copy_regions.size()),
+                               copy_regions.data());
 
         if (loaded_ktx->generateMipmaps) {
             //
             // this will handle the transition to the final image layout too
-            ktx_internal_details::generateMipmaps(work_package.command_buffer,
-                                                  tex_info,
-                                                  raw_ptr(image),
-                                                  blit_filter,
-                                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            ktx_internal_details::generateMipmaps(
+                cmdbuf, tex_info, raw_ptr(image), blit_filter, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         } else {
             //
             // Transition image layout to finalLayout after all mip levels
@@ -721,25 +725,19 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
             // In this case numImageLevels == This->numLevels
             // subresourceRange.levelCount = numImageLevels;
 
-            set_image_layout(work_package.command_buffer,
-                             raw_ptr(image),
-                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                             final_layout,
-                             subresource_range);
+            set_image_layout(
+                cmdbuf, raw_ptr(image), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, final_layout, subresource_range);
         }
 
         //
         // Submit command buffer containing copy and image layout commands
-        return std::pair{
-            ManagedImage{
-                xrUniqueImageWithMemory{
-                    renderer.device(),
-                    xray::base::unique_pointer_release(image),
-                    xray::base::unique_pointer_release(image_memory),
-                },
-                tex_info,
+        return ManagedImage{
+            xrUniqueImageWithMemory{
+                renderer.device(),
+                xray::base::unique_pointer_release(image),
+                xray::base::unique_pointer_release(image_memory),
             },
-            renderer.submit_work_package(work_package),
+            tex_info,
         };
     } else {
         //

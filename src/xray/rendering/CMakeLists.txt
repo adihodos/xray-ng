@@ -100,5 +100,6 @@ target_link_libraries(
          itlib::itlib
          Vulkan::Vulkan
          swl-variant
+         strong_type::strong_type
   PRIVATE TBB::tbb cpp-lazy::cpp-lazy Vulkan::shaderc_combined ktx
           spirv-reflect-static $<$<PLATFORM_ID:Linux>:Xinerama>)

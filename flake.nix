@@ -50,7 +50,6 @@
             vulkan-caps-viewer
             vulkan-validation-layers
             ktx-tools
-            zed-editor
 
             shaderc
             shaderc.bin

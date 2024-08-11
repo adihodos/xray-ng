@@ -5,11 +5,21 @@
 #include <span>
 #include <tuple>
 #include <vector>
+#include <initializer_list>
+#include <unordered_map>
 
 #include <tl/optional.hpp>
+#include <strong_type/strong_type.hpp>
+#include <strong_type/bitarithmetic.hpp>
+#include <strong_type/convertible_to.hpp>
+#include <strong_type/equality.hpp>
+#include <strong_type/formattable.hpp>
+#include <strong_type/hashable.hpp>
+
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
+#include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
@@ -147,6 +157,73 @@ struct RenderBufferingSetup
     uint32_t buffers;
 };
 
+struct WorkPackageSetup
+{
+    WorkPackageHandle pkg;
+    VkCommandBuffer cmdbuf;
+};
+
+using WorkPackageHandle =
+    strong::type<uint32_t, struct WorkPackageHandle_tag, strong::equality, strong::formattable, strong::hashable>;
+
+using StagingBufferHandle =
+    strong::type<uint32_t, struct StagingBufferHandle_tag, strong::equality, strong::formattable, strong::hashable>;
+
+using StagingBufferMemoryHandle = strong::
+    type<uint32_t, struct StagingBufferMemoryHandle_tag, strong::equality, strong::formattable, strong::hashable>;
+
+using CommandBufferHandle =
+    strong::type<uint32_t, struct CommandBufferHandle_tag, strong::equality, strong::formattable, strong::hashable>;
+
+using FenceHandle =
+    strong::type<uint32_t, struct FenceHandle_tag, strong::equality, strong::formattable, strong::hashable>;
+
+using SubmitHandle =
+    strong::type<uint32_t, struct SubmitHandle_tag, strong::equality, strong::formattable, strong::hashable>;
+
+struct BufferWithDeviceMemoryPair
+{
+    StagingBufferHandle buffer;
+    StagingBufferMemoryHandle memory;
+};
+
+struct WorkPackageTrackingInfo
+{
+    std::vector<BufferWithDeviceMemoryPair> staging_buffers;
+    FenceHandle fence;
+    CommandBufferHandle cmd_buf;
+};
+
+struct WorkPackageState
+{
+    VkDevice device{};
+    VkQueue queue{};
+    VkCommandPool cmd_pool{};
+
+    std::vector<VkCommandBuffer> command_buffers;
+    std::vector<VkBuffer> staging_buffers;
+    std::vector<VkDeviceMemory> staging_memory;
+    std::vector<VkFence> fences;
+
+    std::unordered_map<WorkPackageHandle, WorkPackageTrackingInfo> packages;
+
+    static tl::expected<WorkPackageState, VulkanError> create(VkDevice device,
+                                                              VkQueue queue,
+                                                              const uint32_t queue_family_idx);
+
+    WorkPackageState(VkDevice device, VkQueue queue, VkCommandPool cmd_pool);
+    ~WorkPackageState();
+    WorkPackageState(const WorkPackageState&) = delete;
+    WorkPackageState& operator=(const WorkPackageState&) = delete;
+    WorkPackageState(WorkPackageState&& rhs);
+};
+
+struct StagingBuffer
+{
+    VkBuffer buf;
+    VkDeviceMemory mem;
+};
+
 struct WorkQueueImageCopyState
 {
     using fence_table_t = std::vector<VkFence>;
@@ -173,13 +250,18 @@ struct WorkQueueImageCopyState
 
 struct BufferCreationInfo
 {
+    const char* name_tag{};
+    tl::optional<WorkPackageHandle> work_package{};
     VkBufferUsageFlags usage;
     VkMemoryPropertyFlags memory_properties;
     size_t bytes;
     size_t frames;
-    std::span<const uint8_t> initial_data;
+    std::initializer_list<std::span<const uint8_t>> initial_data;
 };
 
+//
+// TODO:
+// - support debug tagging of vulkan objects
 class VulkanRenderer
 {
   private:
@@ -196,6 +278,7 @@ class VulkanRenderer
                    detail::RenderState render_state,
                    detail::PresentationState presentation_state,
                    detail::DescriptorPoolState pool_state,
+                   WorkPackageState wpkg_state,
                    BindlessSystem bindless);
 
     FrameRenderData begin_rendering();
@@ -239,14 +322,36 @@ class VulkanRenderer
     uint32_t find_allocation_memory_type(const uint32_t memory_requirements,
                                          const VkMemoryPropertyFlags required_flags) const noexcept;
 
-    QueuableWorkPackage create_work_package(const uint64_t image_size, const uint32_t copy_region_count);
+    void release_staging_resources();
 
-    WorkPackageFuture submit_work_package(const QueuableWorkPackage& pkg);
-    void release_staging_resources() { _work_queue.release_resources(); }
+    void wait_on_packages(std::initializer_list<WorkPackageHandle> pkgs) const noexcept;
+
+    tl::expected<WorkPackageSetup, VulkanError> create_work_package();
+
+    void submit_work_package(const WorkPackageHandle pkg_handle);
+
+    tl::expected<StagingBuffer, VulkanError> create_staging_buffer(WorkPackageHandle pkg, const size_t bytes_size);
+
+    VkCommandBuffer get_cmd_buf_for_work_package(const WorkPackageHandle pkg)
+    {
+        return _work_queue.command_buffers[_work_queue.packages.find(pkg)->second.cmd_buf.value_of()];
+    }
 
     const BindlessSystem& bindless_sys() const noexcept { return _bindless; }
     BindlessSystem& bindless_sys() noexcept { return _bindless; }
     VkDescriptorPool descriptor_pool() const noexcept { return xray::base::raw_ptr(_dpool_state.handle); }
+
+    // @group Debugging
+    template<typename VkObjectType>
+    void dbg_set_object_name(VkObjectType vkobj, const char* name) noexcept;
+
+    void dbg_set_object_name(const uint64_t object,
+                             const VkDebugReportObjectTypeEXT obj_type,
+                             const char* name) noexcept;
+    void dbg_marker_begin(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept;
+    void dbg_marker_end(VkCommandBuffer cmd_buf) noexcept;
+    void dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept;
+    // @endgroup
 
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
@@ -256,9 +361,22 @@ class VulkanRenderer
     detail::RenderState _render_state;
     detail::PresentationState _presentation_state;
     detail::DescriptorPoolState _dpool_state;
-    WorkQueueImageCopyState _work_queue;
+    WorkPackageState _work_queue;
     BindlessSystem _bindless;
 };
+
+template<typename VkObjectType>
+void
+VulkanRenderer::dbg_set_object_name(VkObjectType vkobj, const char* name) noexcept
+{
+    if constexpr (std::is_same_v<VkBuffer, VkObjectType>) {
+        dbg_set_object_name(reinterpret_cast<uint64_t>(vkobj), VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, name);
+    } else if constexpr (std::is_same_v<VkImage, VkObjectType>) {
+        dbg_set_object_name(reinterpret_cast<uint64_t>(vkobj), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, name);
+    } else {
+        static_assert(false, "Unsupported object type!");
+    }
+}
 
 uint32_t
 vk_format_bytes_size(const VkFormat format);

@@ -68,9 +68,9 @@ void main() {
     const uint vertex_index = g_IndexBufferGlobal[inst.idx_buff].data[gl_VertexIndex];
     const VertexPTC vtx = g_VertexBufferGlobal[inst.vtx_buff].data[vertex_index];
 
-    debugPrintfEXT("frame idx = %d, vertex index = %d", frame_idx, vertex_index);
+    // debugPrintfEXT("frame idx = %d, vertex index = %d", frame_idx, vertex_index);
 
-    gl_Position = inst.model * vec4(vtx.pos, 0.0, 1.0);
+    gl_Position = fgd.world_view_proj * inst.model * vec4(vtx.pos, 0.0, 1.0);
     vs_out.uv = vtx.uv;
     vs_out.mtl = inst.mtl_id;
 }

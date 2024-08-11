@@ -38,9 +38,7 @@ class ManagedImage
     VkImage image() const noexcept { return _image.handle<VkImage>(); }
     VkDeviceMemory memory() const noexcept { return _image.handle<VkDeviceMemory>(); }
 
-    std::tuple<VkImage, VkDeviceMemory> release() noexcept {
-      return _image.release();
-    }
+    std::tuple<VkImage, VkDeviceMemory> release() noexcept { return _image.release(); }
 
     // static tl::expected<ManagedImage, VulkanError> create(
     //     VulkanRenderer& renderer,
@@ -48,12 +46,12 @@ class ManagedImage
     //     const VkImageViewType view_type,
     //     const VkMemoryPropertyFlags image_memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    static tl::expected<std::pair<ManagedImage, WorkPackageFuture>, VulkanError> from_file(
-        VulkanRenderer& renderer,
-        const std::filesystem::path& texture_file,
-        const VkImageUsageFlags usage_flags,
-        const VkImageLayout final_layout,
-        const VkImageTiling tiling);
+    static tl::expected<ManagedImage, VulkanError> from_file(VulkanRenderer& renderer,
+                                                             const WorkPackageHandle pkg,
+                                                             const std::filesystem::path& texture_file,
+                                                             const VkImageUsageFlags usage_flags,
+                                                             const VkImageLayout final_layout,
+                                                             const VkImageTiling tiling);
 };
 
 VkImageMemoryBarrier2

@@ -60,6 +60,7 @@ cpmaddpackage(
   "SPDLOG_NO_EXCEPTIONS ON")
 
 cpmaddpackage("gh:ryanhaining/cppitertools#master")
+cpmaddpackage("gh:rollbear/strong_type@15")
 
 cpmaddpackage(
   NAME

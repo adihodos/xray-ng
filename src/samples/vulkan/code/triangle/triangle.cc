@@ -23,6 +23,7 @@
 #include "xray/math/math_base.hpp"
 #include "xray/rendering/colors/hsv_color.hpp"
 #include "xray/rendering/colors/color_cast_rgb_hsv.hpp"
+#include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/base/veneers/sequence_container_veneer.hpp"
 #include "xray/base/app_config.hpp"
 
@@ -125,7 +126,12 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 {
     const RenderBufferingSetup rbs{ init_ctx.renderer->buffering_setup() };
 
+    auto pkgs{ init_ctx.renderer->create_work_package() };
+    if (!pkgs)
+        return nullptr;
+
     const BufferCreationInfo bci{
+        .name_tag = "UBO - FrameGlobalData",
         .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
         .bytes = sizeof(FrameGlobalData),
@@ -144,11 +150,13 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     };
 
     const BufferCreationInfo vbinfo{
+        .name_tag = "Triangle vertices",
+        .work_package = pkgs->pkg,
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         .bytes = sizeof(tri_vertices),
         .frames = 1,
-        .initial_data = to_bytes_span(tri_vertices),
+        .initial_data = { to_bytes_span(tri_vertices) },
     };
 
     auto g_vertexbuffer{ init_ctx.renderer->create_buffer(vbinfo) };
@@ -157,11 +165,13 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 
     constexpr const uint32_t tri_indices[] = { 0, 1, 2 };
     const BufferCreationInfo ibinfo{
+        .name_tag = "Triangle index buffer",
+        .work_package = pkgs->pkg,
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         .bytes = sizeof(tri_indices),
         .frames = 1,
-        .initial_data = to_bytes_span(tri_indices),
+        .initial_data = { to_bytes_span(tri_indices) },
     };
 
     auto g_indexbuffer{ init_ctx.renderer->create_buffer(ibinfo) };
@@ -169,6 +179,7 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         return nullptr;
 
     const BufferCreationInfo inst_buf_info{
+        .name_tag = "Instances buffer",
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
         .bytes = 1024 * sizeof(InstanceRenderInfo),
@@ -181,8 +192,10 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         return nullptr;
 
     const char* const tex_file{ "uv_grids/ash_uvgrid01.ktx2" };
+
     auto pixel_buffer{
         ManagedImage::from_file(*init_ctx.renderer,
+                                pkgs->pkg,
                                 init_ctx.cfg->texture_path(tex_file),
                                 VK_IMAGE_USAGE_SAMPLED_BIT,
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -193,8 +206,9 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         return nullptr;
     }
 
-    auto [image, pkg_future] = std::move(*pixel_buffer);
-    WRAP_VULKAN_FUNC(vkWaitForFences, init_ctx.renderer->device(), 1, &pkg_future.fence, true, 0xffffffff);
+    ManagedImage image{ std::move(*pixel_buffer) };
+
+    init_ctx.renderer->submit_work_package(pkgs->pkg);
 
     tl::expected<GraphicsPipeline, VulkanError> pipeline{
         GraphicsPipelineBuilder{}
@@ -556,6 +570,10 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     //     });
     //
 
+    //
+    // wait for data to be uploaded to GPU
+    init_ctx.renderer->wait_on_packages({ pkgs->pkg });
+
     return xray::base::make_unique<TriangleDemo>(PrivateConstructionToken{},
                                                  init_ctx,
                                                  std::move(*g_ubo),
@@ -599,15 +617,16 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
     const FrameRenderData frt{ render_event.renderer->begin_rendering() };
 
-    // _g_ubo.mmap(render_event.renderer->device(), frt.id).map([frt](UniqueMemoryMapping ubo) {
-    //     FrameGlobalData* fgd = ubo.as<FrameGlobalData>();
-    //     fgd->frame = frt.id;
-    //     fgd->world_view_proj = mat4f::stdc::identity;
-    //     fgd->view = mat4f::stdc::identity;
-    //     fgd->eye_pos = vec3f::stdc::zero;
-    //     fgd->ortho = mat4f::stdc::identity;
-    //     fgd->projection = mat4f::stdc::identity;
-    // });
+    render_event.renderer->dbg_marker_begin(frt.cmd_buf, "Update UBO & instances", color_palette::web::orange_red);
+    _g_ubo.mmap(render_event.renderer->device(), frt.id).map([frt](UniqueMemoryMapping ubo) {
+        FrameGlobalData* fgd = ubo.as<FrameGlobalData>();
+        fgd->frame = frt.id;
+        fgd->world_view_proj = mat4f::stdc::identity;
+        fgd->view = mat4f::stdc::identity;
+        fgd->eye_pos = vec3f::stdc::zero;
+        fgd->ortho = mat4f::stdc::identity;
+        fgd->projection = mat4f::stdc::identity;
+    });
 
     _g_instancebuffer.mmap(render_event.renderer->device(), frt.id).map([this](UniqueMemoryMapping inst_buf) {
         const xray::math::scalar2x3<float> r = xray::math::R2::rotate(_angle);
@@ -621,6 +640,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         inst->mtl_coll = 0;
     });
 
+    render_event.renderer->dbg_marker_end(frt.cmd_buf);
+
     const VkViewport viewport{
         .x = 0.0f,
         .y = static_cast<float>(frt.fbsize.height),
@@ -631,6 +652,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     };
 
     vkCmdSetViewport(frt.cmd_buf, 0, 1, &viewport);
+
+    render_event.renderer->dbg_marker_insert(frt.cmd_buf, "Rendering triangle", color_palette::web::sea_green);
 
     const VkRect2D scissor{
         .offset = VkOffset2D{ 0, 0 },
@@ -653,7 +676,6 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     vkCmdPushConstants(
         frt.cmd_buf, _pipeline.layout(), VK_SHADER_STAGE_ALL, 0, static_cast<uint32_t>(sizeof(frt.id)), &frt.id);
 
-    // vkCmdDrawIndexed(frt.cmd_buf, 3, 1, 0, 0, 0);
     vkCmdDraw(frt.cmd_buf, 3, 1, 0, 0);
     render_event.renderer->end_rendering();
 }
