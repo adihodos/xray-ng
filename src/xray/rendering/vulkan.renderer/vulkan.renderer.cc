@@ -1790,6 +1790,542 @@ UniqueMemoryMapping::~UniqueMemoryMapping()
     }
 }
 
+tl::optional<detail::SwapchainState>
+create_swapchain_state(const SwapchainStateCreationInfo& create_info)
+{
+    //
+    // SwapchainKHR object
+    xrUniqueVkSwapchainKHR swapchain{
+        [&]() {
+            const VkSwapchainCreateInfoKHR swapchain_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+                .pNext = nullptr,
+                .flags = 0,
+                .surface = create_info.surface,
+                .minImageCount = create_info.image_count,
+                .imageFormat = create_info.fmt.format,
+                .imageColorSpace = create_info.fmt.colorSpace,
+                .imageExtent = create_info.surface_caps.maxImageExtent,
+                .imageArrayLayers = 1,
+                .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .queueFamilyIndexCount = 0,
+                .pQueueFamilyIndices = nullptr,
+                .preTransform = create_info.surface_caps.currentTransform,
+                .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+                .presentMode = create_info.present_mode,
+                .clipped = false,
+                .oldSwapchain = create_info.retired_swapchain,
+            };
+
+            VkSwapchainKHR swapchain{};
+            WRAP_VULKAN_FUNC(vkCreateSwapchainKHR, create_info.device, &swapchain_create_info, nullptr, &swapchain);
+            return swapchain;
+        }(),
+        VkResourceDeleter_VkSwapchainKHR{ create_info.device },
+    };
+
+    XR_LOG_INFO("Swapchain created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(swapchain)));
+
+    //
+    // acquire images
+    vector<VkImage> swapchain_images{ [&]() {
+        uint32_t swapchain_image_count{};
+        WRAP_VULKAN_FUNC(
+            vkGetSwapchainImagesKHR, create_info.device, raw_ptr(swapchain), &swapchain_image_count, nullptr);
+
+        vector<VkImage> swapchain_images{ swapchain_image_count };
+        WRAP_VULKAN_FUNC(vkGetSwapchainImagesKHR,
+                         create_info.device,
+                         raw_ptr(swapchain),
+                         &swapchain_image_count,
+                         swapchain_images.data());
+
+        return swapchain_images;
+    }() };
+
+    //
+    // create image_views
+    vector<xrUniqueVkImageView> swapchain_image_views =
+        swapchain_images % fn::transform([&](VkImage image) {
+            const VkImageViewCreateInfo imageview_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .image = image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = create_info.fmt.format,
+                .components = VkComponentMapping{},
+                .subresourceRange =
+                    VkImageSubresourceRange{
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    },
+            };
+
+            VkImageView image_view{};
+            WRAP_VULKAN_FUNC(vkCreateImageView, create_info.device, &imageview_create_info, nullptr, &image_view);
+
+            return xrUniqueVkImageView{
+                image_view,
+                VkResourceDeleter_VkImageView{ create_info.device },
+            };
+        }) %
+        fn::where([](const xrUniqueVkImageView& img_view) { return static_cast<bool>(img_view); }) %
+        fn::to(vector<xrUniqueVkImageView>{});
+
+    if (swapchain_image_views.size() != create_info.image_count) {
+        XR_LOG_ERR_FILE_LINE("Failed to create image views (needed {}, created {})",
+                             create_info.image_count,
+                             swapchain_image_views.size());
+        return tl::nullopt;
+    }
+
+    //
+    // depth stencil images + image views
+    vector<xrUniqueVkImageView> depth_stencil_image_views;
+    vector<UniqueImage> depth_stencil_images;
+
+    for (uint32_t idx = 0; idx < create_info.image_count; ++idx) {
+        const VkImageCreateInfo image_create_info = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = create_info.depth_att_format,
+            .extent = VkExtent3D{ .width = create_info.dimensions.width,
+                                  .height = create_info.dimensions.height,
+                                  .depth = 1 },
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 0,
+            .pQueueFamilyIndices = nullptr,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
+
+        xrUniqueVkImage ds_image{
+            [&]() {
+                VkImage image{};
+                WRAP_VULKAN_FUNC(vkCreateImage, create_info.device, &image_create_info, nullptr, &image);
+                if (!image) {
+                    XR_LOG_CRITICAL("Failed to create depth-stencil attachment");
+                }
+                return image;
+            }(),
+            VkResourceDeleter_VkImage{ create_info.device },
+        };
+
+        xrUniqueVkDeviceMemory ds_image_memory{
+            [&]() {
+                VkMemoryRequirements mem_req;
+                vkGetImageMemoryRequirements(create_info.device, raw_ptr(ds_image), &mem_req);
+                const VkMemoryAllocateInfo mem_alloc_info = {
+                    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                    .pNext = nullptr,
+                    .allocationSize = mem_req.size,
+                    .memoryTypeIndex = vk_find_allocation_memory_type(
+                        create_info.mem_props, mem_req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+                };
+
+                VkDeviceMemory image_memory{};
+                WRAP_VULKAN_FUNC(vkAllocateMemory, create_info.device, &mem_alloc_info, nullptr, &image_memory);
+                if (image_memory)
+                    WRAP_VULKAN_FUNC(vkBindImageMemory, create_info.device, raw_ptr(ds_image), image_memory, 0);
+                return image_memory;
+            }(),
+            VkResourceDeleter_VkDeviceMemory{ create_info.device },
+        };
+
+        const VkImageViewCreateInfo depth_stencil_view_create_info = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .image = raw_ptr(ds_image),
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = create_info.depth_att_format,
+            .components = VkComponentMapping{},
+            .subresourceRange =
+                VkImageSubresourceRange{
+                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
+        };
+
+        xrUniqueVkImageView ds_image_view{
+            [&]() {
+                VkImageView image_view{};
+                WRAP_VULKAN_FUNC(
+                    vkCreateImageView, create_info.device, &depth_stencil_view_create_info, nullptr, &image_view);
+                return image_view;
+            }(),
+            VkResourceDeleter_VkImageView{ create_info.device },
+        };
+
+        if (ds_image && ds_image_view) {
+            depth_stencil_images.emplace_back(std::move(ds_image), std::move(ds_image_memory));
+            depth_stencil_image_views.push_back(std::move(ds_image_view));
+        }
+    }
+
+    if (depth_stencil_image_views.size() != create_info.image_count &&
+        depth_stencil_images.size() != create_info.image_count) {
+        XR_LOG_ERR("Failed to create all the required {} depth stencil images and image views",
+                   create_info.image_count);
+
+        return tl::nullopt;
+    }
+
+    //
+    // sync objects
+    const size_t sync_objects_count = swapchain_image_views.size();
+    vector<xrUniqueVkFence> fences = [sync_objects_count, &create_info]() {
+        vector<xrUniqueVkFence> fences{};
+        fences.reserve(sync_objects_count);
+
+        for (size_t idx = 0; idx < sync_objects_count; ++idx) {
+            const VkFenceCreateInfo fence_create_info = {
+                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+            };
+
+            VkFence fence{};
+            WRAP_VULKAN_FUNC(vkCreateFence, create_info.device, &fence_create_info, nullptr, &fence);
+
+            if (!fence)
+                break;
+
+            fences.emplace_back(fence, VkResourceDeleter_VkFence{ create_info.device });
+        }
+
+        return fences;
+    }();
+
+    auto make_semaphores_fn = [sync_objects_count, device = create_info.device]() {
+        vector<xrUniqueVkSemaphore> semaphores{};
+        semaphores.reserve(sync_objects_count);
+
+        for (size_t idx = 0; idx < sync_objects_count; ++idx) {
+            const VkSemaphoreCreateInfo semaphore_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+            };
+
+            VkSemaphore semaphore{};
+            WRAP_VULKAN_FUNC(vkCreateSemaphore, device, &semaphore_create_info, nullptr, &semaphore);
+
+            if (!semaphore)
+                break;
+
+            semaphores.emplace_back(semaphore, VkResourceDeleter_VkSemaphore{ device });
+        }
+
+        return semaphores;
+    };
+
+    vector<xrUniqueVkSemaphore> rendering_semaphores{ make_semaphores_fn() };
+    vector<xrUniqueVkSemaphore> presentation_semaphores{ make_semaphores_fn() };
+
+    assert(rendering_semaphores.size() == sync_objects_count && presentation_semaphores.size() == sync_objects_count);
+
+    return tl::make_optional<detail::SwapchainState>(std::move(swapchain),
+                                                     std::move(swapchain_images),
+                                                     std::move(swapchain_image_views),
+                                                     std::move(depth_stencil_images),
+                                                     std::move(depth_stencil_image_views),
+                                                     detail::SyncState{
+                                                         std::move(fences),
+                                                         std::move(presentation_semaphores),
+                                                         std::move(rendering_semaphores),
+                                                     });
+}
+
+tl::expected<WorkPackageSetup, VulkanError>
+VulkanRenderer::create_work_package()
+{
+    const WorkPackageHandle pkg_handle{ static_cast<uint32_t>(_work_queue.packages.size()) };
+
+    const VkCommandBufferAllocateInfo cmd_buff_alloc_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .commandPool = _work_queue.cmd_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    VkCommandBuffer cmd_buf{};
+    const VkResult alloc_result =
+        WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, raw_ptr(_render_state.dev_logical), &cmd_buff_alloc_info, &cmd_buf);
+    XR_VK_CHECK_RESULT(alloc_result);
+
+    const VkCommandBufferBeginInfo cmd_buf_begin{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
+    vkBeginCommandBuffer(cmd_buf, &cmd_buf_begin);
+
+    _work_queue.command_buffers.push_back(cmd_buf);
+    const CommandBufferHandle cmd_buf_handle{ static_cast<uint32_t>(_work_queue.command_buffers.size() - 1) };
+
+    const VkFenceCreateInfo fence_create_info{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+    };
+
+    VkFence fence{};
+    const VkResult fence_create_result =
+        WRAP_VULKAN_FUNC(vkCreateFence, raw_ptr(_render_state.dev_logical), &fence_create_info, nullptr, &fence);
+
+    const FenceHandle fence_handle{ static_cast<uint32_t>(_work_queue.fences.size()) };
+    _work_queue.fences.push_back(fence);
+    _work_queue.packages.insert({ pkg_handle, WorkPackageTrackingInfo{ {}, fence_handle, cmd_buf_handle } });
+
+    return WorkPackageSetup{ pkg_handle, cmd_buf };
+}
+
+tl::expected<StagingBuffer, VulkanError>
+VulkanRenderer::create_staging_buffer(WorkPackageHandle pkg, const size_t bytes_size)
+{
+    WorkPackageTrackingInfo* trackinfo = &_work_queue.packages.find(pkg)->second;
+
+    const VkBufferCreateInfo buffer_create_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .size = static_cast<VkDeviceSize>(bytes_size),
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+    };
+
+    VkDevice device{ raw_ptr(_render_state.dev_logical) };
+    VkBuffer staging_buffer{};
+    const VkResult result = WRAP_VULKAN_FUNC(vkCreateBuffer, device, &buffer_create_info, nullptr, &staging_buffer);
+    XR_VK_CHECK_RESULT(result);
+
+    _work_queue.staging_buffers.emplace_back(staging_buffer);
+
+    const VkBufferMemoryRequirementsInfo2 buf_mem_req_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+        .pNext = nullptr,
+        .buffer = staging_buffer,
+    };
+
+    VkMemoryRequirements2 buf_mem_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        .pNext = nullptr,
+    };
+    vkGetBufferMemoryRequirements2(device, &buf_mem_req_info, &buf_mem_info);
+
+    const VkMemoryAllocateFlagsInfo mem_alloc_flags{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .deviceMask = 0,
+    };
+
+    const VkMemoryAllocateInfo mem_alloc_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &mem_alloc_flags,
+        .allocationSize = buf_mem_info.memoryRequirements.size,
+        .memoryTypeIndex =
+            find_allocation_memory_type(buf_mem_info.memoryRequirements.memoryTypeBits,
+                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT),
+    };
+
+    VkDeviceMemory allocated_memory{};
+    const VkResult mem_alloc_result =
+        WRAP_VULKAN_FUNC(vkAllocateMemory, device, &mem_alloc_info, nullptr, &allocated_memory);
+
+    XR_VK_CHECK_RESULT(mem_alloc_result);
+
+    _work_queue.staging_memory.emplace_back(allocated_memory);
+
+    const VkBindBufferMemoryInfo bind_memory_info{
+        .sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
+        .pNext = nullptr,
+        .buffer = staging_buffer,
+        .memory = allocated_memory,
+        .memoryOffset = 0,
+    };
+
+    const VkResult bind_mem_result = WRAP_VULKAN_FUNC(vkBindBufferMemory2, device, 1, &bind_memory_info);
+    XR_VK_CHECK_RESULT(bind_mem_result);
+
+    return StagingBuffer{ staging_buffer, allocated_memory };
+}
+
+tl::expected<WorkPackageState, VulkanError>
+WorkPackageState::create(VkDevice device, VkQueue queue, const uint32_t queue_family_idx)
+{
+    const VkCommandPoolCreateInfo cmd_pool_create_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = queue_family_idx,
+    };
+
+    VkCommandPool cmd_pool{};
+    const VkResult cmd_pool_create_result =
+        WRAP_VULKAN_FUNC(vkCreateCommandPool, device, &cmd_pool_create_info, nullptr, &cmd_pool);
+    XR_VK_CHECK_RESULT(cmd_pool_create_result);
+
+    return WorkPackageState{ device, queue, cmd_pool };
+}
+
+WorkPackageState::WorkPackageState(VkDevice dev, VkQueue q, VkCommandPool cmdpool)
+    : device{ dev }
+    , queue{ q }
+    , cmd_pool{ cmdpool }
+{
+}
+
+WorkPackageState::WorkPackageState(WorkPackageState&& rhs)
+    : device{ rhs.device }
+    , queue{ rhs.queue }
+    , cmd_pool{ rhs.cmd_pool }
+    , command_buffers{ std::move(rhs.command_buffers) }
+    , staging_buffers{ std::move(rhs.staging_buffers) }
+    , staging_memory{ std::move(rhs.staging_memory) }
+{
+    rhs.cmd_pool = VK_NULL_HANDLE;
+}
+
+WorkPackageState::~WorkPackageState()
+{
+    if (!command_buffers.empty()) {
+        WRAP_VULKAN_FUNC(vkFreeCommandBuffers,
+                         device,
+                         cmd_pool,
+                         static_cast<uint32_t>(command_buffers.size()),
+                         command_buffers.data());
+    }
+
+    lz::chain(staging_buffers).forEach([d = this->device](VkBuffer buf) {
+        WRAP_VULKAN_FUNC(vkDestroyBuffer, d, buf, nullptr);
+    });
+
+    lz::chain(staging_memory).forEach([d = this->device](VkDeviceMemory mem) {
+        WRAP_VULKAN_FUNC(vkFreeMemory, d, mem, nullptr);
+    });
+}
+
+void
+VulkanRenderer::submit_work_package(const WorkPackageHandle pkg_handle)
+{
+    auto itr_pkg = _work_queue.packages.find(pkg_handle);
+    assert(itr_pkg != std::cend(_work_queue.packages));
+
+    WorkPackageTrackingInfo* track_info = &itr_pkg->second;
+
+    const VkCommandBuffer cmd_buf = _work_queue.command_buffers[track_info->cmd_buf.value_of()];
+    vkEndCommandBuffer(cmd_buf);
+
+    const VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 0,
+        .pWaitSemaphores = nullptr,
+        .pWaitDstStageMask = nullptr,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd_buf,
+        .signalSemaphoreCount = 0,
+        .pSignalSemaphores = nullptr,
+    };
+
+    WRAP_VULKAN_FUNC(vkQueueSubmit,
+                     _render_state.queues[0].handle,
+                     1,
+                     &submit_info,
+                     _work_queue.fences[track_info->fence.value_of()]);
+}
+
+void
+VulkanRenderer::wait_on_packages(std::initializer_list<WorkPackageHandle> pkgs) const noexcept
+{
+    itlib::small_vector<VkFence> fences{
+        lz::chain(pkgs)
+            .map([this](WorkPackageHandle pkg) {
+                return _work_queue.fences[_work_queue.packages.find(pkg)->second.fence.value_of()];
+            })
+            .to<itlib::small_vector<VkFence>>(),
+    };
+
+    WRAP_VULKAN_FUNC(vkWaitForFences,
+                     raw_ptr(_render_state.dev_logical),
+                     static_cast<uint32_t>(fences.size()),
+                     fences.data(),
+                     true,
+                     0xffffffff);
+}
+
+void
+VulkanRenderer::release_staging_resources()
+{
+}
+
+void
+VulkanRenderer::dbg_set_object_name(const uint64_t object,
+                                    const VkDebugReportObjectTypeEXT object_type,
+                                    const char* name) noexcept
+{
+    const VkDebugMarkerObjectNameInfoEXT obj_name{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext = nullptr,
+        .objectType = object_type,
+        .object = object,
+        .pObjectName = name,
+    };
+    WRAP_VULKAN_FUNC(vkfn::DebugMarkerSetObjectNameEXT, raw_ptr(_render_state.dev_logical), &obj_name);
+}
+
+void
+VulkanRenderer::dbg_marker_begin(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept
+{
+    const VkDebugMarkerMarkerInfoEXT debug_marker{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
+        .pNext = nullptr,
+        .pMarkerName = name,
+        .color = { color.r, color.g, color.b, color.a },
+    };
+
+    vkfn::CmdDebugMarkerBeginEXT(cmd_buf, &debug_marker);
+}
+
+void
+VulkanRenderer::dbg_marker_end(VkCommandBuffer cmd_buf) noexcept
+{
+    vkfn::CmdDebugMarkerEndEXT(cmd_buf);
+}
+
+void
+VulkanRenderer::dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept
+{
+    const VkDebugMarkerMarkerInfoEXT debug_marker{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
+        .pNext = nullptr,
+        .pMarkerName = name,
+        .color = { color.r, color.g, color.b, color.a },
+    };
+
+    vkfn::CmdDebugMarkerInsertEXT(cmd_buf, &debug_marker);
+}
+
 uint32_t
 vk_format_bytes_size(const VkFormat format)
 {
@@ -2173,578 +2709,6 @@ vk_format_bytes_size(const VkFormat format)
             break;
     }
     return result;
-}
-
-tl::optional<detail::SwapchainState>
-create_swapchain_state(const SwapchainStateCreationInfo& create_info)
-{
-    //
-    // SwapchainKHR object
-    xrUniqueVkSwapchainKHR swapchain{
-        [&]() {
-            const VkSwapchainCreateInfoKHR swapchain_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-                .pNext = nullptr,
-                .flags = 0,
-                .surface = create_info.surface,
-                .minImageCount = create_info.image_count,
-                .imageFormat = create_info.fmt.format,
-                .imageColorSpace = create_info.fmt.colorSpace,
-                .imageExtent = create_info.surface_caps.maxImageExtent,
-                .imageArrayLayers = 1,
-                .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                .queueFamilyIndexCount = 0,
-                .pQueueFamilyIndices = nullptr,
-                .preTransform = create_info.surface_caps.currentTransform,
-                .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-                .presentMode = create_info.present_mode,
-                .clipped = false,
-                .oldSwapchain = create_info.retired_swapchain,
-            };
-
-            VkSwapchainKHR swapchain{};
-            WRAP_VULKAN_FUNC(vkCreateSwapchainKHR, create_info.device, &swapchain_create_info, nullptr, &swapchain);
-            return swapchain;
-        }(),
-        VkResourceDeleter_VkSwapchainKHR{ create_info.device },
-    };
-
-    XR_LOG_INFO("Swapchain created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(swapchain)));
-
-    //
-    // acquire images
-    vector<VkImage> swapchain_images{ [&]() {
-        uint32_t swapchain_image_count{};
-        WRAP_VULKAN_FUNC(
-            vkGetSwapchainImagesKHR, create_info.device, raw_ptr(swapchain), &swapchain_image_count, nullptr);
-
-        vector<VkImage> swapchain_images{ swapchain_image_count };
-        WRAP_VULKAN_FUNC(vkGetSwapchainImagesKHR,
-                         create_info.device,
-                         raw_ptr(swapchain),
-                         &swapchain_image_count,
-                         swapchain_images.data());
-
-        return swapchain_images;
-    }() };
-
-    //
-    // create image_views
-    vector<xrUniqueVkImageView> swapchain_image_views =
-        swapchain_images % fn::transform([&](VkImage image) {
-            const VkImageViewCreateInfo imageview_create_info = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .image = image,
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = create_info.fmt.format,
-                .components = VkComponentMapping{},
-                .subresourceRange =
-                    VkImageSubresourceRange{
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .baseMipLevel = 0,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1,
-                    },
-            };
-
-            VkImageView image_view{};
-            WRAP_VULKAN_FUNC(vkCreateImageView, create_info.device, &imageview_create_info, nullptr, &image_view);
-
-            return xrUniqueVkImageView{
-                image_view,
-                VkResourceDeleter_VkImageView{ create_info.device },
-            };
-        }) %
-        fn::where([](const xrUniqueVkImageView& img_view) { return static_cast<bool>(img_view); }) %
-        fn::to(vector<xrUniqueVkImageView>{});
-
-    if (swapchain_image_views.size() != create_info.image_count) {
-        XR_LOG_ERR_FILE_LINE("Failed to create image views (needed {}, created {})",
-                             create_info.image_count,
-                             swapchain_image_views.size());
-        return tl::nullopt;
-    }
-
-    //
-    // depth stencil images + image views
-    vector<xrUniqueVkImageView> depth_stencil_image_views;
-    vector<UniqueImage> depth_stencil_images;
-
-    for (uint32_t idx = 0; idx < create_info.image_count; ++idx) {
-        const VkImageCreateInfo image_create_info = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = create_info.depth_att_format,
-            .extent = VkExtent3D{ .width = create_info.dimensions.width,
-                                  .height = create_info.dimensions.height,
-                                  .depth = 1 },
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
-            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .queueFamilyIndexCount = 0,
-            .pQueueFamilyIndices = nullptr,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        };
-
-        xrUniqueVkImage ds_image{
-            [&]() {
-                VkImage image{};
-                WRAP_VULKAN_FUNC(vkCreateImage, create_info.device, &image_create_info, nullptr, &image);
-                if (!image) {
-                    XR_LOG_CRITICAL("Failed to create depth-stencil attachment");
-                }
-                return image;
-            }(),
-            VkResourceDeleter_VkImage{ create_info.device },
-        };
-
-        xrUniqueVkDeviceMemory ds_image_memory{
-            [&]() {
-                VkMemoryRequirements mem_req;
-                vkGetImageMemoryRequirements(create_info.device, raw_ptr(ds_image), &mem_req);
-                const VkMemoryAllocateInfo mem_alloc_info = {
-                    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                    .pNext = nullptr,
-                    .allocationSize = mem_req.size,
-                    .memoryTypeIndex = vk_find_allocation_memory_type(
-                        create_info.mem_props, mem_req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-                };
-
-                VkDeviceMemory image_memory{};
-                WRAP_VULKAN_FUNC(vkAllocateMemory, create_info.device, &mem_alloc_info, nullptr, &image_memory);
-                if (image_memory)
-                    WRAP_VULKAN_FUNC(vkBindImageMemory, create_info.device, raw_ptr(ds_image), image_memory, 0);
-                return image_memory;
-            }(),
-            VkResourceDeleter_VkDeviceMemory{ create_info.device },
-        };
-
-        const VkImageViewCreateInfo depth_stencil_view_create_info = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .image = raw_ptr(ds_image),
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = create_info.depth_att_format,
-            .components = VkComponentMapping{},
-            .subresourceRange =
-                VkImageSubresourceRange{
-                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-                    .baseMipLevel = 0,
-                    .levelCount = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                },
-        };
-
-        xrUniqueVkImageView ds_image_view{
-            [&]() {
-                VkImageView image_view{};
-                WRAP_VULKAN_FUNC(
-                    vkCreateImageView, create_info.device, &depth_stencil_view_create_info, nullptr, &image_view);
-                return image_view;
-            }(),
-            VkResourceDeleter_VkImageView{ create_info.device },
-        };
-
-        if (ds_image && ds_image_view) {
-            depth_stencil_images.emplace_back(std::move(ds_image), std::move(ds_image_memory));
-            depth_stencil_image_views.push_back(std::move(ds_image_view));
-        }
-    }
-
-    if (depth_stencil_image_views.size() != create_info.image_count &&
-        depth_stencil_images.size() != create_info.image_count) {
-        XR_LOG_ERR("Failed to create all the required {} depth stencil images and image views",
-                   create_info.image_count);
-
-        return tl::nullopt;
-    }
-
-    //
-    // sync objects
-    const size_t sync_objects_count = swapchain_image_views.size();
-    vector<xrUniqueVkFence> fences = [sync_objects_count, &create_info]() {
-        vector<xrUniqueVkFence> fences{};
-        fences.reserve(sync_objects_count);
-
-        for (size_t idx = 0; idx < sync_objects_count; ++idx) {
-            const VkFenceCreateInfo fence_create_info = {
-                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-            };
-
-            VkFence fence{};
-            WRAP_VULKAN_FUNC(vkCreateFence, create_info.device, &fence_create_info, nullptr, &fence);
-
-            if (!fence)
-                break;
-
-            fences.emplace_back(fence, VkResourceDeleter_VkFence{ create_info.device });
-        }
-
-        return fences;
-    }();
-
-    auto make_semaphores_fn = [sync_objects_count, device = create_info.device]() {
-        vector<xrUniqueVkSemaphore> semaphores{};
-        semaphores.reserve(sync_objects_count);
-
-        for (size_t idx = 0; idx < sync_objects_count; ++idx) {
-            const VkSemaphoreCreateInfo semaphore_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-            };
-
-            VkSemaphore semaphore{};
-            WRAP_VULKAN_FUNC(vkCreateSemaphore, device, &semaphore_create_info, nullptr, &semaphore);
-
-            if (!semaphore)
-                break;
-
-            semaphores.emplace_back(semaphore, VkResourceDeleter_VkSemaphore{ device });
-        }
-
-        return semaphores;
-    };
-
-    vector<xrUniqueVkSemaphore> rendering_semaphores{ make_semaphores_fn() };
-    vector<xrUniqueVkSemaphore> presentation_semaphores{ make_semaphores_fn() };
-
-    assert(rendering_semaphores.size() == sync_objects_count && presentation_semaphores.size() == sync_objects_count);
-
-    return tl::make_optional<detail::SwapchainState>(std::move(swapchain),
-                                                     std::move(swapchain_images),
-                                                     std::move(swapchain_image_views),
-                                                     std::move(depth_stencil_images),
-                                                     std::move(depth_stencil_image_views),
-                                                     detail::SyncState{
-                                                         std::move(fences),
-                                                         std::move(presentation_semaphores),
-                                                         std::move(rendering_semaphores),
-                                                     });
-}
-
-tl::expected<WorkPackageSetup, VulkanError>
-VulkanRenderer::create_work_package()
-{
-    const WorkPackageHandle pkg_handle{ static_cast<uint32_t>(_work_queue.packages.size()) };
-
-    const VkCommandBufferAllocateInfo cmd_buff_alloc_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .commandPool = _work_queue.cmd_pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    };
-
-    VkCommandBuffer cmd_buf{};
-    const VkResult alloc_result =
-        WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, raw_ptr(_render_state.dev_logical), &cmd_buff_alloc_info, &cmd_buf);
-    XR_VK_CHECK_RESULT(alloc_result);
-
-    const VkCommandBufferBeginInfo cmd_buf_begin{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr,
-    };
-    vkBeginCommandBuffer(cmd_buf, &cmd_buf_begin);
-
-    _work_queue.command_buffers.push_back(cmd_buf);
-    const CommandBufferHandle cmd_buf_handle{ static_cast<uint32_t>(_work_queue.command_buffers.size() - 1) };
-
-    const VkFenceCreateInfo fence_create_info{
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-    };
-
-    VkFence fence{};
-    const VkResult fence_create_result =
-        WRAP_VULKAN_FUNC(vkCreateFence, raw_ptr(_render_state.dev_logical), &fence_create_info, nullptr, &fence);
-
-    const FenceHandle fence_handle{ static_cast<uint32_t>(_work_queue.fences.size()) };
-    _work_queue.fences.push_back(fence);
-    _work_queue.packages.insert({ pkg_handle, WorkPackageTrackingInfo{ {}, fence_handle, cmd_buf_handle } });
-
-    return WorkPackageSetup{ pkg_handle, cmd_buf };
-}
-
-tl::expected<StagingBuffer, VulkanError>
-VulkanRenderer::create_staging_buffer(WorkPackageHandle pkg, const size_t bytes_size)
-{
-    WorkPackageTrackingInfo* trackinfo = &_work_queue.packages.find(pkg)->second;
-
-    const VkBufferCreateInfo buffer_create_info{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .size = static_cast<VkDeviceSize>(bytes_size),
-        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = 0,
-        .pQueueFamilyIndices = nullptr,
-    };
-
-    VkDevice device{ raw_ptr(_render_state.dev_logical) };
-    VkBuffer staging_buffer{};
-    const VkResult result = WRAP_VULKAN_FUNC(vkCreateBuffer, device, &buffer_create_info, nullptr, &staging_buffer);
-    XR_VK_CHECK_RESULT(result);
-
-    _work_queue.staging_buffers.emplace_back(staging_buffer);
-
-    const VkBufferMemoryRequirementsInfo2 buf_mem_req_info{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
-        .pNext = nullptr,
-        .buffer = staging_buffer,
-    };
-
-    VkMemoryRequirements2 buf_mem_info{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
-        .pNext = nullptr,
-    };
-    vkGetBufferMemoryRequirements2(device, &buf_mem_req_info, &buf_mem_info);
-
-    const VkMemoryAllocateFlagsInfo mem_alloc_flags{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .deviceMask = 0,
-    };
-
-    const VkMemoryAllocateInfo mem_alloc_info{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = &mem_alloc_flags,
-        .allocationSize = buf_mem_info.memoryRequirements.size,
-        .memoryTypeIndex =
-            find_allocation_memory_type(buf_mem_info.memoryRequirements.memoryTypeBits,
-                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT),
-    };
-
-    VkDeviceMemory allocated_memory{};
-    const VkResult mem_alloc_result =
-        WRAP_VULKAN_FUNC(vkAllocateMemory, device, &mem_alloc_info, nullptr, &allocated_memory);
-
-    XR_VK_CHECK_RESULT(mem_alloc_result);
-
-    _work_queue.staging_memory.emplace_back(allocated_memory);
-
-    const VkBindBufferMemoryInfo bind_memory_info{
-        .sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
-        .pNext = nullptr,
-        .buffer = staging_buffer,
-        .memory = allocated_memory,
-        .memoryOffset = 0,
-    };
-
-    const VkResult bind_mem_result = WRAP_VULKAN_FUNC(vkBindBufferMemory2, device, 1, &bind_memory_info);
-    XR_VK_CHECK_RESULT(bind_mem_result);
-
-    return StagingBuffer{ staging_buffer, allocated_memory };
-}
-
-WorkQueueImageCopyState::WorkQueueImageCopyState(VkDevice dev, VkCommandPool cmdpool)
-    : device{ dev }
-    , cmd_pool{ cmdpool }
-{
-    //
-    // should be enough to not cause these vectors to reallocate
-    static constexpr const size_t RESERVE_CAPACITY = 2048;
-    fences.reserve(RESERVE_CAPACITY);
-    submits.reserve(RESERVE_CAPACITY);
-    cmd_buffers.reserve(RESERVE_CAPACITY);
-    copy_regions.reserve(RESERVE_CAPACITY);
-    staging_memory.reserve(RESERVE_CAPACITY);
-    staging_buffers.reserve(RESERVE_CAPACITY);
-}
-
-void
-WorkQueueImageCopyState::release_resources()
-{
-    ranges::for_each(fences, VkResourceDeleter_VkFence{ device });
-
-    if (!cmd_buffers.empty()) {
-        vkFreeCommandBuffers(device, cmd_pool, cmd_buffers.size(), cmd_buffers.data());
-        cmd_buffers.clear();
-    }
-
-    submits.clear();
-    copy_regions.clear();
-    ranges::for_each(staging_memory, VkResourceDeleter_VkDeviceMemory{ device });
-    ranges::for_each(staging_buffers, VkResourceDeleter_VkBuffer{ device });
-}
-
-WorkQueueImageCopyState::~WorkQueueImageCopyState()
-{
-    release_resources();
-}
-
-tl::expected<WorkPackageState, VulkanError>
-WorkPackageState::create(VkDevice device, VkQueue queue, const uint32_t queue_family_idx)
-{
-    const VkCommandPoolCreateInfo cmd_pool_create_info{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = queue_family_idx,
-    };
-
-    VkCommandPool cmd_pool{};
-    const VkResult cmd_pool_create_result =
-        WRAP_VULKAN_FUNC(vkCreateCommandPool, device, &cmd_pool_create_info, nullptr, &cmd_pool);
-    XR_VK_CHECK_RESULT(cmd_pool_create_result);
-
-    return WorkPackageState{ device, queue, cmd_pool };
-}
-
-WorkPackageState::WorkPackageState(VkDevice dev, VkQueue q, VkCommandPool cmdpool)
-    : device{ dev }
-    , queue{ q }
-    , cmd_pool{ cmdpool }
-{
-}
-
-WorkPackageState::WorkPackageState(WorkPackageState&& rhs)
-    : device{ rhs.device }
-    , queue{ rhs.queue }
-    , cmd_pool{ rhs.cmd_pool }
-    , command_buffers{ std::move(rhs.command_buffers) }
-    , staging_buffers{ std::move(rhs.staging_buffers) }
-    , staging_memory{ std::move(rhs.staging_memory) }
-{
-    rhs.cmd_pool = VK_NULL_HANDLE;
-}
-
-WorkPackageState::~WorkPackageState()
-{
-    if (!command_buffers.empty()) {
-        WRAP_VULKAN_FUNC(vkFreeCommandBuffers,
-                         device,
-                         cmd_pool,
-                         static_cast<uint32_t>(command_buffers.size()),
-                         command_buffers.data());
-    }
-
-    lz::chain(staging_buffers).forEach([d = this->device](VkBuffer buf) {
-        WRAP_VULKAN_FUNC(vkDestroyBuffer, d, buf, nullptr);
-    });
-
-    lz::chain(staging_memory).forEach([d = this->device](VkDeviceMemory mem) {
-        WRAP_VULKAN_FUNC(vkFreeMemory, d, mem, nullptr);
-    });
-}
-
-void
-VulkanRenderer::submit_work_package(const WorkPackageHandle pkg_handle)
-{
-    auto itr_pkg = _work_queue.packages.find(pkg_handle);
-    assert(itr_pkg != std::cend(_work_queue.packages));
-
-    WorkPackageTrackingInfo* track_info = &itr_pkg->second;
-
-    const VkCommandBuffer cmd_buf = _work_queue.command_buffers[track_info->cmd_buf.value_of()];
-    vkEndCommandBuffer(cmd_buf);
-
-    const VkSubmitInfo submit_info{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 0,
-        .pWaitSemaphores = nullptr,
-        .pWaitDstStageMask = nullptr,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd_buf,
-        .signalSemaphoreCount = 0,
-        .pSignalSemaphores = nullptr,
-    };
-
-    WRAP_VULKAN_FUNC(vkQueueSubmit,
-                     _render_state.queues[0].handle,
-                     1,
-                     &submit_info,
-                     _work_queue.fences[track_info->fence.value_of()]);
-}
-
-void
-VulkanRenderer::wait_on_packages(std::initializer_list<WorkPackageHandle> pkgs) const noexcept
-{
-    itlib::small_vector<VkFence> fences{
-        lz::chain(pkgs)
-            .map([this](WorkPackageHandle pkg) {
-                return _work_queue.fences[_work_queue.packages.find(pkg)->second.fence.value_of()];
-            })
-            .to<itlib::small_vector<VkFence>>(),
-    };
-
-    WRAP_VULKAN_FUNC(vkWaitForFences,
-                     raw_ptr(_render_state.dev_logical),
-                     static_cast<uint32_t>(fences.size()),
-                     fences.data(),
-                     true,
-                     0xffffffff);
-}
-
-void
-VulkanRenderer::release_staging_resources()
-{
-}
-
-void
-VulkanRenderer::dbg_set_object_name(const uint64_t object,
-                                    const VkDebugReportObjectTypeEXT object_type,
-                                    const char* name) noexcept
-{
-    const VkDebugMarkerObjectNameInfoEXT obj_name{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext = nullptr,
-        .objectType = object_type,
-        .object = object,
-        .pObjectName = name,
-    };
-    WRAP_VULKAN_FUNC(vkfn::DebugMarkerSetObjectNameEXT, raw_ptr(_render_state.dev_logical), &obj_name);
-}
-
-void
-VulkanRenderer::dbg_marker_begin(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept
-{
-    const VkDebugMarkerMarkerInfoEXT debug_marker{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
-        .pNext = nullptr,
-        .pMarkerName = name,
-        .color = { color.r, color.g, color.b, color.a },
-    };
-
-    vkfn::CmdDebugMarkerBeginEXT(cmd_buf, &debug_marker);
-}
-
-void
-VulkanRenderer::dbg_marker_end(VkCommandBuffer cmd_buf) noexcept
-{
-    vkfn::CmdDebugMarkerEndEXT(cmd_buf);
-}
-
-void
-VulkanRenderer::dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept
-{
-    const VkDebugMarkerMarkerInfoEXT debug_marker{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
-        .pNext = nullptr,
-        .pMarkerName = name,
-        .color = { color.r, color.g, color.b, color.a },
-    };
-
-    vkfn::CmdDebugMarkerInsertEXT(cmd_buf, &debug_marker);
 }
 
 } // namespace xray::rendering

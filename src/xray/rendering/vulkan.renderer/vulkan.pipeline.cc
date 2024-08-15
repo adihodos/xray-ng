@@ -180,6 +180,8 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
         XR_LOG_ERR("Failed to reflect shader module");
         return tl::nullopt;
     }
+    XR_LOG_TRACE("Reflected SPIR-V binary, stage {}",
+                 vk::to_string(static_cast<vk::ShaderStageFlags>(shader_module.GetShaderStage())));
 
     uint32_t descriptor_sets_count{};
     if (spvReflectEnumerateDescriptorSets(&shader_module.GetShaderModule(), &descriptor_sets_count, nullptr) !=
@@ -210,9 +212,7 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
             const VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {
                 .binding = reflected_binding->binding,
                 .descriptorType = static_cast<VkDescriptorType>(reflected_binding->descriptor_type),
-                .descriptorCount = span{ reflected_binding->array.dims,
-                                         reflected_binding->array.dims + reflected_binding->array.dims_count } %
-                                   fn::foldl(1u, [](uint32_t a, const uint32_t i) { return a * i; }),
+                .descriptorCount = reflected_binding->array.dims_count,
                 .stageFlags = shader_module.GetShaderStage(),
                 .pImmutableSamplers = nullptr,
             };
@@ -430,7 +430,7 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
         }
 
         using pipeline_layout_definition_table_t =
-            // unordered_map<uint32_t, VkDescriptorSetLayoutBinding>
+            // unordered_map<uint32_t, VkDescriptorSetLayoutBinding>;
             itlib::flat_map<uint32_t,
                             VkDescriptorSetLayoutBinding,
                             less<uint32_t>,
@@ -442,7 +442,6 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
         for (SpirVReflectionResult& reflection : reflected_shaders) {
             //
             // does not handle multiple bindings for the same set
-
             for (const auto& [set_id, set_bindings] : reflection.descriptor_sets_layout_bindings) {
                 const VkDescriptorSetLayoutBinding& first_binding = set_bindings[0];
 
@@ -496,16 +495,20 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
             push_constant_ranges = std::move(reflection.push_constants);
         }
 
-        const uint32_t max_set_id = lz::chain(pipeline_layout_deftable)
-                                        .map([](const pair<uint32_t, VkDescriptorSetLayoutBinding>& dslb) {
-                                            XR_LOG_INFO("Set {}, type {}, count {}, stage {} ",
-                                                        dslb.first,
-                                                        (uint32_t)dslb.second.descriptorType,
-                                                        (uint32_t)dslb.second.descriptorCount,
-                                                        (uint32_t)dslb.second.stageFlags);
-                                            return dslb.first;
-                                        })
-                                        .max();
+        XR_LOG_INFO("Definition table: {}", pipeline_layout_deftable.size());
+        lz::chain(pipeline_layout_deftable)
+            .forEach([](const pair<uint32_t, VkDescriptorSetLayoutBinding>& set_with_binding) {
+                XR_LOG_INFO("Set {}, type {}, count {}, stage {} ",
+                            set_with_binding.first,
+                            vk::to_string(static_cast<vk::DescriptorType>(set_with_binding.second.descriptorType)),
+                            (uint32_t)set_with_binding.second.descriptorCount,
+                            vk::to_string(static_cast<vk::ShaderStageFlags>(set_with_binding.second.stageFlags)));
+            });
+
+        const uint32_t max_set_id =
+            lz::chain(pipeline_layout_deftable)
+                .map([](const pair<uint32_t, VkDescriptorSetLayoutBinding>& dslb) { return dslb.first; })
+                .max();
 
         vector<VkDescriptorSetLayout> desc_set_layouts =
             lz::chain(lz::range(max_set_id + 1))

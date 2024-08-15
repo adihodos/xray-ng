@@ -195,11 +195,14 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 
     auto pixel_buffer{
         ManagedImage::from_file(*init_ctx.renderer,
-                                pkgs->pkg,
-                                init_ctx.cfg->texture_path(tex_file),
-                                VK_IMAGE_USAGE_SAMPLED_BIT,
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                VK_IMAGE_TILING_OPTIMAL),
+                                ImageLoadInfo{
+                                    .tag_name = tex_file,
+                                    .wpkg = pkgs->pkg,
+                                    .path = init_ctx.cfg->texture_path(tex_file),
+                                    .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
+                                    .final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                    .tiling = VK_IMAGE_TILING_OPTIMAL,
+                                }),
     };
 
     if (!pixel_buffer) {

@@ -425,17 +425,12 @@ generateMipmaps(VkCommandBuffer cmd_buf,
 // }
 
 tl::expected<xray::rendering::ManagedImage, xray::rendering::VulkanError>
-xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& renderer,
-                                         const WorkPackageHandle pkg,
-                                         const std::filesystem::path& texture_file_path,
-                                         const VkImageUsageFlags usage_flags,
-                                         const VkImageLayout final_layout,
-                                         const VkImageTiling tiling)
+xray::rendering::ManagedImage::from_file(VulkanRenderer& renderer, const ImageLoadInfo& load_info)
 {
     std::error_code err_code{};
-    const mio::mmap_source texf{ mio::make_mmap_source(texture_file_path.generic_string(), err_code) };
+    const mio::mmap_source texf{ mio::make_mmap_source(load_info.path.generic_string(), err_code) };
     if (err_code) {
-        XR_LOG_ERR("Failed to open texture file {}, error {}", texture_file_path.generic_string(), err_code.message());
+        XR_LOG_ERR("Failed to open texture file {}, error {}", load_info.path.generic_string(), err_code.message());
         return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
     }
 
@@ -493,10 +488,10 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
         return XR_MAKE_VULKAN_ERROR(VK_ERROR_FORMAT_NOT_SUPPORTED);
     }
 
-    VkImageUsageFlags img_usage_flags{ usage_flags };
+    VkImageUsageFlags img_usage_flags{ load_info.usage_flags };
 
     /* Get device properties for the requested image format */
-    if (tiling == VK_IMAGE_TILING_OPTIMAL) {
+    if (load_info.tiling == VK_IMAGE_TILING_OPTIMAL) {
         // Ensure we can copy from staging buffer to image.
         img_usage_flags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
@@ -510,7 +505,7 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
                                                               renderer.physical().device,
                                                               vkFormat,
                                                               imageType,
-                                                              tiling,
+                                                              load_info.tiling,
                                                               img_usage_flags,
                                                               img_create_flags,
                                                               &imageFormatProperties);
@@ -531,7 +526,7 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
         VkFormatFeatureFlags neededFeatures = VK_FORMAT_FEATURE_BLIT_DST_BIT | VK_FORMAT_FEATURE_BLIT_SRC_BIT;
 
         WRAP_VULKAN_FUNC(vkGetPhysicalDeviceFormatProperties, renderer.physical().device, vkFormat, &formatProperties);
-        if (tiling == VK_IMAGE_TILING_OPTIMAL)
+        if (load_info.tiling == VK_IMAGE_TILING_OPTIMAL)
             formatFeatureFlags = formatProperties.optimalTilingFeatures;
         else
             formatFeatureFlags = formatProperties.linearTilingFeatures;
@@ -564,19 +559,19 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
         .width = loaded_ktx->baseWidth,
         .height = loaded_ktx->baseHeight,
         .depth = loaded_ktx->baseDepth,
-        .imageLayout = final_layout,
+        .imageLayout = load_info.final_layout,
         .imageFormat = vkFormat,
         .levelCount = numImageLevels,
         .layerCount = numImageLayers,
         .viewType = viewType,
     };
 
-    if (tiling == VK_IMAGE_TILING_OPTIMAL) {
+    if (load_info.tiling == VK_IMAGE_TILING_OPTIMAL) {
         //
         // Create a host-visible staging buffer that contains the raw image data
         const uint32_t numCopyRegions{ loaded_ktx->numLevels };
 
-        auto staging_buffer{ renderer.create_staging_buffer(pkg, textureSize) };
+        auto staging_buffer{ renderer.create_staging_buffer(load_info.wpkg, textureSize) };
         if (!staging_buffer)
             return tl::unexpected{ staging_buffer.error() };
 
@@ -698,7 +693,7 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
             .layerCount = numImageLayers,
         };
 
-        VkCommandBuffer cmdbuf = renderer.get_cmd_buf_for_work_package(pkg);
+        VkCommandBuffer cmdbuf = renderer.get_cmd_buf_for_work_package(load_info.wpkg);
 
         // Image barrier to transition, possibly only the base level, image
         // layout to TRANSFER_DST_OPTIMAL so it can be used as the copy
@@ -726,11 +721,9 @@ xray::rendering::ManagedImage::from_file(xray::rendering::VulkanRenderer& render
             // subresourceRange.levelCount = numImageLevels;
 
             set_image_layout(
-                cmdbuf, raw_ptr(image), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, final_layout, subresource_range);
+                cmdbuf, raw_ptr(image), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, load_info.final_layout, subresource_range);
         }
 
-        //
-        // Submit command buffer containing copy and image layout commands
         return ManagedImage{
             xrUniqueImageWithMemory{
                 renderer.device(),

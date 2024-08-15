@@ -29,6 +29,16 @@ struct VulkanTextureInfo
     VkImageViewType viewType;
 };
 
+struct ImageLoadInfo
+{
+    const char* tag_name{};
+    WorkPackageHandle wpkg;
+    std::filesystem::path path;
+    VkImageUsageFlags usage_flags;
+    VkImageLayout final_layout;
+    VkImageTiling tiling;
+};
+
 class ManagedImage
 {
   public:
@@ -46,12 +56,7 @@ class ManagedImage
     //     const VkImageViewType view_type,
     //     const VkMemoryPropertyFlags image_memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    static tl::expected<ManagedImage, VulkanError> from_file(VulkanRenderer& renderer,
-                                                             const WorkPackageHandle pkg,
-                                                             const std::filesystem::path& texture_file,
-                                                             const VkImageUsageFlags usage_flags,
-                                                             const VkImageLayout final_layout,
-                                                             const VkImageTiling tiling);
+    static tl::expected<ManagedImage, VulkanError> from_file(VulkanRenderer& renderer, const ImageLoadInfo& load_info);
 };
 
 VkImageMemoryBarrier2

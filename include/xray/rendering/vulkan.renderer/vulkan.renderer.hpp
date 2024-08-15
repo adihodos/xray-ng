@@ -224,30 +224,6 @@ struct StagingBuffer
     VkDeviceMemory mem;
 };
 
-struct WorkQueueImageCopyState
-{
-    using fence_table_t = std::vector<VkFence>;
-
-    uint32_t batch_size{ 4 };
-    VkDevice device;
-    VkCommandPool cmd_pool;
-    fence_table_t fences;
-    std::vector<VkSubmitInfo> submits;
-    std::vector<VkCommandBuffer> cmd_buffers;
-    std::vector<VkBufferImageCopy> copy_regions;
-    std::vector<VkBuffer> staging_buffers;
-    std::vector<VkDeviceMemory> staging_memory;
-
-    WorkQueueImageCopyState(VkDevice dev, VkCommandPool cmdpool);
-    ~WorkQueueImageCopyState();
-
-    WorkQueueImageCopyState(const WorkQueueImageCopyState&) = delete;
-    WorkQueueImageCopyState& operator=(const WorkQueueImageCopyState&) = delete;
-    WorkQueueImageCopyState(WorkQueueImageCopyState&&) = default;
-
-    void release_resources();
-};
-
 struct BufferCreationInfo
 {
     const char* name_tag{};
@@ -259,9 +235,6 @@ struct BufferCreationInfo
     std::initializer_list<std::span<const uint8_t>> initial_data;
 };
 
-//
-// TODO:
-// - support debug tagging of vulkan objects
 class VulkanRenderer
 {
   private:
