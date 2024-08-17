@@ -29,7 +29,7 @@ struct VulkanTextureInfo
     VkImageViewType viewType;
 };
 
-struct ImageLoadInfo
+struct VulkanImageLoadInfo
 {
     const char* tag_name{};
     WorkPackageHandle wpkg;
@@ -39,7 +39,7 @@ struct ImageLoadInfo
     VkImageTiling tiling;
 };
 
-class ManagedImage
+class VulkanImage
 {
   public:
     xrUniqueImageWithMemory _image;
@@ -56,7 +56,8 @@ class ManagedImage
     //     const VkImageViewType view_type,
     //     const VkMemoryPropertyFlags image_memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    static tl::expected<ManagedImage, VulkanError> from_file(VulkanRenderer& renderer, const ImageLoadInfo& load_info);
+    static tl::expected<VulkanImage, VulkanError> from_file(VulkanRenderer& renderer,
+                                                            const VulkanImageLoadInfo& load_info);
 };
 
 VkImageMemoryBarrier2

@@ -13,8 +13,11 @@
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
 
 namespace xray::rendering {
+
+struct VulkanBuffer;
 
 enum class BindlessResourceType : uint8_t
 {
@@ -89,9 +92,9 @@ class BindlessSystem
     VkPipelineLayout pipeline_layout() const noexcept { return _bindless.handle<VkPipelineLayout>(); }
     std::span<const VkDescriptorSetLayout> descriptor_set_layouts() const noexcept { return _set_layouts; }
 
-    BindlessResourceHandle add_image(ManagedImage img);
-    BindlessResourceHandle add_uniform_buffer(ManagedUniqueBuffer ubo);
-    BindlessResourceHandle add_storage_buffer(ManagedUniqueBuffer sbo);
+    BindlessResourceHandle add_image(VulkanImage img);
+    BindlessResourceHandle add_uniform_buffer(VulkanBuffer ubo);
+    BindlessResourceHandle add_storage_buffer(VulkanBuffer sbo);
 
   private:
     BindlessSystem(UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,

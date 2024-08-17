@@ -28,7 +28,7 @@ struct VulkanError
 #define XR_MAKE_VULKAN_ERROR(vk_err_code) (tl::unexpected{ VulkanError{ vk_err_code } })
 #else
 #define XR_MAKE_VULKAN_ERROR(vk_err_code)                                                                              \
-    (tl::unexpected{ VulkanError{ vk_err_code, __FILE__, XRAY_FUNCTION_NAME, __LINE__ } })
+    (tl::unexpected{ xray::rendering::VulkanError{ vk_err_code, __FILE__, XRAY_FUNCTION_NAME, __LINE__ } })
 #endif
 
 std::string

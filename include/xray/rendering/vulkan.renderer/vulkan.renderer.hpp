@@ -9,12 +9,6 @@
 #include <unordered_map>
 
 #include <tl/optional.hpp>
-#include <strong_type/strong_type.hpp>
-#include <strong_type/bitarithmetic.hpp>
-#include <strong_type/convertible_to.hpp>
-#include <strong_type/equality.hpp>
-#include <strong_type/formattable.hpp>
-#include <strong_type/hashable.hpp>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -24,6 +18,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.handles.hpp"
 
 namespace swl {
 template<typename... Ts>
@@ -163,24 +158,6 @@ struct WorkPackageSetup
     VkCommandBuffer cmdbuf;
 };
 
-using WorkPackageHandle =
-    strong::type<uint32_t, struct WorkPackageHandle_tag, strong::equality, strong::formattable, strong::hashable>;
-
-using StagingBufferHandle =
-    strong::type<uint32_t, struct StagingBufferHandle_tag, strong::equality, strong::formattable, strong::hashable>;
-
-using StagingBufferMemoryHandle = strong::
-    type<uint32_t, struct StagingBufferMemoryHandle_tag, strong::equality, strong::formattable, strong::hashable>;
-
-using CommandBufferHandle =
-    strong::type<uint32_t, struct CommandBufferHandle_tag, strong::equality, strong::formattable, strong::hashable>;
-
-using FenceHandle =
-    strong::type<uint32_t, struct FenceHandle_tag, strong::equality, strong::formattable, strong::hashable>;
-
-using SubmitHandle =
-    strong::type<uint32_t, struct SubmitHandle_tag, strong::equality, strong::formattable, strong::hashable>;
-
 struct BufferWithDeviceMemoryPair
 {
     StagingBufferHandle buffer;
@@ -222,17 +199,6 @@ struct StagingBuffer
 {
     VkBuffer buf;
     VkDeviceMemory mem;
-};
-
-struct BufferCreationInfo
-{
-    const char* name_tag{};
-    tl::optional<WorkPackageHandle> work_package{};
-    VkBufferUsageFlags usage;
-    VkMemoryPropertyFlags memory_properties;
-    size_t bytes;
-    size_t frames;
-    std::initializer_list<std::span<const uint8_t>> initial_data;
 };
 
 class VulkanRenderer
@@ -290,8 +256,6 @@ class VulkanRenderer
 
     uint32_t max_inflight_frames() const noexcept { return _presentation_state.max_frames; }
 
-    tl::expected<ManagedUniqueBuffer, VulkanError> create_buffer(const BufferCreationInfo& create_info) noexcept;
-
     uint32_t find_allocation_memory_type(const uint32_t memory_requirements,
                                          const VkMemoryPropertyFlags required_flags) const noexcept;
 
@@ -310,9 +274,11 @@ class VulkanRenderer
         return _work_queue.command_buffers[_work_queue.packages.find(pkg)->second.cmd_buf.value_of()];
     }
 
+    // @group Bindless resource handling
     const BindlessSystem& bindless_sys() const noexcept { return _bindless; }
     BindlessSystem& bindless_sys() noexcept { return _bindless; }
     VkDescriptorPool descriptor_pool() const noexcept { return xray::base::raw_ptr(_dpool_state.handle); }
+    // @endgroup
 
     // @group Debugging
     template<typename VkObjectType>

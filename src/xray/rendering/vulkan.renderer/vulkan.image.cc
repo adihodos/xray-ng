@@ -424,8 +424,8 @@ generateMipmaps(VkCommandBuffer cmd_buf,
 //     };
 // }
 
-tl::expected<xray::rendering::ManagedImage, xray::rendering::VulkanError>
-xray::rendering::ManagedImage::from_file(VulkanRenderer& renderer, const ImageLoadInfo& load_info)
+tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError>
+xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanImageLoadInfo& load_info)
 {
     std::error_code err_code{};
     const mio::mmap_source texf{ mio::make_mmap_source(load_info.path.generic_string(), err_code) };
@@ -720,11 +720,14 @@ xray::rendering::ManagedImage::from_file(VulkanRenderer& renderer, const ImageLo
             // In this case numImageLevels == This->numLevels
             // subresourceRange.levelCount = numImageLevels;
 
-            set_image_layout(
-                cmdbuf, raw_ptr(image), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, load_info.final_layout, subresource_range);
+            set_image_layout(cmdbuf,
+                             raw_ptr(image),
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             load_info.final_layout,
+                             subresource_range);
         }
 
-        return ManagedImage{
+        return VulkanImage{
             xrUniqueImageWithMemory{
                 renderer.device(),
                 xray::base::unique_pointer_release(image),

@@ -177,7 +177,7 @@ xray::rendering::BindlessSystem::create(VkDevice device)
 }
 
 xray::rendering::BindlessResourceHandle
-xray::rendering::BindlessSystem::add_image(xray::rendering::ManagedImage img)
+xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img)
 {
     const auto [image, image_memory] = img.release();
     _image_resources.emplace_back(image, image_memory, img._info);
@@ -189,7 +189,7 @@ xray::rendering::BindlessSystem::add_image(xray::rendering::ManagedImage img)
 }
 
 xray::rendering::BindlessResourceHandle
-xray::rendering::BindlessSystem::add_uniform_buffer(ManagedUniqueBuffer ubo)
+xray::rendering::BindlessSystem::add_uniform_buffer(VulkanBuffer ubo)
 {
     const auto [ubo_handle, ubo_mem] = ubo.buffer.release();
     _ubo_resources.emplace_back(ubo_handle, ubo_mem);
@@ -199,7 +199,7 @@ xray::rendering::BindlessSystem::add_uniform_buffer(ManagedUniqueBuffer ubo)
 }
 
 xray::rendering::BindlessResourceHandle
-xray::rendering::BindlessSystem::add_storage_buffer(ManagedUniqueBuffer sbo)
+xray::rendering::BindlessSystem::add_storage_buffer(VulkanBuffer sbo)
 {
     const auto [sbo_handle, sbo_mem] = sbo.buffer.release();
     _sbo_resources.emplace_back(sbo_handle, sbo_mem);

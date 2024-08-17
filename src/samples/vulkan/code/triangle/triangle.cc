@@ -60,12 +60,12 @@ class random_engine
 
 dvk::TriangleDemo::TriangleDemo(PrivateConstructionToken,
                                 const app::init_context_t& init_context,
-                                xray::rendering::ManagedUniqueBuffer g_ubo,
-                                xray::rendering::ManagedUniqueBuffer g_vertexbuffer,
-                                xray::rendering::ManagedUniqueBuffer g_indexbuffer,
-                                xray::rendering::ManagedUniqueBuffer g_instancebuffer,
+                                xray::rendering::VulkanBuffer g_ubo,
+                                xray::rendering::VulkanBuffer g_vertexbuffer,
+                                xray::rendering::VulkanBuffer g_indexbuffer,
+                                xray::rendering::VulkanBuffer g_instancebuffer,
                                 xray::rendering::GraphicsPipeline pipeline,
-                                xray::rendering::ManagedImage pixel_buffer,
+                                xray::rendering::VulkanImage pixel_buffer,
                                 xray::rendering::xrUniqueVkImageView imageview,
                                 xray::rendering::xrUniqueVkSampler sampler,
                                 const uint32_t vbuffer,
@@ -130,7 +130,7 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     if (!pkgs)
         return nullptr;
 
-    const BufferCreationInfo bci{
+    const VulkanBufferCreateInfo bci{
         .name_tag = "UBO - FrameGlobalData",
         .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -139,7 +139,7 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         .initial_data = {},
     };
 
-    auto g_ubo{ init_ctx.renderer->create_buffer(bci) };
+    auto g_ubo{ VulkanBuffer::create(*init_ctx.renderer, bci) };
     if (!g_ubo)
         return nullptr;
 
@@ -149,7 +149,7 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         { vec2f{ 0.0f, 1.0f }, vec2f{ 0.5f, 0.0f }, vec4f{ 0.0f, 0.0f, 1.0f, 1.0f } },
     };
 
-    const BufferCreationInfo vbinfo{
+    const VulkanBufferCreateInfo vbinfo{
         .name_tag = "Triangle vertices",
         .work_package = pkgs->pkg,
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -159,12 +159,12 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         .initial_data = { to_bytes_span(tri_vertices) },
     };
 
-    auto g_vertexbuffer{ init_ctx.renderer->create_buffer(vbinfo) };
+    auto g_vertexbuffer{ VulkanBuffer::create(*init_ctx.renderer, vbinfo) };
     if (!g_vertexbuffer)
         return nullptr;
 
     constexpr const uint32_t tri_indices[] = { 0, 1, 2 };
-    const BufferCreationInfo ibinfo{
+    const VulkanBufferCreateInfo ibinfo{
         .name_tag = "Triangle index buffer",
         .work_package = pkgs->pkg,
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -174,11 +174,11 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         .initial_data = { to_bytes_span(tri_indices) },
     };
 
-    auto g_indexbuffer{ init_ctx.renderer->create_buffer(ibinfo) };
+    auto g_indexbuffer{ VulkanBuffer::create(*init_ctx.renderer, ibinfo) };
     if (!g_indexbuffer)
         return nullptr;
 
-    const BufferCreationInfo inst_buf_info{
+    const VulkanBufferCreateInfo inst_buf_info{
         .name_tag = "Instances buffer",
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -187,29 +187,29 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         .initial_data = {},
     };
 
-    auto g_instance_buffer{ init_ctx.renderer->create_buffer(inst_buf_info) };
+    auto g_instance_buffer{ VulkanBuffer::create(*init_ctx.renderer, inst_buf_info) };
     if (!g_instance_buffer)
         return nullptr;
 
     const char* const tex_file{ "uv_grids/ash_uvgrid01.ktx2" };
 
     auto pixel_buffer{
-        ManagedImage::from_file(*init_ctx.renderer,
-                                ImageLoadInfo{
-                                    .tag_name = tex_file,
-                                    .wpkg = pkgs->pkg,
-                                    .path = init_ctx.cfg->texture_path(tex_file),
-                                    .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
-                                    .final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                    .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                }),
+        VulkanImage::from_file(*init_ctx.renderer,
+                               VulkanImageLoadInfo{
+                                   .tag_name = tex_file,
+                                   .wpkg = pkgs->pkg,
+                                   .path = init_ctx.cfg->texture_path(tex_file),
+                                   .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
+                                   .final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   .tiling = VK_IMAGE_TILING_OPTIMAL,
+                               }),
     };
 
     if (!pixel_buffer) {
         return nullptr;
     }
 
-    ManagedImage image{ std::move(*pixel_buffer) };
+    VulkanImage image{ std::move(*pixel_buffer) };
 
     init_ctx.renderer->submit_work_package(pkgs->pkg);
 
@@ -317,13 +317,13 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     };
 
     vector<VkWriteDescriptorSet> write_dsets;
-    vector<VkDescriptorBufferInfo> dbi;
-    dbi.reserve(rbs.buffers * 4); // ubo + instance data
+    vector<VkDescriptorBufferInfo> descriptor_buffer_info;
+    descriptor_buffer_info.reserve(rbs.buffers * 4); // ubo + instance data
 
     struct WriteBufferDescriptorsHelper
     {
         VkDescriptorSet dest;
-        reference_wrapper<ManagedUniqueBuffer> buffer;
+        reference_wrapper<VulkanBuffer> buffer;
         VkDescriptorType dtype;
         uint32_t count;
         uint16_t dst_arr_elem;
@@ -365,23 +365,23 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 
     array<uint32_t, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC> array_offsets_by_descriptor_type{};
 
-    for (WriteBufferDescriptorsHelper& wbdh : write_buf_desc_helpers) {
+    for (WriteBufferDescriptorsHelper& write_desc_helper : write_buf_desc_helpers) {
         // if (!last_desc_type || *last_desc_type != wbdh.dtype) {
         //     offset = 0;
         // }
 
-        wbdh.desc_gbuff_offset = static_cast<uint16_t>(dbi.size());
-        wbdh.dst_arr_elem = array_offsets_by_descriptor_type[wbdh.dtype];
+        write_desc_helper.desc_gbuff_offset = static_cast<uint16_t>(descriptor_buffer_info.size());
+        write_desc_helper.dst_arr_elem = array_offsets_by_descriptor_type[write_desc_helper.dtype];
 
-        for (uint32_t i = 0; i < wbdh.count; ++i) {
-            dbi.push_back(VkDescriptorBufferInfo{
-                .buffer = wbdh.buffer.get().buffer_handle(),
-                .offset = wbdh.buffer.get().aligned_size * i,
-                .range = wbdh.buffer.get().aligned_size,
+        for (uint32_t i = 0; i < write_desc_helper.count; ++i) {
+            descriptor_buffer_info.push_back(VkDescriptorBufferInfo{
+                .buffer = write_desc_helper.buffer.get().buffer_handle(),
+                .offset = write_desc_helper.buffer.get().aligned_size * i,
+                .range = write_desc_helper.buffer.get().aligned_size,
             });
         }
 
-        array_offsets_by_descriptor_type[wbdh.dtype] += wbdh.count;
+        array_offsets_by_descriptor_type[write_desc_helper.dtype] += write_desc_helper.count;
     }
 
     for (const WriteBufferDescriptorsHelper& wbdh : write_buf_desc_helpers) {
@@ -394,7 +394,7 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
             .descriptorCount = wbdh.count,
             .descriptorType = wbdh.dtype,
             .pImageInfo = nullptr,
-            .pBufferInfo = &dbi[wbdh.desc_gbuff_offset],
+            .pBufferInfo = &descriptor_buffer_info[wbdh.desc_gbuff_offset],
             .pTexelBufferView = nullptr,
         };
 

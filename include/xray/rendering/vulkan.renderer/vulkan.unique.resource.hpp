@@ -298,31 +298,7 @@ struct UniqueVulkanResourcePack
     Owner _owner;
 };
 
-using xrUniqueBufferWithMemory = UniqueVulkanResourcePack<VkDevice, VkBuffer, VkDeviceMemory>;
 using xrUniqueImageWithMemory = UniqueVulkanResourcePack<VkDevice, VkImage, VkDeviceMemory>;
 using xrUniqueImageWithMemoryAndView = UniqueVulkanResourcePack<VkDevice, VkImage, VkDeviceMemory, VkImageView>;
-
-struct ManagedUniqueBuffer
-{
-    static constexpr const uint32_t NO_FRAME{ 0xffffffffu };
-
-    xrUniqueBufferWithMemory buffer;
-    uint32_t aligned_size;
-    uint32_t alignment;
-
-    VkDeviceMemory memory_handle() const noexcept { return buffer.handle<VkDeviceMemory>(); }
-    VkBuffer buffer_handle() const noexcept { return buffer.handle<VkBuffer>(); }
-
-    auto release() noexcept { buffer.release(); }
-
-    tl::optional<UniqueMemoryMapping> mmap(VkDevice device, const uint32_t frame_id = NO_FRAME) const noexcept
-    {
-        return UniqueMemoryMapping::create(device,
-                                           buffer.handle<VkDeviceMemory>(),
-                                           frame_id == NO_FRAME ? 0 : aligned_size * frame_id,
-                                           aligned_size,
-                                           0);
-    }
-};
 
 } // namespace xray::rendering

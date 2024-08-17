@@ -9,6 +9,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
 
 namespace dvk {
 
@@ -29,12 +30,12 @@ class TriangleDemo : public app::DemoBase
     static xray::base::unique_pointer<app::DemoBase> create(const app::init_context_t& initContext);
 
   private:
-    xray::rendering::ManagedUniqueBuffer _g_ubo;
-    xray::rendering::ManagedUniqueBuffer _g_vertexbuffer;
-    xray::rendering::ManagedUniqueBuffer _g_indexbuffer;
-    xray::rendering::ManagedUniqueBuffer _g_instancebuffer;
+    xray::rendering::VulkanBuffer _g_ubo;
+    xray::rendering::VulkanBuffer _g_vertexbuffer;
+    xray::rendering::VulkanBuffer _g_indexbuffer;
+    xray::rendering::VulkanBuffer _g_instancebuffer;
     xray::rendering::GraphicsPipeline _pipeline;
-    xray::rendering::ManagedImage _pixel_buffer;
+    xray::rendering::VulkanImage _pixel_buffer;
     xray::rendering::xrUniqueVkImageView _imageview;
     xray::rendering::xrUniqueVkSampler _sampler;
     std::vector<VkDescriptorSet> _desc_sets;
@@ -45,12 +46,12 @@ class TriangleDemo : public app::DemoBase
   public:
     TriangleDemo(PrivateConstructionToken,
                  const app::init_context_t& init_context,
-                 xray::rendering::ManagedUniqueBuffer g_ubo,
-                 xray::rendering::ManagedUniqueBuffer g_vertexbuffer,
-                 xray::rendering::ManagedUniqueBuffer g_indexbuffer,
-                 xray::rendering::ManagedUniqueBuffer g_instancebuffer,
+                 xray::rendering::VulkanBuffer g_ubo,
+                 xray::rendering::VulkanBuffer g_vertexbuffer,
+                 xray::rendering::VulkanBuffer g_indexbuffer,
+                 xray::rendering::VulkanBuffer g_instancebuffer,
                  xray::rendering::GraphicsPipeline pipeline,
-                 xray::rendering::ManagedImage pixel_buffer,
+                 xray::rendering::VulkanImage pixel_buffer,
                  xray::rendering::xrUniqueVkImageView imageview,
                  xray::rendering::xrUniqueVkSampler sampler,
                  const uint32_t vbuffer,
