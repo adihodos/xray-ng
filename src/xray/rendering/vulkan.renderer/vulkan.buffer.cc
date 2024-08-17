@@ -1,5 +1,6 @@
 #include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
 
+#include <cassert>
 #include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
 
@@ -9,7 +10,7 @@
 
 tl::expected<xray::rendering::VulkanBuffer, xray::rendering::VulkanError>
 xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
-                                             const xray::rendering::VulkanBufferCreateInfo& create_info) noexcept
+                                      const xray::rendering::VulkanBufferCreateInfo& create_info) noexcept
 {
     constexpr const auto mem_props_host_access =
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
@@ -20,7 +21,9 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
                 return limits->nonCoherentAtomSize;
 
             //
-            // TODO: no access from host, must have some initial data
+            // no access from host, must have some initial data
+            assert(!create_info.initial_data.empty());
+
             if (create_info.usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
                 return limits->minUniformBufferOffsetAlignment;
             } else if (create_info.usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT) {

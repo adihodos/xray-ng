@@ -4,8 +4,11 @@
 #include <vector>
 #include <unordered_map>
 #include <memory_resource>
+#include <ranges>
 
 #include <fmt/core.h>
+#include <fmt/std.h>
+
 #include <itlib/small_vector.hpp>
 #include <itlib/flat_map.hpp>
 #include <itlib/static_vector.hpp>
@@ -22,17 +25,12 @@
 
 #include "xray/base/logger.hpp"
 #include "xray/base/scoped_guard.hpp"
-#include "xray/base/rangeless/fn.hpp"
 #include "xray/base/variant_visitor.hpp"
-#include "xray/base/veneers/sequence_container_veneer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
 using namespace std;
-namespace fn = rangeless::fn;
-using fn::operators::operator%;
-using fn::operators::operator%=;
 
 template<typename T>
 using small_vec_2 = itlib::small_vector<T, 2>;
@@ -94,6 +92,99 @@ struct ShaderModuleWithSpirVBlob
     vector<uint32_t> spirv;
 };
 
+struct IncludedShaderSource
+{
+    shaderc_include_result include_result;
+    mio::mmap_source mapped_file;
+    std::string path;
+};
+
+class ShaderIncludesResolver : public shaderc::CompileOptions::IncluderInterface
+{
+  public:
+    virtual shaderc_include_result* GetInclude(const char* requested_source,
+                                               shaderc_include_type type,
+                                               const char* requesting_source,
+                                               size_t include_depth) override;
+
+    virtual void ReleaseInclude(shaderc_include_result* data) override;
+
+    static shaderc_include_result fail_include(const std::string_view err_msg)
+    {
+        return shaderc_include_result{
+            .source_name = "",
+            .source_name_length = 0,
+            .content = err_msg.data(),
+            .content_length = err_msg.length(),
+            .user_data = nullptr,
+        };
+    }
+
+  private:
+    shaderc_include_result _include_result{};
+    std::unordered_map<std::string, IncludedShaderSource> _resolved_includes;
+};
+
+shaderc_include_result*
+ShaderIncludesResolver::GetInclude(const char* requested_source,
+                                   shaderc_include_type type,
+                                   const char* requesting_source,
+                                   size_t include_depth)
+{
+    XR_LOG_TRACE("Include request: source {}, type {}, requesting src {}, depth {}",
+                 requested_source,
+                 static_cast<uint32_t>(type),
+                 requesting_source,
+                 include_depth);
+
+    if (const auto itr_entry = _resolved_includes.find(requested_source); itr_entry != std::cend(_resolved_includes)) {
+        return &itr_entry->second.include_result;
+    }
+
+    const std::string_view start_path{ requesting_source };
+    const auto cut_pos = start_path.find("shaders");
+    if (cut_pos == std::string_view::npos) {
+        _include_result = ShaderIncludesResolver::fail_include(
+            "Shader folder structure needs to be vulkan/shaders/project/shader.[frag|vert|tess|comp]");
+        return &_include_result;
+    }
+
+    namespace fs = std::filesystem;
+    fs::path included_file_path{ start_path.substr(0, cut_pos) };
+    included_file_path /= "shaders";
+    included_file_path /= requested_source;
+
+    std::error_code err_code{};
+    mio::mmap_source mapped_file{ mio::make_mmap_source(included_file_path.generic_string(), err_code) };
+    if (err_code) {
+        XR_LOG_CRITICAL("Failed to mmap file {}, error {}", included_file_path.generic_string(), err_code.message());
+        _include_result = ShaderIncludesResolver::fail_include("mmap failure");
+        return &_include_result;
+    }
+
+    auto [itr_entry, was_inserted] = _resolved_includes.try_emplace(
+        requested_source,
+        IncludedShaderSource{ shaderc_include_result{}, std::move(mapped_file), included_file_path.generic_string() });
+
+    assert(was_inserted);
+
+    itr_entry->second.include_result = shaderc_include_result{
+        .source_name = itr_entry->second.path.c_str(),
+        .source_name_length = itr_entry->second.path.length(),
+        .content = itr_entry->second.mapped_file.data(),
+        .content_length = itr_entry->second.mapped_file.length(),
+    };
+
+    return &itr_entry->second.include_result;
+}
+
+void
+ShaderIncludesResolver::ReleaseInclude(shaderc_include_result*)
+{
+    //
+    // nothing to do, everything is released when this object is destroyed
+}
+
 tl::optional<ShaderModuleWithSpirVBlob>
 create_shader_module_from_string(VkDevice device,
                                  const std::string_view source_code,
@@ -103,11 +194,25 @@ create_shader_module_from_string(VkDevice device,
 {
     shaderc::CompileOptions compile_opts{};
     compile_opts.SetGenerateDebugInfo();
+    compile_opts.SetIncluder(std::make_unique<ShaderIncludesResolver>());
     compile_opts.SetOptimizationLevel(optimize ? shaderc_optimization_level::shaderc_optimization_level_size
                                                : shaderc_optimization_level::shaderc_optimization_level_zero);
 
+    shaderc::Compiler compiler{};
+    const shaderc::PreprocessedSourceCompilationResult preprocessed_result{ compiler.PreprocessGlsl(
+        source_code.data(), source_code.size(), shader_traits.kind, shader_tag, compile_opts) };
+
+    if (preprocessed_result.GetCompilationStatus() != shaderc_compilation_status_success) {
+        XR_LOG_CRITICAL(
+            "Shader preprocess error: {}\nShader code:\n{}", preprocessed_result.GetErrorMessage(), source_code);
+        return tl::nullopt;
+    }
+
     const shaderc::SpvCompilationResult compilation_result{ shaderc::Compiler{}.CompileGlslToSpv(
-        source_code.data(), source_code.size(), shader_traits.kind, shader_tag) };
+        preprocessed_result.cbegin(),
+        preprocessed_result.cend() - preprocessed_result.cbegin(),
+        shader_traits.kind,
+        shader_tag) };
 
     if (compilation_result.GetCompilationStatus() != shaderc_compilation_status_success) {
         XR_LOG_CRITICAL("{}", compilation_result.GetErrorMessage());
