@@ -1,6 +1,7 @@
 #version 460 core
 
 #include "core/bindless.core.glsl"
+#include "defs.glsl"
 
 out gl_PerVertex {
     vec4 gl_Position;

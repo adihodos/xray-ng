@@ -141,30 +141,56 @@ ShaderIncludesResolver::GetInclude(const char* requested_source,
         return &itr_entry->second.include_result;
     }
 
-    const std::string_view start_path{ requesting_source };
-    const auto cut_pos = start_path.find("shaders");
-    if (cut_pos == std::string_view::npos) {
-        _include_result = ShaderIncludesResolver::fail_include(
-            "Shader folder structure needs to be vulkan/shaders/project/shader.[frag|vert|tess|comp]");
+    namespace fs = std::filesystem;
+
+    const tl::expected<fs::path, std::string_view> included_file_path =
+        [](const char* requested_source, const char* requesting_source) -> tl::expected<fs::path, std::string_view> {
+        const fs::path requested_src_path{ requested_source };
+
+        if (!requested_src_path.has_parent_path()) {
+            //
+            // Files included from the same directory as the one being pre-processed
+            // #include "same_dir_file.glsl"
+            const fs::path requesting_src_path{ requesting_source };
+            assert(requesting_src_path.has_parent_path());
+            return fs::path{ requesting_src_path.parent_path() / requested_source };
+        } else {
+            //
+            // Files includes from other directories.
+            // #include "core/pbr.common.glsl"
+            // #include "vertex_format/vertex.pntt.glsl"
+            const std::string_view start_path{ requesting_source };
+            const auto cut_pos = start_path.find("shaders");
+            if (cut_pos == std::string_view::npos) {
+                return tl::unexpected{
+                    "Shader folder structure needs to be vulkan/shaders/project/shader.[frag|vert|tess|comp]"sv
+                };
+            }
+
+            fs::path included_file_path{ start_path.substr(0, cut_pos) };
+            included_file_path /= "shaders";
+            included_file_path /= requested_source;
+
+            return included_file_path;
+        }
+    }(requested_source, requesting_source);
+
+    if (!included_file_path) {
+        _include_result = ShaderIncludesResolver::fail_include(included_file_path.error());
         return &_include_result;
     }
 
-    namespace fs = std::filesystem;
-    fs::path included_file_path{ start_path.substr(0, cut_pos) };
-    included_file_path /= "shaders";
-    included_file_path /= requested_source;
-
     std::error_code err_code{};
-    mio::mmap_source mapped_file{ mio::make_mmap_source(included_file_path.generic_string(), err_code) };
+    mio::mmap_source mapped_file{ mio::make_mmap_source(included_file_path->generic_string(), err_code) };
     if (err_code) {
-        XR_LOG_CRITICAL("Failed to mmap file {}, error {}", included_file_path.generic_string(), err_code.message());
+        XR_LOG_CRITICAL("Failed to mmap file {}, error {}", included_file_path->generic_string(), err_code.message());
         _include_result = ShaderIncludesResolver::fail_include("mmap failure");
         return &_include_result;
     }
 
     auto [itr_entry, was_inserted] = _resolved_includes.try_emplace(
         requested_source,
-        IncludedShaderSource{ shaderc_include_result{}, std::move(mapped_file), included_file_path.generic_string() });
+        IncludedShaderSource{ shaderc_include_result{}, std::move(mapped_file), included_file_path->generic_string() });
 
     assert(was_inserted);
 
@@ -175,6 +201,7 @@ ShaderIncludesResolver::GetInclude(const char* requested_source,
         .content_length = itr_entry->second.mapped_file.length(),
     };
 
+    XR_LOG_TRACE("shader includer resolved {} to {}", requested_source, itr_entry->second.path);
     return &itr_entry->second.include_result;
 }
 
