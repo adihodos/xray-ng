@@ -2,10 +2,9 @@
 
 #include "xray/xray.hpp"
 
-#include <cassert>
 #include <cstdint>
-#include <functional>
-#include <bitset>
+#include <cassert>
+#include <utility>
 
 #include <vulkan/vulkan.h>
 #include <tl/expected.hpp>
@@ -17,67 +16,84 @@
 
 namespace xray::rendering {
 
-struct VulkanBuffer;
+namespace detail {
 
-enum class BindlessResourceType : uint8_t
-{
-    UniformBuffer,
-    StorageBuffer,
-    Sampler,
-    CombinedImageSampler,
-};
-
-inline constexpr VkDescriptorType
-bindless_resource_to_vk_descriptor_type(const BindlessResourceType restype) noexcept
-{
-    switch (restype) {
-        default:
-        case BindlessResourceType::UniformBuffer:
-            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            break;
-        case BindlessResourceType::StorageBuffer:
-            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            break;
-        case BindlessResourceType::Sampler:
-            return VK_DESCRIPTOR_TYPE_SAMPLER;
-            break;
-        case BindlessResourceType::CombinedImageSampler:
-            return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            break;
-    }
-}
-
-struct BindlessResourceHandle
+struct BindlessResourceHandleHelper
 {
     union
     {
         struct
         {
-            uint32_t res_type : 8;
-            uint32_t entry_idx : 16;
+            uint32_t array_start : 16;
+            uint32_t element_count : 16;
         };
-        uint32_t handle;
+        uint32_t value;
     };
 
-    BindlessResourceHandle(const BindlessResourceType rtype, const uint32_t idx) noexcept
+    BindlessResourceHandleHelper(const uint32_t array_start, const uint32_t element_count) noexcept
     {
-        res_type = static_cast<uint8_t>(rtype);
-        assert(idx < 65535);
-        entry_idx = static_cast<uint16_t>(idx);
+        this->array_start = array_start;
+        this->element_count = element_count;
     }
+
+    explicit BindlessResourceHandleHelper(const uint32_t packed_val) noexcept { this->value = packed_val; }
 };
 
-inline bool
-operator==(const BindlessResourceHandle a, const BindlessResourceHandle b) noexcept
+};
+
+using BindlessResourceHandle_StorageBuffer =
+    strong::type<uint32_t, struct StorageBuffer_tag, strong::equality, strong::formattable, strong::hashable>;
+
+using BindlessResourceHandle_UniformBuffer =
+    strong::type<uint32_t, struct UniformBuffer_tag, strong::equality, strong::formattable, strong::hashable>;
+
+using BindlessResourceHandle_Image =
+    strong::type<uint32_t, struct Image_tag, strong::equality, strong::formattable, strong::hashable>;
+
+template<typename T>
+T
+bindless_subresource_handle_from_bindless_resource_handle(T bindless_resource, const uint32_t subresource_idx)
+    requires std::is_same_v<T, BindlessResourceHandle_Image> ||
+             std::is_same_v<T, BindlessResourceHandle_UniformBuffer> ||
+             std::is_same_v<T, BindlessResourceHandle_StorageBuffer>
 {
-    return a.handle == b.handle;
+    const detail::BindlessResourceHandleHelper main_resource{ bindless_resource.value_of() };
+    assert(subresource_idx < main_resource.element_count);
+
+    const detail::BindlessResourceHandleHelper subresource{ main_resource.array_start + subresource_idx, 1 };
+    return T{ subresource.value };
 }
 
-inline bool
-operator!=(const BindlessResourceHandle a, const BindlessResourceHandle b) noexcept
+struct VulkanBuffer;
+
+struct BindlessResourceEntry_Image
 {
-    return !(a == b);
-}
+    VkImage handle;
+    VkDeviceMemory memory;
+    VulkanTextureInfo info;
+};
+
+struct BindlessResourceEntry_UniformBuffer
+{
+    VkBuffer handle;
+    VkDeviceMemory memory;
+    VkDeviceSize aligned_chunk_size;
+};
+
+struct BindlessResourceEntry_StorageBuffer
+{
+    VkBuffer handle;
+    VkDeviceMemory memory;
+    VkDeviceSize aligned_chunk_size;
+};
+
+using BindlessUniformBufferResourceHandleEntryPair =
+    std::pair<BindlessResourceHandle_UniformBuffer, BindlessResourceEntry_UniformBuffer>;
+
+using BindlessStorageBufferResourceHandleEntryPair =
+    std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer>;
+
+using BindlessImageResourceHandleEntryPair = std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image>;
 
 class BindlessSystem
 {
@@ -91,55 +107,81 @@ class BindlessSystem
 
     VkPipelineLayout pipeline_layout() const noexcept { return _bindless.handle<VkPipelineLayout>(); }
     std::span<const VkDescriptorSetLayout> descriptor_set_layouts() const noexcept { return _set_layouts; }
+    std::span<const VkDescriptorSet> descriptor_sets() const noexcept { return _descriptors; }
 
-    BindlessResourceHandle add_image(VulkanImage img);
-    BindlessResourceHandle add_uniform_buffer(VulkanBuffer ubo);
-    BindlessResourceHandle add_storage_buffer(VulkanBuffer sbo);
+    std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image> add_image(VulkanImage img,
+                                                                                   VkImageView view,
+                                                                                   VkSampler smp);
+
+    std::pair<BindlessResourceHandle_UniformBuffer, BindlessResourceEntry_UniformBuffer> add_uniform_buffer(
+        VulkanBuffer ubo)
+    {
+        return add_chunked_uniform_buffer(std::move(ubo), 1);
+    }
+
+    std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer> add_storage_buffer(
+        VulkanBuffer sbo)
+    {
+        return add_chunked_storage_buffer(std::move(sbo), 1);
+    }
+
+    std::pair<BindlessResourceHandle_UniformBuffer, BindlessResourceEntry_UniformBuffer> add_chunked_uniform_buffer(
+        VulkanBuffer ubo,
+        const uint32_t chunks);
+
+    std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer> add_chunked_storage_buffer(
+        VulkanBuffer ssbo,
+        const uint32_t chunks);
+
+    void flush_descriptors(const VulkanRenderer& renderer);
 
   private:
     BindlessSystem(UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,
                    std::vector<VkDescriptorSetLayout> set_layouts,
                    std::vector<VkDescriptorSet> descriptors);
 
-    struct BindlessImageResource
-    {
-        VkImage handle;
-        VkDeviceMemory memory;
-        VulkanTextureInfo info;
-    };
-
-    struct BindlessUniformBufferResource
-    {
-        VkBuffer handle;
-        VkDeviceMemory memory;
-    };
-
-    struct BindlessStorageBufferResource
-    {
-        VkBuffer handle;
-        VkDeviceMemory memory;
-    };
-
   private:
+    static constexpr const uint32_t SET_UBOS_INDEX{ 0 };
+    static constexpr const uint32_t SET_STORAGE_BUFFER_INDEX{ 1 };
+    static constexpr const uint32_t SET_COMBINED_IMG_SAMPLERS_INDEX{ 2 };
+
+    struct WriteDescriptorBufferInfo
+    {
+        uint32_t dst_array;
+        VkDescriptorBufferInfo buff_info;
+    };
+
+    struct WriteDescriptorImageInfo
+    {
+        uint32_t dst_array;
+        VkDescriptorImageInfo img_info;
+    };
+
+    struct SBOResourceEntry
+    {
+        BindlessResourceEntry_StorageBuffer sbo;
+        uint32_t idx{};
+        uint32_t cnt{};
+    };
+
+    struct UBOResourceEntry
+    {
+        BindlessResourceEntry_UniformBuffer ubo;
+        uint32_t idx{};
+        uint32_t cnt{};
+    };
+
     UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> _bindless;
     std::vector<VkDescriptorSetLayout> _set_layouts;
     std::vector<VkDescriptorSet> _descriptors;
-    std::vector<BindlessImageResource> _image_resources;
-    std::vector<BindlessUniformBufferResource> _ubo_resources;
-    std::bitset<1024> _flush_tbl_ubo;
-    std::vector<BindlessStorageBufferResource> _sbo_resources;
-    std::bitset<1024> _flush_tbl_sbo;
+    std::vector<BindlessResourceEntry_Image> _image_resources;
+    std::vector<UBOResourceEntry> _ubo_resources;
+    std::vector<SBOResourceEntry> _sbo_resources;
+    std::vector<WriteDescriptorBufferInfo> _writes_ubo;
+    std::vector<WriteDescriptorBufferInfo> _writes_sbo;
+    std::vector<WriteDescriptorImageInfo> _writes_img;
+    uint32_t _handle_idx_ubos{};
+    uint32_t _handle_idx_sbos{};
 };
 
 } // namespace xray::rendering
-
-namespace std {
-template<>
-struct hash<xray::rendering::BindlessResourceHandle>
-{
-    size_t operator()(const xray::rendering::BindlessResourceHandle rh) const noexcept
-    {
-        return hash<uint32_t>{}(rh.handle);
-    }
-};
-}

@@ -7,6 +7,8 @@
 #include <strong_type/formattable.hpp>
 #include <strong_type/hashable.hpp>
 
+#include <vulkan/vulkan_core.h>
+
 namespace xray::rendering {
 
 using WorkPackageHandle =

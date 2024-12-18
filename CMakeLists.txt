@@ -4,14 +4,10 @@ project(
   VERSION 0.5.0.0
   LANGUAGES C CXX)
 
-# download CPM.cmake
-file(
-  DOWNLOAD
-  https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.38.3/CPM.cmake
-  ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake
-  EXPECTED_HASH
-    SHA256=cc155ce02e7945e7b8967ddfaff0b050e958a723ef7aad3766d368940cb15494)
-include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
+include(cmake/CPM.cmake)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 cpmaddpackage("gh:oneapi-src/oneTBB@2021.12.0")
 cpmaddpackage("gh:fmtlib/fmt#10.2.1")
@@ -40,10 +36,9 @@ cpmaddpackage(
   NAME
   cpp-lazy
   GITHUB_REPOSITORY
-  MarcDirven/cpp-lazy
+  adihodos/cpp-lazy
   GIT_TAG
-  # v8.0.0
-  master
+  fix-include-path
   OPTIONS
   "CPP-LAZY_USE_STANDALONE ON")
 

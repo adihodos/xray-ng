@@ -1,6 +1,5 @@
 #pragma once
 
-#include "xray/base/unique_pointer.hpp"
 #include "xray/xray.hpp"
 
 #include "xray/rendering/opengl/gl_handles.hpp"
@@ -8,26 +7,13 @@
 #include "xray/rendering/opengl/program_pipeline.hpp"
 #include <opengl/opengl.hpp>
 
-#include <span>
 #include <tl/optional.hpp>
 
 namespace xray {
 namespace ui {
 
 struct UserInterfaceRenderContext;
-
-struct UserInterfaceBackendCreateInfo
-{
-    std::span<const uint8_t> font_atlas_pixels;
-    uint32_t atlas_width;
-    uint32_t atlas_height;
-    uint32_t max_vertices;
-    uint32_t max_indices;
-    uint32_t vertex_size;
-    uint8_t offset0;
-    uint8_t offset1;
-    uint8_t offset2;
-};
+struct UserInterfaceBackendCreateInfo;
 
 class UserInterfaceBackendOpengGL
 {

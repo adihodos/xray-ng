@@ -1,3 +1,7 @@
 - demo_base class seems kinda useless ??!!
 - add frustrum debug draw
-- VulkanRenderer: handle swapchain suboptimal and out of date
+- VulkanRenderer: handle swapchain suboptimal and out of date - done
+- Shader include support - done
+- VK_EXT_descriptor_buffer support: https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_descriptor_buffer.html
+- GLTF support
+

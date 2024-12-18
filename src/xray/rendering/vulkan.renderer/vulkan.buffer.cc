@@ -22,7 +22,7 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
 
             //
             // no access from host, must have some initial data
-            assert(!create_info.initial_data.empty());
+            assert(create_info.initial_data.size() != 0 && "Must have some initial data for immutable buffer");
 
             if (create_info.usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
                 return limits->minUniformBufferOffsetAlignment;

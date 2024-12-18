@@ -11,6 +11,7 @@
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/opengl/shader_base.hpp"
 #include "xray/ui/user_interface_render_context.hpp"
+#include "xray/ui/user.interface.backend.hpp"
 #include <opengl/opengl.hpp>
 
 static constexpr const char* IMGUI_VERTEX_SHADER = "#version 450 core \n"

@@ -10,6 +10,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 
 namespace dvk {
 
@@ -30,33 +31,34 @@ class TriangleDemo : public app::DemoBase
     static xray::base::unique_pointer<app::DemoBase> create(const app::init_context_t& initContext);
 
   private:
-    xray::rendering::VulkanBuffer _g_ubo;
-    xray::rendering::VulkanBuffer _g_vertexbuffer;
-    xray::rendering::VulkanBuffer _g_indexbuffer;
-    xray::rendering::VulkanBuffer _g_instancebuffer;
-    xray::rendering::GraphicsPipeline _pipeline;
-    xray::rendering::VulkanImage _pixel_buffer;
-    xray::rendering::xrUniqueVkImageView _imageview;
-    xray::rendering::xrUniqueVkSampler _sampler;
-    std::vector<VkDescriptorSet> _desc_sets;
-    float _angle{};
-    uint32_t _vbuffer_handle{};
-    uint32_t _ibuffer_handle{};
+    struct RenderState
+    {
+        xray::rendering::BindlessUniformBufferResourceHandleEntryPair g_ubo;
+        xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_vertexbuffer;
+        xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_indexbuffer;
+        xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer;
+        xray::rendering::GraphicsPipeline pipeline;
+        xray::rendering::BindlessImageResourceHandleEntryPair g_texture;
+        xray::rendering::xrUniqueVkImageView imageview;
+        xray::rendering::xrUniqueVkSampler sampler;
+    } _renderstate;
+
+    struct SimState
+    {
+        float angle{};
+    } _simstate{};
 
   public:
     TriangleDemo(PrivateConstructionToken,
                  const app::init_context_t& init_context,
-                 xray::rendering::VulkanBuffer g_ubo,
-                 xray::rendering::VulkanBuffer g_vertexbuffer,
-                 xray::rendering::VulkanBuffer g_indexbuffer,
-                 xray::rendering::VulkanBuffer g_instancebuffer,
+                 xray::rendering::BindlessUniformBufferResourceHandleEntryPair g_ubo,
+                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_vertexbuffer,
+                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_indexbuffer,
+                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,
                  xray::rendering::GraphicsPipeline pipeline,
-                 xray::rendering::VulkanImage pixel_buffer,
+                 xray::rendering::BindlessImageResourceHandleEntryPair g_texture,
                  xray::rendering::xrUniqueVkImageView imageview,
-                 xray::rendering::xrUniqueVkSampler sampler,
-                 const uint32_t vbuffer,
-                 const uint32_t ibuffer,
-                 std::vector<VkDescriptorSet> desc_sets);
+                 xray::rendering::xrUniqueVkSampler sampler);
 };
 
-} //
+}
