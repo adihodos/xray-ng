@@ -49,7 +49,7 @@ add_custom_target(
           --write-build-info
   BYPRODUCTS "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
   COMMENT "::: Running build-info-tool (custom target) :::"
-  VERBATIM)
+ VERBATIM)
 
 add_executable(
   ${PROJECT_NAME}
