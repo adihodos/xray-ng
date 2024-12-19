@@ -69,19 +69,19 @@
     "buildPresets": [
         {
             "name": "default-build-linux",
-            "displayName": "Default",
+            "displayName": "Default (Linux)",
             "configurePreset": "linux-debug",
             "description": "Vanilla build"
         },
         {
             "name": "default-build-windows",
-            "displayName": "Default",
+            "displayName": "Default (Windows)",
             "configurePreset": "x64-debug",
             "description": "Vanilla build"
         },
         {
             "name": "verbose-build-linux",
-            "displayName": "Verbose Build",
+            "displayName": "Verbose Build (Linux)",
             "description": "Passes -v to Ninja",
             "configurePreset": "linux-debug",
             "nativeToolOptions": [
@@ -90,7 +90,7 @@
         },
         {
             "name": "verbose-build-windows",
-            "displayName": "Verbose Build",
+            "displayName": "Verbose Build (Windows)",
             "configurePreset": "x64-debug",
             "inherits": "verbose-build-linux"
         }
