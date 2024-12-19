@@ -176,7 +176,6 @@ write_build_info(const fs::path& output_dir)
         auto res = fmt::format_to_n(hostname, size(hostname), "{}", env_hostname);
         *res.out = 0;
     } else {
-        DWORD buff_size{ static_cast<DWORD>(std::size(hostname)) };
         const auto hn_res = gethostname(hostname, static_cast<int>(size(hostname)));
         if (hn_res != 0) {
             auto res = fmt::format_to_n(hostname, std::size(hostname), "unknown host");
