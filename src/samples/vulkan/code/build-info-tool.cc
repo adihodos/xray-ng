@@ -6,6 +6,8 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <optional>
+#include <ranges>
 
 #include <fmt/core.h>
 #include <fmt/chrono.h>
@@ -88,17 +90,71 @@ write_build_info(const fs::path& output_dir)
         return EXIT_FAILURE;
     }
 
-    char commit_sha1[GIT_OID_MAX_SIZE + 1];
-    git_oid_tostr(commit_sha1, size(commit_sha1), &oid_parent_commit);
+    char git_commit_sha1[GIT_OID_MAX_SIZE + 1]{};
+    git_oid_tostr(git_commit_sha1, size(git_commit_sha1), &oid_parent_commit);
+    optional<string> commit_sha1{ string{ git_commit_sha1 } };
+
 #else
-    const char* commit_sha1 = "not supported on this platform";
+    optional<string> commit_sha1 = []() -> optional<string> {
+        SECURITY_ATTRIBUTES sec_attrs{};
+        sec_attrs.nLength = sizeof(sec_attrs);
+        sec_attrs.bInheritHandle = true;
+
+        HANDLE read_pipe{};
+        HANDLE write_pipe{};
+        if (!CreatePipe(&read_pipe, &write_pipe, &sec_attrs, 0)) {
+            return nullopt;
+        }
+
+        SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0);
+
+        STARTUPINFOA si{};
+        si.cb = sizeof(si);
+        si.hStdOutput = write_pipe;
+        si.hStdError = write_pipe;
+        si.dwFlags = STARTF_USESTDHANDLES;
+
+        PROCESS_INFORMATION pi{};
+
+        char command_line[] = "git describe --match=NeVeRmAtCh --always --abbrev=40 --dirty";
+        if (!CreateProcessA(
+                nullptr, command_line, nullptr, nullptr, true, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+            return nullopt;
+        }
+
+        const auto wait_result = WaitForSingleObjectEx(pi.hProcess, 4000, false);
+        if (wait_result != WAIT_OBJECT_0) {
+            return nullopt;
+        }
+
+        DWORD exit_code{ EXIT_FAILURE };
+        GetExitCodeProcess(pi.hProcess, &exit_code);
+        if (exit_code != EXIT_SUCCESS) {
+            return nullopt;
+        }
+
+        char text_buffer[2048];
+        DWORD bytes_read{};
+        const auto read_ok =
+            ReadFile(read_pipe, text_buffer, static_cast<DWORD>(size(text_buffer) - 1), &bytes_read, nullptr);
+
+        if (!read_ok || bytes_read == 0)
+            return nullopt;
+
+        text_buffer[bytes_read] = 0;
+        string s{};
+        ranges::copy(span{ text_buffer, size_t{ bytes_read } } | views::filter([](char c) { return !isspace(c); }),
+                     back_inserter(s));
+
+        return optional<string>{ s };
+    }();
 #endif
 
     const string user_info = []() {
 #if defined(PLATFORM_WINDOWS)
         char temp_buffer[2048]{};
         ULONG max_chars{ 2047 };
-        const auto result = GetUserNameExA(NameCanonical, temp_buffer, &max_chars);
+        const auto result = GetUserNameExA(NameSamCompatible, temp_buffer, &max_chars);
         return fmt::format("{}", result ? temp_buffer : "unknown");
 #else
         vector<uint8_t> temp_buffer;
@@ -120,13 +176,19 @@ write_build_info(const fs::path& output_dir)
         auto res = fmt::format_to_n(hostname, size(hostname), "{}", env_hostname);
         *res.out = 0;
     } else {
-#endif
+        DWORD buff_size{ static_cast<DWORD>(std::size(hostname)) };
         const auto hn_res = gethostname(hostname, static_cast<int>(size(hostname)));
         if (hn_res != 0) {
             auto res = fmt::format_to_n(hostname, std::size(hostname), "unknown host");
             *res.out = 0;
         }
-#if defined(PLATFORM_LINUX)
+    }
+#else
+    DWORD buff_size{ static_cast<DWORD>(std::size(hostname)) };
+    const auto hn_res = GetComputerNameExA(ComputerNameDnsFullyQualified, hostname, &buff_size);
+    if (hn_res == 0) {
+        auto res = fmt::format_to_n(hostname, std::size(hostname), "unknown host");
+        *res.out = 0;
     }
 #endif
 
@@ -155,7 +217,7 @@ static constexpr const char* const machine_info = "{machine_info}";
 
     fmt::print(out_file.get(),
                build_file_contents,
-               fmt::arg("commit_hash_str", commit_sha1),
+               fmt::arg("commit_hash_str", commit_sha1.value_or("unknown commit")),
                fmt::arg("build_time", stime.str()),
                fmt::arg("user_info", user_info),
                fmt::arg("machine_info", hostname));
@@ -166,9 +228,9 @@ static constexpr const char* const machine_info = "{machine_info}";
 int
 main(int argc, char** argv)
 {
-     for (int i = 0; i < argc; ++i) {
-         fmt::print(stderr, "\narg[{}] -> {} ", i, argv[i]);
-     }
+    for (int i = 0; i < argc; ++i) {
+        fmt::print(stderr, "\narg[{}] -> {} ", i, argv[i]);
+    }
 
     if (argc == 1) {
         fmt::print(stderr, "\npost-build-tool: nothing to do, exiting ...");
