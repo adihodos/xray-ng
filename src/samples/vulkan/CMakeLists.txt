@@ -49,7 +49,7 @@ add_custom_target(
           --write-build-info
   BYPRODUCTS "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
   COMMENT "::: Running build-info-tool (custom target) :::"
- VERBATIM)
+  VERBATIM)
 
 add_executable(
   ${PROJECT_NAME}
@@ -99,22 +99,20 @@ add_custom_command(
           ${target_output_directory}/shaders
   COMMENT "::: Copying shader files :::")
 
-add_custom_command(
-  TARGET ${PROJECT_NAME}
-  POST_BUILD
-  # COPY_CONFIG_FILES ALL
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/config
-          ${target_output_directory}/config
-  COMMENT "::: Copying configuration files :::")
+set(build_tool_cmd_args "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin")
+set(build_tool_cmd_args1 "--write-app-config=${PROJECT_SOURCE_DIR}/shaders")
+set(build_tool_byproducts
+    "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/config/app_config.conf")
+
+message("OVERWRITE ${OVERWRITE_APP_CONFIG}")
 
 add_custom_command(
   TARGET ${PROJECT_NAME}
   POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/config
+          ${target_output_directory}/config
   COMMAND
-    build-info-tool
-    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin>
-    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:--write-app-config=${PROJECT_SOURCE_DIR}/shaders>
-  BYPRODUCTS
-    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:"${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/config/app_config.conf">
-  COMMENT "::: Running build-info-tool (overwriting app_config.conf) :::"
-  VERBATIM)
+    build-info-tool $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args}>
+    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}>
+  BYPRODUCTS $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_byproducts}>
+  COMMENT "::: Copying configuration files :::")
