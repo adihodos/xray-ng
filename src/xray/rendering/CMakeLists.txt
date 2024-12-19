@@ -3,7 +3,7 @@ project(xray-rendering)
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
-find_package(Vulkan REQUIRED COMPONENTS glslc shaderc_combined)
+find_package(Vulkan REQUIRED COMPONENTS glslc shaderc_combined SPIRV-Tools)
 
 set(project_sources
     ${proj_inc_dir}/colors/color_cast_rgb_hsv.hpp
@@ -90,11 +90,9 @@ target_compile_definitions(
   PUBLIC XRAY_GRAPHICS_API_VULKAN
   PRIVATE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>)
 
-if(WIN32)
-  cpmaddpackage("gh:KhronosGroup/KTX-Software@4.3.2")
-else()
-  find_package(Ktx REQUIRED)
-endif()
+# if(WIN32)
+cpmaddpackage("gh:KhronosGroup/KTX-Software@4.3.2")
+# else() find_package(Ktx REQUIRED) endif()
 
 target_link_libraries(
   ${PROJECT_NAME}
@@ -107,5 +105,10 @@ target_link_libraries(
          Vulkan::Vulkan
          swl-variant
          strong_type::strong_type
-  PRIVATE TBB::tbb cpp-lazy::cpp-lazy Vulkan::shaderc_combined ktx
-          spirv-reflect-static $<$<PLATFORM_ID:Linux>:Xinerama>)
+         TBB::tbb
+         cpp-lazy::cpp-lazy
+         Vulkan::shaderc_combined
+         Vulkan::SPIRV-Tools
+         ktx
+         spirv-reflect-static
+         $<$<PLATFORM_ID:Linux>:Xinerama>)

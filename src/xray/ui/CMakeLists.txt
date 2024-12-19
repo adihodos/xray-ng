@@ -49,5 +49,5 @@ target_link_libraries(
     xray-base
     xray-rendering
     xray-imgui-docking
-    $<$<PLATFORM_ID:Linux>:OpenGL::OpenGL;OpenGL::GLX;X11::Xi;X11::Xinerama;X11::xcb;X11::X11_xcb;X11::Xkb;X11::xkbcommon;X11::xkbcommon_X11>
+    $<$<PLATFORM_ID:Linux>:OpenGL::GL;X11::Xi;X11::Xinerama;X11::xcb;X11::X11_xcb;X11::Xkb;X11::xkbcommon;X11::xkbcommon_X11>
 )
