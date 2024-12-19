@@ -585,7 +585,7 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
                     .numLayers = loaded_ktx->numLayers, .dest = static_cast<uint8_t*>(bufmap._mapped_memory),
                     .elementSize = elementSize, .numDimensions = loaded_ktx->numDimensions,
 #if defined(_DEBUG)
-                    .regionsArrayEnd = work_package.copy_region.end(),
+                    .regionsArrayEnd = copy_regions.end(),
 #endif
                 };
 

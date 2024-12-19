@@ -588,22 +588,22 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     }
 
     const small_vec_4<const char*> extensions_list{ [&supported_extensions]() {
-        small_vec_4<const char*> exts_list
-        {
+        small_vec_4<const char*> exts_list{
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(XRAY_OS_IS_WINDOWS)
-                VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME
 #else
-                VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+            VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
-                    VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-                VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+                VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
             VK_KHR_DISPLAY_EXTENSION_NAME, VK_KHR_DISPLAY_SWAPCHAIN_EXTENSION_NAME
         };
 
+#if 0
         lz::chain(display_extensions_list)
             .filter([&supported_extensions](const char* ext_name) {
                 return supported_extensions % fn::exists_where([ext_name](const VkExtensionProperties& e) {
@@ -611,6 +611,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                        });
             })
             .copyTo(std::back_inserter(exts_list));
+#else
+        for (const char* ext : display_extensions_list) {
+            const bool is_supported = supported_extensions % fn::exists_where([ext](const VkExtensionProperties& e) {
+                                          return strcmp(e.extensionName, ext) == 0;
+                                      });
+            if (is_supported)
+                exts_list.push_back(ext);
+        }
+#endif
 
         return exts_list;
     }() };
@@ -1009,7 +1018,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             }();
 
             const VkExtent3D swapchain_dimensions = swl::visit(
-                VariantVisitor {
+                VariantVisitor{
 #if defined(XRAY_OS_IS_WINDOWS)
                     [](const WindowPlatformDataWin32& win32) {
                         return VkExtent3D{ .width = win32.width, .height = win32.height, .depth = 1 };
@@ -1018,9 +1027,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                     [](const WindowPlatformDataXcb& xcb) {
                         return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
                     },
-                        [](const WindowPlatformDataXlib& xlib) {
-                            return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                        },
+                    [](const WindowPlatformDataXlib& xlib) {
+                        return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
+                    },
 #endif
                 },
                 win_data);
@@ -2106,6 +2115,7 @@ VulkanRenderer::submit_work_package(const WorkPackageHandle pkg_handle)
 void
 VulkanRenderer::wait_on_packages(std::initializer_list<WorkPackageHandle> pkgs) const noexcept
 {
+#if 0
     itlib::small_vector<VkFence> fences{
         lz::chain(pkgs)
             .map([this](WorkPackageHandle pkg) {
@@ -2113,6 +2123,12 @@ VulkanRenderer::wait_on_packages(std::initializer_list<WorkPackageHandle> pkgs) 
             })
             .to<itlib::small_vector<VkFence>>(),
     };
+#else
+    itlib::small_vector<VkFence> fences{};
+    for (const WorkPackageHandle pkg : pkgs) {
+        fences.push_back(_work_queue.fences[_work_queue.packages.find(pkg)->second.fence.value_of()]);
+    }
+#endif
 
     WRAP_VULKAN_FUNC(vkWaitForFences,
                      raw_ptr(_render_state.dev_logical),

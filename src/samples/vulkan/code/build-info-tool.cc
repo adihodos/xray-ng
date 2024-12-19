@@ -10,10 +10,16 @@
 #include <fmt/core.h>
 #include <fmt/chrono.h>
 
+#if defined(PLATFORM_WINDOWS)
+#define SECURITY_WIN32
+#include <windows.h>
+#include <security.h>
+#include <winsock.h>
+#else
 #include <git2.h>
-
 #include <pwd.h>
 #include <unistd.h>
+#endif
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -57,6 +63,7 @@ directories : {{
 int32_t
 write_build_info(const fs::path& output_dir)
 {
+#if defined(PLATFORM_LINUX)
     if (git_libgit2_init() < 0) {
         return EXIT_FAILURE;
     }
@@ -83,17 +90,19 @@ write_build_info(const fs::path& output_dir)
 
     char commit_sha1[GIT_OID_MAX_SIZE + 1];
     git_oid_tostr(commit_sha1, size(commit_sha1), &oid_parent_commit);
+#else
+    const char* commit_sha1 = "not supported on this platform";
+#endif
 
-    // if (git_commit* last_commit{nullptr}; git_commit_lookup(&last_commit, repo, &oid_parent_commit) == 0) {
-    //     const git_time_t last_commit_time = git_commit_time(last_commit);
-    //     const int32_t commit_time_offset = git_commit_time_offset(last_commit);
-    // }
-    //
-
-    const uid_t user_id = getuid();
-
-    const string user_info = [user_id]() {
+    const string user_info = []() {
+#if defined(PLATFORM_WINDOWS)
+        char temp_buffer[2048]{};
+        ULONG max_chars{ 2047 };
+        const auto result = GetUserNameExA(NameCanonical, temp_buffer, &max_chars);
+        return fmt::format("{}", result ? temp_buffer : "unknown");
+#else
         vector<uint8_t> temp_buffer;
+        const uid_t user_id = getuid();
         const auto bsize = sysconf(_SC_GETPW_R_SIZE_MAX);
         temp_buffer.resize(bsize > 0 ? static_cast<size_t>(bsize) : 16384);
 
@@ -102,16 +111,24 @@ write_build_info(const fs::path& output_dir)
         getpwuid_r(user_id, &user_data, reinterpret_cast<char*>(temp_buffer.data()), temp_buffer.size(), &result);
         return fmt::format(
             "{} ({}, uid {})", result ? result->pw_name : "unknown", result ? result->pw_gecos : "unknown", user_id);
+#endif
     }();
 
-    char hostname[HOST_NAME_MAX];
+    char hostname[1024];
+#if defined(PLATFORM_LINUX)
     if (const char* env_hostname = getenv("HOSTNAME")) {
-        snprintf(hostname, size(hostname), "%s", env_hostname);
+        auto res = fmt::format_to_n(hostname, size(hostname), "{}", env_hostname);
+        *res.out = 0;
     } else {
-        if (gethostname(hostname, size(hostname)) != 0) {
-            snprintf(hostname, size(hostname), "unknown host");
+#endif
+        const auto hn_res = gethostname(hostname, static_cast<int>(size(hostname)));
+        if (hn_res != 0) {
+            auto res = fmt::format_to_n(hostname, std::size(hostname), "unknown host");
+            *res.out = 0;
         }
+#if defined(PLATFORM_LINUX)
     }
+#endif
 
     static constexpr const char* build_file_contents = R"(
 #pragma once
@@ -149,9 +166,9 @@ static constexpr const char* const machine_info = "{machine_info}";
 int
 main(int argc, char** argv)
 {
-    // for (int i = 0; i < argc; ++i) {
-    //     fmt::print(stderr, "\narg[{}] -> {} ", i, argv[i]);
-    // }
+     for (int i = 0; i < argc; ++i) {
+         fmt::print(stderr, "\narg[{}] -> {} ", i, argv[i]);
+     }
 
     if (argc == 1) {
         fmt::print(stderr, "\npost-build-tool: nothing to do, exiting ...");

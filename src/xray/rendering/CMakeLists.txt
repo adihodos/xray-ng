@@ -90,7 +90,11 @@ target_compile_definitions(
   PUBLIC XRAY_GRAPHICS_API_VULKAN
   PRIVATE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>)
 
-find_package(Ktx REQUIRED)
+if(WIN32)
+  cpmaddpackage("gh:KhronosGroup/KTX-Software@4.3.2")
+else()
+  find_package(Ktx REQUIRED)
+endif()
 
 target_link_libraries(
   ${PROJECT_NAME}

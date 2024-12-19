@@ -710,7 +710,7 @@ xray::ui::window::message_loop()
 
     for (; _quit_flag == false;) {
 
-        core.events.poll_start({});
+        core.events.poll_start(poll_start_event{});
 
         while (PeekMessage(&wnd_msg, nullptr, 0, 0, PM_NOREMOVE) && !_quit_flag) {
             const auto res = GetMessage(&wnd_msg, nullptr, 0, 0);
@@ -723,11 +723,11 @@ xray::ui::window::message_loop()
             DispatchMessage(&wnd_msg);
         }
 
-        core.events.poll_end({});
+        core.events.poll_end(poll_end_event{});
 
         //
         // user loop event
-        core.events.loop({ _wnd_width, _wnd_height, this });
+        core.events.loop(window_loop_event{ _wnd_width, _wnd_height, this });
 
 #if defined(XRAY_RENDERER_OPENGL)
         SwapBuffers(raw_ptr(_window_dc));

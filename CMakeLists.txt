@@ -61,14 +61,18 @@ cpmaddpackage(
   NAME
   libconfig
   GITHUB_REPOSITORY
-  adihodos/libconfig
+  # adihodos/libconfig
+  hyperrealm/libconfig
   GIT_TAG
   master
   OPTIONS
   "BUILD_TESTING OFF"
   "BUILD_EXAMPLES OFF"
-  "BUILD_SHARED_LIBS OFF"
+  "BUILD_SHARED_LIBS ON"
   "BUILD_TESTS OFF")
+
+# add_library(libconfig::libconfig ALIAS
+# $<IF:$<PLATFORM_ID:Windows>,libconfig,config>)
 
 cpmaddpackage("gh:adihodos/swl-variant#main")
 cpmaddpackage(
@@ -81,9 +85,6 @@ cpmaddpackage(
   OPTIONS
   "SPIRV_REFLECT_STATIC_LIB ON"
   "SPIRV_REFLECT_EXECUTABLE OFF")
-
-# set(CMAKE_MODULE_PATH "${CMAKE_PROJECT_DIR}/cmake"
-# "${CMAKE_PROJECT__DIR}/cmake/modules")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/lib")
@@ -103,19 +104,22 @@ set(cxx_is_gcc "$<COMPILE_LANG_AND_ID:CXX,GNU>")
 set(cxx_is_clang "$<COMPILE_LANG_AND_ID:CXX,Clang>")
 set(cxx_is_gcc_like "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU>")
 
-target_compile_options(
-  xray-set-compile-options-lib
-  INTERFACE
-    $<$<CONFIG:Debug>:-O0>
-    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables>
-    $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
-)
+if(TARGET Linux)
+  target_compile_options(
+    xray-set-compile-options-lib
+    INTERFACE
+      $<$<CONFIG:Debug>:-O0>
+      $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables>
+      $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
+  )
 
-set(cxx_stdlib_dbg_flags
-    $<$<AND:$<CONFIG:Debug>,${cxx_is_gcc}>:_GLIBCXX_ASSERTIONS>)
+  set(cxx_stdlib_dbg_flags
+      $<$<AND:$<CONFIG:Debug>,${cxx_is_gcc}>:_GLIBCXX_ASSERTIONS>)
 
-target_compile_definitions(xray-set-compile-options-lib
-                           INTERFACE "${cxx_stdlib_dbg_flags}")
+  target_compile_definitions(xray-set-compile-options-lib
+                             INTERFACE "${cxx_stdlib_dbg_flags}")
+
+endif()
 
 target_compile_definitions(
   xray-set-compile-options-lib INTERFACE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>

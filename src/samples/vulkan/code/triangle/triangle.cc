@@ -85,16 +85,16 @@ struct FrameGlobalData
     mat4f view;
     mat4f ortho;
     vec3f eye_pos;
-    uint frame;
+    uint32_t frame;
 };
 
 struct InstanceRenderInfo
 {
     mat4f model;
-    uint vtx_buff;
-    uint idx_buff;
-    uint mtl_coll;
-    uint mtl;
+    uint32_t vtx_buff;
+    uint32_t idx_buff;
+    uint32_t mtl_coll;
+    uint32_t mtl;
 };
 
 struct VertexPTC

@@ -345,7 +345,7 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
                 .binding = reflected_binding->binding,
                 .descriptorType = static_cast<VkDescriptorType>(reflected_binding->descriptor_type),
                 .descriptorCount = reflected_binding->array.dims_count,
-                .stageFlags = shader_module.GetShaderStage(),
+                .stageFlags = static_cast<VkShaderStageFlags>(shader_module.GetShaderStage()),
                 .pImmutableSamplers = nullptr,
             };
 
@@ -642,41 +642,39 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
                 .map([](const pair<uint32_t, VkDescriptorSetLayoutBinding>& dslb) { return dslb.first; })
                 .max();
 
-        vector<VkDescriptorSetLayout> desc_set_layouts =
-            lz::chain(lz::range(max_set_id + 1))
-                .map([device, &pipeline_layout_deftable](const uint32_t set_id) -> VkDescriptorSetLayout {
-                    if (auto itr_set = pipeline_layout_deftable.find(set_id);
-                        itr_set != end(pipeline_layout_deftable)) {
+        vector<VkDescriptorSetLayout> desc_set_layouts{};
+        for (const uint32_t set_id : lz::range(max_set_id + 1)) {
+            const VkDescriptorSetLayout set_layout =
+                [device, t = &pipeline_layout_deftable](const uint32_t set_id) -> VkDescriptorSetLayout {
+                if (auto itr_set = t->find(set_id); itr_set != end(*t)) {
 
-                        const VkDescriptorBindingFlags binding_flags{ VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
-                        const VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_create_info{
-                            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-                            .pNext = nullptr,
-                            .bindingCount = 1,
-                            .pBindingFlags = &binding_flags,
-                        };
+                    const VkDescriptorBindingFlags binding_flags{ VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+                    const VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_create_info{
+                        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+                        .pNext = nullptr,
+                        .bindingCount = 1,
+                        .pBindingFlags = &binding_flags,
+                    };
 
-                        const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
-                            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-                            .pNext = &binding_flags_create_info,
-                            .flags = 0,
-                            .bindingCount = 1,
-                            .pBindings = &itr_set->second,
-                        };
+                    const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+                        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                        .pNext = &binding_flags_create_info,
+                        .flags = 0,
+                        .bindingCount = 1,
+                        .pBindings = &itr_set->second,
+                    };
 
-                        VkDescriptorSetLayout set_layout{};
-                        const VkResult set_layout_create_res = WRAP_VULKAN_FUNC(vkCreateDescriptorSetLayout,
-                                                                                device,
-                                                                                &descriptor_set_layout_create_info,
-                                                                                nullptr,
-                                                                                &set_layout);
+                    VkDescriptorSetLayout set_layout{};
+                    const VkResult set_layout_create_res = WRAP_VULKAN_FUNC(
+                        vkCreateDescriptorSetLayout, device, &descriptor_set_layout_create_info, nullptr, &set_layout);
 
-                        return set_layout;
-                    } else {
-                        return nullptr;
-                    }
-                })
-                .to<vector<VkDescriptorSetLayout>>();
+                    return set_layout;
+                } else {
+                    return nullptr;
+                }
+            }(set_id);
+            desc_set_layouts.push_back(set_layout);
+        }
 
         //
         // Plug descriptor set layout holes.

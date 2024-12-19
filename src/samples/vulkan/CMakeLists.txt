@@ -20,12 +20,24 @@ source_group(code FILES ${project_sources})
 source_group(shaders FILES ${shader_files})
 source_group(configuration FILES ${config_files})
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBGIT2 REQUIRED IMPORTED_TARGET libgit2)
+if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(LIBGIT2 REQUIRED IMPORTED_TARGET libgit2)
+endif()
 
 add_executable(build-info-tool ${proj_src_dir}/build-info-tool.cc)
 target_compile_features(build-info-tool PRIVATE cxx_std_20)
-target_link_libraries(build-info-tool PRIVATE PkgConfig::LIBGIT2 fmt::fmt)
+target_compile_definitions(
+  build-info-tool PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_WINDOWS>
+                          $<$<PLATFORM_ID:Linux>:PLATFORM_LINUX>)
+
+# set(windows_libs User32 Secur32 Ws2_32)
+
+target_link_libraries(
+  build-info-tool
+  PRIVATE # "$<$<PLATFORM_ID:Windows>:${windows_libs}>"
+          "$<$<PLATFORM_ID:Windows>:User32;Secur32;Ws2_32>"
+          $<$<PLATFORM_ID:Linux>:PkgConfig::LIBGIT2> fmt::fmt)
 
 set(OVERWRITE_APP_CONFIG
     TRUE

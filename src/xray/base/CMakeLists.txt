@@ -49,5 +49,5 @@ target_compile_definitions(
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC fmt::fmt spdlog::spdlog libconfig::libconfig
+  PUBLIC fmt::fmt spdlog::spdlog $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
   PRIVATE itlib::itlib joboccara::pipes)

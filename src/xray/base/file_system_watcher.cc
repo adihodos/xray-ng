@@ -1,7 +1,9 @@
 #include "xray/base/file_system_watcher.hpp"
 
+#if defined(XRAY_OS_IS_POSIX_FAMILY)
 #include <itlib/small_vector.hpp>
 #include <pipes/pipes.hpp>
+#endif
 
 #include "xray/base/logger.hpp"
 

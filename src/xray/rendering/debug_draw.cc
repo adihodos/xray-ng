@@ -105,6 +105,8 @@ RenderDebugDraw::draw_frustrum(const math::MatrixWithInvertedMatrixPair4f& mtx, 
     };
 
     // NDC -> view space
+
+#if 0
     const itlib::small_vector<math::vec3f, 8> points =
         lz::chain(planes_points)
             .map([&mtx](const math::vec3f& p) { return math::mul_point(mtx.inverted, math::vec4f{ p }); })
@@ -113,6 +115,16 @@ RenderDebugDraw::draw_frustrum(const math::MatrixWithInvertedMatrixPair4f& mtx, 
                 return math::vec3f{ p.x / p.w, p.y / p.w, p.z / p.w };
             })
             .to<itlib::small_vector<math::vec3f, 8>>();
+#else
+    itlib::small_vector<math::vec3f, 8> points{};
+    for (const math::vec3f& p : planes_points) {
+        const math::vec4f unprojected = math::mul_point(mtx.inverted, math::vec4f{ p });
+        if (std::fabs(p.w) < 1.0e-5) {
+            continue;
+        }
+        points.push_back(math::vec3f{ p.x / p.w, p.y / p.w, p.z / p.w });
+    }
+#endif
 
     if (points.size() == 8)
         draw_box(std::span{ points }, color);
@@ -140,11 +152,15 @@ RenderDebugDraw::draw_oriented_box(const math::vec3f& org,
 
     const uint32_t kIndices[] = { 0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7 };
 
-    lz::chain(kIndices)
-        .map([kVertices, c](const uint32_t idx) {
-            return vertex_pc{ kVertices[idx], c };
-        })
-        .copyTo(std::back_inserter(mRenderState.mVertices));
+    for (const uint32_t i : kIndices) {
+        mRenderState.mVertices.emplace_back(kVertices[i], c);
+    }
+
+    // lz::chain(kIndices)
+    //     .map([kVertices, c](const uint32_t idx) {
+    //         return vertex_pc{ kVertices[idx], c };
+    //     })
+    //     .copyTo(std::back_inserter(mRenderState.mVertices));
 
     draw_cross(org, u, v, w, std::min({ eu, ev, ew }) * 0.25f, c);
 }
@@ -253,9 +269,8 @@ RenderDebugDraw::draw_arrow(const math::vec3f& from, const math::vec3f& to, cons
 
     const uint32_t kIndices[] = { 1, 2, 2, 3, 3, 4, 4, 1, 0, 1, 0, 2, 0, 3, 0, 4, 2, 4, 1, 3 };
 
-    lz::chain(kIndices).transformTo(std::back_inserter(mRenderState.mVertices), [kVertices, c](const uint32_t idx) {
-        return vertex_pc{ kVertices[idx], c };
-    });
+    lz::chain(kIndices).transformTo(std::back_inserter(mRenderState.mVertices),
+                                    [kVertices, c](const uint32_t idx) { return vertex_pc{ kVertices[idx], c }; });
 }
 
 void
@@ -280,9 +295,8 @@ RenderDebugDraw::draw_plane(const math::vec3f& origin, const math::vec3f& normal
     };
 
     constexpr const uint32_t kIndices[] = { 0, 1, 1, 2, 2, 3, 3, 0 };
-    lz::chain(kIndices).transformTo(std::back_inserter(mRenderState.mVertices), [kVertices, c](const uint32_t idx) {
-        return vertex_pc{ kVertices[idx], c };
-    });
+    lz::chain(kIndices).transformTo(std::back_inserter(mRenderState.mVertices),
+                                    [kVertices, c](const uint32_t idx) { return vertex_pc{ kVertices[idx], c }; });
 
     draw_arrow(origin, origin + normal * scale * 0.5f, c);
 }

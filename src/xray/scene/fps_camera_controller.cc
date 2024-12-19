@@ -28,8 +28,6 @@
 
 #include "xray/scene/fps_camera_controller.hpp"
 
-#include <pipes/pipes.hpp>
-
 #include "xray/math/constants.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/projection.hpp"
@@ -235,7 +233,7 @@ xray::scene::fps_camera_controller::process_input(const std::bitset<256>& keyboa
 
         { KeySymbol::key_d, &fps_camera_controller::move_right },
 
-          { KeySymbol::key_a, &fps_camera_controller::move_left },
+        { KeySymbol::key_a, &fps_camera_controller::move_left },
 
         { KeySymbol::up, &fps_camera_controller::pitch_down },
 
@@ -252,9 +250,8 @@ xray::scene::fps_camera_controller::process_input(const std::bitset<256>& keyboa
         { KeySymbol::backspace, &fps_camera_controller::reset_orientation },
     };
 
-    key_handlers >>= pipes::for_each([&keyboard, this](const KeySymbolWithActionPair& ka) {
-        auto&& [key_sym, key_action] = ka;
+    for (const auto [key_sym, key_action] : key_handlers) {
         if (keyboard[static_cast<size_t>(key_sym)])
             (this->*key_action)();
-    });
+    }
 }
