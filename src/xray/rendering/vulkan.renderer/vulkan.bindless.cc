@@ -304,7 +304,7 @@ xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& rendere
                              .pTexelBufferView = nullptr,
                          };
                      });
-    _writes_ubo.clear();
+    
 
     lz::chain(_writes_sbo)
         .transformTo(std::back_inserter(descriptor_writes),
@@ -322,7 +322,6 @@ xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& rendere
                              .pTexelBufferView = nullptr,
                          };
                      });
-    _writes_sbo.clear();
 
     lz::chain(_writes_img)
         .transformTo(std::back_inserter(descriptor_writes),
@@ -334,13 +333,12 @@ xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& rendere
                              .dstBinding = 0,
                              .dstArrayElement = imi.dst_array,
                              .descriptorCount = 1,
-                             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                              .pImageInfo = &imi.img_info,
                              .pBufferInfo = nullptr,
                              .pTexelBufferView = nullptr,
                          };
                      });
-    _writes_img.clear();
 
     if (!descriptor_writes.empty()) {
         WRAP_VULKAN_FUNC(vkUpdateDescriptorSets,
@@ -349,6 +347,9 @@ xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& rendere
                          descriptor_writes.data(),
                          0,
                          nullptr);
+        _writes_ubo.clear();
+        _writes_img.clear();
+        _writes_sbo.clear();
     }
 }
 

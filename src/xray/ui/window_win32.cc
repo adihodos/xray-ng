@@ -333,7 +333,7 @@ xray::ui::window::window(const window_params_t& wparam)
 
 xray::ui::window::~window() {}
 
-xray::ui::window::window(window&& other)
+xray::ui::window::window(window&& other) noexcept
     : core{ std::move(other.core) }
     , _window{ other._window }
 #if defined(XRAY_RENDERER_OPENGL)
@@ -345,6 +345,8 @@ xray::ui::window::window(window&& other)
     , _wnd_height{ other._wnd_height }
     , _quit_flag{ other._quit_flag.load() }
 {
+    other._window = nullptr;
+    SetWindowLongPtr(_window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 }
 
 void

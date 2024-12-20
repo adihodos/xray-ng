@@ -42,7 +42,7 @@ write_app_config(const fs::path& output_file, const fs::path& shader_redirect_di
 
     static constexpr const char* const cfg_ovr = R"(
 directories : {{ 
-    root_win = "c:/games/xray"; 
+    root_win = "d:/games/xray"; 
     root = "/home/adi/games/xray";
     models = "assets/models"; 
     fonts = "assets/fonts";

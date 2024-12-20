@@ -43,20 +43,25 @@ set(OVERWRITE_APP_CONFIG
     TRUE
     CACHE BOOL "Redirect shader directory to the source directory" FORCE)
 
-add_custom_target(
-  WriteBuildInfo
-  COMMAND build-info-tool "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin"
-          --write-build-info
-  BYPRODUCTS "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
-  COMMENT "::: Running build-info-tool (custom target) :::"
-  VERBATIM)
+add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
+    COMMAND build-info-tool "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin" --write-build-info
+    VERBATIM)
+
+#add_custom_target(
+#  WriteBuildInfo
+#  COMMAND build-info-tool "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin"
+#          --write-build-info
+#  BYPRODUCTS "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
+#  COMMENT "::: Running build-info-tool (custom target) :::"
+#  VERBATIM)
 
 add_executable(
   ${PROJECT_NAME}
   ${project_sources} "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
   ${shader_files} ${config_files})
 
-add_dependencies(${PROJECT_NAME} WriteBuildInfo)
+add_dependencies(${PROJECT_NAME} build-info-tool)
 
 set_target_properties(
   ${PROJECT_NAME}
@@ -65,8 +70,10 @@ set_target_properties(
              LIBRARY_OUTPUT_DIRECTORY
              "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib"
              ARCHIVE_OUTPUT_DIRECTORY
-             "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib")
-
+             "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib"
+             VS_DEBUGGER_WORKING_DIRECTORY 
+             "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
+                                               
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_include_directories(
   ${PROJECT_NAME} PRIVATE ${proj_inc_dir} ${proj_src_dir}
@@ -116,3 +123,7 @@ add_custom_command(
     $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}>
   BYPRODUCTS $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_byproducts}>
   COMMENT "::: Copying configuration files :::")
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:${PROJECT_NAME}> $<TARGET_RUNTIME_DLLS:${PROJECT_NAME}>
+  COMMAND_EXPAND_LISTS)

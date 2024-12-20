@@ -591,11 +591,11 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         small_vec_4<const char*> exts_list{
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(XRAY_OS_IS_WINDOWS)
-            VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #else
             VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
-                VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
             VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
@@ -702,6 +702,11 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                                                                  VkPhysicalDevice device,
                                                                  const uint32_t queue_index) {
 #if defined(XRAY_OS_IS_WINDOWS)
+        auto get_win32_presentation_support = reinterpret_cast<PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR>(
+            vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceWin32PresentationSupportKHR"));
+
+        assert(get_win32_presentation_support != nullptr);
+        return get_win32_presentation_support(device, queue_index);
 #else
         if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
             PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR get_physical_device_xlib_presentation_support_khr =
@@ -723,8 +728,6 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                        device, queue_index, xcb->connection, xcb->visual) == VK_TRUE;
         }
 #endif
-        assert(false && "Unhandled WindowPlatformData!");
-        return false;
     };
 
     small_vec_4<tuple<detail::PhysicalDeviceData, size_t, size_t>> phys_devices_data{};
@@ -898,8 +901,31 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
     XR_LOG_INFO("Device created successfully");
 
-    tl::optional<PresentToSurface> present_to_surface{ [&win_data, instance = raw_ptr(vkinstance)]() {
+    tl::optional<PresentToSurface> present_to_surface{ [&win_data, instance = raw_ptr(vkinstance)]() -> tl::optional<PresentToSurface> {
 #if defined(XRAY_OS_IS_WINDOWS)
+        if (const WindowPlatformDataWin32* wp = swl::get_if<WindowPlatformDataWin32>(&win_data)) {
+            const VkWin32SurfaceCreateInfoKHR create_info{ .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+                                                           .pNext = nullptr,
+                                                           .flags = 0,
+                                                           .hinstance =
+                                                               reinterpret_cast<HINSTANCE>(GetModuleHandle(nullptr)),
+                                                           .hwnd = wp->window };
+
+            xrUniqueVkSurfaceKHR surface{ [&]() {
+                                             VkSurfaceKHR surface{};
+                                             WRAP_VULKAN_FUNC(
+                                                 vkCreateWin32SurfaceKHR, instance, &create_info, nullptr, &surface);
+                                             return surface;
+                                         }(),
+                                          VkResourceDeleter_VkSurfaceKHR{ instance } };
+
+            if (!surface)
+                return tl::nullopt;
+
+            XR_LOG_INFO("Surface created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(surface)));
+            return tl::make_optional<PresentToSurface>(PresentToWindowSurface{ *wp, std::move(surface) });
+        }
+
 #else
         if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
             return create_xlib_surface(*xlib, instance);
@@ -909,8 +935,6 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             return create_xcb_surface(*xcb, instance);
         }
 #endif
-        assert(false && "Unhandled WindowPlatformData");
-        return tl::optional<PresentToSurface>{};
     }() };
 
     if (!present_to_surface) {

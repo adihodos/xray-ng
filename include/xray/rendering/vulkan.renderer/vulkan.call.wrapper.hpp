@@ -22,9 +22,9 @@ auto inline vk_function_call(const char* file,
                              const int32_t line,
                              const char* vkfunc_name,
                              VkFunction vk_func,
-                             FunctionParams... params)
+                             FunctionParams... params) -> std::invoke_result_t<decltype(vk_func), FunctionParams...>
 {
-    if constexpr (std::is_void_v<std::decay_t<std::invoke_result_t<VkFunction, FunctionParams...>>>) {
+    if constexpr (std::is_same_v<void, std::invoke_result_t<decltype(vk_func), FunctionParams...>>) {
         vk_func(std::forward<FunctionParams>(params)...);
     } else {
         const VkResult result = vk_func(std::forward<FunctionParams>(params)...);

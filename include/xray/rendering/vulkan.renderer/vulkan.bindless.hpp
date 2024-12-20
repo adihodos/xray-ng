@@ -24,8 +24,8 @@ struct BindlessResourceHandleHelper
     {
         struct
         {
-            uint32_t array_start : 16;
             uint32_t element_count : 16;
+            uint32_t array_start : 16;
         };
         uint32_t value;
     };
@@ -52,7 +52,7 @@ using BindlessResourceHandle_Image =
 
 template<typename T>
 T
-bindless_subresource_handle_from_bindless_resource_handle(T bindless_resource, const uint32_t subresource_idx)
+bindless_subresource_handle_from_bindless_resource_handle(T bindless_resource, const uint32_t subresource_idx) noexcept
     requires std::is_same_v<T, BindlessResourceHandle_Image> ||
              std::is_same_v<T, BindlessResourceHandle_UniformBuffer> ||
              std::is_same_v<T, BindlessResourceHandle_StorageBuffer>
@@ -62,6 +62,17 @@ bindless_subresource_handle_from_bindless_resource_handle(T bindless_resource, c
 
     const detail::BindlessResourceHandleHelper subresource{ main_resource.array_start + subresource_idx, 1 };
     return T{ subresource.value };
+}
+
+template<typename T>
+std::pair<uint32_t, uint32_t>
+destructure_bindless_resource_handle(T bindless_resource) noexcept
+    requires std::is_same_v<T, BindlessResourceHandle_Image> ||
+             std::is_same_v<T, BindlessResourceHandle_UniformBuffer> ||
+             std::is_same_v<T, BindlessResourceHandle_StorageBuffer>
+{
+    const detail::BindlessResourceHandleHelper r{ bindless_resource.value_of() };
+    return std::pair{ r.array_start, r.element_count };
 }
 
 struct VulkanBuffer;

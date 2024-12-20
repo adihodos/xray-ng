@@ -15,15 +15,8 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
     constexpr const auto mem_props_host_access =
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
 
-    const VkDeviceSize alignment =
+    const VkDeviceSize alignment_by_usage =
         [&create_info, mem_props_host_access, limits = &renderer.physical().properties.base.properties.limits]() {
-            if (create_info.memory_properties & mem_props_host_access)
-                return limits->nonCoherentAtomSize;
-
-            //
-            // no access from host, must have some initial data
-            assert(create_info.initial_data.size() != 0 && "Must have some initial data for immutable buffer");
-
             if (create_info.usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
                 return limits->minUniformBufferOffsetAlignment;
             } else if (create_info.usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT) {
@@ -32,6 +25,9 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
                 return limits->nonCoherentAtomSize;
             }
         }();
+
+    const VkDeviceSize alignment_by_mem_access = create_info.memory_properties & mem_props_host_access ? renderer.physical().properties.base.properties.limits.nonCoherentAtomSize : 0;
+    const VkDeviceSize alignment = std::max(alignment_by_mem_access, alignment_by_usage);
 
     auto roundup_to_alignment_fn = [](const size_t bytes, const size_t alignment) {
         return ((bytes + alignment - 1) / alignment) * alignment;

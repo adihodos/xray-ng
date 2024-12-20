@@ -347,17 +347,15 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         });
 
     const auto [g_instance_buffer_handle, g_instance_buffer_entry] = _renderstate.g_instancebuffer;
+    const auto [vertex_buffer, evb] = destructure_bindless_resource_handle(_renderstate.g_vertexbuffer.first);
+    const auto [index_buffer, eib] = destructure_bindless_resource_handle(_renderstate.g_indexbuffer.first);
 
     UniqueMemoryMapping::create(render_event.renderer->device(),
                                 g_instance_buffer_entry.memory,
                                 frt.id * g_instance_buffer_entry.aligned_chunk_size,
                                 g_instance_buffer_entry.aligned_chunk_size,
                                 0)
-        .map([angle = _simstate.angle,
-              // vertex buffer array entry for this frame
-              vertex_buffer = _renderstate.g_vertexbuffer.first.value_of() >> 16,
-              // index buffer array entry for this frame
-              index_buffer = _renderstate.g_indexbuffer.first.value_of() >> 16](UniqueMemoryMapping inst_buf) {
+        .map([angle = _simstate.angle, vertex_buffer, index_buffer](UniqueMemoryMapping inst_buf) {
             const xray::math::scalar2x3<float> r = xray::math::R2::rotate(angle);
             const std::array<float, 4> vkmtx{ r.a00, r.a01, r.a10, r.a11 };
 
@@ -385,8 +383,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                 0.0f,
                 1.0f,
             };
-            inst->idx_buff = vertex_buffer;
-            inst->vtx_buff = index_buffer;
+            inst->idx_buff = index_buffer;
+            inst->vtx_buff = vertex_buffer;
             inst->mtl_coll = 0;
         });
 

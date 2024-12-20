@@ -102,7 +102,9 @@ class window
     using handle_type = HWND;
 
     explicit window(const window_params_t& wparam);
-    window(window&&);
+    window(window&&) noexcept;
+    window(const window&) = delete;
+    window& operator=(const window&) = delete;
 
     ~window();
 
@@ -166,9 +168,6 @@ class window
     int32_t _wnd_width{ -1 };
     int32_t _wnd_height{ -1 };
     std::atomic<int32_t> _quit_flag{ false };
-
-  private:
-    XRAY_NO_COPY(window);
 };
 
 } // namespace ui

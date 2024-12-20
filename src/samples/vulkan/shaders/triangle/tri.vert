@@ -12,7 +12,7 @@ out VS_OUT_FS_IN {
     layout (location = 1) flat uint mtl;
 } vs_out;
 
-#if defined(FRAME_BASED_SHADER)
+// #if defined(FRAME_BASED_SHADER)
 void main() {
     const uint frame_idx = (g_GlobalPushConst.data) & 0xFF;
     const FrameGlobalData_t fgd = g_FrameGlobal[frame_idx].data[0];
@@ -25,10 +25,10 @@ void main() {
     vs_out.uv = vtx.uv;
     vs_out.mtl = inst.mtl_id;
 }
-#else
+// #else
 
-void main() {
+// void main() {
+//
+// }
 
-}
-
-#endif
+// #endif

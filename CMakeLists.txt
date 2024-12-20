@@ -28,10 +28,6 @@ cpmaddpackage(
   OPTIONS
   "BUILD_TESTING OFF")
 
-# cpmaddpackage( NAME ktx-tools GITHUB_REPOSITORY KhronosGroup/KTX-Software
-# GIT_TAG v4.3.2 OPTIONS "KTX_FEATURE_STATIC_LIBRARY ON" "KTX_FEATURE_DOC OFF"
-# "KTX_FEATURE_VK_UPLOAD OFF")
-#
 cpmaddpackage(
   NAME
   cpp-lazy
@@ -68,11 +64,8 @@ cpmaddpackage(
   OPTIONS
   "BUILD_TESTING OFF"
   "BUILD_EXAMPLES OFF"
-  "BUILD_SHARED_LIBS ON"
+  "BUILD_SHARED_LIBS OFF"
   "BUILD_TESTS OFF")
-
-# add_library(libconfig::libconfig ALIAS
-# $<IF:$<PLATFORM_ID:Windows>,libconfig,config>)
 
 cpmaddpackage("gh:adihodos/swl-variant#main")
 cpmaddpackage(
@@ -93,6 +86,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/lib")
 set(CMAKE_EXPORT_COMPILE_COMMANDS
     ON
     CACHE INTERNAL "Export compilation commands for code completion (clangd)")
+
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/index")
 
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
