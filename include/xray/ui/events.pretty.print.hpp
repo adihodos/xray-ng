@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2016 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,57 +28,19 @@
 
 #pragma once
 
-#include "xray/math/scalar3.hpp"
-#include "xray/rendering/vertex_format/vertex_format.hpp"
-#include "xray/xray.hpp"
+#include <fmt/core.h>
+#include <fmt/format.h>
+#include <xray/ui/events.hpp>
 
-namespace xray {
-namespace rendering {
-
-/// \addtogroup __GroupXrayMath_Rendering
-/// @{
-
-/// \name Vertex formats.
-/// @{
-
-///
-/// Vertex format, consisting of a point.
-struct vertex_p
-{
-
-    vertex_p() noexcept {}
-
-    vertex_p(const float px, const float py, const float pz) noexcept
-        : position{ px, py, pz }
-    {
-    }
-
-    vertex_p(const math::vec3f& pos) noexcept
-        : position{ pos }
-    {
-    }
-
-    ///< Position in space.
-    math::vec3f position;
-};
+namespace fmt {
 
 template<>
-struct vertex_format_traits<xray::rendering::vertex_format::p>
+struct formatter<xray::ui::mouse_button> : formatter<fmt::string_view>
 {
-    using vertex_type = xray::rendering::vertex_p;
-    static constexpr size_t bytes_size{ sizeof(vertex_p) };
-    static constexpr uint32_t components{ 1 };
 
-    static const VertexInputAttributeDescriptor* description()
-    {
-        static constexpr VertexInputAttributeDescriptor vdesc[] = {
-            { 3, component_type::float_, XR_U32_OFFSETOF(vertex_p, position) }
-        };
-        return vdesc;
-    }
+    // Formats value using the parsed format specification stored in this
+    // formatter and writes the output to ctx.out().
+    auto format(const xray::ui::mouse_button value, format_context& ctx) const -> format_context::iterator;
 };
 
-/// @}
-
-} // namespace rendering
-} // namespace xray
+} // namespace fmt

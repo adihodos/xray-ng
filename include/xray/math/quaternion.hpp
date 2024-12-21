@@ -78,10 +78,8 @@ class quaternion
     };
 
     /** The null quaternion (identity for addition). */
-    // static const quaternion<real_type> zero;
 
     /** The identity quaternion for multiplication */
-    // static const quaternion<real_type> identity;
 
     /**
      \brief Default constructor, leaves the object uninitialized.
@@ -91,7 +89,7 @@ class quaternion
     /**
      \brief Constructs a quaternion using the specified values.
      */
-    inline quaternion(const real_type w, const real_type x, const real_type y, const real_type z) noexcept;
+    inline constexpr quaternion(const real_type w, const real_type x, const real_type y, const real_type z) noexcept;
 
     /**
      \brief Constructs a quaternion, using the specified array of values for
@@ -137,10 +135,10 @@ class quaternion
 };
 
 template<typename real_type>
-inline quaternion<real_type>::quaternion(const real_type w_,
-                                         const real_type x_,
-                                         const real_type y_,
-                                         const real_type z_) noexcept
+inline constexpr quaternion<real_type>::quaternion(const real_type w_,
+                                                   const real_type x_,
+                                                   const real_type y_,
+                                                   const real_type z_) noexcept
     : w(w_)
     , x(x_)
     , y(y_)
@@ -259,6 +257,9 @@ constexpr const quaternion<T> quaternion<T>::stdc::identity;
 
 using quaternionf = quaternion<float>;
 using quaterniond = quaternion<double>;
+
+using quatf = quaternion<float>;
+using quatd = quaternion<double>;
 
 /// @}
 

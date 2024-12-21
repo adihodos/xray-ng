@@ -1,5 +1,6 @@
+
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) 2011-2016 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,59 +27,28 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+#include "xray/ui/events.pretty.print.hpp"
 
-#include "xray/math/scalar3.hpp"
-#include "xray/rendering/vertex_format/vertex_format.hpp"
-#include "xray/xray.hpp"
-
-namespace xray {
-namespace rendering {
-
-/// \addtogroup __GroupXrayMath_Rendering
-/// @{
-
-/// \name Vertex formats.
-/// @{
-
-///
-/// Vertex format, consisting of a point.
-struct vertex_p
+auto
+fmt::formatter<xray::ui::mouse_button>::format(const xray::ui::mouse_button value, format_context& ctx) const
+    -> format_context::iterator
 {
+    fmt::string_view name{ "unknown" };
 
-    vertex_p() noexcept {}
+#define xr_mouse_button_enum_entry(x)                                                                                  \
+    case x: {                                                                                                          \
+        name = std::string_view{ #x };                                                                                 \
+    } break
 
-    vertex_p(const float px, const float py, const float pz) noexcept
-        : position{ px, py, pz }
-    {
+    switch (value) {
+        xr_mouse_button_enum_entry(xray::ui::mouse_button::button1);
+        xr_mouse_button_enum_entry(xray::ui::mouse_button::button2);
+        xr_mouse_button_enum_entry(xray::ui::mouse_button::button3);
+        xr_mouse_button_enum_entry(xray::ui::mouse_button::button4);
+        xr_mouse_button_enum_entry(xray::ui::mouse_button::button5);
+        default:
+            break;
     }
 
-    vertex_p(const math::vec3f& pos) noexcept
-        : position{ pos }
-    {
-    }
-
-    ///< Position in space.
-    math::vec3f position;
-};
-
-template<>
-struct vertex_format_traits<xray::rendering::vertex_format::p>
-{
-    using vertex_type = xray::rendering::vertex_p;
-    static constexpr size_t bytes_size{ sizeof(vertex_p) };
-    static constexpr uint32_t components{ 1 };
-
-    static const VertexInputAttributeDescriptor* description()
-    {
-        static constexpr VertexInputAttributeDescriptor vdesc[] = {
-            { 3, component_type::float_, XR_U32_OFFSETOF(vertex_p, position) }
-        };
-        return vdesc;
-    }
-};
-
-/// @}
-
-} // namespace rendering
-} // namespace xray
+    return formatter<string_view>::format(name, ctx);
+}

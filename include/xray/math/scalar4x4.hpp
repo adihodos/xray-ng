@@ -152,6 +152,10 @@ class scalar4x4
     /// Constructs from an array of values.
     scalar4x4(const T* input, const size_t count) noexcept;
 
+    /// Construct with conversion
+    template<typename U>
+    scalar4x4(const U* input, const size_t count) noexcept;
+
     constexpr scalar4x4(const T (&arr)[16]) noexcept;
 
     /// \brief  Construct from a 3x3 linear transform matrix.
@@ -254,6 +258,19 @@ template<typename T>
 scalar4x4<T>::scalar4x4(const T* input, const size_t count) noexcept
 {
     base::copy_pod_range(input, math::min(XR_COUNTOF(components), count), components);
+}
+
+template<typename T>
+template<typename U>
+scalar4x4<T>::scalar4x4(const U* input, const size_t count) noexcept
+{
+    if constexpr (sizeof(U) == sizeof(T)) {
+        base::copy_pod_range(input, math::min(XR_COUNTOF(components), count), components);
+    } else {
+        for (size_t i = 0; i < count; ++i) {
+            this->components[i] = static_cast<T>(input[i]);
+        }
+    }
 }
 
 template<typename T>

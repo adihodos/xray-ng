@@ -4,7 +4,6 @@
 #include <mio/mmap.hpp>
 #include <system_error>
 
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
 void

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright (c) Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -25,90 +25,44 @@
 // ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 #pragma once
 
-#include "xray/xray.hpp"
 #include <cstdint>
-#include <concepts>
-#include <type_traits>
+#include <string>
+#include <vector>
 
-namespace xray {
-namespace rendering {
+#include <tl/optional.hpp>
+#include <tl/expected.hpp>
 
-enum class vertex_format
+#include "xray/xray.hpp"
+#include "xray/math/scalar2.hpp"
+#include "xray/math/scalar4x4.hpp"
+#include "xray/math/objects/aabb3.hpp"
+
+namespace xray::rendering {
+
+struct GeometryNode
 {
-    undefined,
-    p,
-    pn,
-    pt,
-    pnt,
-    pntt
+    tl::optional<uint32_t> parent{};
+    std::string name{};
+    xray::math::mat4f transform{ xray::math::mat4f::stdc::identity };
+    xray::math::aabb3f boundingbox{ xray::math::aabb3f::stdc::identity };
+    uint32_t vertex_offset{};
+    uint32_t index_offset{};
+    uint32_t index_count{};
+
+    // GeometryNode(GeometryNode&&) = default;
+    // GeometryNode& operator=(GeometryNode&&) = default;
 };
 
-enum class index_format
+struct Geometry
 {
-    u16,
-    u32
+    std::vector<GeometryNode> nodes;
+    xray::math::vec2ui32 vertex_index_counts{};
+    xray::math::aabb3f boundingbox{ xray::math::aabb3f::stdc::identity };
+
+    // Geometry(Geometry&&) = default;
+    // Geometry& operator=(Geometry&&) = default;
 };
 
-struct component_type
-{
-    enum
-    {
-        signed_byte,
-        unsigned_byte,
-        signed_short,
-        unsigned_short,
-        signed_int,
-        unsigned_int,
-        float_,
-        double_
-    };
-};
-
-inline constexpr uint32_t
-component_type_size(const uint32_t c) noexcept
-{
-    switch (c) {
-        case component_type::signed_byte:
-        case component_type::unsigned_byte:
-            return 1;
-
-        case component_type::signed_short:
-        case component_type::unsigned_short:
-            return 2;
-
-        case component_type::signed_int:
-        case component_type::unsigned_int:
-        case component_type::float_:
-            return 4;
-
-        case component_type::double_:
-            return 8;
-
-        default:
-            return 1;
-    }
 }
-
-struct VertexInputAttributeDescriptor
-{
-    uint32_t component_count;
-    uint32_t component_type;
-    uint32_t component_offset;
-    uint32_t location;
-    uint32_t binding;
-};
-
-template<xray::rendering::vertex_format fmt>
-struct vertex_format_traits;
-
-// template<typename T>
-// concept GraphicsPipelineVertex = requires(T) {
-//     std::is_bounded_array_v<typename T::description>&&
-//         std::is_same_v<decltype(T::description[0]), VertexInputAttributeDescriptor>;
-// };
-//
-} // namespace rendering
-} // namespace rendering

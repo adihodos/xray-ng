@@ -15,6 +15,7 @@
 
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
+#include "xray/rendering/vertex_format/vertex_format.hpp"
 
 namespace xray::rendering {
 
@@ -145,6 +146,8 @@ class GraphicsPipelineBuilder
         return *this;
     }
 
+    GraphicsPipelineBuilder& input_state(const std::span<const VertexInputAttributeDescriptor> vtx_input_atts);
+
     tl::expected<GraphicsPipeline, VulkanError> create(const VulkanRenderer& renderer,
                                                        const GraphicsPipelineCreateData& pcd)
     {
@@ -171,6 +174,8 @@ class GraphicsPipelineBuilder
     std::unordered_map<uint32_t, ShaderModuleSource> _stage_modules;
     bool _optimize_shaders{ false };
     InputAssemblyState _input_assembly{};
+    std::vector<VkVertexInputBindingDescription> _vertex_binding_description;
+    std::vector<VkVertexInputAttributeDescription> _vertex_attribute_description;
     RasterizationState _raster{};
     DepthStencilState _depth_stencil{};
     VkPipelineColorBlendAttachmentState _colorblend{

@@ -13,7 +13,7 @@ struct FrameGlobalData_t {
     uint frame_id;
 };
 
-layout (std140, set = 0, binding  = 0) uniform FrameGlobal {
+layout (std140, set = 0, binding  = 0, row_major) uniform FrameGlobal {
     FrameGlobalData_t data[];
 } g_FrameGlobal[];
 
@@ -25,7 +25,7 @@ struct InstanceRenderInfo_t {
     uint mtl_id;
 };
 
-layout (set = 1, binding = 0) readonly buffer InstancesGlobal {
+layout (set = 1, binding = 0, row_major) readonly buffer InstancesGlobal {
     InstanceRenderInfo_t data[];
 } g_InstanceGlobal[];
 
@@ -35,9 +35,22 @@ struct VertexPTC {
     vec4 color;
 };
 
+struct VertexPBR {
+    vec3 pos;
+    vec3 normal;
+    vec4 color;
+    vec4 tangent;
+    vec2 uv;
+    uint pbr_buf_id;
+};
+
 layout (set = 1, binding = 0) readonly buffer VerticesGlobal {
     VertexPTC data[];
 } g_VertexBufferGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer VerticesPBRGlobal {
+    VertexPBR data[];
+} g_VertexBufferPBRGlobal[];
 
 layout (set = 1, binding = 0) readonly buffer IndicesGlobal {
     uint data[];

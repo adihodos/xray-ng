@@ -2,15 +2,13 @@
 
 #include "xray/xray.hpp"
 
-#include <vector>
-
 #include "demo_base.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
+#include "xray/scene/camera.hpp"
+#include "xray/scene/camera.controller.arcball.hpp"
 
 namespace dvk {
 
@@ -34,8 +32,10 @@ class TriangleDemo : public app::DemoBase
     struct RenderState
     {
         xray::rendering::BindlessUniformBufferResourceHandleEntryPair g_ubo;
-        xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_vertexbuffer;
-        xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_indexbuffer;
+        // xray::rendering::BindlessStorageBufferResourceHandleEntryPair
+        xray::rendering::VulkanBuffer g_vertexbuffer;
+        // xray::rendering::BindlessStorageBufferResourceHandleEntryPair
+        xray::rendering::VulkanBuffer g_indexbuffer;
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer;
         xray::rendering::GraphicsPipeline pipeline;
         xray::rendering::BindlessImageResourceHandleEntryPair g_texture;
@@ -46,19 +46,31 @@ class TriangleDemo : public app::DemoBase
     struct SimState
     {
         float angle{};
-    } _simstate{};
+        xray::scene::camera camera{};
+        xray::scene::ArcballCamera arcball_cam{};
+
+        SimState() = default;
+        SimState(const app::init_context_t& init_context);
+
+    } _simstate;
+
+    struct WorldState;
+    xray::base::unique_pointer<WorldState> _world;
 
   public:
     TriangleDemo(PrivateConstructionToken,
                  const app::init_context_t& init_context,
                  xray::rendering::BindlessUniformBufferResourceHandleEntryPair g_ubo,
-                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_vertexbuffer,
-                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_indexbuffer,
+                 xray::rendering::VulkanBuffer&& g_vertexbuffer,
+                 xray::rendering::VulkanBuffer&& g_indexbuffer,
                  xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,
                  xray::rendering::GraphicsPipeline pipeline,
                  xray::rendering::BindlessImageResourceHandleEntryPair g_texture,
                  xray::rendering::xrUniqueVkImageView imageview,
-                 xray::rendering::xrUniqueVkSampler sampler);
+                 xray::rendering::xrUniqueVkSampler sampler,
+                 xray::base::unique_pointer<WorldState> _world);
+
+    ~TriangleDemo();
 };
 
 }

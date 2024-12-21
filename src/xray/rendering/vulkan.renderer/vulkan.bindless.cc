@@ -64,6 +64,7 @@ xray::rendering::BindlessSystem::create(VkDevice device)
 {
     //
     // descriptor pool
+    // TODO: check against the limits 
     xrUniqueVkDescriptorPool dpool{
         [device]() {
             const VkDescriptorPoolSize pool_sizes[] = {

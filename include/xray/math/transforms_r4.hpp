@@ -47,7 +47,20 @@ struct R4
 
     /// \brief      Constructs an affine matrix for a translation in R3.
     template<typename T>
-    static scalar4x4<T> translate(const scalar3<T>& vec) noexcept;
+    static scalar4x4<T> translate(const scalar3<T>& vec) noexcept
+    {
+        return translate(vec.x, vec.y, vec.z);
+    }
+
+    template<typename T>
+    static scalar4x4<T> scaling(const scalar3<T>& vec) noexcept
+    {
+        return R4::scaling(vec.x, vec.y, vec.z);
+    }
+
+    /// Non-uniform scaling matrix
+    template<typename T>
+    static scalar4x4<T> scaling(const T x, const T y, const T z) noexcept;
 };
 
 template<typename T>
@@ -66,10 +79,14 @@ R4::translate(const T x, const T y, const T z) noexcept
   // clang-format off
 }
 
-/// \brief      Constructs an affine matrix for a translation in R3.
-template <typename T>
-scalar4x4<T> R4::translate(const scalar3<T>& vec) noexcept {
-    return translate(vec.x, vec.y, vec.z);
+template<typename T>
+scalar4x4<T> R4::scaling(const T x, const T y, const T z) noexcept {
+    return {
+        x, T{}, T{}, T{},
+            T{}, y, T{}, T{},
+            T{}, T{}, z, T{},
+            T{}, T{}, T{}, T(1)
+    };
 }
 
 /// @}

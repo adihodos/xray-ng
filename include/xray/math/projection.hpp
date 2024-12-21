@@ -44,7 +44,7 @@ namespace math {
 /// @{
 
 template<typename T>
-scalar4x4<T>
+MatrixWithInvertedMatrixPair<T>
 perspective(const T rmin, const T rmax, const T umin, const T umax, const T dmin, const T dmax)
 {
 

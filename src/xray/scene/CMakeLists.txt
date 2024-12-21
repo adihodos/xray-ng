@@ -10,6 +10,8 @@ set(project_sources
     ${proj_src_dir}/camera_controller_spherical_coords.cc
     ${proj_inc_dir}/fps_camera_controller.hpp
     ${proj_src_dir}/fps_camera_controller.cc
+    ${proj_inc_dir}/camera.controller.arcball.hpp
+    ${proj_src_dir}/camera.controller.arcball.cc
     ${proj_inc_dir}/point_light.hpp)
 
 add_library(${PROJECT_NAME} STATIC ${project_sources})
@@ -27,5 +29,6 @@ target_compile_definitions(${PROJECT_NAME}
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC xray-base $<IF:$<PLATFORM_ID:Windows>,libconfig,config> tl::optional
+  PUBLIC xray-base xray-ui $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
+         tl::optional
   PRIVATE joboccara::pipes)

@@ -186,7 +186,7 @@ normalize(const scalar2<T>& v) noexcept
 {
     const auto len_sq = length_squared(v);
     if (is_zero(len_sq))
-        return scalar2<T>::null;
+        return scalar2<T>::stdc::zero;
 
     const auto len = std::sqrt(len_sq);
     return { v.x / len, v.y / len };

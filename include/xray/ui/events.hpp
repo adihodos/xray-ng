@@ -33,7 +33,7 @@
 #include "xray/base/delegate.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/xray.hpp"
-#include <cstddef>
+
 #include <cstdint>
 
 namespace xray {

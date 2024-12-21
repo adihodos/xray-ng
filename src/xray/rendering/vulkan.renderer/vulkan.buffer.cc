@@ -15,6 +15,11 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
     constexpr const auto mem_props_host_access =
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
 
+    if (!(create_info.memory_properties & mem_props_host_access) && create_info.initial_data.size() == 0) {
+        assert(false && "Buffer has no host memory access flags and no initial data!");
+        XR_VK_CHECK_RESULT(VK_ERROR_VALIDATION_FAILED_EXT);
+    }
+
     const VkDeviceSize alignment_by_usage =
         [&create_info, mem_props_host_access, limits = &renderer.physical().properties.base.properties.limits]() {
             if (create_info.usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {

@@ -28,6 +28,7 @@ set(project_sources
     ${proj_inc_dir}/vertex_format/vertex_pnt.hpp
     ${proj_inc_dir}/vertex_format/vertex_pt.hpp
     ${proj_inc_dir}/vertex_format/vertex_pntt.hpp
+    ${proj_inc_dir}/vertex_format/vertex.format.pbr.hpp
     ${proj_inc_dir}/render_stage.hpp
     ${proj_src_dir}/render_stage.cc
     ${proj_inc_dir}/debug_draw.hpp
@@ -36,6 +37,8 @@ set(project_sources
     ${proj_src_dir}/mesh_loader.cc
     ${proj_inc_dir}/mesh.hpp
     ${proj_src_dir}/mesh.cc
+    ${proj_inc_dir}/geometry.importer.gltf.hpp
+    ${proj_src_dir}/geometry.importer.gltf.cc
     ${proj_inc_dir}/texture_loader.hpp
     ${proj_src_dir}/texture_loader.cc)
 
@@ -90,18 +93,21 @@ target_compile_definitions(
   PUBLIC XRAY_GRAPHICS_API_VULKAN
   PRIVATE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>)
 
-
 cpmaddpackage("gh:KhronosGroup/KTX-Software@4.3.2")
+cpmaddpackage(
+  NAME
+  tinygltf
+  GITHUB_REPOSITORY
+  syoyo/tinygltf
+  GIT_TAG
+  release
+  OPTIONS
+  "TINYGLTF_BUILD_LOADER_EXAMPLE OFF"
+  "TINYGLTF_HEADER_ONLY ON")
 
-#cpmaddpackage(
-#    NAME ktx-tools 
-#    GITHUB_REPOSITORY 
-#    KhronosGroup/KTX-Software
-#    GIT_TAG v4.3.2 
-#    OPTIONS 
-#    "KTX_FEATURE_STATIC_LIBRARY ON" 
-#    "KTX_FEATURE_DOC OFF"
-#    "KTX_FEATURE_VK_UPLOAD OFF")
+# cpmaddpackage( NAME ktx-tools GITHUB_REPOSITORY KhronosGroup/KTX-Software
+# GIT_TAG v4.3.2 OPTIONS "KTX_FEATURE_STATIC_LIBRARY ON" "KTX_FEATURE_DOC OFF"
+# "KTX_FEATURE_VK_UPLOAD OFF")
 
 target_link_libraries(
   ${PROJECT_NAME}
@@ -119,5 +125,7 @@ target_link_libraries(
          Vulkan::shaderc_combined
          Vulkan::SPIRV-Tools
          ktx
+         stb::stb
          spirv-reflect-static
-         $<$<PLATFORM_ID:Linux>:Xinerama>)
+         $<$<PLATFORM_ID:Linux>:Xinerama>
+  PRIVATE tinygltf)

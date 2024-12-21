@@ -18,6 +18,8 @@ find_package(OpenGL REQUIRED)
 
 set(PROJECT_SOURCES_MAIN
     ${proj_inc_dir}/events.hpp
+    ${proj_inc_dir}/events.pretty.print.hpp
+    ${proj_src_dir}/events.pretty.print.cc
     ${proj_inc_dir}/key_sym.hpp
     ${proj_inc_dir}/user_interface.hpp
     ${proj_src_dir}/user_interface.cc
@@ -49,5 +51,6 @@ target_link_libraries(
     xray-base
     xray-rendering
     xray-imgui-docking
+    fmt::fmt
     $<$<PLATFORM_ID:Linux>:OpenGL::GL;X11::Xi;X11::Xinerama;X11::xcb;X11::X11_xcb;X11::Xkb;X11::xkbcommon;X11::xkbcommon_X11>
 )

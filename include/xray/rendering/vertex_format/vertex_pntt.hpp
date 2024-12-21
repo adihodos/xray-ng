@@ -90,9 +90,9 @@ struct vertex_format_traits<xray::rendering::vertex_format::pntt>
     static constexpr size_t bytes_size{ sizeof(vertex_pntt) };
     static constexpr uint32_t components{ 4 };
 
-    static const vertex_format_entry_desc* description()
+    static const VertexInputAttributeDescriptor* description()
     {
-        static constexpr vertex_format_entry_desc vdesc[] = {
+        static constexpr VertexInputAttributeDescriptor vdesc[] = {
             { 3, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, position) },
             { 3, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, normal) },
             { 2, component_type::float_, XR_U32_OFFSETOF(vertex_pntt, texcoords) },

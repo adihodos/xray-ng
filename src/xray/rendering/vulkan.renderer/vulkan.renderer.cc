@@ -540,16 +540,16 @@ vk_find_allocation_memory_type(const VkPhysicalDeviceMemoryProperties& memory_pr
                                const uint32_t memory_requirements,
                                const VkMemoryPropertyFlags required_flags)
 {
-    XR_LOG_TRACE("Memory required:\n{:0>32b}\n{:0>32b}", memory_requirements, required_flags);
+    // XR_LOG_TRACE("Memory required:\n{:0>32b}\n{:0>32b}", memory_requirements, required_flags);
     for (uint32_t memory_type = 0, memory_types_count = memory_properties.memoryTypeCount;
          memory_type < memory_types_count;
          ++memory_type) {
         const uint32_t memory_type_bits = 1 << memory_type;
 
-        XR_LOG_TRACE("Device memory {:0>32b}, heap index {}, mem type {}",
-                     memory_properties.memoryTypes[memory_type].propertyFlags,
-                     memory_properties.memoryTypes[memory_type].heapIndex,
-                     memory_type);
+        // XR_LOG_TRACE("Device memory {:0>32b}, heap index {}, mem type {}",
+        //              memory_properties.memoryTypes[memory_type].propertyFlags,
+        //              memory_properties.memoryTypes[memory_type].heapIndex,
+        //              memory_type);
 
         const bool is_required_mem_type = memory_requirements & memory_type_bits;
         const VkMemoryPropertyFlags mem_prop_flags = memory_properties.memoryTypes[memory_type].propertyFlags;

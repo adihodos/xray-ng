@@ -65,37 +65,37 @@ directories : {{
 int32_t
 write_build_info(const fs::path& output_dir)
 {
-#if defined(PLATFORM_LINUX)
-    if (git_libgit2_init() < 0) {
-        return EXIT_FAILURE;
-    }
-
-    const fs::path repo_lookup_path{ fs::current_path() };
-
-    git_buf repo_root{};
-    if (git_repository_discover(&repo_root, repo_lookup_path.generic_string().c_str(), true, nullptr) != 0) {
-        fmt::print(stderr, "Failed to discover repo root, started from: {}", repo_lookup_path.generic_string().c_str());
-        return EXIT_FAILURE;
-    }
-
-    git_repository* repo{ nullptr };
-    const int result = git_repository_open(&repo, repo_root.ptr);
-    if (result < 0) {
-        fmt::print(stderr, "Failed to open repository from path {}\n", repo_lookup_path.generic_string());
-        return EXIT_FAILURE;
-    }
-
-    git_oid oid_parent_commit{};
-    if (git_reference_name_to_id(&oid_parent_commit, repo, "HEAD") != 0) {
-        return EXIT_FAILURE;
-    }
-
-    char git_commit_sha1[GIT_OID_MAX_SIZE + 1]{};
-    git_oid_tostr(git_commit_sha1, size(git_commit_sha1), &oid_parent_commit);
-    optional<string> commit_sha1{ string{ git_commit_sha1 } };
-
-#else
     optional<string> commit_sha1 = []() -> optional<string> {
+#if defined(PLATFORM_LINUX)
+        if (git_libgit2_init() < 0) {
+            return nullopt;
+        }
+
+        const fs::path repo_lookup_path{ fs::current_path() };
+
+        git_buf repo_root{};
+        if (git_repository_discover(&repo_root, repo_lookup_path.generic_string().c_str(), true, nullptr) != 0) {
+            fmt::print(
+                stderr, "Failed to discover repo root, started from: {}", repo_lookup_path.generic_string().c_str());
+            return nullopt;
+        }
+
+        git_repository* repo{ nullptr };
+        const int result = git_repository_open(&repo, repo_root.ptr);
+        if (result < 0) {
+            fmt::print(stderr, "Failed to open repository from path {}\n", repo_lookup_path.generic_string());
+            return nullopt;
+        }
+
+        git_oid oid_parent_commit{};
+        if (git_reference_name_to_id(&oid_parent_commit, repo, "HEAD") != 0) {
+            return nullopt;
+        }
+
+        char git_commit_sha1[GIT_OID_MAX_SIZE + 1]{};
+        git_oid_tostr(git_commit_sha1, size(git_commit_sha1), &oid_parent_commit);
+        return optional<string>{ string{ git_commit_sha1 } };
+#else
         SECURITY_ATTRIBUTES sec_attrs{};
         sec_attrs.nLength = sizeof(sec_attrs);
         sec_attrs.bInheritHandle = true;
@@ -147,8 +147,8 @@ write_build_info(const fs::path& output_dir)
                      back_inserter(s));
 
         return optional<string>{ s };
-    }();
 #endif
+    }();
 
     const string user_info = []() {
 #if defined(PLATFORM_WINDOWS)
@@ -245,8 +245,8 @@ main(int argc, char** argv)
             // cmake sends empty strings when genexprs evaluate to false, so ignore them
             continue;
         } else if (const string_view opt{ "--write-build-info" }; arg.starts_with(opt)) {
-            if (const int32_t result = write_build_info(root_path); result != EXIT_SUCCESS)
-                return result;
+            write_build_info(root_path);
+            return EXIT_SUCCESS;
         } else if (const string_view opt{ "--write-app-config=" }; arg.starts_with(opt)) {
             const fs::path dest_dir{ arg.substr(opt.length()) };
             if (const int32_t result = write_app_config(root_path / "config/app_config.conf", dest_dir);

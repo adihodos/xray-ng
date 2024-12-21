@@ -148,7 +148,7 @@ normalize(const quaternion<real_type>& q) noexcept
         return quaternion<real_type>::stdc::identity;
     }
 
-    const real_type scale_factor = real_type{} / len_sq;
+    const real_type scale_factor = real_type{1} / len_sq;
     return { q.w * scale_factor, q.x * scale_factor, q.y * scale_factor, q.z * scale_factor };
 }
 

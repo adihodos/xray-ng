@@ -449,6 +449,71 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
     }
 }
 
+GraphicsPipelineBuilder&
+GraphicsPipelineBuilder::input_state(const std::span<const VertexInputAttributeDescriptor> vtx_input_atts)
+{
+    std::unordered_map<uint32_t, uint32_t> bindings{};
+
+    static constexpr const VkFormat vulkan_formats[][8]{ //
+                                                         // single component
+                                                         VK_FORMAT_R8_SINT,
+                                                         VK_FORMAT_R8_UINT,
+                                                         VK_FORMAT_R16_SINT,
+                                                         VK_FORMAT_R16_UINT,
+                                                         VK_FORMAT_R32_SINT,
+                                                         VK_FORMAT_R32_UINT,
+                                                         VK_FORMAT_R32_SFLOAT,
+                                                         VK_FORMAT_UNDEFINED,
+
+                                                         // 2 components
+                                                         VK_FORMAT_R8G8_SINT,
+                                                         VK_FORMAT_R8G8_UINT,
+                                                         VK_FORMAT_R16G16_SINT,
+                                                         VK_FORMAT_R16G16_UINT,
+                                                         VK_FORMAT_R32G32_SINT,
+                                                         VK_FORMAT_R32G32_UINT,
+                                                         VK_FORMAT_R32G32_SFLOAT,
+                                                         VK_FORMAT_UNDEFINED,
+
+                                                         // 3 components
+                                                         VK_FORMAT_R8G8B8_SINT,
+                                                         VK_FORMAT_R8G8B8_UINT,
+                                                         VK_FORMAT_R16G16B16_SINT,
+                                                         VK_FORMAT_R16G16B16_UINT,
+                                                         VK_FORMAT_R32G32B32_SINT,
+                                                         VK_FORMAT_R32G32B32_UINT,
+                                                         VK_FORMAT_R32G32B32_SFLOAT,
+                                                         VK_FORMAT_UNDEFINED,
+
+                                                         // 4 components
+                                                         VK_FORMAT_R8G8B8A8_SINT,
+                                                         VK_FORMAT_R8G8B8A8_UINT,
+                                                         VK_FORMAT_R16G16B16A16_SINT,
+                                                         VK_FORMAT_R16G16B16A16_UINT,
+                                                         VK_FORMAT_R32G32B32A32_SINT,
+                                                         VK_FORMAT_R32G32B32A32_UINT,
+                                                         VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                         VK_FORMAT_UNDEFINED
+
+    };
+
+    assert(_vertex_attribute_description.empty() && "input state already set");
+    assert(_vertex_binding_description.empty() && "input binding state already set");
+
+    for (const VertexInputAttributeDescriptor& ad : vtx_input_atts) {
+        assert(ad.component_type * ad.component_count < std::size(vulkan_formats));
+        _vertex_attribute_description.emplace_back(
+            ad.location, ad.binding, vulkan_formats[ad.component_count][ad.component_type], ad.component_offset);
+        bindings[ad.binding] += ad.component_count * component_type_size(ad.component_type);
+    }
+
+    for (const auto [binding_index, binding_stride] : bindings) {
+        _vertex_binding_description.emplace_back(binding_index, binding_stride, VK_VERTEX_INPUT_RATE_VERTEX);
+    }
+
+    return *this;
+}
+
 tl::expected<GraphicsPipeline, VulkanError>
 GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
                                      const PipelineType pipeline_type,
@@ -764,6 +829,7 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
     };
 
+    // TODO: xxyyzz
     const VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .pNext = nullptr,

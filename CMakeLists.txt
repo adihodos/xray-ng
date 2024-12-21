@@ -87,7 +87,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS
     ON
     CACHE INTERNAL "Export compilation commands for code completion (clangd)")
 
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/index")
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/index")
 
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -164,6 +167,7 @@ target_compile_definitions(
 # if (NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
 # include_directories(third_party/opengl/include) endif()
 #
+add_subdirectory(third_party/stb)
 add_subdirectory(third_party/opengl/src)
 add_subdirectory(third_party/imgui-docking/src)
 

@@ -660,6 +660,10 @@ xray::ui::window::window_proc(UINT message, WPARAM wparam, LPARAM lparam)
         case WM_RBUTTONDOWN:
         case WM_LBUTTONUP:
         case WM_RBUTTONUP:
+        case WM_MBUTTONDOWN:
+        case WM_MBUTTONUP:
+        case WM_XBUTTONDOWN:
+        case WM_XBUTTONUP:
             event_mouse_button(message, wparam, lparam);
             break;
 
@@ -743,13 +747,39 @@ xray::ui::window::event_mouse_button(const uint32_t type, const WPARAM wp, const
 
     mouse_button_event mbe;
 
-    mbe.type =
-        (type == WM_LBUTTONDOWN || type == WM_RBUTTONDOWN) ? event_action_type::press : event_action_type::release;
+    mbe.type = (type == WM_LBUTTONDOWN || type == WM_RBUTTONDOWN || type == WM_MBUTTONDOWN || type == WM_XBUTTONDOWN)
+                   ? event_action_type::press
+                   : event_action_type::release;
+
+    auto fn_translate_button = [](const uint32_t b, const WPARAM wp) {
+        switch (b) {
+            case WM_LBUTTONDOWN:
+            case WM_LBUTTONUP:
+                return mouse_button::button1;
+
+            case WM_RBUTTONDOWN:
+            case WM_RBUTTONUP:
+                return mouse_button::button3;
+
+            case WM_MBUTTONDOWN:
+            case WM_MBUTTONUP:
+                return mouse_button::button2;
+
+            case WM_XBUTTONDOWN:
+            case WM_XBUTTONUP: {
+                const auto id = HIWORD(wp);
+                return id == XBUTTON1 ? mouse_button::button4 : mouse_button::button5;
+            }
+
+            default:
+                return mouse_button::button1;
+        }
+    };
 
     mbe.wnd = this;
     mbe.pointer_x = GET_X_LPARAM(lp);
     mbe.pointer_y = GET_Y_LPARAM(lp);
-    mbe.button = (type == WM_LBUTTONDOWN || type == WM_LBUTTONUP) ? mouse_button::button1 : mouse_button::button3;
+    mbe.button = fn_translate_button(type, wp);
     mbe.button1 = (wp & MK_LBUTTON) != 0;
     mbe.button2 = (wp & MK_MBUTTON) != 0;
     mbe.button3 = (wp & MK_RBUTTON) != 0;

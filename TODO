@@ -3,5 +3,19 @@
 - VulkanRenderer: handle swapchain suboptimal and out of date - done
 - Shader include support - done
 - VK_EXT_descriptor_buffer support: https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_descriptor_buffer.html
-- GLTF support
+- GLTF support - partly done, need to add material support
+- shader printf support would be nice
 
+Lighting
+ - direct
+ - indirect
+ - spot
+ - PBR 
+
+Vk Demo:
+ - switch to multi draw indirect, this way we can hide/show nodes
+
+- make the UI work for Vulkan
+- revitalize the geometry generating functions
+- add function to generate a debug texture (XOR texture - https://lodev.org/cgtutor/xortexture.html)
+- fix the project directory structure (move includes to src and use BUILD_INTERFACE/INSTALL_INTERFACE from cmake to set up includes)
