@@ -588,15 +588,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     }
 
     const small_vec_4<const char*> extensions_list{ [&supported_extensions]() {
-        small_vec_4<const char*> exts_list{
+        small_vec_4<const char*> exts_list
+        {
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(XRAY_OS_IS_WINDOWS)
-            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+                VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #else
-            VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+                VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+                VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
@@ -901,7 +901,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
     XR_LOG_INFO("Device created successfully");
 
-    tl::optional<PresentToSurface> present_to_surface{ [&win_data, instance = raw_ptr(vkinstance)]() -> tl::optional<PresentToSurface> {
+    tl::optional<PresentToSurface> present_to_surface{ [&win_data,
+                                                        instance =
+                                                            raw_ptr(vkinstance)]() -> tl::optional<PresentToSurface> {
 #if defined(XRAY_OS_IS_WINDOWS)
         if (const WindowPlatformDataWin32* wp = swl::get_if<WindowPlatformDataWin32>(&win_data)) {
             const VkWin32SurfaceCreateInfoKHR create_info{ .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
@@ -1042,7 +1044,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             }();
 
             const VkExtent3D swapchain_dimensions = swl::visit(
-                VariantVisitor{
+                VariantVisitor {
 #if defined(XRAY_OS_IS_WINDOWS)
                     [](const WindowPlatformDataWin32& win32) {
                         return VkExtent3D{ .width = win32.width, .height = win32.height, .depth = 1 };
@@ -1051,9 +1053,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                     [](const WindowPlatformDataXcb& xcb) {
                         return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
                     },
-                    [](const WindowPlatformDataXlib& xlib) {
-                        return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                    },
+                        [](const WindowPlatformDataXlib& xlib) {
+                            return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
+                        },
 #endif
                 },
                 win_data);
@@ -1653,6 +1655,22 @@ UniqueMemoryMapping::create(VkDevice device,
     }
 
     return tl::make_optional<UniqueMemoryMapping>(mapped_addr, memory, device, size, offset);
+}
+
+tl::expected<UniqueMemoryMapping, VulkanError>
+UniqueMemoryMapping::create_ex(VkDevice device,
+                               VkDeviceMemory memory,
+                               const uint64_t offset,
+                               const uint64_t size) noexcept
+{
+    const VkDeviceSize mapping_length = size == 0 ? VK_WHOLE_SIZE : size;
+    void* mapped_addr{};
+    const VkResult mapping_result =
+        WRAP_VULKAN_FUNC(vkMapMemory, device, memory, offset, mapping_length, 0, &mapped_addr);
+    XR_VK_CHECK_RESULT(mapping_result);
+
+    return tl::expected<UniqueMemoryMapping, VulkanError>{ UniqueMemoryMapping{
+        mapped_addr, memory, device, 0, offset } };
 }
 
 UniqueMemoryMapping::~UniqueMemoryMapping()

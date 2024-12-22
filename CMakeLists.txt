@@ -9,11 +9,11 @@ include(cmake/CPM.cmake)
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-cpmaddpackage("gh:oneapi-src/oneTBB@2021.12.0")
+cpmaddpackage("gh:uxlfoundation/oneTBB@2022.0.0")
+# cpmaddpackage("gh:oneapi-src/oneTBB@2022.0.0")
 cpmaddpackage("gh:fmtlib/fmt#10.2.1")
 cpmaddpackage("gh:TartanLlama/optional@1.1.0")
 cpmaddpackage("gh:TartanLlama/expected@1.1.0")
-# CPMAddPackage("gh:tinyobjloader/tinyobjloader#release")
 cpmaddpackage("gh:vimpunk/mio#master")
 cpmaddpackage("gh:iboB/itlib#master")
 cpmaddpackage("gh:getml/reflect-cpp#main")
@@ -106,7 +106,7 @@ if(TARGET Linux)
   target_compile_options(
     xray-set-compile-options-lib
     INTERFACE
-      $<$<CONFIG:Debug>:-O0>
+      # $<$<CONFIG:Debug>:-O0>
       $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables>
       $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
   )

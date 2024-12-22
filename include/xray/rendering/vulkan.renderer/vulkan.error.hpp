@@ -44,7 +44,7 @@ vk_result_to_string(const int32_t vk_result);
 #define XR_VK_PROPAGATE_ERROR(e)                                                                                       \
     do {                                                                                                               \
         if (!e)                                                                                                        \
-            return e;                                                                                                  \
+            return tl::make_unexpected(e.error());                                                                     \
     } while (0)
 
 } // namespace xray::rendering

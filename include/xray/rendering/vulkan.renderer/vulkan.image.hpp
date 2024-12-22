@@ -2,12 +2,11 @@
 
 #include "xray/xray.hpp"
 
-#include <utility>
 #include <filesystem>
-
-#include <tl/expected.hpp>
+#include <span>
 
 #include <vulkan/vulkan.h>
+#include <tl/expected.hpp>
 
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
@@ -39,6 +38,22 @@ struct VulkanImageLoadInfo
     VkImageTiling tiling;
 };
 
+struct VulkanImageCreateInfo
+{
+    const char* tag_name{};
+    WorkPackageHandle wpkg;
+    VkImageType type{ VK_IMAGE_TYPE_2D };
+    VkImageUsageFlags usage_flags{ VK_IMAGE_USAGE_SAMPLED_BIT };
+    VkMemoryPropertyFlags memory_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
+    VkFormat format{ VK_FORMAT_UNDEFINED };
+    bool cubemap{ false };
+    uint32_t width{};
+    uint32_t height{};
+    uint32_t depth{ 1 };
+    uint32_t layers{ 1 };
+    std::span<const std::span<const uint8_t>> pixels;
+};
+
 class VulkanImage
 {
   public:
@@ -56,6 +71,8 @@ class VulkanImage
     //     const VkImageViewType view_type,
     //     const VkMemoryPropertyFlags image_memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
+    static tl::expected<VulkanImage, VulkanError> from_memory(VulkanRenderer& renderer,
+                                                              const VulkanImageCreateInfo& create_info);
     static tl::expected<VulkanImage, VulkanError> from_file(VulkanRenderer& renderer,
                                                             const VulkanImageLoadInfo& load_info);
 };

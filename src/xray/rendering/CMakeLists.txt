@@ -93,7 +93,6 @@ target_compile_definitions(
   PUBLIC XRAY_GRAPHICS_API_VULKAN
   PRIVATE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>)
 
-cpmaddpackage("gh:KhronosGroup/KTX-Software@4.3.2")
 cpmaddpackage(
   NAME
   tinygltf
@@ -105,9 +104,24 @@ cpmaddpackage(
   "TINYGLTF_BUILD_LOADER_EXAMPLE OFF"
   "TINYGLTF_HEADER_ONLY ON")
 
-# cpmaddpackage( NAME ktx-tools GITHUB_REPOSITORY KhronosGroup/KTX-Software
-# GIT_TAG v4.3.2 OPTIONS "KTX_FEATURE_STATIC_LIBRARY ON" "KTX_FEATURE_DOC OFF"
-# "KTX_FEATURE_VK_UPLOAD OFF")
+if(WIN32)
+  cpmaddpackage(
+    NAME
+    ktx-tools
+    GITHUB_REPOSITORY
+    KhronosGroup/KTX-Software
+    GIT_TAG
+    v4.3.2
+    OPTIONS
+    "KTX_FEATURE_STATIC_LIBRARY ON"
+    "KTX_FEATURE_DOC OFF"
+    "KTX_FEATURE_VK_UPLOAD OFF"
+    "KTX_FEATURE_TESTS OFF"
+    "KTX_FEATURE_VK_UPLOAD OFF"
+    "KTX_FEATURE_GL_UPLOAD OFF")
+else()
+  find_package(Ktx REQUIRED)
+endif()
 
 target_link_libraries(
   ${PROJECT_NAME}

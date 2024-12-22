@@ -25,6 +25,9 @@
         }
         {
           packages = with pkgs; [
+            # editors
+            nvimpager
+
             gcc
             gdb
             seer
@@ -32,6 +35,7 @@
             libgit2.dev
             openssl
             #pwndbg
+            ninja
             gef
             gf
             renderdoc

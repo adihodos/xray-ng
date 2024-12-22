@@ -1,18 +1,18 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include "xray/base/unique_pointer.hpp"
 
 #include <string_view>
 #include <type_traits>
-#include <span>
 
 #include <tl/optional.hpp>
-
+#include <tl/expected.hpp>
 #include <vulkan/vulkan.h>
 
+#include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatch.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 
 namespace xray::rendering {
 
@@ -131,11 +131,17 @@ struct UniqueMemoryMapping
         return *this;
     }
 
-    static tl::optional<UniqueMemoryMapping> create(VkDevice device,
-                                                    VkDeviceMemory memory,
-                                                    const uint64_t offset,
-                                                    const uint64_t size,
-                                                    const VkMemoryMapFlags flags);
+    [[deprecated("This function is deprecated, use create_ex instead")]] static tl::optional<UniqueMemoryMapping>
+    create(VkDevice device,
+           VkDeviceMemory memory,
+           const uint64_t offset,
+           const uint64_t size,
+           const VkMemoryMapFlags flags);
+
+    static tl::expected<UniqueMemoryMapping, VulkanError> create_ex(VkDevice device,
+                                                                    VkDeviceMemory memory,
+                                                                    const uint64_t offset,
+                                                                    const uint64_t size) noexcept;
 
     template<typename T>
     T* as() noexcept
@@ -284,7 +290,7 @@ struct UniqueVulkanResourcePack
 
     ~UniqueVulkanResourcePack() noexcept
     {
-        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        // XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         std::apply(
             [this](auto&&... args) {
                 (void((VkResourceDeleter<std::decay_t<decltype(args)>>{})(

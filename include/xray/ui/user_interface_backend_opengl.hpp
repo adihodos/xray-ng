@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "xray/xray.hpp"
 
 #include "xray/rendering/opengl/gl_handles.hpp"

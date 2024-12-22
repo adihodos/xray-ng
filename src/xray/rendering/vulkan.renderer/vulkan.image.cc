@@ -3,8 +3,10 @@
 #include <cmath>
 #include <system_error>
 
+#include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
 
+#include <vulkan/vulkan.h>
 #include <vulkan/vulkan.hpp>
 #include <ktx.h>
 #include <mio/mmap.hpp>
@@ -359,70 +361,167 @@ generateMipmaps(VkCommandBuffer cmd_buf,
 
 } // namespace ktx_internal_details
 
-// tl::expected<xray::rendering::ManagedImage, xray::rendering::VulkanError>
-// xray::rendering::ManagedImage::create(xray::rendering::VulkanRenderer& renderer,
-//                                       const VkImageCreateInfo& img_create_info,
-//                                       const VkImageViewType view_type,
-//                                       const VkMemoryPropertyFlags image_memory_properties)
-// {
-//     VkImage img_handle{};
-//     const VkResult create_result =
-//         WRAP_VULKAN_FUNC(vkCreateImage, renderer.device(), &img_create_info, nullptr, &img_handle);
-//     if (create_result != VK_SUCCESS) {
-//         return XR_MAKE_VULKAN_ERROR(create_result);
-//     }
-//
-//     xrUniqueVkImage image{ img_handle, VkResourceDeleter_VkImage{ renderer.device() } };
-//
-//     const VkImageMemoryRequirementsInfo2 mem_req_info{
-//         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
-//         .pNext = nullptr,
-//         .image = img_handle,
-//     };
-//
-//     VkMemoryRequirements2 mem_req{ .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2, .pNext = nullptr };
-//     vkGetImageMemoryRequirements2(renderer.device(), &mem_req_info, &mem_req);
-//
-//     const VkMemoryAllocateInfo mem_alloc_info = {
-//         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-//         .pNext = nullptr,
-//         .allocationSize = mem_req.memoryRequirements.size,
-//         .memoryTypeIndex =
-//             renderer.find_allocation_memory_type(mem_req.memoryRequirements.memoryTypeBits, image_memory_properties),
-//     };
-//
-//     VkResult img_alloc_result{};
-//     xrUniqueVkDeviceMemory image_memory{
-//         [d = renderer.device(), ma = &mem_alloc_info, &img_alloc_result]() {
-//             VkDeviceMemory image_memory{};
-//             img_alloc_result = WRAP_VULKAN_FUNC(vkAllocateMemory, d, ma, nullptr, &image_memory);
-//             return image_memory;
-//         }(),
-//         VkResourceDeleter_VkDeviceMemory{ renderer.device() },
-//     };
-//
-//     if (img_alloc_result != VK_SUCCESS) {
-//         return XR_MAKE_VULKAN_ERROR(img_alloc_result);
-//     }
-//
-//     return ManagedImage{
-//         xrUniqueImageWithMemory{
-//             renderer.device(),
-//             xray::base::unique_pointer_release(image),
-//             xray::base::unique_pointer_release(image_memory),
-//         },
-//         VulkanTextureInfo{
-//             .width = img_create_info.extent.width,
-//             .height = img_create_info.extent.height,
-//             .depth = img_create_info.extent.depth,
-//             .imageLayout = img_create_info.initialLayout,
-//             .imageFormat = img_create_info.format,
-//             .levelCount = img_create_info.mipLevels,
-//             .layerCount = img_create_info.arrayLayers,
-//             .viewType = view_type,
-//         },
-//     };
-// }
+tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError>
+xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const VulkanImageCreateInfo& create_info)
+{
+    struct ImageTypeWithImageView
+    {
+        VkImageType image;
+        VkImageViewType view;
+    };
+
+    if (!(create_info.memory_flags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
+        assert(create_info.layers == static_cast<uint32_t>(create_info.pixels.size()));
+    }
+
+    const VkImageViewType image_view_type = [](const VulkanImageCreateInfo& ci) {
+        switch (ci.type) {
+            case VK_IMAGE_TYPE_1D:
+                return ci.layers > 1 ? VK_IMAGE_VIEW_TYPE_1D_ARRAY : VK_IMAGE_VIEW_TYPE_1D;
+
+            case VK_IMAGE_TYPE_2D:
+            default: {
+                if (ci.cubemap) {
+                    return ci.layers > 1 ? VK_IMAGE_VIEW_TYPE_CUBE_ARRAY : VK_IMAGE_VIEW_TYPE_CUBE;
+                } else {
+                    return ci.layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+                }
+            } break;
+
+            case VK_IMAGE_TYPE_3D: {
+                assert(ci.layers == 1);
+                return VK_IMAGE_VIEW_TYPE_3D;
+            }
+        }
+    }(create_info);
+
+    const VkImageCreateInfo vk_create_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .imageType = create_info.type,
+        .format = create_info.format,
+        .extent = VkExtent3D{ .width = create_info.width, .height = create_info.height, .depth = create_info.depth },
+        .mipLevels = 1,
+        .arrayLayers = create_info.layers,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = create_info.usage_flags,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+
+    xrUniqueVkImage image{ nullptr, VkResourceDeleter_VkImage{ renderer.device() } };
+    const VkResult img_create_res =
+        WRAP_VULKAN_FUNC(vkCreateImage, renderer.device(), &vk_create_info, nullptr, base::raw_ptr_ptr(image));
+    XR_VK_CHECK_RESULT(img_create_res);
+
+    const VkImageMemoryRequirementsInfo2 mem_req_info{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+                                                       .pNext = nullptr,
+                                                       .image = base::raw_ptr(image) };
+    VkMemoryRequirements2 mem_requirements{ .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2, .pNext = nullptr };
+    vkGetImageMemoryRequirements2(renderer.device(), &mem_req_info, &mem_requirements);
+
+    const VkMemoryAllocateInfo mem_alloc_info{ .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                                               .pNext = nullptr,
+                                               .allocationSize = mem_requirements.memoryRequirements.size,
+                                               .memoryTypeIndex = renderer.find_allocation_memory_type(
+                                                   mem_requirements.memoryRequirements.memoryTypeBits,
+                                                   create_info.memory_flags) };
+
+    xrUniqueVkDeviceMemory image_memory{ nullptr, VkResourceDeleter_VkDeviceMemory{ renderer.device() } };
+    const VkResult mem_alloc_res = WRAP_VULKAN_FUNC(
+        vkAllocateMemory, renderer.device(), &mem_alloc_info, nullptr, base::raw_ptr_ptr(image_memory));
+    XR_VK_CHECK_RESULT(mem_alloc_res);
+
+    const VkResult bind_res =
+        WRAP_VULKAN_FUNC(vkBindImageMemory, renderer.device(), base::raw_ptr(image), base::raw_ptr(image_memory), 0);
+    XR_VK_CHECK_RESULT(bind_res);
+
+    if (create_info.tag_name) {
+        renderer.dbg_set_object_name(base::raw_ptr(image), create_info.tag_name);
+    }
+
+    if (!create_info.pixels.empty()) {
+        auto staging_buffer = renderer.create_staging_buffer(create_info.wpkg, mem_alloc_info.allocationSize);
+        XR_VK_PROPAGATE_ERROR(staging_buffer);
+
+        const auto copied_to_buffer =
+            UniqueMemoryMapping::create_ex(renderer.device(), staging_buffer->mem, 0, 0)
+                .map([&create_info](UniqueMemoryMapping mapping) {
+                    for (size_t i = 0, count = create_info.pixels.size(); i < count; ++i) {
+                        memcpy((void*)((uint8_t*)mapping._mapped_memory + i * create_info.width * create_info.height),
+                               static_cast<const void*>(create_info.pixels[i].data()),
+                               create_info.pixels[i].size_bytes());
+                    }
+                    return std::true_type{};
+                });
+        XR_VK_PROPAGATE_ERROR(copied_to_buffer);
+
+        VkCommandBuffer cmd_buf = renderer.get_cmd_buf_for_work_package(create_info.wpkg);
+
+        //
+        // set image layout to transfer_dst
+        set_image_layout(cmd_buf,
+                         base::raw_ptr(image),
+                         VK_IMAGE_LAYOUT_UNDEFINED,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                                  .baseMipLevel = 0,
+                                                  .levelCount = 1,
+                                                  .baseArrayLayer = 0,
+                                                  .layerCount = create_info.layers });
+
+        const VkBufferImageCopy buffer_image_cpy{
+            .bufferOffset = 0,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+            .imageSubresource = VkImageSubresourceLayers{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                                          .mipLevel = 0,
+                                                          .baseArrayLayer = 0,
+                                                          .layerCount = create_info.layers },
+            .imageOffset = {},
+            .imageExtent = { create_info.width, create_info.height, create_info.depth }
+        };
+
+        vkCmdCopyBufferToImage(cmd_buf,
+                               staging_buffer->buf,
+                               base::raw_ptr(image),
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               1,
+                               &buffer_image_cpy);
+
+        //
+        // set layout to shader readonly optimal
+        if (create_info.usage_flags & VK_IMAGE_USAGE_SAMPLED_BIT) {
+            set_image_layout(cmd_buf,
+                             base::raw_ptr(image),
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                             VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                                      .baseMipLevel = 0,
+                                                      .levelCount = 1,
+                                                      .baseArrayLayer = 0,
+                                                      .layerCount = create_info.layers });
+        } else {
+            assert(false && "Needs to be implemented");
+        }
+    }
+
+    return VulkanImage{ xrUniqueImageWithMemory{ renderer.device(),
+                                                 base::unique_pointer_release(image),
+                                                 base::unique_pointer_release(image_memory) },
+                        VulkanTextureInfo{ create_info.width,
+                                           create_info.height,
+                                           create_info.depth,
+                                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                           create_info.format,
+                                           1,
+                                           create_info.layers,
+                                           image_view_type } };
+}
 
 tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError>
 xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanImageLoadInfo& load_info)
@@ -577,7 +676,7 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
 
         itlib::small_vector<VkBufferImageCopy> copy_regions{ static_cast<size_t>(numCopyRegions), VkBufferImageCopy{} };
 
-        UniqueMemoryMapping::create(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE, 0)
+        UniqueMemoryMapping::create_ex(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
             .map([&](UniqueMemoryMapping bufmap) {
                 ktx_internal_details::user_cbdata_optimal cbData
                 {

@@ -210,10 +210,10 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         return nullptr;
 
     auto obj_geometry =
-        UniqueMemoryMapping::create(init_ctx.renderer->device(), g_vertexbuffer->memory_handle(), 0, VK_WHOLE_SIZE, 0)
+        UniqueMemoryMapping::create_ex(init_ctx.renderer->device(), g_vertexbuffer->memory_handle(), 0, VK_WHOLE_SIZE)
             .and_then([&](UniqueMemoryMapping map_vtx) {
-                return UniqueMemoryMapping::create(
-                           init_ctx.renderer->device(), g_indexbuffer->memory_handle(), 0, VK_WHOLE_SIZE, 0)
+                return UniqueMemoryMapping::create_ex(
+                           init_ctx.renderer->device(), g_indexbuffer->memory_handle(), 0, VK_WHOLE_SIZE)
                     .map([&](UniqueMemoryMapping map_idx) {
                         const xm::vec2ui32 counts =
                             geometry->extract_data(map_vtx.as<void>(), map_idx.as<void>(), xm::vec2ui32::stdc::zero);
@@ -407,11 +407,10 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
     const auto [g_ubo_handle, g_ubo_entry] = _renderstate.g_ubo;
 
-    UniqueMemoryMapping::create(render_event.renderer->device(),
-                                g_ubo_entry.memory,
-                                frt.id * g_ubo_entry.aligned_chunk_size,
-                                g_ubo_entry.aligned_chunk_size,
-                                0)
+    UniqueMemoryMapping::create_ex(render_event.renderer->device(),
+                                   g_ubo_entry.memory,
+                                   frt.id * g_ubo_entry.aligned_chunk_size,
+                                   g_ubo_entry.aligned_chunk_size)
         .map([id = frt.id, s = &_simstate](UniqueMemoryMapping ubo) {
             FrameGlobalData* fgd = ubo.as<FrameGlobalData>();
             fgd->frame = id;
@@ -424,11 +423,10 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
     const auto [g_instance_buffer_handle, g_instance_buffer_entry] = _renderstate.g_instancebuffer;
 
-    UniqueMemoryMapping::create(render_event.renderer->device(),
-                                g_instance_buffer_entry.memory,
-                                frt.id * g_instance_buffer_entry.aligned_chunk_size,
-                                g_instance_buffer_entry.aligned_chunk_size,
-                                0)
+    UniqueMemoryMapping::create_ex(render_event.renderer->device(),
+                                   g_instance_buffer_entry.memory,
+                                   frt.id * g_instance_buffer_entry.aligned_chunk_size,
+                                   g_instance_buffer_entry.aligned_chunk_size)
         .map([angle = _simstate.angle](UniqueMemoryMapping inst_buf) {
             const xray::math::scalar2x3<float> r = xray::math::R2::rotate(angle);
             const std::array<float, 4> vkmtx{ r.a00, r.a01, r.a10, r.a11 };

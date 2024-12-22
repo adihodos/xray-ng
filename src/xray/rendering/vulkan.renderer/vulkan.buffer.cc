@@ -31,7 +31,10 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
             }
         }();
 
-    const VkDeviceSize alignment_by_mem_access = create_info.memory_properties & mem_props_host_access ? renderer.physical().properties.base.properties.limits.nonCoherentAtomSize : 0;
+    const VkDeviceSize alignment_by_mem_access =
+        create_info.memory_properties & mem_props_host_access
+            ? renderer.physical().properties.base.properties.limits.nonCoherentAtomSize
+            : 0;
     const VkDeviceSize alignment = std::max(alignment_by_mem_access, alignment_by_usage);
 
     auto roundup_to_alignment_fn = [](const size_t bytes, const size_t alignment) {
@@ -116,7 +119,7 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
         //
         // not immutable so just copy everything there is to copy
         if (initial_data_size != 0) {
-            UniqueMemoryMapping::create(renderer.device(), buffer_mem, 0, aligned_bytes, 0)
+            UniqueMemoryMapping::create_ex(renderer.device(), buffer_mem, 0, aligned_bytes)
                 .map([ci = &create_info](UniqueMemoryMapping mapping) {
                     uint8_t* copy_target = static_cast<uint8_t*>(mapping._mapped_memory);
 
@@ -146,7 +149,7 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
             copy_offset += static_cast<uint32_t>(copy_rgn.size_bytes());
         }
 
-        UniqueMemoryMapping::create(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE, 0)
+        UniqueMemoryMapping::create_ex(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
             .map([&](UniqueMemoryMapping bmap) {
                 for (std::span<const uint8_t> chunk : create_info.initial_data) {
                     memcpy(bmap._mapped_memory, chunk.data(), chunk.size_bytes());
