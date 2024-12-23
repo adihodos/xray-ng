@@ -62,11 +62,15 @@
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/user_interface.hpp"
+#include "xray/ui/user.interface.backend.hpp"
+#include "xray/ui/user.interface.backend.vulkan.hpp"
+#include "xray/ui/user_interface_render_context.hpp"
 #include "xray/ui/window.hpp"
 
 #include "demo_base.hpp"
 #include "init_context.hpp"
 #include "triangle/triangle.hpp"
+#include "bindless.pipeline.config.hpp"
 
 using namespace xray;
 using namespace xray::base;
@@ -125,11 +129,15 @@ class MainRunner
     MainRunner(PrivateConstructToken,
                xray::ui::window window,
                xray::rendering::VulkanRenderer vkrenderer,
-               xray::base::unique_pointer<xray::ui::user_interface> ui)
+               xray::base::unique_pointer<xray::ui::user_interface> ui,
+               xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> ui_backend,
+               xray::rendering::BindlessUniformBufferResourceHandleEntryPair global_ubo)
         : _window{ std::move(window) }
         , _vkrenderer{ std::move(vkrenderer) }
         , _ui{ std::move(ui) }
+        , _ui_backend{ std::move(ui_backend) }
         , _registered_demos{ register_demos<dvk::TriangleDemo>() }
+        , _global_ubo{ global_ubo }
     {
         hookup_event_delegates();
         _timer.start();
@@ -173,11 +181,13 @@ class MainRunner
     xray::ui::window _window;
     xray::rendering::VulkanRenderer _vkrenderer;
     xray::base::unique_pointer<xray::ui::user_interface> _ui{};
+    xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> _ui_backend{};
     xray::base::unique_pointer<DemoBase> _demo{};
     xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::deeppurple900 };
     xray::base::timer_highp _timer{};
     vector<RegisteredDemo> _registered_demos;
     vector<char> _combo_items{};
+    xray::rendering::BindlessUniformBufferResourceHandleEntryPair _global_ubo;
 
     XRAY_NO_COPY(MainRunner);
 };
@@ -264,6 +274,27 @@ MainRunner::create()
     xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(
         font_list.data(), font_list.size()) };
 
+    tl::expected<UserInterfaceRenderBackend_Vulkan, VulkanError> vk_backend{ UserInterfaceRenderBackend_Vulkan::create(
+        *renderer, ui->render_backend_create_info()) };
+
+    if (!vk_backend) {
+        XR_LOG_CRITICAL("Failed to create Vulkan render backed for UI!");
+        return tl::nullopt;
+    }
+
+    const VulkanBufferCreateInfo bci{
+        .name_tag = "UBO - FrameGlobalData",
+        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+        .bytes = sizeof(FrameGlobalData),
+        .frames = renderer->buffering_setup().buffers,
+        .initial_data = {},
+    };
+
+    auto g_ubo{ VulkanBuffer::create(*renderer, bci) };
+    if (!g_ubo)
+        return tl::nullopt;
+
     //
     //     RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo,
     //     InstancedDrawingDemo>::registerDemo(
@@ -285,8 +316,16 @@ MainRunner::create()
     //     _ui->set_global_font("Roboto-Regular");
     //     _timer.start();
 
+    const BindlessUniformBufferResourceHandleEntryPair g_ubo_handles =
+        renderer->bindless_sys().add_chunked_uniform_buffer(std::move(*g_ubo), renderer->buffering_setup().buffers);
+
     return tl::make_optional<MainRunner>(
-        PrivateConstructToken{}, std::move(main_window), std::move(*renderer.take()), std::move(ui));
+        PrivateConstructToken{},
+        std::move(main_window),
+        std::move(*renderer.take()),
+        std::move(ui),
+        xray::base::make_unique<UserInterfaceRenderBackend_Vulkan>(std::move(*vk_backend)),
+        g_ubo_handles);
 }
 
 void
@@ -327,14 +366,12 @@ MainRunner::event_handler(const xray::ui::window_event& wnd_evt)
     if (is_input_event(wnd_evt)) {
 
         if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
-            wnd_evt.event.key.type == event_action_type::press
-            /* && !_ui->wants_input() */
-        ) {
+            wnd_evt.event.key.type == event_action_type::press && !_ui->wants_input()) {
             _window.quit();
             return;
         }
 
-        //_ui->input_event(wnd_evt);
+        _ui->input_event(wnd_evt);
     }
 }
 
@@ -355,40 +392,9 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     }
 
     _timer.update_and_reset();
-    //     _ui->tick(_timer.elapsed_millis());
-    //     _ui->new_frame(levt.wnd_width, levt.wnd_height);
-    //
-    //     {
-    //         ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
-    //
-    //         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize |
-    //         ImGuiWindowFlags_NoCollapse))
-    //         {
-    //
-    //             int32_t selectedItem{};
-    //             const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
-    //
-    //             if (wasClicked && selectedItem >= 1) {
-    //                 const init_context_t initContext{ _window->width(),
-    //                                                   _window->height(),
-    //                                                   xr_app_config,
-    //                                                   xray::base::raw_ptr(_ui),
-    //                                                   make_delegate(*this, &main_app::demo_quit) };
-    //
-    //                 _registeredDemos[static_cast<size_t>(selectedItem - 1)]
-    //                     .createFn(initContext)
-    //                     .map([this](demo_bundle_t bundle) {
-    //                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
-    //                         this->_demo = std::move(demoObj);
-    //                         this->_window->events.window = winEvtHandler;
-    //                         this->_window->events.loop = pollEvtHandler;
-    //                     });
-    //             }
-    //         }
-    //
-    //         ImGui::End();
-    //     }
-    //
+    _ui->tick(_timer.elapsed_millis());
+    _ui->new_frame(loop_event.wnd_width, loop_event.wnd_height);
+
     // const xray::math::vec4f viewport{
     //     0.0f, 0.0f, static_cast<float>(loop_event.wnd_width), static_cast<float>(loop_event.wnd_height)
     // };
@@ -401,14 +407,41 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     //                 .height = static_cast<uint32_t>(loop_event.wnd_height) },
     // };
 
-    if (_demo) {
-        _demo->loop_event(RenderEvent{ loop_event, &_vkrenderer });
-        // std::this_thread::sleep_for(std::chrono::milliseconds{ 25 });
-        std::this_thread::yield();
-        return;
-    }
-
     const FrameRenderData frd{ _vkrenderer.begin_rendering() };
+
+    auto g_ubo_mapping = UniqueMemoryMapping::create_ex(_vkrenderer.device(),
+                                                        _global_ubo.second.memory,
+                                                        frd.id * _global_ubo.second.aligned_chunk_size,
+                                                        _global_ubo.second.aligned_chunk_size);
+
+    if (_demo) {
+        _demo->loop_event(RenderEvent{ loop_event, &_vkrenderer, xray::base::raw_ptr(_ui) });
+    } else {
+        ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
+        if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
+
+            //             int32_t selectedItem{};
+            //             const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
+            //
+            //             if (wasClicked && selectedItem >= 1) {
+            //                 const init_context_t initContext{ _window->width(),
+            //                                                   _window->height(),
+            //                                                   xr_app_config,
+            //                                                   xray::base::raw_ptr(_ui),
+            //                                                   make_delegate(*this, &main_app::demo_quit) };
+            //
+            //                 _registeredDemos[static_cast<size_t>(selectedItem - 1)]
+            //                     .createFn(initContext)
+            //                     .map([this](demo_bundle_t bundle) {
+            //                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
+            //                         this->_demo = std::move(demoObj);
+            //                         this->_window->events.window = winEvtHandler;
+            //                         this->_window->events.loop = pollEvtHandler;
+            //                     });
+            //             }
+        }
+        ImGui::End();
+    }
 
     const VkViewport viewport{
         .x = 0.0f,
@@ -428,18 +461,25 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 
     vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
 
-    _vkrenderer.clear_attachments(frd.cmd_buf,
-                                  _clear_color.r,
-                                  _clear_color.g,
-                                  _clear_color.b);
-
-    _vkrenderer.end_rendering();
+    //
+    // flush and bind the global descriptor table
+    _vkrenderer.bindless_sys().flush_descriptors(_vkrenderer);
+    _vkrenderer.clear_attachments(frd.cmd_buf, _clear_color.r, _clear_color.g, _clear_color.b);
 
     //
-    //     gl::ViewportIndexedfv(0, viewport.components);
-    //     gl::ClearNamedFramebufferfv(0, gl::COLOR, 0, _clear_color.components);
-    //     gl::ClearNamedFramebufferfi(0, gl::DEPTH_STENCIL, 0, 1.0f, 0xffffffff);
-    //     _ui->draw();
+    // move the UBO mapping into the lambda so that the data is flushed before the rendering starts
+    _ui->draw().map([this, frd, g_ubo = std::move(*g_ubo_mapping)](UserInterfaceRenderContext ui_render_ctx) mutable {
+        FrameGlobalData* fg = g_ubo.as<FrameGlobalData>();
+        fg->frame = frd.id;
+        fg->ui = UIData{
+            .scale = vec2f{ ui_render_ctx.scale_x, ui_render_ctx.scale_y },
+            .translate = vec2f{ ui_render_ctx.translate_x, ui_render_ctx.translate_y },
+            .textureid = ui_render_ctx.textureid,
+        };
+        _ui_backend->render(ui_render_ctx, _vkrenderer, frd);
+    });
+
+    _vkrenderer.end_rendering();
 }
 
 //
@@ -754,12 +794,6 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 int
 main(int argc, char** argv)
 {
-
-    //volatile bool ur_mom{false};
-    //while (!ur_mom) {
-    //    std::this_thread::sleep_for(std::chrono::milliseconds{10});
-    //}
-
     app::MainRunner::create().map_or_else(
         [](app::MainRunner runner) {
             runner.run();

@@ -33,6 +33,7 @@
 #include <imgui/imgui.h>
 
 #include "xray/ui/user.interface.backend.hpp"
+#include "xray/ui/user_interface_render_context.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 
@@ -44,11 +45,65 @@ constexpr const uint32_t MAX_INDICES = 65535;
 constexpr const std::string_view UI_VERTEX_SHADER{ R"#(
 #version 460 core
 
+#include "core/bindless.core.glsl"
+
+layout (location = 0) in vec2 pos;
+layout (location = 1) in vec2 uv;
+layout (location = 2) in vec4 color;
+
+layout (location = 0) out gl_PerVertex {
+    vec4 gl_Position;
+};
+
+layout (location = 1) out VS_OUT_FS_IN {
+    vec4 color;
+    vec2 uv;
+    flat uint textureid;
+} vs_out;
+
+void main() {
+    const uint frame_idx = (g_GlobalPushConst.data) & 0xFF;
+    const FrameGlobalData_t fgd = g_FrameGlobal[frame_idx].data[0];
+    gl_Position = vec4(pos * fgd.ui.scale + fgd.ui.translate, 0.0f, 1.0f);
+    vs_out.color = color;
+    vs_out.uv = uv;
+    vs_out.textureid = fgd.ui.textureid;
+}
+
 )#" };
 
 constexpr const std::string_view UI_FRAGMENT_SHADER{ R"#(
 #version 460 core
+
+layout (location = 1) in VS_OUT_FS_IN {
+    vec4 color;
+    vec2 uv;
+    flat uint textureid;
+} fs_in;
+
+layout (location = 0) out vec4 FinalFragColor;
+
+void main() {
+    FinalFragColor = texture(g_Textures2DGlobal[fs_in.textureid], fs_in.uv.st) * fs_in.color;
+}
 )#" };
+
+UserInterfaceRenderBackend_Vulkan::UserInterfaceRenderBackend_Vulkan(
+    PrivateConstructionToken,
+    rendering::VulkanBuffer&& vertex_buffer,
+    rendering::VulkanBuffer&& index_buffer,
+    rendering::GraphicsPipeline&& pipeline,
+    rendering::BindlessImageResourceHandleEntryPair font_atlas,
+    rendering::xrUniqueVkImageView&& font_atlas_view,
+    VkSampler sampler)
+    : _vertexbuffer(std::move(vertex_buffer))
+    , _indexbuffer(std::move(index_buffer))
+    , _pipeline(std::move(pipeline))
+    , _font_atlas(font_atlas)
+    , _font_atlas_view(std::move(font_atlas_view))
+    , _sampler(sampler)
+{
+}
 
 tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>
 UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
@@ -108,14 +163,191 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
 
     renderer.submit_work_package(work_pkg->pkg);
 
-    const BindlessImageResourceHandleEntryPair bindless_img = renderer.bindless_sys().add_image(std::move(*font_atlas), nullptr, nullptr);
+    auto sampler = renderer.bindless_sys().get_sampler(
+        VkSamplerCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .mipLodBias = 0.0f,
+            .anisotropyEnable = false,
+            .maxAnisotropy = 1.0f,
+            .compareEnable = false,
+            .compareOp = VK_COMPARE_OP_NEVER,
+            .minLod = 0.0f,
+            .maxLod = 1.0f,
+            .borderColor = VkBorderColor{ VK_BORDER_COLOR_INT_OPAQUE_BLACK },
+            .unnormalizedCoordinates = false,
+        },
+        renderer);
+    XR_VK_PROPAGATE_ERROR(sampler);
 
-    return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
+    xrUniqueVkImageView font_atlas_view{ nullptr, VkResourceDeleter_VkImageView{ renderer.device() } };
+    const VkImageViewCreateInfo img_view_create_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .image = font_atlas->image(),
+        .viewType = font_atlas->_info.viewType,
+        .format = font_atlas->_info.imageFormat,
+        .components = VkComponentMapping{ VK_COMPONENT_SWIZZLE_IDENTITY,
+                                          VK_COMPONENT_SWIZZLE_IDENTITY,
+                                          VK_COMPONENT_SWIZZLE_IDENTITY,
+                                          VK_COMPONENT_SWIZZLE_IDENTITY },
+        .subresourceRange = VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                                     .baseMipLevel = 0,
+                                                     .levelCount = font_atlas->_info.levelCount,
+                                                     .baseArrayLayer = 0,
+                                                     .layerCount = font_atlas->_info.layerCount },
+    };
+    const VkResult view_created_res = WRAP_VULKAN_FUNC(
+        vkCreateImageView, renderer.device(), &img_view_create_info, nullptr, base::raw_ptr_ptr(font_atlas_view));
+    XR_VK_CHECK_RESULT(view_created_res);
+
+    const BindlessImageResourceHandleEntryPair bindless_img =
+        renderer.bindless_sys().add_image(std::move(*font_atlas), nullptr, nullptr);
+
+    if (backend_create_info.upload_callback) {
+        (backend_create_info.upload_callback)(bindless_img.first.value_of(), backend_create_info.upload_cb_context);
+    }
+
+    return tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>{ tl::in_place,
+                                                                                    PrivateConstructionToken{},
+                                                                                    std::move(*vertex_buffer),
+                                                                                    std::move(*index_buffer),
+                                                                                    std::move(*graphics_pipeline),
+                                                                                    bindless_img,
+                                                                                    std::move(font_atlas_view),
+                                                                                    *sampler };
 }
 
 void
-UserInterfaceRenderBackend_Vulkan::render(const UserInterfaceRenderContext& ctx, rendering::VulkanRenderer& vkr)
+UserInterfaceRenderBackend_Vulkan::render(const UserInterfaceRenderContext& ctx,
+                                          rendering::VulkanRenderer& vkr,
+                                          const rendering::FrameRenderData& rd)
 {
+    // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer
+    // coordinates)
+    int fb_width = (int)(ctx.draw_data->DisplaySize.x * ctx.draw_data->FramebufferScale.x);
+    int fb_height = (int)(ctx.draw_data->DisplaySize.y * ctx.draw_data->FramebufferScale.y);
+    if (fb_width <= 0 || fb_height <= 0)
+        return;
+
+    //
+    // TODO: add buffers resizing support
+    assert(ctx.draw_data->TotalVtxCount <= MAX_VERTICES && "Vertex buffer too small");
+    assert(ctx.draw_data->TotalIdxCount <= MAX_INDICES && "Index buffer too small");
+
+    using namespace xray::rendering;
+    const auto [frameid, buffer_count] = vkr.buffering_setup();
+
+    if (ctx.draw_data->TotalVtxCount > 0) {
+        const auto op_result = _vertexbuffer.mmap(vkr.device(), frameid).and_then([&](UniqueMemoryMapping vertexmap) {
+            return _indexbuffer.mmap(vkr.device()).map([&](UniqueMemoryMapping indexmap) {
+                ImDrawVert* vertex_buff = vertexmap.as<ImDrawVert>();
+                ImDrawIdx* index_buff = indexmap.as<ImDrawIdx>();
+
+                for (size_t i = 0; i < ctx.draw_data->CmdListsCount; ++i) {
+                    const ImDrawList* draw_list = ctx.draw_data->CmdLists[i];
+                    memcpy(vertex_buff, draw_list->VtxBuffer.Data, draw_list->VtxBuffer.size_in_bytes());
+                    memcpy(index_buff, draw_list->IdxBuffer.Data, draw_list->IdxBuffer.size_in_bytes());
+
+                    vertex_buff += draw_list->VtxBuffer.Size;
+                    index_buff += draw_list->IdxBuffer.Size;
+                }
+
+                return std::true_type{};
+            });
+        });
+
+        assert(op_result && "Failed to upload UI draw data to GPU!");
+
+        vkCmdBindPipeline(rd.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline.handle());
+        const VkBuffer vertex_buffers[] = { _vertexbuffer.buffer_handle() };
+        const VkDeviceSize vertex_offsets[] = { 0 };
+        vkCmdBindVertexBuffers(rd.cmd_buf, 0, 1, vertex_buffers, vertex_offsets);
+        vkCmdBindIndexBuffer(rd.cmd_buf,
+                             _indexbuffer.buffer_handle(),
+                             0,
+                             sizeof(ImDrawVert) == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+
+        //
+        // Will project scissor/clipping rectangles into framebuffer space
+        const ImVec2 clip_off = ctx.draw_data->DisplayPos; // (0,0) unless using multi-viewports
+        const ImVec2 clip_scale =
+            ctx.draw_data->FramebufferScale; // (1,1) unless using retina display which are often (2,2)
+
+        //
+        // Render command lists
+        // (Because we merged all buffers into a single one, we maintain our own offset into them)
+        int global_vtx_offset = 0;
+        int global_idx_offset = 0;
+        for (int n = 0; n < ctx.draw_data->CmdListsCount; n++) {
+            const ImDrawList* draw_list = ctx.draw_data->CmdLists[n];
+            for (int cmd_i = 0; cmd_i < draw_list->CmdBuffer.Size; cmd_i++) {
+                const ImDrawCmd* pcmd = &draw_list->CmdBuffer[cmd_i];
+                //
+                // Project scissor/clipping rectangles into framebuffer space
+                ImVec2 clip_min((pcmd->ClipRect.x - clip_off.x) * clip_scale.x,
+                                (pcmd->ClipRect.y - clip_off.y) * clip_scale.y);
+                ImVec2 clip_max((pcmd->ClipRect.z - clip_off.x) * clip_scale.x,
+                                (pcmd->ClipRect.w - clip_off.y) * clip_scale.y);
+
+                //
+                // Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
+                if (clip_min.x < 0.0f) {
+                    clip_min.x = 0.0f;
+                }
+                if (clip_min.y < 0.0f) {
+                    clip_min.y = 0.0f;
+                }
+                if (clip_max.x > fb_width) {
+                    clip_max.x = (float)fb_width;
+                }
+                if (clip_max.y > fb_height) {
+                    clip_max.y = (float)fb_height;
+                }
+                if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
+                    continue;
+
+                //
+                // Apply scissor/clipping rectangle
+                VkRect2D scissor;
+                scissor.offset.x = (int32_t)(clip_min.x);
+                scissor.offset.y = (int32_t)(clip_min.y);
+                scissor.extent.width = (uint32_t)(clip_max.x - clip_min.x);
+                scissor.extent.height = (uint32_t)(clip_max.y - clip_min.y);
+                vkCmdSetScissor(rd.cmd_buf, 0, 1, &scissor);
+
+                //
+                // Draw
+                vkCmdDrawIndexed(rd.cmd_buf,
+                                 pcmd->ElemCount,
+                                 1,
+                                 pcmd->IdxOffset + global_idx_offset,
+                                 pcmd->VtxOffset + global_vtx_offset,
+                                 0);
+            }
+            global_idx_offset += draw_list->IdxBuffer.Size;
+            global_vtx_offset += draw_list->VtxBuffer.Size;
+        }
+    }
+}
+
+UIRenderUniform
+UserInterfaceRenderBackend_Vulkan::uniform_data() const noexcept
+{
+    // 2.0f / draw_data->DisplaySize.x;
+    // 2.0f / draw_data->DisplaySize.y;
+    // float translate[2];
+    // translate[0] = -1.0f - draw_data->DisplayPos.x * scale[0];
+    // translate[1] = -1.0f - draw_data->DisplayPos.y * scale[1];
+    return UIRenderUniform{};
 }
 
 }

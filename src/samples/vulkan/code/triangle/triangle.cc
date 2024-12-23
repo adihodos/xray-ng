@@ -21,7 +21,8 @@
 #include "xray/math/projection.hpp"
 #include "xray/rendering/colors/color_cast_rgb_hsv.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
-#include "xray/base/app_config.hpp"
+
+#include "bindless.pipeline.config.hpp"
 
 using namespace std;
 using namespace xray::rendering;
@@ -83,7 +84,6 @@ dvk::TriangleDemo::SimState::SimState(const app::init_context_t& init_context)
 
 dvk::TriangleDemo::TriangleDemo(PrivateConstructionToken,
                                 const app::init_context_t& init_context,
-                                xray::rendering::BindlessUniformBufferResourceHandleEntryPair g_ubo,
                                 xray::rendering::VulkanBuffer&& g_vertexbuffer,
                                 xray::rendering::VulkanBuffer&& g_indexbuffer,
                                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,
@@ -94,8 +94,7 @@ dvk::TriangleDemo::TriangleDemo(PrivateConstructionToken,
                                 xray::base::unique_pointer<WorldState> world)
     : app::DemoBase{ init_context }
     , _simstate{ init_context }
-    , _renderstate{ g_ubo,
-                    std::move(g_vertexbuffer),
+    , _renderstate{ std::move(g_vertexbuffer),
                     std::move(g_indexbuffer),
                     g_instancebuffer,
                     std::move(pipeline),
@@ -108,26 +107,6 @@ dvk::TriangleDemo::TriangleDemo(PrivateConstructionToken,
 }
 
 dvk::TriangleDemo::~TriangleDemo() {}
-
-struct FrameGlobalData
-{
-    mat4f world_view_proj;
-    mat4f projection;
-    mat4f inv_projection;
-    mat4f view;
-    mat4f ortho;
-    vec3f eye_pos;
-    uint32_t frame;
-};
-
-struct InstanceRenderInfo
-{
-    mat4f model;
-    uint32_t vtx_buff;
-    uint32_t idx_buff;
-    uint32_t mtl_coll;
-    uint32_t mtl;
-};
 
 struct VertexPTC
 {
@@ -158,19 +137,6 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         return nullptr;
 
     const xray::math::vec2ui32 vtx_idx_count = geometry->compute_vertex_index_count();
-
-    const VulkanBufferCreateInfo bci{
-        .name_tag = "UBO - FrameGlobalData",
-        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-        .bytes = sizeof(FrameGlobalData),
-        .frames = rbs.buffers,
-        .initial_data = {},
-    };
-
-    auto g_ubo{ VulkanBuffer::create(*init_ctx.renderer, bci) };
-    if (!g_ubo)
-        return nullptr;
 
     // constexpr const VertexPTC tri_vertices[] = {
     //     { vec2f{ -1.0f, -1.0f }, vec2f{ 0.0f, 1.0f }, vec4f{ 1.0f, 0.0f, 0.0f, 1.0f } },
@@ -230,7 +196,7 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         .name_tag = "Global instances buffer",
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-        .bytes = 1024 * sizeof(InstanceRenderInfo),
+        .bytes = 1024 * sizeof(app::InstanceRenderInfo),
         .frames = rbs.buffers,
         .initial_data = {},
     };
@@ -270,18 +236,12 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
                                    .front_face = VK_FRONT_FACE_CLOCKWISE,
                                    .line_width = 1.0f })
             .create_bindless(*init_ctx.renderer),
-        // .create(*init_ctx.renderer,
-        //         GraphicsPipelineCreateData{
-        //             .uniform_descriptors = 16,
-        //             .storage_buffer_descriptors = 256,
-        //             .combined_image_sampler_descriptors = 256,
-        //             .image_descriptors = 1,
-        //         }),
     };
 
     if (!pipeline)
         return nullptr;
 
+    // TODO: get cached sampler from Bindless
     xrUniqueVkSampler sampler{
         [&]() {
             const VkSamplerCreateInfo create_info{
@@ -351,7 +311,6 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     return xray::base::make_unique<TriangleDemo>(
         PrivateConstructionToken{},
         init_ctx,
-        init_ctx.renderer->bindless_sys().add_chunked_uniform_buffer(std::move(*g_ubo), rbs.buffers),
         std::move(*g_vertexbuffer),
         std::move(*g_indexbuffer),
         init_ctx.renderer->bindless_sys().add_chunked_storage_buffer(std::move(*g_instance_buffer), rbs.buffers),
@@ -386,7 +345,6 @@ dvk::TriangleDemo::event_handler(const xray::ui::window_event& evt)
 void
 dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 {
-
     _simstate.arcball_cam.update_camera(_simstate.camera);
 
     static constexpr const auto sixty_herz = std::chrono::duration<float, std::milli>{ 1000.0f / 60.0f };
@@ -405,21 +363,14 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
     render_event.renderer->dbg_marker_begin(frt.cmd_buf, "Update UBO & instances", color_palette::web::orange_red);
 
-    const auto [g_ubo_handle, g_ubo_entry] = _renderstate.g_ubo;
-
-    UniqueMemoryMapping::create_ex(render_event.renderer->device(),
-                                   g_ubo_entry.memory,
-                                   frt.id * g_ubo_entry.aligned_chunk_size,
-                                   g_ubo_entry.aligned_chunk_size)
-        .map([id = frt.id, s = &_simstate](UniqueMemoryMapping ubo) {
-            FrameGlobalData* fgd = ubo.as<FrameGlobalData>();
-            fgd->frame = id;
-            fgd->world_view_proj = s->camera.projection_view(); // identity for model -> world
-            fgd->view = s->camera.view();
-            fgd->eye_pos = s->camera.origin();
-            fgd->ortho = mat4f::stdc::identity;
-            fgd->projection = s->camera.projection();
-        });
+    {
+        app::FrameGlobalData* fgd = render_event.g_ubo_data;
+        SimState* s = &_simstate;
+        fgd->world_view_proj = s->camera.projection_view(); // identity for model -> world
+        fgd->view = s->camera.view();
+        fgd->eye_pos = s->camera.origin();
+        fgd->projection = s->camera.projection();
+    }
 
     const auto [g_instance_buffer_handle, g_instance_buffer_entry] = _renderstate.g_instancebuffer;
 
@@ -431,7 +382,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
             const xray::math::scalar2x3<float> r = xray::math::R2::rotate(angle);
             const std::array<float, 4> vkmtx{ r.a00, r.a01, r.a10, r.a11 };
 
-            InstanceRenderInfo* inst = inst_buf.as<InstanceRenderInfo>();
+            app::InstanceRenderInfo* inst = inst_buf.as<app::InstanceRenderInfo>();
             inst->mtl = 0;
             inst->model = xray::math::mat4f::stdc::identity;
 
@@ -465,38 +416,30 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
     render_event.renderer->dbg_marker_end(frt.cmd_buf);
 
-    const VkViewport viewport{
-        .x = 0.0f,
-        .y = static_cast<float>(frt.fbsize.height),
-        .width = static_cast<float>(frt.fbsize.width),
-        .height = -static_cast<float>(frt.fbsize.height),
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f,
-    };
-
-    vkCmdSetViewport(frt.cmd_buf, 0, 1, &viewport);
+    // const VkViewport viewport{
+    //     .x = 0.0f,
+    //     .y = static_cast<float>(frt.fbsize.height),
+    //     .width = static_cast<float>(frt.fbsize.width),
+    //     .height = -static_cast<float>(frt.fbsize.height),
+    //     .minDepth = 0.0f,
+    //     .maxDepth = 1.0f,
+    // };
+    //
+    // vkCmdSetViewport(frt.cmd_buf, 0, 1, &viewport);
 
     render_event.renderer->dbg_marker_insert(frt.cmd_buf, "Rendering triangle", color_palette::web::sea_green);
 
-    const VkRect2D scissor{
-        .offset = VkOffset2D{ 0, 0 },
-        .extent = frt.fbsize,
-    };
+    // const VkRect2D scissor{
+    //     .offset = VkOffset2D{ 0, 0 },
+    //     .extent = frt.fbsize,
+    // };
 
-    vkCmdSetScissor(frt.cmd_buf, 0, 1, &scissor);
-    render_event.renderer->clear_attachments(frt.cmd_buf, 1.0f, 0.0f, 1.0f);
+    // vkCmdSetScissor(frt.cmd_buf, 0, 1, &scissor);
+    // render_event.renderer->clear_attachments(frt.cmd_buf, 1.0f, 0.0f, 1.0f);
 
     vkCmdBindPipeline(frt.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderstate.pipeline.handle());
-    render_event.renderer->bindless_sys().flush_descriptors(*render_event.renderer);
-    const std::span<const VkDescriptorSet> descriptors{ render_event.renderer->bindless_sys().descriptor_sets() };
-    vkCmdBindDescriptorSets(frt.cmd_buf,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            _renderstate.pipeline.layout(),
-                            0,
-                            static_cast<uint32_t>(descriptors.size()),
-                            descriptors.data(),
-                            0,
-                            nullptr);
+    render_event.renderer->bindless_sys().bind_descriptors(
+        *render_event.renderer, frt.cmd_buf, _renderstate.pipeline.layout());
 
     vkCmdPushConstants(frt.cmd_buf,
                        _renderstate.pipeline.layout(),
@@ -511,5 +454,4 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     vkCmdBindIndexBuffer(frt.cmd_buf, _renderstate.g_indexbuffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
 
     vkCmdDrawIndexed(frt.cmd_buf, _world->geometry.vertex_index_counts.y, 1, 0, 0, 0);
-    render_event.renderer->end_rendering();
 }

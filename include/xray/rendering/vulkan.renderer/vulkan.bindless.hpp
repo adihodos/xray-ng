@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <cassert>
 #include <utility>
+#include <functional>
+#include <type_traits>
+#include <unordered_map>
 
 #include <vulkan/vulkan.h>
 #include <tl/expected.hpp>
@@ -13,6 +16,50 @@
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
+
+namespace std {
+template<>
+struct hash<VkSamplerCreateInfo>
+{
+    template<typename... M>
+    static size_t hash_combine(M&&... m) noexcept
+    {
+        size_t result{};
+        (..., [&result](auto&& value) mutable {
+            const size_t x = hash<decay_t<decltype(value)>>{}(value);
+            result ^= x + 0x9e3779b9 + (result << 6) + (result >> 2);
+        }(std::forward<M>(m)));
+
+        return result;
+    }
+
+    size_t operator()(const VkSamplerCreateInfo& ci) const noexcept
+    {
+        return hash<VkSamplerCreateInfo>::hash_combine(ci.pNext,
+                                                       ci.magFilter,
+                                                       ci.minFilter,
+                                                       ci.mipmapMode,
+                                                       ci.addressModeU,
+                                                       ci.addressModeV,
+                                                       ci.addressModeW,
+                                                       ci.anisotropyEnable,
+                                                       ci.borderColor);
+    }
+};
+
+template<>
+struct equal_to<VkSamplerCreateInfo>
+{
+    constexpr bool operator()(const VkSamplerCreateInfo& lhs, const VkSamplerCreateInfo& rhs) const
+    {
+        return lhs.pNext == rhs.pNext && lhs.magFilter == rhs.magFilter && lhs.minFilter == rhs.minFilter &&
+               lhs.mipmapMode == rhs.mipmapMode && lhs.addressModeU == rhs.addressModeU &&
+               lhs.addressModeV == rhs.addressModeV && lhs.addressModeW == rhs.addressModeW &&
+               lhs.anisotropyEnable == rhs.anisotropyEnable && lhs.borderColor == rhs.borderColor;
+    }
+};
+
+}
 
 namespace xray::rendering {
 
@@ -106,9 +153,25 @@ using BindlessStorageBufferResourceHandleEntryPair =
 
 using BindlessImageResourceHandleEntryPair = std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image>;
 
+class VulkanRenderer;
+
 class BindlessSystem
 {
   public:
+    struct SBOResourceEntry
+    {
+        BindlessResourceEntry_StorageBuffer sbo;
+        uint32_t idx{};
+        uint32_t cnt{};
+    };
+
+    struct UBOResourceEntry
+    {
+        BindlessResourceEntry_UniformBuffer ubo;
+        uint32_t idx{};
+        uint32_t cnt{};
+    };
+
     ~BindlessSystem();
     BindlessSystem(const BindlessSystem&) = delete;
     BindlessSystem& operator=(const BindlessSystem&) = delete;
@@ -145,6 +208,9 @@ class BindlessSystem
         const uint32_t chunks);
 
     void flush_descriptors(const VulkanRenderer& renderer);
+    void bind_descriptors(const VulkanRenderer& renderer, VkCommandBuffer cmd_buffer, VkPipelineLayout pipeline_layout);
+    tl::expected<VkSampler, VulkanError> get_sampler(const VkSamplerCreateInfo& sampler_info,
+                                                     const VulkanRenderer& renderer);
 
   private:
     BindlessSystem(UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,
@@ -168,20 +234,6 @@ class BindlessSystem
         VkDescriptorImageInfo img_info;
     };
 
-    struct SBOResourceEntry
-    {
-        BindlessResourceEntry_StorageBuffer sbo;
-        uint32_t idx{};
-        uint32_t cnt{};
-    };
-
-    struct UBOResourceEntry
-    {
-        BindlessResourceEntry_UniformBuffer ubo;
-        uint32_t idx{};
-        uint32_t cnt{};
-    };
-
     UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> _bindless;
     std::vector<VkDescriptorSetLayout> _set_layouts;
     std::vector<VkDescriptorSet> _descriptors;
@@ -193,6 +245,7 @@ class BindlessSystem
     std::vector<WriteDescriptorImageInfo> _writes_img;
     uint32_t _handle_idx_ubos{};
     uint32_t _handle_idx_sbos{};
+    std::unordered_map<VkSamplerCreateInfo, VkSampler> _sampler_table;
 };
 
 } // namespace xray::rendering

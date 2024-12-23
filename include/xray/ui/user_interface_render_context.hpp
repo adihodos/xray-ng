@@ -32,15 +32,18 @@
 
 struct ImDrawData;
 
-namespace xray {
-namespace ui {
+namespace xray::ui {
 
 struct UserInterfaceRenderContext
 {
     const ImDrawData* draw_data;
     int32_t fb_width;
     int32_t fb_height;
+    float scale_x;
+    float scale_y;
+    float translate_x;
+    float translate_y;
+    uint32_t textureid;
 };
 
-}
 }

@@ -31,7 +31,6 @@ class TriangleDemo : public app::DemoBase
   private:
     struct RenderState
     {
-        xray::rendering::BindlessUniformBufferResourceHandleEntryPair g_ubo;
         // xray::rendering::BindlessStorageBufferResourceHandleEntryPair
         xray::rendering::VulkanBuffer g_vertexbuffer;
         // xray::rendering::BindlessStorageBufferResourceHandleEntryPair
@@ -60,7 +59,6 @@ class TriangleDemo : public app::DemoBase
   public:
     TriangleDemo(PrivateConstructionToken,
                  const app::init_context_t& init_context,
-                 xray::rendering::BindlessUniformBufferResourceHandleEntryPair g_ubo,
                  xray::rendering::VulkanBuffer&& g_vertexbuffer,
                  xray::rendering::VulkanBuffer&& g_indexbuffer,
                  xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,

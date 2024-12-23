@@ -12,6 +12,7 @@
 #else
 #include "xray/rendering/opengl/scoped_resource_mapping.hpp"
 #include "xray/rendering/opengl/shader_base.hpp"
+#include "xray/ui/user.interface.backend.hpp"
 #include <opengl/opengl.hpp>
 #endif
 #include "xray/math/transforms_r4.hpp"
@@ -491,11 +492,11 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
     ImFontConfig config;
     config.MergeMode = true;
     static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
-    auto font_awesome =
-        io.Fonts->AddFontFromFileTTF(ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").generic_string().c_str(),
-                                     13.0f,
-                                     &config,
-                                     icon_ranges);
+    auto font_awesome = io.Fonts->AddFontFromFileTTF(
+        ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").generic_string().c_str(),
+        13.0f,
+        &config,
+        icon_ranges);
     assert(font_awesome != nullptr);
     _rendercontext.fonts.push_back({ "fontawesome", 13.0f, font_awesome });
 
@@ -531,6 +532,8 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
     for_each(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& fi) {
         XR_LOG_INFO("added font {}, size {} ...", fi.name, fi.pixel_size);
     });
+
+    io.Fonts->GetTexDataAsRGBA32(&_rendercontext.atlas_data, &_rendercontext.atlas_width, &_rendercontext.atlas_height);
 }
 
 xray::ui::user_interface::~user_interface() noexcept
@@ -640,9 +643,18 @@ xray::ui::user_interface::draw()
     if (fb_width == 0 || fb_height == 0)
         return tl::nullopt;
 
-    draw_data->ScaleClipRects(io.DisplayFramebufferScale);
+    const float scale[2] = { 2.0f / draw_data->DisplaySize.x, 2.0f / draw_data->DisplaySize.y };
+    const float translate[2] = { -1.0f - draw_data->DisplayPos.x * scale[0],
+                                 -1.0f - draw_data->DisplayPos.y * scale[1] };
 
-    return tl::make_optional<UserInterfaceRenderContext>(draw_data, fb_width, fb_height);
+    return UserInterfaceRenderContext{ .draw_data = draw_data,
+                                       .fb_width = fb_width,
+                                       .fb_height = fb_height,
+                                       .scale_x = scale[0],
+                                       .scale_y = scale[1],
+                                       .translate_x = translate[0],
+                                       .translate_y = translate[1],
+                                       .textureid = _rendercontext.font_atlas_handle };
 #endif
 }
 
@@ -795,4 +807,18 @@ void
 xray::ui::user_interface::pop_font()
 {
     ImGui::PopFont();
+}
+
+xray::ui::UserInterfaceBackendCreateInfo
+xray::ui::user_interface::render_backend_create_info() noexcept
+{
+    return UserInterfaceBackendCreateInfo{
+        .upload_callback = &user_interface::font_atlas_upload_callback,
+        .upload_cb_context = static_cast<void*>(this),
+        .font_atlas_pixels =
+            std::span<const uint8_t>{ _rendercontext.atlas_data,
+                                      (size_t)(_rendercontext.atlas_width * _rendercontext.atlas_height * 4) },
+        .atlas_width = (uint32_t)_rendercontext.atlas_width,
+        .atlas_height = (uint32_t)_rendercontext.atlas_height,
+    };
 }

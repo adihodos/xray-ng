@@ -58,10 +58,14 @@ class VulkanRenderer;
 
 namespace app {
 
+struct FrameGlobalData;
+
 struct RenderEvent
 {
     xray::ui::window_loop_event loop_event;
     xray::rendering::VulkanRenderer* renderer;
+    xray::ui::user_interface* ui;
+    FrameGlobalData* g_ubo_data;
 };
 
 class DemoBase

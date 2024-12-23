@@ -42,7 +42,6 @@
 #else
 #endif
 
-#include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -81,6 +80,8 @@ struct imcontext_deleter
     }
 };
 
+struct UserInterfaceBackendCreateInfo;
+
 class user_interface
 {
   public:
@@ -106,6 +107,11 @@ class user_interface
     void pop_font();
 
     void set_current() { ImGui::SetCurrentContext(xray::base::raw_ptr(_imcontext)); }
+    static void font_atlas_upload_callback(const uint32_t atlas_id, void* context) noexcept
+    {
+        (static_cast<user_interface*>(context))->font_atlas_upload_done(atlas_id);
+    }
+    UserInterfaceBackendCreateInfo render_backend_create_info() noexcept;
 
   private:
     struct loaded_font
@@ -126,10 +132,15 @@ class user_interface
     loaded_font* find_font(const char* name = nullptr);
     void init(const font_info* fonts, const size_t num_fonts);
     void load_fonts(const font_info* fonts, const size_t num_fonts);
+    void font_atlas_upload_done(const uint32_t atlas_id) noexcept { _rendercontext.font_atlas_handle = atlas_id; }
 
     struct render_context
     {
         std::vector<loaded_font> fonts;
+        uint32_t font_atlas_handle{};
+        uint8_t* atlas_data{};
+        int32_t atlas_width{};
+        int32_t atlas_height{};
 #if defined(XRAY_RENDERER_DIRECTX)
         ID3D11Device* device;
         ID3D11DeviceContext* context;

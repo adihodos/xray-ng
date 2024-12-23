@@ -242,15 +242,17 @@ xray::ui::UserInterfaceBackendOpengGL::render(const UserInterfaceRenderContext& 
     gl::Disable(gl::DEPTH_TEST);
     gl::Enable(gl::SCISSOR_TEST);
 
-    const auto [draw_data, fb_width, fb_height] = draw_context;
-
-    gl::Viewport(0, 0, fb_width, fb_height);
+    gl::Viewport(0, 0, draw_context.fb_width, draw_context.fb_height);
 
     using namespace xray::math;
     using namespace xray::rendering;
 
-    const auto projection_mtx =
-        orthographic(0.0f, static_cast<float>(fb_width), 0.0f, static_cast<float>(fb_height), -1.0f, +1.0f);
+    const auto projection_mtx = orthographic(0.0f,
+                                             static_cast<float>(draw_context.fb_width),
+                                             0.0f,
+                                             static_cast<float>(draw_context.fb_height),
+                                             -1.0f,
+                                             +1.0f);
 
     _vs.set_uniform_block("matrix_pack", projection_mtx);
     _fs.set_uniform("font_texture", 0);
@@ -262,8 +264,8 @@ xray::ui::UserInterfaceBackendOpengGL::render(const UserInterfaceRenderContext& 
         gl::BindSamplers(0, 1, bound_samplers);
     }
 
-    for (int32_t lst_idx = 0; lst_idx < draw_data->CmdListsCount; ++lst_idx) {
-        const auto cmd_lst = draw_data->CmdLists[lst_idx];
+    for (int32_t lst_idx = 0; lst_idx < draw_context.draw_data->CmdListsCount; ++lst_idx) {
+        const auto cmd_lst = draw_context.draw_data->CmdLists[lst_idx];
         const ImDrawIdx* idx_buff_offset = nullptr;
 
         {
@@ -295,7 +297,7 @@ xray::ui::UserInterfaceBackendOpengGL::render(const UserInterfaceRenderContext& 
             gl::BindTextures(0, 1, textures_to_bind);
 
             gl::Scissor(static_cast<int32_t>(cmd_itr->ClipRect.x),
-                        fb_height - static_cast<int32_t>(cmd_itr->ClipRect.w),
+                        draw_context.fb_height - static_cast<int32_t>(cmd_itr->ClipRect.w),
                         static_cast<int32_t>(cmd_itr->ClipRect.z - cmd_itr->ClipRect.x),
                         static_cast<int32_t>(cmd_itr->ClipRect.w - cmd_itr->ClipRect.y));
 

@@ -3,6 +3,12 @@
 
 #extension GL_EXT_nonuniform_qualifier : require
 
+struct UIData {
+    vec2 scale;
+    vec2 translate;
+    uint textureid;
+};
+
 struct FrameGlobalData_t {
     mat4 world_view_proj;
     mat4 projection;
@@ -28,6 +34,10 @@ struct InstanceRenderInfo_t {
 layout (set = 1, binding = 0, row_major) readonly buffer InstancesGlobal {
     InstanceRenderInfo_t data[];
 } g_InstanceGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer GlobalUIRenderData {
+    UIData data[];
+} g_UIRenderDataGlobal[];
 
 struct VertexPTC {
     vec2 pos;
