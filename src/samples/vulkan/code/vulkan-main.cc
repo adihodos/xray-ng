@@ -141,7 +141,6 @@ class MainRunner
         , _global_ubo{ global_ubo }
     {
         hookup_event_delegates();
-        _timer.start();
 
         lz::chain(_registered_demos).forEach([](const RegisteredDemo& rd) {
             XR_LOG_INFO("Registered demo: {} - {}", rd.short_desc, rd.detailed_desc);
@@ -152,8 +151,9 @@ class MainRunner
             _combo_items.insert(_combo_items.end(), e, e + strlen(e));
             _combo_items.push_back(0);
         }
-
         _combo_items.push_back(0);
+
+        _timer.start();
     }
 
     MainRunner(MainRunner&& rhs) = default;
@@ -276,7 +276,7 @@ MainRunner::create()
         if (file_ext != ".ttf" && file_ext != ".otf")
             continue;
 
-        font_list.emplace_back(dir_entry.path(), 18.0f);
+        font_list.emplace_back(dir_entry.path(), 24.0f);
     };
 
     xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(
@@ -321,8 +321,7 @@ MainRunner::create()
     //     _combo_items.push_back(0);
     //
     //     gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
-    //     _ui->set_global_font("Roboto-Regular");
-    //     _timer.start();
+    ui->set_global_font("TerminessNerdFontMono-Regular");
 
     const BindlessUniformBufferResourceHandleEntryPair g_ubo_handles =
         renderer->bindless_sys().add_chunked_uniform_buffer(std::move(*g_ubo), renderer->buffering_setup().buffers);
@@ -386,18 +385,18 @@ MainRunner::event_handler(const xray::ui::window_event& wnd_evt)
 void
 MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 {
-    //static bool doing_ur_mom{ false };
-    //if (!doing_ur_mom && !_demo) {
-    //    _demo = dvk::TriangleDemo::create(app::init_context_t{
-    //        .surface_width = _window.width(),
-    //        .surface_height = _window.height(),
-    //        .cfg = xr_app_config,
-    //        .ui = raw_ptr(_ui),
-    //        .renderer = &_vkrenderer,
-    //        .quit_receiver = cpp::bind<&MainRunner::demo_quit>(this),
-    //    });
-    //    doing_ur_mom = true;
-    //}
+     static bool doing_ur_mom{ false };
+     if (!doing_ur_mom && !_demo) {
+         _demo = dvk::TriangleDemo::create(app::init_context_t{
+             .surface_width = _window.width(),
+             .surface_height = _window.height(),
+             .cfg = xr_app_config,
+             .ui = raw_ptr(_ui),
+             .renderer = &_vkrenderer,
+             .quit_receiver = cpp::bind<&MainRunner::demo_quit>(this),
+         });
+         doing_ur_mom = true;
+     }
 
     _timer.update_and_reset();
     _ui->tick(_timer.elapsed_millis());
@@ -421,29 +420,26 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     } else {
         //
         // do main page UI
-        //ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
-        //ImGui::ShowDemoWindow();
         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
-
-                         int32_t selectedItem{};
-                         const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
+            int32_t selectedItem{};
+            const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
             //
-                         if (wasClicked && selectedItem >= 1) {
-            //                 const init_context_t initContext{ _window->width(),
-            //                                                   _window->height(),
-            //                                                   xr_app_config,
-            //                                                   xray::base::raw_ptr(_ui),
-            //                                                   make_delegate(*this, &main_app::demo_quit) };
-            //
-            //                 _registeredDemos[static_cast<size_t>(selectedItem - 1)]
-            //                     .createFn(initContext)
-            //                     .map([this](demo_bundle_t bundle) {
-            //                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
-            //                         this->_demo = std::move(demoObj);
-            //                         this->_window->events.window = winEvtHandler;
-            //                         this->_window->events.loop = pollEvtHandler;
-            //                     });
-                         }
+            if (wasClicked && selectedItem >= 1) {
+                //                 const init_context_t initContext{ _window->width(),
+                //                                                   _window->height(),
+                //                                                   xr_app_config,
+                //                                                   xray::base::raw_ptr(_ui),
+                //                                                   make_delegate(*this, &main_app::demo_quit) };
+                //
+                //                 _registeredDemos[static_cast<size_t>(selectedItem - 1)]
+                //                     .createFn(initContext)
+                //                     .map([this](demo_bundle_t bundle) {
+                //                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
+                //                         this->_demo = std::move(demoObj);
+                //                         this->_window->events.window = winEvtHandler;
+                //                         this->_window->events.loop = pollEvtHandler;
+                //                     });
+            }
         }
         ImGui::End();
 
