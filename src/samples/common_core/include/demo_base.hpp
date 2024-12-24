@@ -50,6 +50,7 @@ class user_interface;
 
 #if defined(XRAY_GRAPHICS_API_VULKAN)
 namespace rendering {
+struct FrameRenderData;
 class VulkanRenderer;
 } // namespace rendering
 #endif
@@ -63,6 +64,7 @@ struct FrameGlobalData;
 struct RenderEvent
 {
     xray::ui::window_loop_event loop_event;
+    const xray::rendering::FrameRenderData* frame_data;
     xray::rendering::VulkanRenderer* renderer;
     xray::ui::user_interface* ui;
     FrameGlobalData* g_ubo_data;

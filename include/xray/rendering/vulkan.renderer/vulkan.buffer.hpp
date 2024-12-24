@@ -43,13 +43,11 @@ struct VulkanBuffer
 
     auto release() noexcept { buffer.release(); }
 
-    tl::optional<UniqueMemoryMapping> mmap(VkDevice device, const uint32_t frame_id = NO_FRAME) const noexcept
+    tl::expected<UniqueMemoryMapping, VulkanError> mmap(VkDevice device,
+                                                        const uint32_t frame_id = NO_FRAME) const noexcept
     {
-        return UniqueMemoryMapping::create(device,
-                                           buffer.handle<VkDeviceMemory>(),
-                                           frame_id == NO_FRAME ? 0 : aligned_size * frame_id,
-                                           aligned_size,
-                                           0);
+        return UniqueMemoryMapping::map_memory(
+            device, buffer.handle<VkDeviceMemory>(), frame_id == NO_FRAME ? 0 : aligned_size * frame_id, aligned_size);
     }
 
     static tl::expected<VulkanBuffer, VulkanError> create(VulkanRenderer& renderer,

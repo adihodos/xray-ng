@@ -38,6 +38,7 @@
 #include <numeric>
 #include <thread>
 #include <tuple>
+#include <span>
 #include <chrono>
 #include <vector>
 
@@ -231,32 +232,31 @@ MainRunner::create()
         return tl::nullopt;
     }
 
-    tl::optional<VulkanRenderer> renderer
-    {
-        VulkanRenderer::create(
+    tl::optional<VulkanRenderer> renderer{ VulkanRenderer::create(
 #if defined(XRAY_OS_IS_WINDOWS)
-            WindowPlatformDataWin32{
-                .module = main_window.native_module(),
-                .window = main_window.native_window(),
-                .width = static_cast<uint32_t>(main_window.width()),
-                .height = static_cast<uint32_t>(main_window.height()),
-            }
+        WindowPlatformDataWin32{
+            .module = main_window.native_module(),
+            .window = main_window.native_window(),
+            .width = static_cast<uint32_t>(main_window.width()),
+            .height = static_cast<uint32_t>(main_window.height()),
+        }
 #else
-            WindowPlatformDataXlib{
-                .display = main_window.native_display(),
-                .window = main_window.native_window(),
-                .visual = main_window.native_visual(),
-                .width = static_cast<uint32_t>(main_window.width()),
-                .height = static_cast<uint32_t>(main_window.height()),
-            }
+        WindowPlatformDataXlib{
+            .display = main_window.native_display(),
+            .window = main_window.native_window(),
+            .visual = main_window.native_visual(),
+            .width = static_cast<uint32_t>(main_window.width()),
+            .height = static_cast<uint32_t>(main_window.height()),
+        }
 #endif
-        )
-    };
+        ) };
 
     if (!renderer) {
         XR_LOG_CRITICAL("Failed to create Vulkan renderer!");
         return tl::nullopt;
     }
+
+    renderer->add_shader_include_directories({ xr_app_config->shader_root() });
 
     namespace fs = std::filesystem;
     vector<xray::ui::font_info> font_list;
@@ -265,14 +265,14 @@ MainRunner::create()
             continue;
 
         const fs::path file_ext{ dir_entry.path().extension() };
-        if (file_ext != ".ttf" || file_ext != ".otf")
+        if (file_ext != ".ttf" && file_ext != ".otf")
             continue;
 
         font_list.emplace_back(dir_entry.path(), 18.0f);
     };
 
     xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(
-        font_list.data(), font_list.size()) };
+        span{ font_list }) };
 
     tl::expected<UserInterfaceRenderBackend_Vulkan, VulkanError> vk_backend{ UserInterfaceRenderBackend_Vulkan::create(
         *renderer, ui->render_backend_create_info()) };
@@ -395,28 +395,24 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     _ui->tick(_timer.elapsed_millis());
     _ui->new_frame(loop_event.wnd_width, loop_event.wnd_height);
 
-    // const xray::math::vec4f viewport{
-    //     0.0f, 0.0f, static_cast<float>(loop_event.wnd_width), static_cast<float>(loop_event.wnd_height)
-    // };
-    //
-    // const auto [frame_idx, max_frames] = _vkrenderer.buffering_setup();
-
-    // const VkRect2D render_area{
-    //     .offset = { .x = 0, .y = 0 },
-    //     .extent = { .width = static_cast<uint32_t>(loop_event.wnd_width),
-    //                 .height = static_cast<uint32_t>(loop_event.wnd_height) },
-    // };
-
     const FrameRenderData frd{ _vkrenderer.begin_rendering() };
 
-    auto g_ubo_mapping = UniqueMemoryMapping::create_ex(_vkrenderer.device(),
-                                                        _global_ubo.second.memory,
-                                                        frd.id * _global_ubo.second.aligned_chunk_size,
-                                                        _global_ubo.second.aligned_chunk_size);
+    //
+    // flush and bind the global descriptor table
+    _vkrenderer.bindless_sys().flush_descriptors(_vkrenderer);
+    _vkrenderer.bindless_sys().bind_descriptors(_vkrenderer, frd.cmd_buf);
+
+    auto g_ubo_mapping = UniqueMemoryMapping::map_memory(_vkrenderer.device(),
+                                                         _global_ubo.second.memory,
+                                                         frd.id * _global_ubo.second.aligned_chunk_size,
+                                                         _global_ubo.second.aligned_chunk_size);
 
     if (_demo) {
-        _demo->loop_event(RenderEvent{ loop_event, &_vkrenderer, xray::base::raw_ptr(_ui) });
+        _demo->loop_event(RenderEvent{
+            loop_event, &frd, &_vkrenderer, xray::base::raw_ptr(_ui), g_ubo_mapping->as<FrameGlobalData>() });
     } else {
+        //
+        // do main page UI
         ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
 
@@ -441,30 +437,27 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
             //             }
         }
         ImGui::End();
+
+        const VkViewport viewport{
+            .x = 0.0f,
+            .y = static_cast<float>(loop_event.wnd_height),
+            .width = static_cast<float>(loop_event.wnd_width),
+            .height = -static_cast<float>(loop_event.wnd_height),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
+        };
+
+        vkCmdSetViewport(frd.cmd_buf, 0, 1, &viewport);
+
+        const VkRect2D scissor{
+            .offset = VkOffset2D{ 0, 0 },
+            .extent =
+                VkExtent2D{ static_cast<uint32_t>(loop_event.wnd_width), static_cast<uint32_t>(loop_event.wnd_height) },
+        };
+
+        vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
+        _vkrenderer.clear_attachments(frd.cmd_buf, 1.0f, 0.0f, 1.0f);
     }
-
-    const VkViewport viewport{
-        .x = 0.0f,
-        .y = 0.0f,
-        .width = static_cast<float>(loop_event.wnd_width),
-        .height = static_cast<float>(loop_event.wnd_height),
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f,
-    };
-
-    vkCmdSetViewport(frd.cmd_buf, 0, 1, &viewport);
-
-    const VkRect2D scissor{
-        .offset = VkOffset2D{ 0, 0 },
-        .extent = VkExtent2D{ static_cast<uint32_t>(viewport.width), static_cast<uint32_t>(viewport.height) },
-    };
-
-    vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
-
-    //
-    // flush and bind the global descriptor table
-    _vkrenderer.bindless_sys().flush_descriptors(_vkrenderer);
-    _vkrenderer.clear_attachments(frd.cmd_buf, _clear_color.r, _clear_color.g, _clear_color.b);
 
     //
     // move the UBO mapping into the lambda so that the data is flushed before the rendering starts

@@ -46,6 +46,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <span>
 
 #include <imgui/IconsFontAwesome.h>
 #include <imgui/imconfig.h>
@@ -89,9 +90,7 @@ class user_interface
     static constexpr uint32_t INDEX_BUFFER_SIZE = 1024 * 128;
 
     user_interface() noexcept;
-
-    user_interface(const font_info* fonts, const size_t num_fonts);
-
+    user_interface(const std::span<const font_info> font_list);
     ~user_interface() noexcept;
 
     bool input_event(const window_event& evt);
@@ -130,8 +129,8 @@ class user_interface
     };
 
     loaded_font* find_font(const char* name = nullptr);
-    void init(const font_info* fonts, const size_t num_fonts);
-    void load_fonts(const font_info* fonts, const size_t num_fonts);
+    void init(const std::span<const font_info> font_list);
+    void load_fonts(const std::span<const font_info> font_list);
     void font_atlas_upload_done(const uint32_t atlas_id) noexcept { _rendercontext.font_atlas_handle = atlas_id; }
 
     struct render_context

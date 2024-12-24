@@ -5,6 +5,7 @@
 #include <span>
 #include <tuple>
 #include <vector>
+#include <filesystem>
 #include <initializer_list>
 #include <unordered_map>
 
@@ -85,6 +86,7 @@ struct PhysicalDeviceData
         VkPhysicalDeviceVulkan11Properties vk11;
         VkPhysicalDeviceVulkan12Properties vk12;
         VkPhysicalDeviceVulkan13Properties vk13;
+        VkPhysicalDeviceDescriptorIndexingProperties descriptor_indexing;
     } properties;
     struct
     {
@@ -192,7 +194,7 @@ struct WorkPackageState
     ~WorkPackageState();
     WorkPackageState(const WorkPackageState&) = delete;
     WorkPackageState& operator=(const WorkPackageState&) = delete;
-    WorkPackageState(WorkPackageState&& rhs);
+    WorkPackageState(WorkPackageState&& rhs) noexcept;
 };
 
 struct StagingBuffer
@@ -292,6 +294,18 @@ class VulkanRenderer
     void dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept;
     // @endgroup
 
+    // @group Misc
+    void add_shader_include_directories(std::initializer_list<std::filesystem::path> include_dirs)
+    {
+        _shader_include_directories.assign(include_dirs);
+    }
+
+    std::span<const std::filesystem::path> shader_include_directories() const noexcept
+    {
+        return std::span{ _shader_include_directories };
+    }
+    // @endgroup
+
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
     const detail::Queue& transfer_queue() const noexcept { return _render_state.queues[1]; }
@@ -302,6 +316,7 @@ class VulkanRenderer
     detail::DescriptorPoolState _dpool_state;
     WorkPackageState _work_queue;
     BindlessSystem _bindless;
+    std::vector<std::filesystem::path> _shader_include_directories;
 };
 
 template<typename VkObjectType>

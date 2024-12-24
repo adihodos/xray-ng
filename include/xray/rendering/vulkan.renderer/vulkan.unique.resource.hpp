@@ -131,17 +131,10 @@ struct UniqueMemoryMapping
         return *this;
     }
 
-    [[deprecated("This function is deprecated, use create_ex instead")]] static tl::optional<UniqueMemoryMapping>
-    create(VkDevice device,
-           VkDeviceMemory memory,
-           const uint64_t offset,
-           const uint64_t size,
-           const VkMemoryMapFlags flags);
-
-    static tl::expected<UniqueMemoryMapping, VulkanError> create_ex(VkDevice device,
-                                                                    VkDeviceMemory memory,
-                                                                    const uint64_t offset,
-                                                                    const uint64_t size) noexcept;
+    static tl::expected<UniqueMemoryMapping, VulkanError> map_memory(VkDevice device,
+                                                                     VkDeviceMemory memory,
+                                                                     const uint64_t offset,
+                                                                     const uint64_t size) noexcept;
 
     template<typename T>
     T* as() noexcept
@@ -306,5 +299,18 @@ struct UniqueVulkanResourcePack
 
 using xrUniqueImageWithMemory = UniqueVulkanResourcePack<VkDevice, VkImage, VkDeviceMemory>;
 using xrUniqueImageWithMemoryAndView = UniqueVulkanResourcePack<VkDevice, VkImage, VkDeviceMemory, VkImageView>;
+
+template<typename ResourceDeleter, typename... Containers>
+void
+free_multiple_resources(ResourceDeleter deleter, Containers&&... containers)
+{
+    (
+        [&deleter](Containers&& c) {
+            for (auto&& r : c) {
+                deleter(r);
+            }
+        }(std::forward<Containers>(containers)),
+        ...);
+}
 
 } // namespace xray::rendering

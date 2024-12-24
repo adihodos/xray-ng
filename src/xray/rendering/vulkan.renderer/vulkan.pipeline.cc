@@ -102,6 +102,12 @@ struct IncludedShaderSource
 class ShaderIncludesResolver : public shaderc::CompileOptions::IncluderInterface
 {
   public:
+    ShaderIncludesResolver() = default;
+    ShaderIncludesResolver(std::span<const std::filesystem::path> include_dirs)
+        : _include_dirs{ include_dirs }
+    {
+    }
+
     virtual shaderc_include_result* GetInclude(const char* requested_source,
                                                shaderc_include_type type,
                                                const char* requesting_source,
@@ -121,6 +127,7 @@ class ShaderIncludesResolver : public shaderc::CompileOptions::IncluderInterface
     }
 
   private:
+    std::span<const std::filesystem::path> _include_dirs;
     shaderc_include_result _include_result{};
     std::unordered_map<std::string, IncludedShaderSource> _resolved_includes;
 };
@@ -143,9 +150,41 @@ ShaderIncludesResolver::GetInclude(const char* requested_source,
 
     namespace fs = std::filesystem;
 
-    const tl::expected<fs::path, std::string_view> included_file_path =
-        [](const char* requested_source, const char* requesting_source) -> tl::expected<fs::path, std::string_view> {
-        const fs::path requested_src_path{ requested_source };
+    // const tl::expected<fs::path, std::string_view> included_file_path =
+    //     [](const char* requested_source, const char* requesting_source) -> tl::expected<fs::path, std::string_view> {
+    //     const fs::path requested_src_path{ requested_source };
+    //
+    //     if (!requested_src_path.has_parent_path()) {
+    //         //
+    //         // Files included from the same directory as the one being pre-processed
+    //         // #include "same_dir_file.glsl"
+    //         const fs::path requesting_src_path{ requesting_source };
+    //         assert(requesting_src_path.has_parent_path());
+    //         return fs::path{ requesting_src_path.parent_path() / requested_source };
+    //     } else {
+    //         //
+    //         // Files includes from other directories.
+    //         // #include "core/pbr.common.glsl"
+    //         // #include "vertex_format/vertex.pntt.glsl"
+    //         const std::string_view start_path{ requesting_source };
+    //         const auto cut_pos = start_path.find("shaders");
+    //         if (cut_pos == std::string_view::npos) {
+    //             return tl::unexpected{
+    //                 "Shader folder structure needs to be vulkan/shaders/project/shader.[frag|vert|tess|comp]"sv
+    //             };
+    //         }
+    //
+    //         fs::path included_file_path{ start_path.substr(0, cut_pos) };
+    //         included_file_path /= "shaders";
+    //         included_file_path /= requested_source;
+    //
+    //         return included_file_path;
+    //     }
+    // }(requested_source, requesting_source);
+
+    const tl::optional<fs::path> included_file_path = [this](const char* requested_file,
+                                                             const char* requesting_source) -> tl::optional<fs::path> {
+        const fs::path requested_src_path{ requested_file };
 
         if (!requested_src_path.has_parent_path()) {
             //
@@ -153,30 +192,21 @@ ShaderIncludesResolver::GetInclude(const char* requested_source,
             // #include "same_dir_file.glsl"
             const fs::path requesting_src_path{ requesting_source };
             assert(requesting_src_path.has_parent_path());
-            return fs::path{ requesting_src_path.parent_path() / requested_source };
-        } else {
-            //
-            // Files includes from other directories.
-            // #include "core/pbr.common.glsl"
-            // #include "vertex_format/vertex.pntt.glsl"
-            const std::string_view start_path{ requesting_source };
-            const auto cut_pos = start_path.find("shaders");
-            if (cut_pos == std::string_view::npos) {
-                return tl::unexpected{
-                    "Shader folder structure needs to be vulkan/shaders/project/shader.[frag|vert|tess|comp]"sv
-                };
-            }
-
-            fs::path included_file_path{ start_path.substr(0, cut_pos) };
-            included_file_path /= "shaders";
-            included_file_path /= requested_source;
-
-            return included_file_path;
+            return fs::path{ requesting_src_path.parent_path() / requested_file };
         }
+
+        for (const std::filesystem::path& header_loc : _include_dirs) {
+            const std::filesystem::path p{ header_loc / requested_file };
+            if (std::filesystem::exists(p)) {
+                return tl::optional<fs::path>{ p };
+            }
+        }
+
+        return tl::nullopt;
     }(requested_source, requesting_source);
 
     if (!included_file_path) {
-        _include_result = ShaderIncludesResolver::fail_include(included_file_path.error());
+        _include_result = ShaderIncludesResolver::fail_include("included shader not found!");
         return &_include_result;
     }
 
@@ -214,6 +244,7 @@ ShaderIncludesResolver::ReleaseInclude(shaderc_include_result*)
 
 tl::optional<ShaderModuleWithSpirVBlob>
 create_shader_module_from_string(VkDevice device,
+                                 std::span<const std::filesystem::path> shader_include_dirs,
                                  const std::string_view source_code,
                                  const char* shader_tag,
                                  const ShaderTraits shader_traits,
@@ -221,7 +252,7 @@ create_shader_module_from_string(VkDevice device,
 {
     shaderc::CompileOptions compile_opts{};
     compile_opts.SetGenerateDebugInfo();
-    compile_opts.SetIncluder(std::make_unique<ShaderIncludesResolver>());
+    compile_opts.SetIncluder(std::make_unique<ShaderIncludesResolver>(shader_include_dirs));
     compile_opts.SetOptimizationLevel(optimize ? shaderc_optimization_level::shaderc_optimization_level_size
                                                : shaderc_optimization_level::shaderc_optimization_level_zero);
 
@@ -270,7 +301,10 @@ create_shader_module_from_string(VkDevice device,
 }
 
 tl::optional<ShaderModuleWithSpirVBlob>
-create_shader_module_from_file(VkDevice device, const std::filesystem::path& fs_path, const bool optimize)
+create_shader_module_from_file(VkDevice device,
+                               std::span<const std::filesystem::path> shader_include_dirs,
+                               const std::filesystem::path& fs_path,
+                               const bool optimize)
 {
     const auto shader_traits = shader_traits_from_shader_file(fs_path);
     if (!shader_traits) {
@@ -287,8 +321,12 @@ create_shader_module_from_file(VkDevice device, const std::filesystem::path& fs_
         return {};
     }
 
-    return create_shader_module_from_string(
-        device, string_view{ shader_file.data(), shader_file.size() }, path_gs.c_str(), *shader_traits, optimize);
+    return create_shader_module_from_string(device,
+                                            shader_include_dirs,
+                                            string_view{ shader_file.data(), shader_file.size() },
+                                            path_gs.c_str(),
+                                            *shader_traits,
+                                            optimize);
 }
 
 struct SpirVReflectionResult
@@ -384,7 +422,7 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
             reflect_push_const->size);
     }
 
-    if (shader_module.GetShaderStage() == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) {
+    if (shader_module.GetShaderStage() & SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) {
         uint32_t input_vars_count{};
         spvReflectEnumerateInputVariables(&shader_module.GetShaderModule(), &input_vars_count, nullptr);
 
@@ -544,16 +582,18 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
 
         const auto& shader_source = _stage_modules[stage];
         tl::optional<ShaderModuleWithSpirVBlob> shader_with_spirv{
-            [s = &shader_source, stage, device, shader_opt = _optimize_shaders]() {
+            [r = &renderer, s = &shader_source, stage, device, shader_opt = _optimize_shaders]() {
                 if (const std::string_view* sv = swl::get_if<std::string_view>(s)) {
                     return create_shader_module_from_string(
                         device,
+                        r->shader_include_directories(),
                         *sv,
                         "string_view_shader",
                         *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
                         shader_opt);
                 } else {
-                    return create_shader_module_from_file(device, *swl::get_if<filesystem::path>(s), false);
+                    return create_shader_module_from_file(
+                        device, r->shader_include_directories(), *swl::get_if<filesystem::path>(s), false);
                 }
             }()
         };

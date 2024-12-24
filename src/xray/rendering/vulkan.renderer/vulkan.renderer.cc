@@ -24,6 +24,7 @@
 #endif
 
 #include "xray/base/fnv_hash.hpp"
+#include "xray/base/variant_visitor.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/rangeless/fn.hpp"
 #include "xray/base/variant_visitor.hpp"
@@ -185,7 +186,10 @@ detail::PhysicalDeviceData::PhysicalDeviceData(VkPhysicalDevice dev)
     properties.vk12.pNext = &properties.vk13;
 
     properties.vk13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES;
-    properties.vk13.pNext = nullptr;
+    properties.vk13.pNext = &properties.descriptor_indexing;
+
+    properties.descriptor_indexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+    properties.descriptor_indexing.pNext = nullptr;
 
     features.base.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features.base.pNext = &features.vk11;
@@ -588,15 +592,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     }
 
     const small_vec_4<const char*> extensions_list{ [&supported_extensions]() {
-        small_vec_4<const char*> exts_list
-        {
+        small_vec_4<const char*> exts_list{
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(XRAY_OS_IS_WINDOWS)
-                VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #else
-                VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+            VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
-                VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
@@ -1044,7 +1048,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             }();
 
             const VkExtent3D swapchain_dimensions = swl::visit(
-                VariantVisitor {
+                VariantVisitor{
 #if defined(XRAY_OS_IS_WINDOWS)
                     [](const WindowPlatformDataWin32& win32) {
                         return VkExtent3D{ .width = win32.width, .height = win32.height, .depth = 1 };
@@ -1053,9 +1057,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                     [](const WindowPlatformDataXcb& xcb) {
                         return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
                     },
-                        [](const WindowPlatformDataXlib& xlib) {
-                            return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                        },
+                    [](const WindowPlatformDataXlib& xlib) {
+                        return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
+                    },
 #endif
                 },
                 win_data);
@@ -1175,7 +1179,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     if (!work_pkg_queue)
         return tl::nullopt;
 
-    auto bindless_sys{ BindlessSystem::create(raw_ptr(logical_device)) };
+    auto bindless_sys{ BindlessSystem::create(raw_ptr(logical_device), phys_device.properties.descriptor_indexing) };
     if (!bindless_sys) {
         return tl::nullopt;
     }
@@ -1640,25 +1644,8 @@ xray::rendering::VulkanRenderer::find_allocation_memory_type(const uint32_t memo
     return vk_find_allocation_memory_type(_render_state.dev_physical.memory, memory_requirements, required_flags);
 }
 
-tl::optional<UniqueMemoryMapping>
-UniqueMemoryMapping::create(VkDevice device,
-                            VkDeviceMemory memory,
-                            const uint64_t offset,
-                            const uint64_t size,
-                            const VkMemoryMapFlags flags)
-
-{
-    void* mapped_addr{};
-    WRAP_VULKAN_FUNC(vkMapMemory, device, memory, offset, size == 0 ? VK_WHOLE_SIZE : size, flags, &mapped_addr);
-    if (!mapped_addr) {
-        return tl::nullopt;
-    }
-
-    return tl::make_optional<UniqueMemoryMapping>(mapped_addr, memory, device, size, offset);
-}
-
 tl::expected<UniqueMemoryMapping, VulkanError>
-UniqueMemoryMapping::create_ex(VkDevice device,
+UniqueMemoryMapping::map_memory(VkDevice device,
                                VkDeviceMemory memory,
                                const uint64_t offset,
                                const uint64_t size) noexcept
@@ -2094,7 +2081,7 @@ WorkPackageState::WorkPackageState(VkDevice dev, VkQueue q, VkCommandPool cmdpoo
 {
 }
 
-WorkPackageState::WorkPackageState(WorkPackageState&& rhs)
+WorkPackageState::WorkPackageState(WorkPackageState&& rhs) noexcept
     : device{ rhs.device }
     , queue{ rhs.queue }
     , cmd_pool{ rhs.cmd_pool }
@@ -2115,13 +2102,16 @@ WorkPackageState::~WorkPackageState()
                          command_buffers.data());
     }
 
-    lz::chain(staging_buffers).forEach([d = this->device](VkBuffer buf) {
-        WRAP_VULKAN_FUNC(vkDestroyBuffer, d, buf, nullptr);
-    });
+    free_multiple_resources(
+        base::VariantVisitor{ [device = this->device](VkBuffer buffer) { vkDestroyBuffer(device, buffer, nullptr); },
+                              [device = this->device](VkDeviceMemory memory) { vkFreeMemory(device, memory, nullptr); },
+                              [device = this->device](VkFence fence) { vkDestroyFence(device, fence, nullptr); } },
+        staging_buffers,
+        staging_memory,
+        fences);
 
-    lz::chain(staging_memory).forEach([d = this->device](VkDeviceMemory mem) {
-        WRAP_VULKAN_FUNC(vkFreeMemory, d, mem, nullptr);
-    });
+    if (cmd_pool)
+        vkDestroyCommandPool(device, cmd_pool, nullptr);
 }
 
 void

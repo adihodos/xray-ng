@@ -119,7 +119,7 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
         //
         // not immutable so just copy everything there is to copy
         if (initial_data_size != 0) {
-            UniqueMemoryMapping::create_ex(renderer.device(), buffer_mem, 0, aligned_bytes)
+            UniqueMemoryMapping::map_memory(renderer.device(), buffer_mem, 0, aligned_bytes)
                 .map([ci = &create_info](UniqueMemoryMapping mapping) {
                     uint8_t* copy_target = static_cast<uint8_t*>(mapping._mapped_memory);
 
@@ -149,7 +149,7 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
             copy_offset += static_cast<uint32_t>(copy_rgn.size_bytes());
         }
 
-        UniqueMemoryMapping::create_ex(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
+        UniqueMemoryMapping::map_memory(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
             .map([&](UniqueMemoryMapping bmap) {
                 for (std::span<const uint8_t> chunk : create_info.initial_data) {
                     memcpy(bmap._mapped_memory, chunk.data(), chunk.size_bytes());

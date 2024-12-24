@@ -183,12 +183,12 @@ translate_key(const KeySymbol key_sym_val)
 
 xray::ui::user_interface::user_interface() noexcept
 {
-    init(nullptr, 0);
+    init({});
 }
 
-xray::ui::user_interface::user_interface(const font_info* fonts, const size_t num_fonts)
+xray::ui::user_interface::user_interface(const std::span<const font_info> font_list)
 {
-    init(fonts, num_fonts);
+    init(font_list);
 }
 
 #if defined(XRAY_RENDERER_OPENGL)
@@ -278,7 +278,7 @@ static constexpr auto IMGUI_SHADER_LEN = static_cast<uint32_t>(sizeof(IMGUI_SHAD
 #endif
 
 void
-xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
+xray::ui::user_interface::init(const std::span<const font_info> font_list)
 {
     IMGUI_CHECKVERSION();
     _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ []() {
@@ -470,7 +470,7 @@ xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
 
 #else
 
-    load_fonts(fonts, num_fonts);
+    load_fonts(font_list);
     // ImGuiIO& io = ImGui::GetIO();
     // font_img_data font_img;
     // io.Fonts->GetTexDataAsRGBA32(&font_img.pixels, &font_img.width, &font_img.height, &font_img.bpp);
@@ -481,7 +481,7 @@ xray::ui::user_interface::init(const font_info* fonts, const size_t num_fonts)
 }
 
 void
-xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fonts)
+xray::ui::user_interface::load_fonts(const std::span<const font_info> font_list)
 {
     //
     // Default fonts that always get loaded (Proggy and FontAwesome)
@@ -500,7 +500,7 @@ xray::ui::user_interface::load_fonts(const font_info* fonts, const size_t num_fo
     assert(font_awesome != nullptr);
     _rendercontext.fonts.push_back({ "fontawesome", 13.0f, font_awesome });
 
-    for_each(fonts, fonts + num_fonts, [this](const font_info& fi) {
+    for_each(cbegin(font_list), cend(font_list), [this](const font_info& fi) {
         ImFontConfig config;
         config.OversampleH = 3;
         config.OversampleV = 1;

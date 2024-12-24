@@ -449,7 +449,7 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         XR_VK_PROPAGATE_ERROR(staging_buffer);
 
         const auto copied_to_buffer =
-            UniqueMemoryMapping::create_ex(renderer.device(), staging_buffer->mem, 0, 0)
+            UniqueMemoryMapping::map_memory(renderer.device(), staging_buffer->mem, 0, 0)
                 .map([&create_info](UniqueMemoryMapping mapping) {
                     for (size_t i = 0, count = create_info.pixels.size(); i < count; ++i) {
                         memcpy((void*)((uint8_t*)mapping._mapped_memory + i * create_info.width * create_info.height),
@@ -676,7 +676,7 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
 
         itlib::small_vector<VkBufferImageCopy> copy_regions{ static_cast<size_t>(numCopyRegions), VkBufferImageCopy{} };
 
-        UniqueMemoryMapping::create_ex(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
+        UniqueMemoryMapping::map_memory(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
             .map([&](UniqueMemoryMapping bufmap) {
                 ktx_internal_details::user_cbdata_optimal cbData
                 {

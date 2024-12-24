@@ -176,9 +176,9 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         return nullptr;
 
     auto obj_geometry =
-        UniqueMemoryMapping::create_ex(init_ctx.renderer->device(), g_vertexbuffer->memory_handle(), 0, VK_WHOLE_SIZE)
+        UniqueMemoryMapping::map_memory(init_ctx.renderer->device(), g_vertexbuffer->memory_handle(), 0, VK_WHOLE_SIZE)
             .and_then([&](UniqueMemoryMapping map_vtx) {
-                return UniqueMemoryMapping::create_ex(
+                return UniqueMemoryMapping::map_memory(
                            init_ctx.renderer->device(), g_indexbuffer->memory_handle(), 0, VK_WHOLE_SIZE)
                     .map([&](UniqueMemoryMapping map_idx) {
                         const xm::vec2ui32 counts =
@@ -359,9 +359,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         _timer.update_and_reset();
     }
 
-    const FrameRenderData frt{ render_event.renderer->begin_rendering() };
-
-    render_event.renderer->dbg_marker_begin(frt.cmd_buf, "Update UBO & instances", color_palette::web::orange_red);
+    render_event.renderer->dbg_marker_begin(
+        render_event.frame_data->cmd_buf, "Update UBO & instances", color_palette::web::orange_red);
 
     {
         app::FrameGlobalData* fgd = render_event.g_ubo_data;
@@ -374,16 +373,16 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
     const auto [g_instance_buffer_handle, g_instance_buffer_entry] = _renderstate.g_instancebuffer;
 
-    UniqueMemoryMapping::create_ex(render_event.renderer->device(),
-                                   g_instance_buffer_entry.memory,
-                                   frt.id * g_instance_buffer_entry.aligned_chunk_size,
-                                   g_instance_buffer_entry.aligned_chunk_size)
-        .map([angle = _simstate.angle](UniqueMemoryMapping inst_buf) {
+    UniqueMemoryMapping::map_memory(render_event.renderer->device(),
+                                    g_instance_buffer_entry.memory,
+                                    render_event.frame_data->id * g_instance_buffer_entry.aligned_chunk_size,
+                                    g_instance_buffer_entry.aligned_chunk_size)
+        .map([angle = _simstate.angle, mtl = _renderstate.g_texture.first.value_of()](UniqueMemoryMapping inst_buf) {
             const xray::math::scalar2x3<float> r = xray::math::R2::rotate(angle);
             const std::array<float, 4> vkmtx{ r.a00, r.a01, r.a10, r.a11 };
 
             app::InstanceRenderInfo* inst = inst_buf.as<app::InstanceRenderInfo>();
-            inst->mtl = 0;
+            inst->mtl = mtl;
             inst->model = xray::math::mat4f::stdc::identity;
 
             // inst->model = mat4f{
@@ -414,44 +413,45 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
             inst->mtl_coll = 0;
         });
 
-    render_event.renderer->dbg_marker_end(frt.cmd_buf);
+    render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
 
-    // const VkViewport viewport{
-    //     .x = 0.0f,
-    //     .y = static_cast<float>(frt.fbsize.height),
-    //     .width = static_cast<float>(frt.fbsize.width),
-    //     .height = -static_cast<float>(frt.fbsize.height),
-    //     .minDepth = 0.0f,
-    //     .maxDepth = 1.0f,
-    // };
-    //
-    // vkCmdSetViewport(frt.cmd_buf, 0, 1, &viewport);
+    render_event.renderer->dbg_marker_insert(
+        render_event.frame_data->cmd_buf, "Rendering triangle", color_palette::web::sea_green);
 
-    render_event.renderer->dbg_marker_insert(frt.cmd_buf, "Rendering triangle", color_palette::web::sea_green);
+    const VkViewport viewport{
+        .x = 0.0f,
+        .y = static_cast<float>(render_event.frame_data->fbsize.height),
+        .width = static_cast<float>(render_event.frame_data->fbsize.width),
+        .height = -static_cast<float>(render_event.frame_data->fbsize.height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
 
-    // const VkRect2D scissor{
-    //     .offset = VkOffset2D{ 0, 0 },
-    //     .extent = frt.fbsize,
-    // };
+    vkCmdSetViewport(render_event.frame_data->cmd_buf, 0, 1, &viewport);
 
-    // vkCmdSetScissor(frt.cmd_buf, 0, 1, &scissor);
-    // render_event.renderer->clear_attachments(frt.cmd_buf, 1.0f, 0.0f, 1.0f);
+    const VkRect2D scissor{
+        .offset = VkOffset2D{ 0, 0 },
+        .extent = render_event.frame_data->fbsize,
+    };
 
-    vkCmdBindPipeline(frt.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderstate.pipeline.handle());
-    render_event.renderer->bindless_sys().bind_descriptors(
-        *render_event.renderer, frt.cmd_buf, _renderstate.pipeline.layout());
+    vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
+    render_event.renderer->clear_attachments(render_event.frame_data->cmd_buf, 1.0f, 0.0f, 1.0f);
 
-    vkCmdPushConstants(frt.cmd_buf,
+    vkCmdBindPipeline(
+        render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderstate.pipeline.handle());
+
+    vkCmdPushConstants(render_event.frame_data->cmd_buf,
                        _renderstate.pipeline.layout(),
                        VK_SHADER_STAGE_ALL,
                        0,
-                       static_cast<uint32_t>(sizeof(frt.id)),
-                       &frt.id);
+                       static_cast<uint32_t>(sizeof(render_event.frame_data->id)),
+                       &render_event.frame_data->id);
 
     const VkDeviceSize vtx_offsets[] = { 0 };
     const VkBuffer vertex_buffers[] = { _renderstate.g_vertexbuffer.buffer_handle() };
-    vkCmdBindVertexBuffers(frt.cmd_buf, 0, 1, vertex_buffers, vtx_offsets);
-    vkCmdBindIndexBuffer(frt.cmd_buf, _renderstate.g_indexbuffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(render_event.frame_data->cmd_buf, 0, 1, vertex_buffers, vtx_offsets);
+    vkCmdBindIndexBuffer(
+        render_event.frame_data->cmd_buf, _renderstate.g_indexbuffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
 
-    vkCmdDrawIndexed(frt.cmd_buf, _world->geometry.vertex_index_counts.y, 1, 0, 0, 0);
+    vkCmdDrawIndexed(render_event.frame_data->cmd_buf, _world->geometry.vertex_index_counts.y, 1, 0, 0, 0);
 }

@@ -17,6 +17,7 @@ struct FrameGlobalData_t {
     mat4 ortho_proj;
     vec3 eye_pos;
     uint frame_id;
+    UIData ui;
 };
 
 layout (std140, set = 0, binding  = 0, row_major) uniform FrameGlobal {

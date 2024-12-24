@@ -75,6 +75,8 @@ void main() {
 constexpr const std::string_view UI_FRAGMENT_SHADER{ R"#(
 #version 460 core
 
+#include "core/bindless.core.glsl"
+
 layout (location = 1) in VS_OUT_FS_IN {
     vec4 color;
     vec2 uv;
@@ -154,7 +156,7 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
         VulkanImageCreateInfo{ .tag_name = "UI font atlas",
                                .wpkg = work_pkg->pkg,
                                .type = VK_IMAGE_TYPE_2D,
-                               .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
+                               .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                .format = VK_FORMAT_R8G8B8A8_UNORM,
                                .width = backend_create_info.atlas_width,
                                .height = backend_create_info.atlas_height,
@@ -210,7 +212,7 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
     XR_VK_CHECK_RESULT(view_created_res);
 
     const BindlessImageResourceHandleEntryPair bindless_img =
-        renderer.bindless_sys().add_image(std::move(*font_atlas), nullptr, nullptr);
+        renderer.bindless_sys().add_image(std::move(*font_atlas), base::raw_ptr(font_atlas_view), *sampler);
 
     if (backend_create_info.upload_callback) {
         (backend_create_info.upload_callback)(bindless_img.first.value_of(), backend_create_info.upload_cb_context);

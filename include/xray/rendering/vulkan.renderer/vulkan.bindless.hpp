@@ -177,7 +177,8 @@ class BindlessSystem
     BindlessSystem& operator=(const BindlessSystem&) = delete;
     BindlessSystem(BindlessSystem&&) = default;
 
-    static tl::expected<BindlessSystem, VulkanError> create(VkDevice device);
+    static tl::expected<BindlessSystem, VulkanError> create(VkDevice device,
+                                                            const VkPhysicalDeviceDescriptorIndexingProperties& props);
 
     VkPipelineLayout pipeline_layout() const noexcept { return _bindless.handle<VkPipelineLayout>(); }
     std::span<const VkDescriptorSetLayout> descriptor_set_layouts() const noexcept { return _set_layouts; }
@@ -208,7 +209,7 @@ class BindlessSystem
         const uint32_t chunks);
 
     void flush_descriptors(const VulkanRenderer& renderer);
-    void bind_descriptors(const VulkanRenderer& renderer, VkCommandBuffer cmd_buffer, VkPipelineLayout pipeline_layout);
+    void bind_descriptors(const VulkanRenderer& renderer, VkCommandBuffer cmd_buffer) noexcept;
     tl::expected<VkSampler, VulkanError> get_sampler(const VkSamplerCreateInfo& sampler_info,
                                                      const VulkanRenderer& renderer);
 

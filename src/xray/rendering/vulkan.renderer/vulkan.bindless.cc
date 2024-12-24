@@ -3,54 +3,9 @@
 #include <itlib/small_vector.hpp>
 #include <Lz/Lz.hpp>
 
+#include "xray/base/variant_visitor.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
-
-void
-clear_resource(VkDevice device, const xray::rendering::BindlessResourceEntry_Image& img) noexcept
-{
-    WRAP_VULKAN_FUNC(vkFreeMemory, device, img.memory, nullptr);
-    WRAP_VULKAN_FUNC(vkDestroyImage, device, img.handle, nullptr);
-}
-
-void
-clear_resource(VkDevice device, const std::pair<VkSamplerCreateInfo, VkSampler>& r) noexcept
-{
-    WRAP_VULKAN_FUNC(vkDestroySampler, device, r.second, nullptr);
-}
-
-void
-clear_resource(VkDevice device, VkDescriptorSetLayout dsl) noexcept
-{
-    vkDestroyDescriptorSetLayout(device, dsl, nullptr);
-}
-
-void
-clear_resource(VkDevice device, const xray::rendering::BindlessSystem::SBOResourceEntry& r) noexcept
-{
-    WRAP_VULKAN_FUNC(vkFreeMemory, device, r.sbo.memory, nullptr);
-    WRAP_VULKAN_FUNC(vkDestroyBuffer, device, r.sbo.handle, nullptr);
-}
-
-void
-clear_resource(VkDevice device, const xray::rendering::BindlessSystem::UBOResourceEntry& r) noexcept
-{
-    WRAP_VULKAN_FUNC(vkFreeMemory, device, r.ubo.memory, nullptr);
-    WRAP_VULKAN_FUNC(vkDestroyBuffer, device, r.ubo.handle, nullptr);
-}
-
-template<typename... Container>
-void
-clear_contained_resources(VkDevice device, Container&&... containers)
-{
-    (
-        [device](Container&& c) {
-            for (auto&& e : c) {
-                clear_resource(device, e);
-            }
-        }(std::forward<Container>(containers)),
-        ...);
-}
 
 xray::rendering::BindlessSystem::BindlessSystem(
     UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,
@@ -65,19 +20,41 @@ xray::rendering::BindlessSystem::BindlessSystem(
 xray::rendering::BindlessSystem::~BindlessSystem()
 {
     VkDevice device{ _bindless._owner };
-    clear_contained_resources(device, _set_layouts, _image_resources, _sampler_table, _sbo_resources, _ubo_resources);
+    free_multiple_resources(
+        base::VariantVisitor{
+            [device](const xray::rendering::BindlessResourceEntry_Image& img) noexcept {
+                WRAP_VULKAN_FUNC(vkFreeMemory, device, img.memory, nullptr);
+                WRAP_VULKAN_FUNC(vkDestroyImage, device, img.handle, nullptr);
+            },
+            [device](const std::pair<VkSamplerCreateInfo, VkSampler>& r) noexcept {
+                WRAP_VULKAN_FUNC(vkDestroySampler, device, r.second, nullptr);
+            },
+            [device](VkDescriptorSetLayout dsl) noexcept { vkDestroyDescriptorSetLayout(device, dsl, nullptr); },
+            [device](const xray::rendering::BindlessSystem::SBOResourceEntry& r) noexcept {
+                WRAP_VULKAN_FUNC(vkFreeMemory, device, r.sbo.memory, nullptr);
+                WRAP_VULKAN_FUNC(vkDestroyBuffer, device, r.sbo.handle, nullptr);
+            },
+            [device](const xray::rendering::BindlessSystem::UBOResourceEntry& r) noexcept {
+                WRAP_VULKAN_FUNC(vkFreeMemory, device, r.ubo.memory, nullptr);
+                WRAP_VULKAN_FUNC(vkDestroyBuffer, device, r.ubo.handle, nullptr);
+            } },
+        _set_layouts,
+        _image_resources,
+        _sampler_table,
+        _sbo_resources,
+        _ubo_resources);
 }
 
 tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError>
-xray::rendering::BindlessSystem::create(VkDevice device)
+xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceDescriptorIndexingProperties& props)
 {
     //
     // descriptor pool
-    // TODO: check against the limits
     xrUniqueVkDescriptorPool dpool{
-        [device]() {
+        [device, p = &props]() {
             const VkDescriptorPoolSize pool_sizes[] = {
-                { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 16 },
+                { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                  .descriptorCount = std::min(p->maxPerStageDescriptorUpdateAfterBindUniformBuffers, uint32_t{ 16 }) },
                 { .type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1024 },
                 { .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1024 },
                 { .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 1024 },
@@ -115,7 +92,7 @@ xray::rendering::BindlessSystem::create(VkDevice device)
     const LayoutBindingsByResourceType layout_bindigs_by_res[] = {
         LayoutBindingsByResourceType{
             .res_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptor_count = 16,
+            .descriptor_count = std::min(props.maxPerStageDescriptorUpdateAfterBindUniformBuffers, uint32_t{ 16 }),
             .stage_flags = VK_SHADER_STAGE_ALL,
         },
         LayoutBindingsByResourceType{
@@ -364,12 +341,11 @@ xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& rendere
 
 void
 xray::rendering::BindlessSystem::bind_descriptors(const xray::rendering::VulkanRenderer& renderer,
-                                                  VkCommandBuffer cmd_buffer,
-                                                  VkPipelineLayout pipeline_layout)
+                                                  VkCommandBuffer cmd_buffer) noexcept
 {
     vkCmdBindDescriptorSets(cmd_buffer,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipeline_layout,
+                            _bindless.handle<VkPipelineLayout>(),
                             0,
                             static_cast<uint32_t>(_descriptors.size()),
                             _descriptors.data(),
