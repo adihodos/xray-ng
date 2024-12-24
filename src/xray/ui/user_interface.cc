@@ -746,7 +746,7 @@ xray::ui::user_interface::input_event(const xray::ui::window_event& in_evt)
         ImGuiIO& io = ImGui::GetIO();
         const auto& mw = in_evt.event.wheel;
 
-        io.AddMouseWheelEvent(0.0f, static_cast<float>(mw.delta));
+        io.AddMouseWheelEvent(0.0f, mw.fdelta);
         return true;
     }
 

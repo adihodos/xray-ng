@@ -799,9 +799,9 @@ void
 xray::ui::window::event_mouse_wheel(const WPARAM wparam, const LPARAM lparam)
 {
     XR_LOG_INFO("Wheel event!");
-
     mouse_wheel_event mwe;
     mwe.delta = GET_WHEEL_DELTA_WPARAM(wparam) < 0 ? +1 : -1;
+    mwe.fdelta = GET_WHEEL_DELTA_WPARAM(wparam)  / 120.0f;
     mwe.wnd = this;
     mwe.pointer_x = GET_X_LPARAM(lparam);
     mwe.pointer_y = GET_Y_LPARAM(lparam);

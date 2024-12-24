@@ -114,6 +114,7 @@ struct mouse_wheel_event
 {
     ///< Amount of motion.
     int32_t delta;
+    float fdelta;
     ///< Pointer to window
     window* wnd;
     ///< X pointer position (client coords)

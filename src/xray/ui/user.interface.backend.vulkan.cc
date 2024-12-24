@@ -49,7 +49,7 @@ constexpr const std::string_view UI_VERTEX_SHADER{ R"#(
 
 layout (location = 0) in vec2 pos;
 layout (location = 1) in vec2 uv;
-layout (location = 2) in vec4 color;
+layout (location = 2) in uint color;
 
 layout (location = 0) out gl_PerVertex {
     vec4 gl_Position;
@@ -65,7 +65,7 @@ void main() {
     const uint frame_idx = (g_GlobalPushConst.data) & 0xFF;
     const FrameGlobalData_t fgd = g_FrameGlobal[frame_idx].data[0];
     gl_Position = vec4(pos * fgd.ui.scale + fgd.ui.translate, 0.0f, 1.0f);
-    vs_out.color = color;
+    vs_out.color = unpackUnorm4x8(color);
     vs_out.uv = uv;
     vs_out.textureid = fgd.ui.textureid;
 }
@@ -140,15 +140,30 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
                              });
     XR_VK_PROPAGATE_ERROR(index_buffer);
 
-    auto graphics_pipeline = GraphicsPipelineBuilder{}
-                                 .add_shader(ShaderStage::Vertex, UI_VERTEX_SHADER)
-                                 .add_shader(ShaderStage::Fragment, UI_FRAGMENT_SHADER)
-                                 .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
-                                 .rasterization_state({ .poly_mode = VK_POLYGON_MODE_FILL,
-                                                        .cull_mode = VK_CULL_MODE_BACK_BIT,
-                                                        .front_face = VK_FRONT_FACE_CLOCKWISE,
-                                                        .line_width = 1.0f })
-                                 .create_bindless(renderer);
+    const VkPipelineColorBlendAttachmentState enable_blending{
+        .blendEnable = true,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .alphaBlendOp = VK_BLEND_OP_ADD,
+        .colorWriteMask =
+            VK_COLOR_COMPONENT_A_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_R_BIT,
+    };
+
+    auto graphics_pipeline =
+        GraphicsPipelineBuilder{}
+            .add_shader(ShaderStage::Vertex, UI_VERTEX_SHADER)
+            .add_shader(ShaderStage::Fragment, UI_FRAGMENT_SHADER)
+            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
+            .rasterization_state(RasterizationState { .poly_mode = VK_POLYGON_MODE_FILL,
+                                   .cull_mode = VK_CULL_MODE_NONE,
+                                   .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                                   .line_width = 1.0f })
+            .depth_stencil_state(DepthStencilState{ .depth_test_enable = false, .depth_write_enable = false })
+            .color_blend(enable_blending)
+            .create_bindless(renderer);
     XR_VK_PROPAGATE_ERROR(graphics_pipeline);
 
     auto font_atlas = VulkanImage::from_memory(
@@ -250,7 +265,7 @@ UserInterfaceRenderBackend_Vulkan::render(const UserInterfaceRenderContext& ctx,
 
     if (ctx.draw_data->TotalVtxCount > 0) {
         const auto op_result = _vertexbuffer.mmap(vkr.device(), frameid).and_then([&](UniqueMemoryMapping vertexmap) {
-            return _indexbuffer.mmap(vkr.device()).map([&](UniqueMemoryMapping indexmap) {
+            return _indexbuffer.mmap(vkr.device(), frameid).map([&](UniqueMemoryMapping indexmap) {
                 ImDrawVert* vertex_buff = vertexmap.as<ImDrawVert>();
                 ImDrawIdx* index_buff = indexmap.as<ImDrawIdx>();
 
@@ -276,7 +291,8 @@ UserInterfaceRenderBackend_Vulkan::render(const UserInterfaceRenderContext& ctx,
         vkCmdBindIndexBuffer(rd.cmd_buf,
                              _indexbuffer.buffer_handle(),
                              0,
-                             sizeof(ImDrawVert) == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+                             sizeof(ImDrawIdx) == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+        vkCmdPushConstants(rd.cmd_buf, _pipeline.layout(), VK_SHADER_STAGE_ALL, 0, 4, &rd.id);
 
         //
         // Will project scissor/clipping rectangles into framebuffer space

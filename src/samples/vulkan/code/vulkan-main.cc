@@ -146,6 +146,14 @@ class MainRunner
         lz::chain(_registered_demos).forEach([](const RegisteredDemo& rd) {
             XR_LOG_INFO("Registered demo: {} - {}", rd.short_desc, rd.detailed_desc);
         });
+
+        constexpr const char* combo_items[] = { "just", "some", "dummy", "items", "for the", "combo" };
+        for (const char* e : combo_items) {
+            _combo_items.insert(_combo_items.end(), e, e + strlen(e));
+            _combo_items.push_back(0);
+        }
+
+        _combo_items.push_back(0);
     }
 
     MainRunner(MainRunner&& rhs) = default;
@@ -378,18 +386,18 @@ MainRunner::event_handler(const xray::ui::window_event& wnd_evt)
 void
 MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 {
-    static bool doing_ur_mom{ false };
-    if (!doing_ur_mom && !_demo) {
-        _demo = dvk::TriangleDemo::create(app::init_context_t{
-            .surface_width = _window.width(),
-            .surface_height = _window.height(),
-            .cfg = xr_app_config,
-            .ui = raw_ptr(_ui),
-            .renderer = &_vkrenderer,
-            .quit_receiver = cpp::bind<&MainRunner::demo_quit>(this),
-        });
-        doing_ur_mom = true;
-    }
+    //static bool doing_ur_mom{ false };
+    //if (!doing_ur_mom && !_demo) {
+    //    _demo = dvk::TriangleDemo::create(app::init_context_t{
+    //        .surface_width = _window.width(),
+    //        .surface_height = _window.height(),
+    //        .cfg = xr_app_config,
+    //        .ui = raw_ptr(_ui),
+    //        .renderer = &_vkrenderer,
+    //        .quit_receiver = cpp::bind<&MainRunner::demo_quit>(this),
+    //    });
+    //    doing_ur_mom = true;
+    //}
 
     _timer.update_and_reset();
     _ui->tick(_timer.elapsed_millis());
@@ -413,13 +421,14 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
     } else {
         //
         // do main page UI
-        ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
+        //ImGui::SetNextWindowPos({ 0.0f, 0.0f }, ImGuiCond_Appearing);
+        //ImGui::ShowDemoWindow();
         if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
 
-            //             int32_t selectedItem{};
-            //             const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
+                         int32_t selectedItem{};
+                         const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
             //
-            //             if (wasClicked && selectedItem >= 1) {
+                         if (wasClicked && selectedItem >= 1) {
             //                 const init_context_t initContext{ _window->width(),
             //                                                   _window->height(),
             //                                                   xr_app_config,
@@ -434,15 +443,15 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
             //                         this->_window->events.window = winEvtHandler;
             //                         this->_window->events.loop = pollEvtHandler;
             //                     });
-            //             }
+                         }
         }
         ImGui::End();
 
         const VkViewport viewport{
             .x = 0.0f,
-            .y = static_cast<float>(loop_event.wnd_height),
+            .y = 0.0f,
             .width = static_cast<float>(loop_event.wnd_width),
-            .height = -static_cast<float>(loop_event.wnd_height),
+            .height = static_cast<float>(loop_event.wnd_height),
             .minDepth = 0.0f,
             .maxDepth = 1.0f,
         };
@@ -461,16 +470,21 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 
     //
     // move the UBO mapping into the lambda so that the data is flushed before the rendering starts
-    _ui->draw().map([this, frd, g_ubo = std::move(*g_ubo_mapping)](UserInterfaceRenderContext ui_render_ctx) mutable {
-        FrameGlobalData* fg = g_ubo.as<FrameGlobalData>();
-        fg->frame = frd.id;
-        fg->ui = UIData{
-            .scale = vec2f{ ui_render_ctx.scale_x, ui_render_ctx.scale_y },
-            .translate = vec2f{ ui_render_ctx.translate_x, ui_render_ctx.translate_y },
-            .textureid = ui_render_ctx.textureid,
-        };
-        _ui_backend->render(ui_render_ctx, _vkrenderer, frd);
-    });
+    _ui->draw()
+        .map([this, frd, g_ubo = std::move(*g_ubo_mapping)](UserInterfaceRenderContext ui_render_ctx) mutable {
+            FrameGlobalData* fg = g_ubo.as<FrameGlobalData>();
+            fg->frame = frd.id;
+            fg->ui = UIData{
+                .scale = vec2f{ ui_render_ctx.scale_x, ui_render_ctx.scale_y },
+                .translate = vec2f{ ui_render_ctx.translate_x, ui_render_ctx.translate_y },
+                .textureid = ui_render_ctx.textureid,
+            };
+
+            return ui_render_ctx;
+        })
+        .map([this, frd](UserInterfaceRenderContext ui_render_ctx) {
+            _ui_backend->render(ui_render_ctx, _vkrenderer, frd);
+        });
 
     _vkrenderer.end_rendering();
 }
