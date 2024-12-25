@@ -361,6 +361,42 @@ generateMipmaps(VkCommandBuffer cmd_buf,
 
 } // namespace ktx_internal_details
 
+tl::expected<xray::rendering::xrUniqueVkImageView, xray::rendering::VulkanError>
+xray::rendering::VulkanImage::create_image_view(const xray::rendering::VulkanRenderer& renderer) noexcept
+{
+    xrUniqueVkImageView img_view{ nullptr, VkResourceDeleter_VkImageView{ renderer.device() } };
+
+    const VkImageViewCreateInfo img_view_create{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .image = _image.handle<VkImage>(),
+        .viewType = _info.viewType,
+        .format = _info.imageFormat,
+        .components =
+            VkComponentMapping{
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+            },
+        .subresourceRange =
+            VkImageSubresourceRange{
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = _info.levelCount,
+                .baseArrayLayer = 0,
+                .layerCount = _info.layerCount,
+            },
+    };
+
+    const VkResult create_res =
+        WRAP_VULKAN_FUNC(vkCreateImageView, renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
+    XR_VK_CHECK_RESULT(create_res);
+
+    return tl::expected<xrUniqueVkImageView, VulkanError>{ tl::in_place, std::move(img_view) };
+}
+
 tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError>
 xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const VulkanImageCreateInfo& create_info)
 {
@@ -436,6 +472,12 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         vkAllocateMemory, renderer.device(), &mem_alloc_info, nullptr, base::raw_ptr_ptr(image_memory));
     XR_VK_CHECK_RESULT(mem_alloc_res);
 
+    XR_LOG_INFO("Image {} {:p} -> mem {:p}, size {}",
+                create_info.tag_name,
+                (const void*)base::raw_ptr(image),
+                (const void*)base::raw_ptr(image_memory),
+                mem_alloc_info.allocationSize);
+
     const VkResult bind_res =
         WRAP_VULKAN_FUNC(vkBindImageMemory, renderer.device(), base::raw_ptr(image), base::raw_ptr(image_memory), 0);
     XR_VK_CHECK_RESULT(bind_res);
@@ -510,9 +552,39 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         }
     }
 
-    return VulkanImage{ xrUniqueImageWithMemory{ renderer.device(),
-                                                 base::unique_pointer_release(image),
-                                                 base::unique_pointer_release(image_memory) },
+    xrUniqueVkImageView img_view{ nullptr, VkResourceDeleter_VkImageView{ renderer.device() } };
+    const VkImageViewCreateInfo img_view_create{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .image = base::raw_ptr(image),
+        .viewType = image_view_type,
+        .format = create_info.format,
+        .components =
+            VkComponentMapping{
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+                VK_COMPONENT_SWIZZLE_IDENTITY,
+            },
+        .subresourceRange =
+            VkImageSubresourceRange{
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = create_info.layers,
+            },
+    };
+
+    const VkResult create_res =
+        WRAP_VULKAN_FUNC(vkCreateImageView, renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
+    XR_VK_CHECK_RESULT(create_res);
+
+    return VulkanImage{ xrUniqueImageWithMemoryAndView{ renderer.device(),
+                                                        base::unique_pointer_release(image),
+                                                        base::unique_pointer_release(image_memory),
+                                                        base::unique_pointer_release(img_view) },
                         VulkanTextureInfo{ create_info.width,
                                            create_info.height,
                                            create_info.depth,
@@ -826,12 +898,40 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
                              subresource_range);
         }
 
+        xrUniqueVkImageView img_view{ nullptr, VkResourceDeleter_VkImageView{ renderer.device() } };
+        const VkImageViewCreateInfo img_view_create{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .image = base::raw_ptr(image),
+            .viewType = viewType,
+            .format = vkFormat,
+            .components =
+                VkComponentMapping{
+                    VK_COMPONENT_SWIZZLE_IDENTITY,
+                    VK_COMPONENT_SWIZZLE_IDENTITY,
+                    VK_COMPONENT_SWIZZLE_IDENTITY,
+                    VK_COMPONENT_SWIZZLE_IDENTITY,
+                },
+            .subresourceRange =
+                VkImageSubresourceRange{
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = numImageLevels,
+                    .baseArrayLayer = 0,
+                    .layerCount = numImageLayers,
+                },
+        };
+
+        const VkResult create_res = WRAP_VULKAN_FUNC(
+            vkCreateImageView, renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
+        XR_VK_CHECK_RESULT(create_res);
+
         return VulkanImage{
-            xrUniqueImageWithMemory{
-                renderer.device(),
-                xray::base::unique_pointer_release(image),
-                xray::base::unique_pointer_release(image_memory),
-            },
+            xrUniqueImageWithMemoryAndView{ renderer.device(),
+                                            xray::base::unique_pointer_release(image),
+                                            xray::base::unique_pointer_release(image_memory),
+                                            xray::base::unique_pointer_release(img_view) },
             tex_info,
         };
     } else {

@@ -2,11 +2,12 @@
 
 #include <array>
 #include <random>
-#include <Lz/Lz.hpp>
 
+#include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
 
 #include "xray/base/app_config.hpp"
+#include "xray/base/xray.misc.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
@@ -87,20 +88,15 @@ dvk::TriangleDemo::TriangleDemo(PrivateConstructionToken,
                                 xray::rendering::VulkanBuffer&& g_vertexbuffer,
                                 xray::rendering::VulkanBuffer&& g_indexbuffer,
                                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,
+                                xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials,
                                 xray::rendering::GraphicsPipeline pipeline,
                                 xray::rendering::BindlessImageResourceHandleEntryPair g_texture,
-                                xray::rendering::xrUniqueVkImageView imageview,
-                                xray::rendering::xrUniqueVkSampler sampler,
                                 xray::base::unique_pointer<WorldState> world)
     : app::DemoBase{ init_context }
     , _simstate{ init_context }
-    , _renderstate{ std::move(g_vertexbuffer),
-                    std::move(g_indexbuffer),
-                    g_instancebuffer,
-                    std::move(pipeline),
-                    g_texture,
-                    std::move(imageview),
-                    std::move(sampler) }
+    , _renderstate{ std::move(g_vertexbuffer), std::move(g_indexbuffer),
+                    g_instancebuffer,          g_materials,
+                    std::move(pipeline),       g_texture }
     , _world{ std::move(world) }
 {
     _timer.start();
@@ -115,13 +111,6 @@ struct VertexPTC
     vec4f color;
 };
 
-template<typename T, size_t N>
-inline constexpr std::span<const uint8_t>
-to_bytes_span(const T (&array_ref)[N]) noexcept
-{
-    return std::span{ reinterpret_cast<const uint8_t*>(&array_ref[0]), sizeof(array_ref) };
-}
-
 xray::base::unique_pointer<app::DemoBase>
 dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 {
@@ -131,6 +120,8 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     auto pkgs{ init_ctx.renderer->create_work_package() };
     if (!pkgs)
         return nullptr;
+
+    vector<PBRMaterialDefinition> g_materials_buffer_data;
 
     auto geometry{ xr::LoadedGeometry::from_file(init_ctx.cfg->model_path("sa23/fury.glb")) };
     if (!geometry)
@@ -175,14 +166,77 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     if (!g_indexbuffer)
         return nullptr;
 
+    auto smp = init_ctx.renderer->bindless_sys().get_sampler(
+        VkSamplerCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .mipLodBias = 0.0f,
+            .anisotropyEnable = false,
+            .maxAnisotropy = 1.0f,
+            .compareEnable = false,
+            .compareOp = VK_COMPARE_OP_NEVER,
+            .minLod = 0.0f,
+            .maxLod = VK_LOD_CLAMP_NONE,
+            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+            .unnormalizedCoordinates = false,
+        },
+        *init_ctx.renderer);
+
+    auto extracted_material_data = geometry->extract_images_info(0);
+    itlib::small_vector<uint32_t> texture_handles{};
+    for (const ExtractedImageData& eid : extracted_material_data.image_sources) {
+        auto tex = VulkanImage::from_memory(
+            *init_ctx.renderer,
+            VulkanImageCreateInfo{ .tag_name = eid.tag.c_str(),
+                                   .wpkg = pkgs->pkg,
+                                   .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                   .format = VK_FORMAT_R8G8B8A8_UNORM,
+                                   .width = eid.width,
+                                   .height = eid.height,
+                                   .depth = 1,
+                                   .layers = 1,
+                                   .pixels = std::span{ &eid.pixels, 1 }
+
+            });
+
+        if (!tex) {
+            return nullptr;
+        }
+
+        const auto [tex_handle, tex_entry] = init_ctx.renderer->bindless_sys().add_image(std::move(*tex), *smp);
+        texture_handles.push_back(tex_handle.value_of());
+
+        XR_LOG_INFO("img {} {}x{}, bpp {}", eid.tag, eid.width, eid.height, eid.bits);
+    }
+
+    //
+    // replaces ids with handles to the textures uploaded to GPU
+    // save global gpu material buffer offset to fix the primitive material ids
+    const uint32_t g_pbr_buffer_offset{ static_cast<uint32_t>(g_materials_buffer_data.size()) };
+    for (ExtractedMaterialDefinition& mtl_def : extracted_material_data.materials) {
+        g_materials_buffer_data.emplace_back(mtl_def.base_color_factor,
+                                             texture_handles[mtl_def.base_color],
+                                             texture_handles[mtl_def.metallic],
+                                             texture_handles[mtl_def.normal],
+                                             mtl_def.metallic_factor,
+                                             mtl_def.roughness_factor);
+    }
+
     auto obj_geometry =
         UniqueMemoryMapping::map_memory(init_ctx.renderer->device(), g_vertexbuffer->memory_handle(), 0, VK_WHOLE_SIZE)
             .and_then([&](UniqueMemoryMapping map_vtx) {
                 return UniqueMemoryMapping::map_memory(
                            init_ctx.renderer->device(), g_indexbuffer->memory_handle(), 0, VK_WHOLE_SIZE)
                     .map([&](UniqueMemoryMapping map_idx) {
-                        const xm::vec2ui32 counts =
-                            geometry->extract_data(map_vtx.as<void>(), map_idx.as<void>(), xm::vec2ui32::stdc::zero);
+                        const xm::vec2ui32 counts = geometry->extract_data(
+                            map_vtx.as<void>(), map_idx.as<void>(), xm::vec2ui32::stdc::zero, g_pbr_buffer_offset);
                         return xr::Geometry{ std::move(geometry->nodes), counts, xm::aabb3f::stdc::identity };
                     });
             });
@@ -195,7 +249,7 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     const VulkanBufferCreateInfo inst_buf_info{
         .name_tag = "Global instances buffer",
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+        .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
         .bytes = 1024 * sizeof(app::InstanceRenderInfo),
         .frames = rbs.buffers,
         .initial_data = {},
@@ -204,6 +258,22 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     auto g_instance_buffer{ VulkanBuffer::create(*init_ctx.renderer, inst_buf_info) };
     if (!g_instance_buffer)
         return nullptr;
+
+    //
+    // upload material definitions to GPU buffer
+    auto g_materials_buffer = VulkanBuffer::create(*init_ctx.renderer,
+                                                   VulkanBufferCreateInfo{
+                                                       .name_tag = "Global materials buffer",
+                                                       .work_package = pkgs->pkg,
+                                                       .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                                       .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                       .bytes = container_bytes_size(g_materials_buffer_data),
+                                                       .frames = 1,
+                                                       .initial_data = { to_bytes_span(g_materials_buffer_data) },
+                                                   });
+    if (!g_materials_buffer) {
+        return nullptr;
+    }
 
     const char* const tex_file{ "uv_grids/ash_uvgrid01.ktx2" };
 
@@ -241,68 +311,32 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     if (!pipeline)
         return nullptr;
 
-    // TODO: get cached sampler from Bindless
-    xrUniqueVkSampler sampler{
-        [&]() {
-            const VkSamplerCreateInfo create_info{
-                .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .magFilter = VK_FILTER_LINEAR,
-                .minFilter = VK_FILTER_LINEAR,
-                .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-                .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-                .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-                .mipLodBias = 0.0f,
-                .anisotropyEnable = false,
-                .maxAnisotropy = 1.0f,
-                .compareEnable = false,
-                .compareOp = VK_COMPARE_OP_NEVER,
-                .minLod = 0.0f,
-                .maxLod = VK_LOD_CLAMP_NONE,
-                .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-                .unnormalizedCoordinates = false,
-            };
+    auto sampler = init_ctx.renderer->bindless_sys().get_sampler(
+        VkSamplerCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .mipLodBias = 0.0f,
+            .anisotropyEnable = false,
+            .maxAnisotropy = 1.0f,
+            .compareEnable = false,
+            .compareOp = VK_COMPARE_OP_NEVER,
+            .minLod = 0.0f,
+            .maxLod = VK_LOD_CLAMP_NONE,
+            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+            .unnormalizedCoordinates = false,
+        },
+        *init_ctx.renderer);
 
-            VkSampler sampler{};
-            WRAP_VULKAN_FUNC(vkCreateSampler, init_ctx.renderer->device(), &create_info, nullptr, &sampler);
-            return sampler;
-        }(),
-        VkResourceDeleter_VkSampler{ init_ctx.renderer->device() },
-    };
-
-    xrUniqueVkImageView img_view{
-        [&]() {
-            const VkImageViewCreateInfo img_view_create{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .image = image.image(),
-                .viewType = image._info.viewType,
-                .format = image._info.imageFormat,
-                .components =
-                    VkComponentMapping{
-                        VK_COMPONENT_SWIZZLE_IDENTITY,
-                        VK_COMPONENT_SWIZZLE_IDENTITY,
-                        VK_COMPONENT_SWIZZLE_IDENTITY,
-                        VK_COMPONENT_SWIZZLE_IDENTITY,
-                    },
-                .subresourceRange =
-                    VkImageSubresourceRange{
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .baseMipLevel = 0,
-                        .levelCount = image._info.levelCount,
-                        .baseArrayLayer = 0,
-                        .layerCount = image._info.layerCount,
-                    },
-            };
-            VkImageView img_view{};
-            WRAP_VULKAN_FUNC(vkCreateImageView, init_ctx.renderer->device(), &img_view_create, nullptr, &img_view);
-            return img_view;
-        }(),
-        VkResourceDeleter_VkImageView{ init_ctx.renderer->device() }
-    };
+    if (!sampler) {
+        return nullptr;
+    }
 
     //
     // wait for data to be uploaded to GPU
@@ -314,10 +348,9 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
         std::move(*g_vertexbuffer),
         std::move(*g_indexbuffer),
         init_ctx.renderer->bindless_sys().add_chunked_storage_buffer(std::move(*g_instance_buffer), rbs.buffers),
+        init_ctx.renderer->bindless_sys().add_storage_buffer(std::move(*g_materials_buffer)),
         std::move(*pipeline),
-        init_ctx.renderer->bindless_sys().add_image(std::move(image), raw_ptr(img_view), raw_ptr(sampler)),
-        std::move(img_view),
-        std::move(sampler),
+        init_ctx.renderer->bindless_sys().add_image(std::move(image), *sampler),
         xray::base::make_unique<WorldState>(std::move(*obj_geometry)));
 }
 
@@ -377,7 +410,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                                     g_instance_buffer_entry.memory,
                                     render_event.frame_data->id * g_instance_buffer_entry.aligned_chunk_size,
                                     g_instance_buffer_entry.aligned_chunk_size)
-        .map([angle = _simstate.angle, mtl = _renderstate.g_texture.first.value_of()](UniqueMemoryMapping inst_buf) {
+        .map([angle = _simstate.angle,
+              mtl = _renderstate.g_materials_buffer.first.value_of()](UniqueMemoryMapping inst_buf) {
             const xray::math::scalar2x3<float> r = xray::math::R2::rotate(angle);
             const std::array<float, 4> vkmtx{ r.a00, r.a01, r.a10, r.a11 };
 

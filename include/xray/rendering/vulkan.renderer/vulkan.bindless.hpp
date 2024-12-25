@@ -128,6 +128,7 @@ struct BindlessResourceEntry_Image
 {
     VkImage handle;
     VkDeviceMemory memory;
+    VkImageView image_view;
     VulkanTextureInfo info;
 };
 
@@ -184,9 +185,7 @@ class BindlessSystem
     std::span<const VkDescriptorSetLayout> descriptor_set_layouts() const noexcept { return _set_layouts; }
     std::span<const VkDescriptorSet> descriptor_sets() const noexcept { return _descriptors; }
 
-    std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image> add_image(VulkanImage img,
-                                                                                   VkImageView view,
-                                                                                   VkSampler smp);
+    std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image> add_image(VulkanImage img, VkSampler smp);
 
     std::pair<BindlessResourceHandle_UniformBuffer, BindlessResourceEntry_UniformBuffer> add_uniform_buffer(
         VulkanBuffer ubo)

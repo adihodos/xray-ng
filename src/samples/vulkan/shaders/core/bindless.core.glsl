@@ -55,6 +55,15 @@ struct VertexPBR {
     uint pbr_buf_id;
 };
 
+struct PBRMaterial {
+    vec4 base_color_factor;
+    uint base_color;
+    uint metallic;
+    uint normal;
+    float metallic_factor;
+    float roughness_factor;
+};
+
 layout (set = 1, binding = 0) readonly buffer VerticesGlobal {
     VertexPTC data[];
 } g_VertexBufferGlobal[];
@@ -66,6 +75,10 @@ layout (set = 1, binding = 0) readonly buffer VerticesPBRGlobal {
 layout (set = 1, binding = 0) readonly buffer IndicesGlobal {
     uint data[];
 } g_IndexBufferGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer PBRMaterialGlobal {
+    PBRMaterial data[];
+} g_PBRMaterialGlobal;
 
 layout (set = 2, binding = 0) uniform sampler2D g_Textures2DGlobal[];
 layout (set = 2, binding = 0) uniform sampler2DArray g_Textures2DArrayGlobal[];

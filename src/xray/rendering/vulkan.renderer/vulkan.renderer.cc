@@ -592,15 +592,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     }
 
     const small_vec_4<const char*> extensions_list{ [&supported_extensions]() {
-        small_vec_4<const char*> exts_list{
+        small_vec_4<const char*> exts_list
+        {
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(XRAY_OS_IS_WINDOWS)
-            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+                VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #else
-            VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+                VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+                VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
@@ -1048,7 +1048,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             }();
 
             const VkExtent3D swapchain_dimensions = swl::visit(
-                VariantVisitor{
+                VariantVisitor {
 #if defined(XRAY_OS_IS_WINDOWS)
                     [](const WindowPlatformDataWin32& win32) {
                         return VkExtent3D{ .width = win32.width, .height = win32.height, .depth = 1 };
@@ -1057,9 +1057,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                     [](const WindowPlatformDataXcb& xcb) {
                         return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
                     },
-                    [](const WindowPlatformDataXlib& xlib) {
-                        return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                    },
+                        [](const WindowPlatformDataXlib& xlib) {
+                            return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
+                        },
 #endif
                 },
                 win_data);
@@ -1646,9 +1646,9 @@ xray::rendering::VulkanRenderer::find_allocation_memory_type(const uint32_t memo
 
 tl::expected<UniqueMemoryMapping, VulkanError>
 UniqueMemoryMapping::map_memory(VkDevice device,
-                               VkDeviceMemory memory,
-                               const uint64_t offset,
-                               const uint64_t size) noexcept
+                                VkDeviceMemory memory,
+                                const uint64_t offset,
+                                const uint64_t size) noexcept
 {
     const VkDeviceSize mapping_length = size == 0 ? VK_WHOLE_SIZE : size;
     void* mapped_addr{};
@@ -2029,10 +2029,11 @@ VulkanRenderer::create_staging_buffer(WorkPackageHandle pkg, const size_t bytes_
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .pNext = &mem_alloc_flags,
         .allocationSize = buf_mem_info.memoryRequirements.size,
-        .memoryTypeIndex =
-            find_allocation_memory_type(buf_mem_info.memoryRequirements.memoryTypeBits,
-                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT),
+        .memoryTypeIndex = find_allocation_memory_type(buf_mem_info.memoryRequirements.memoryTypeBits,
+                                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT),
     };
+
+    XR_LOG_INFO("Allocating {} bytes for staging buffer", buf_mem_info.memoryRequirements.size);
 
     VkDeviceMemory allocated_memory{};
     const VkResult mem_alloc_result =

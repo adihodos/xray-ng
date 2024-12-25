@@ -23,20 +23,21 @@ xray::rendering::BindlessSystem::~BindlessSystem()
     free_multiple_resources(
         base::VariantVisitor{
             [device](const xray::rendering::BindlessResourceEntry_Image& img) noexcept {
-                WRAP_VULKAN_FUNC(vkFreeMemory, device, img.memory, nullptr);
-                WRAP_VULKAN_FUNC(vkDestroyImage, device, img.handle, nullptr);
+                vkFreeMemory(device, img.memory, nullptr);
+                vkDestroyImage(device, img.handle, nullptr);
+                vkDestroyImageView(device, img.image_view, nullptr);
             },
             [device](const std::pair<VkSamplerCreateInfo, VkSampler>& r) noexcept {
-                WRAP_VULKAN_FUNC(vkDestroySampler, device, r.second, nullptr);
+                vkDestroySampler(device, r.second, nullptr);
             },
             [device](VkDescriptorSetLayout dsl) noexcept { vkDestroyDescriptorSetLayout(device, dsl, nullptr); },
             [device](const xray::rendering::BindlessSystem::SBOResourceEntry& r) noexcept {
-                WRAP_VULKAN_FUNC(vkFreeMemory, device, r.sbo.memory, nullptr);
-                WRAP_VULKAN_FUNC(vkDestroyBuffer, device, r.sbo.handle, nullptr);
+                vkFreeMemory(device, r.sbo.memory, nullptr);
+                vkDestroyBuffer(device, r.sbo.handle, nullptr);
             },
             [device](const xray::rendering::BindlessSystem::UBOResourceEntry& r) noexcept {
-                WRAP_VULKAN_FUNC(vkFreeMemory, device, r.ubo.memory, nullptr);
-                WRAP_VULKAN_FUNC(vkDestroyBuffer, device, r.ubo.handle, nullptr);
+                vkFreeMemory(device, r.ubo.memory, nullptr);
+                vkDestroyBuffer(device, r.ubo.handle, nullptr);
             } },
         _set_layouts,
         _image_resources,
@@ -190,16 +191,17 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
 }
 
 std::pair<xray::rendering::BindlessResourceHandle_Image, xray::rendering::BindlessResourceEntry_Image>
-xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img, VkImageView view, VkSampler smp)
+xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img, VkSampler smp)
 {
-    const auto [image, image_memory] = img.release();
-    _image_resources.emplace_back(image, image_memory, img._info);
+    const auto [image, image_memory, image_view] = img.release();
+    _image_resources.emplace_back(image, image_memory, image_view, img._info);
 
     const uint32_t handle{ static_cast<uint32_t>(_image_resources.size() - 1) };
 
     _writes_img.push_back(WriteDescriptorImageInfo{
         .dst_array = handle,
-        .img_info = VkDescriptorImageInfo{ .sampler = smp, .imageView = view, .imageLayout = img._info.imageLayout },
+        .img_info =
+            VkDescriptorImageInfo{ .sampler = smp, .imageView = image_view, .imageLayout = img._info.imageLayout },
     });
 
     return std::pair{

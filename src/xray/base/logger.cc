@@ -70,7 +70,7 @@ xray::base::log_file_line(const LogLevel level,
 }
 
 void
-xray::base::setup_logging()
+xray::base::setup_logging(const LogLevel log_lvl)
 {
     spdlog::init_thread_pool(8192, 1);
     auto stdout_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
@@ -81,5 +81,5 @@ xray::base::setup_logging()
     //     "xray-logger", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
     auto logger = std::make_shared<spdlog::logger>("xray-logger", sinks.begin(), sinks.end());
     spdlog::set_default_logger(logger);
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_level(static_cast<spdlog::level::level_enum>(log_lvl));
 }

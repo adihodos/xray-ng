@@ -38,6 +38,8 @@
 
 #include "xray/math/scalar3.hpp"
 #include "xray/math/swizzle.hpp"
+#include "xray/base/algorithms/copy_pod_range.hpp"
+#include "xray/math/math_std.hpp"
 
 namespace xray {
 namespace math {
@@ -57,7 +59,7 @@ namespace math {
 template<typename T>
 class scalar4 : public SwizzleBase<T, 4>
 {
-	static_assert(std::is_arithmetic_v<T>, "Template parameter needs to be an arythmetic type!");
+    static_assert(std::is_arithmetic_v<T>, "Template parameter needs to be an arythmetic type!");
 
     /// \name Defined types.
     /// @{
@@ -134,6 +136,19 @@ class scalar4 : public SwizzleBase<T, 4>
     constexpr scalar4(const scalar3<T>& val, const T w_val = T(1)) noexcept
         : scalar4{ val.x, val.y, val.z, w_val }
     {
+    }
+
+    template<typename U>
+    scalar4(const U* input, size_t count) noexcept
+        requires std::is_trivial_v<U> && std::is_standard_layout_v<U>
+    {
+        if constexpr (sizeof(U) == sizeof(T)) {
+            base::copy_pod_range(input, math::min<size_t>(count, 4), this->components);
+        } else {
+            for (size_t i = 0; i < math::min<size_t>(count, 4); ++i) {
+                this->components[i] = static_cast<T>(input[i]);
+            }
+        }
     }
 
     constexpr scalar4(const T* inputs) noexcept

@@ -283,7 +283,7 @@ struct UniqueVulkanResourcePack
 
     ~UniqueVulkanResourcePack() noexcept
     {
-        // XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
+        XR_LOG_TRACE("{}", XRAY_QUALIFIED_FUNCTION_NAME);
         std::apply(
             [this](auto&&... args) {
                 (void((VkResourceDeleter<std::decay_t<decltype(args)>>{})(

@@ -10,5 +10,6 @@ in VS_OUT_FS_IN {
 layout (location = 0) out vec4 FinalFragColor;
 
 void main() {
-    FinalFragColor = texture(g_Textures2DGlobal[fs_in.mtl], fs_in.uv);
+    const PBRMaterial mtl = g_PBRMaterialGlobal.data[fs_in.mtl];
+    FinalFragColor = texture(g_Textures2DGlobal[mtl.base_color], fs_in.uv) * mtl.base_color_factor;
 }

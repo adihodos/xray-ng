@@ -31,15 +31,12 @@ class TriangleDemo : public app::DemoBase
   private:
     struct RenderState
     {
-        // xray::rendering::BindlessStorageBufferResourceHandleEntryPair
         xray::rendering::VulkanBuffer g_vertexbuffer;
-        // xray::rendering::BindlessStorageBufferResourceHandleEntryPair
         xray::rendering::VulkanBuffer g_indexbuffer;
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer;
+        xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials_buffer;
         xray::rendering::GraphicsPipeline pipeline;
         xray::rendering::BindlessImageResourceHandleEntryPair g_texture;
-        xray::rendering::xrUniqueVkImageView imageview;
-        xray::rendering::xrUniqueVkSampler sampler;
     } _renderstate;
 
     struct SimState
@@ -62,10 +59,9 @@ class TriangleDemo : public app::DemoBase
                  xray::rendering::VulkanBuffer&& g_vertexbuffer,
                  xray::rendering::VulkanBuffer&& g_indexbuffer,
                  xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,
+                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials,
                  xray::rendering::GraphicsPipeline pipeline,
                  xray::rendering::BindlessImageResourceHandleEntryPair g_texture,
-                 xray::rendering::xrUniqueVkImageView imageview,
-                 xray::rendering::xrUniqueVkSampler sampler,
                  xray::base::unique_pointer<WorldState> _world);
 
     ~TriangleDemo();

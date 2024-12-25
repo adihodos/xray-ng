@@ -47,6 +47,7 @@ struct VulkanImageCreateInfo
     VkMemoryPropertyFlags memory_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
     VkFormat format{ VK_FORMAT_UNDEFINED };
     bool cubemap{ false };
+    bool create_view{ true };
     uint32_t width{};
     uint32_t height{};
     uint32_t depth{ 1 };
@@ -57,19 +58,15 @@ struct VulkanImageCreateInfo
 class VulkanImage
 {
   public:
-    xrUniqueImageWithMemory _image;
+    xrUniqueImageWithMemoryAndView _image;
     VulkanTextureInfo _info;
 
     VkImage image() const noexcept { return _image.handle<VkImage>(); }
     VkDeviceMemory memory() const noexcept { return _image.handle<VkDeviceMemory>(); }
 
-    std::tuple<VkImage, VkDeviceMemory> release() noexcept { return _image.release(); }
+    tl::expected<xrUniqueVkImageView, VulkanError> create_image_view(const VulkanRenderer& renderer) noexcept;
 
-    // static tl::expected<ManagedImage, VulkanError> create(
-    //     VulkanRenderer& renderer,
-    //     const VkImageCreateInfo& img_create_info,
-    //     const VkImageViewType view_type,
-    //     const VkMemoryPropertyFlags image_memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    std::tuple<VkImage, VkDeviceMemory, VkImageView> release() noexcept { return _image.release(); }
 
     static tl::expected<VulkanImage, VulkanError> from_memory(VulkanRenderer& renderer,
                                                               const VulkanImageCreateInfo& create_info);

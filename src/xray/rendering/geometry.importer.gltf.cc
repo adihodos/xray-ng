@@ -1,8 +1,14 @@
 #include "xray/rendering/geometry.importer.gltf.hpp"
 
+#include <vector>
+#include <unordered_map>
+
+#include <itlib/small_vector.hpp>
+#include <Lz/Lz.hpp>
 #include <mio/mmap.hpp>
 
 #include <xray/base/logger.hpp>
+#include <xray/math/scalar4.hpp>
 #include <xray/math/scalar2_math.hpp>
 #include <xray/math/scalar4x4_math.hpp>
 #include <xray/math/quaternion.hpp>
@@ -106,14 +112,84 @@ LoadedGeometry::compute_vertex_index_count() const
     return result;
 }
 
+ExtractedMaterialsWithImageSourcesBundle
+LoadedGeometry::extract_images_info(const uint32_t null_texture) const noexcept
+{
+    return ExtractedMaterialsWithImageSourcesBundle{
+        .image_sources =
+            lz::chain(gltf->images)
+                .map([this](const tinygltf::Image& img) {
+                    if (!img.image.empty()) {
+                        return ExtractedImageData{ img.name,
+                                                   (uint32_t)img.width,
+                                                   (uint32_t)img.height,
+                                                   (uint8_t)img.bits,
+                                                   std::span{ img.image } };
+                    }
+
+                    const size_t bytes_per_channel = [i = &img]() {
+                        assert(i->pixel_type != -1);
+
+                        switch (i->pixel_type) {
+                            default:
+                            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+                                return 1;
+
+                            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+                                return 2;
+
+                            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+                                return 4;
+                        }
+                    }();
+
+                    //
+                    // in a buffer ?!
+                    assert(img.bufferView != -1);
+                    const tinygltf::BufferView& buffer_view{ gltf->bufferViews[img.bufferView] };
+                    const tinygltf::Buffer& buffer{ gltf->buffers[buffer_view.buffer] };
+                    return ExtractedImageData{ img.name,
+                                               (uint32_t)img.width,
+                                               (uint32_t)img.height,
+                                               (uint8_t)img.bits,
+                                               std::span{ buffer.data.data() + buffer_view.byteOffset,
+                                                          (size_t)(img.width * img.height * bytes_per_channel) } };
+                })
+                .to<vector<ExtractedImageData>>(),
+
+        .materials =
+            lz::chain(gltf->materials)
+                .map([g = gltf.get(), null_texture](const tinygltf::Material& mtl) {
+                    return ExtractedMaterialDefinition{
+                        mtl.name,
+                        mtl.pbrMetallicRoughness.baseColorTexture.index == -1
+                            ? null_texture
+                            : (uint32_t)g->textures[mtl.pbrMetallicRoughness.baseColorTexture.index].source,
+                        mtl.pbrMetallicRoughness.metallicRoughnessTexture.index == -1
+                            ? null_texture
+                            : (uint32_t)g->textures[mtl.pbrMetallicRoughness.metallicRoughnessTexture.index].source,
+                        mtl.normalTexture.index == -1 ? null_texture
+                                                      : (uint32_t)g->textures[mtl.normalTexture.index].source,
+                        math::vec4f{ mtl.pbrMetallicRoughness.baseColorFactor.data(), 4 },
+                        (float)mtl.pbrMetallicRoughness.metallicFactor,
+                        (float)mtl.pbrMetallicRoughness.roughnessFactor
+                    };
+                })
+                .to<std::vector<ExtractedMaterialDefinition>>(),
+    };
+}
+
 math::vec2ui32
-LoadedGeometry::extract_data(void* vertex_buffer, void* index_buffer, const math::vec2ui32 offsets)
+LoadedGeometry::extract_data(void* vertex_buffer,
+                             void* index_buffer,
+                             const math::vec2ui32 offsets,
+                             const uint32_t mtl_offset)
 {
     math::vec2ui32 acc_offsets{ offsets };
     for (const tinygltf::Scene& s : gltf->scenes) {
         for (const int node_idx : s.nodes) {
             acc_offsets +=
-                extract_single_node_data(vertex_buffer, index_buffer, acc_offsets, gltf->nodes[node_idx], tl::nullopt);
+                extract_single_node_data(vertex_buffer, index_buffer, acc_offsets, mtl_offset, gltf->nodes[node_idx], tl::nullopt);
         }
     }
 
@@ -124,6 +200,7 @@ math::vec2ui32
 LoadedGeometry::extract_single_node_data(void* vertex_buffer,
                                          void* index_buffer,
                                          const math::vec2ui32 initial_buffer_offsets,
+                                         const uint32_t mtl_offset,
                                          const tinygltf::Node& node,
                                          const tl::optional<uint32_t> parent)
 {
@@ -165,6 +242,7 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
         accum_buffer_offsets += extract_single_node_data(vertex_buffer,
                                                          index_buffer,
                                                          accum_buffer_offsets,
+                                                         mtl_offset,
                                                          gltf->nodes[child_idx],
                                                          tl::optional<uint32_t>{ node_id });
     }
@@ -189,6 +267,7 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
         const tinygltf::Mesh* mesh = &gltf->meshes[node.mesh];
         for (const tinygltf::Primitive& prim : mesh->primitives) {
             assert(prim.mode == TINYGLTF_MODE_TRIANGLES);
+            assert(prim.material != -1);
 
             if (prim.indices == -1) {
                 XR_LOG_ERR("Unindexed geometry is not supported.");
@@ -218,6 +297,7 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
                 for (size_t vtx = 0; vtx < static_cast<size_t>(accessor.count); ++vtx) {
                     dst_data[vtx].pos = math::mul_point(transform, src_data[vtx]);
                     dst_data[vtx].color = math::vec4f{ 0.0f, 0.0f, 0.0f, 1.0f };
+                    dst_data[vtx].pbr_buf_id = (uint32_t)prim.material + mtl_offset;
                 }
 
                 primitive_vertices = accessor.count;

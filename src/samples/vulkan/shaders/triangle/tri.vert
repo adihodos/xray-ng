@@ -32,7 +32,7 @@ void main() {
 
     gl_Position = fgd.world_view_proj * inst.model * vec4(pos, 1.0);
     vs_out.uv = uv;
-    // vs_out.mtl = pbr;
-    vs_out.mtl = inst.mtl_id;
+    vs_out.mtl = pbr;
+    // vs_out.mtl = inst.mtl_id;
 }
 

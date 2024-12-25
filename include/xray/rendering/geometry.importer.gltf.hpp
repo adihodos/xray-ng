@@ -49,21 +49,46 @@ class Node;
 
 namespace xray::rendering {
 
-struct MaterialDefinition
+struct PBRMaterialDefinition
 {
-    std::string name;
-    uint32_t base_color_src;
-    uint32_t metallic_src;
-    uint32_t normal_src;
+    xray::math::vec4f base_color_factor;
+    uint32_t base_color;
+    uint32_t metallic;
+    uint32_t normal;
     float metallic_factor;
     float roughness_factor;
-    xray::math::vec4f base_color_factor;
 };
 
 struct GeometryImportParseError
 {
     std::string err_data;
     std::string warning;
+};
+
+struct ExtractedImageData
+{
+    std::string tag;
+    uint32_t width;
+    uint32_t height;
+    uint8_t bits; // 8/16/32
+    std::span<const uint8_t> pixels;
+};
+
+struct ExtractedMaterialDefinition
+{
+    std::string name;
+    uint32_t base_color;
+    uint32_t metallic;
+    uint32_t normal;
+    xray::math::vec4f base_color_factor;
+    float metallic_factor;
+    float roughness_factor;
+};
+
+struct ExtractedMaterialsWithImageSourcesBundle
+{
+    std::vector<ExtractedImageData> image_sources;
+    std::vector<ExtractedMaterialDefinition> materials;
 };
 
 using GeometryImportError = swl::variant<GeometryImportParseError, std::error_code>;
@@ -80,13 +105,18 @@ class LoadedGeometry
     static tl::expected<LoadedGeometry, GeometryImportError> from_file(const std::filesystem::path& path);
     static tl::expected<LoadedGeometry, GeometryImportError> from_memory(const std::span<const uint8_t> bytes);
 
-    xray::math::vec2ui32 extract_data(void* vertex_buffer, void* index_buffer, const xray::math::vec2ui32 offsets);
+    ExtractedMaterialsWithImageSourcesBundle extract_images_info(const uint32_t null_texture_handle) const noexcept;
+    xray::math::vec2ui32 extract_data(void* vertex_buffer,
+                                      void* index_buffer,
+                                      const xray::math::vec2ui32 offsets,
+                                      const uint32_t mtl_offset);
     xray::math::vec2ui32 compute_vertex_index_count() const;
 
   private:
     xray::math::vec2ui32 extract_single_node_data(void* vertex_buffer,
                                                   void* index_buffer,
                                                   const xray::math::vec2ui32 offsets,
+                                                  const uint32_t mtl_offset,
                                                   const tinygltf::Node& node,
                                                   const tl::optional<uint32_t> parent);
 

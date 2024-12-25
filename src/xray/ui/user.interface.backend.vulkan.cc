@@ -96,13 +96,11 @@ UserInterfaceRenderBackend_Vulkan::UserInterfaceRenderBackend_Vulkan(
     rendering::VulkanBuffer&& index_buffer,
     rendering::GraphicsPipeline&& pipeline,
     rendering::BindlessImageResourceHandleEntryPair font_atlas,
-    rendering::xrUniqueVkImageView&& font_atlas_view,
     VkSampler sampler)
     : _vertexbuffer(std::move(vertex_buffer))
     , _indexbuffer(std::move(index_buffer))
     , _pipeline(std::move(pipeline))
     , _font_atlas(font_atlas)
-    , _font_atlas_view(std::move(font_atlas_view))
     , _sampler(sampler)
 {
 }
@@ -157,10 +155,10 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
             .add_shader(ShaderStage::Vertex, UI_VERTEX_SHADER)
             .add_shader(ShaderStage::Fragment, UI_FRAGMENT_SHADER)
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
-            .rasterization_state(RasterizationState { .poly_mode = VK_POLYGON_MODE_FILL,
-                                   .cull_mode = VK_CULL_MODE_NONE,
-                                   .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-                                   .line_width = 1.0f })
+            .rasterization_state(RasterizationState{ .poly_mode = VK_POLYGON_MODE_FILL,
+                                                     .cull_mode = VK_CULL_MODE_NONE,
+                                                     .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                                                     .line_width = 1.0f })
             .depth_stencil_state(DepthStencilState{ .depth_test_enable = false, .depth_write_enable = false })
             .color_blend(enable_blending)
             .create_bindless(renderer);
@@ -204,30 +202,8 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
         renderer);
     XR_VK_PROPAGATE_ERROR(sampler);
 
-    xrUniqueVkImageView font_atlas_view{ nullptr, VkResourceDeleter_VkImageView{ renderer.device() } };
-    const VkImageViewCreateInfo img_view_create_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .image = font_atlas->image(),
-        .viewType = font_atlas->_info.viewType,
-        .format = font_atlas->_info.imageFormat,
-        .components = VkComponentMapping{ VK_COMPONENT_SWIZZLE_IDENTITY,
-                                          VK_COMPONENT_SWIZZLE_IDENTITY,
-                                          VK_COMPONENT_SWIZZLE_IDENTITY,
-                                          VK_COMPONENT_SWIZZLE_IDENTITY },
-        .subresourceRange = VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                     .baseMipLevel = 0,
-                                                     .levelCount = font_atlas->_info.levelCount,
-                                                     .baseArrayLayer = 0,
-                                                     .layerCount = font_atlas->_info.layerCount },
-    };
-    const VkResult view_created_res = WRAP_VULKAN_FUNC(
-        vkCreateImageView, renderer.device(), &img_view_create_info, nullptr, base::raw_ptr_ptr(font_atlas_view));
-    XR_VK_CHECK_RESULT(view_created_res);
-
     const BindlessImageResourceHandleEntryPair bindless_img =
-        renderer.bindless_sys().add_image(std::move(*font_atlas), base::raw_ptr(font_atlas_view), *sampler);
+        renderer.bindless_sys().add_image(std::move(*font_atlas), *sampler);
 
     if (backend_create_info.upload_callback) {
         (backend_create_info.upload_callback)(bindless_img.first.value_of(), backend_create_info.upload_cb_context);
@@ -239,7 +215,6 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
                                                                                     std::move(*index_buffer),
                                                                                     std::move(*graphics_pipeline),
                                                                                     bindless_img,
-                                                                                    std::move(font_atlas_view),
                                                                                     *sampler };
 }
 

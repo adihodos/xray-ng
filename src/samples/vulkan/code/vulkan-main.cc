@@ -217,7 +217,7 @@ MainRunner::create()
     using namespace xray::ui;
     using namespace xray::base;
 
-    xray::base::setup_logging();
+    xray::base::setup_logging(LogLevel::Debug);
 
     XR_LOG_INFO("Xray source commit: {}, built on {}, user {}, machine {}",
                 xray::build::config::commit_hash_str,

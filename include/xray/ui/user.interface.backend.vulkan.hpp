@@ -36,7 +36,6 @@ class UserInterfaceRenderBackend_Vulkan
                                       rendering::VulkanBuffer&& index_buffer,
                                       rendering::GraphicsPipeline&& pipeline,
                                       rendering::BindlessImageResourceHandleEntryPair font_atlas,
-                                      rendering::xrUniqueVkImageView&& font_atlas_view,
                                       VkSampler sampler);
 
     UserInterfaceRenderBackend_Vulkan(UserInterfaceRenderBackend_Vulkan&&) noexcept = default;
@@ -56,7 +55,6 @@ class UserInterfaceRenderBackend_Vulkan
     rendering::VulkanBuffer _indexbuffer;
     xray::rendering::GraphicsPipeline _pipeline;
     rendering::BindlessImageResourceHandleEntryPair _font_atlas;
-    rendering::xrUniqueVkImageView _font_atlas_view;
     VkSampler _sampler;
 };
 

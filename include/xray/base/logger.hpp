@@ -41,6 +41,7 @@ enum class LogLevel : uint8_t
     Warn,
     Err,
     Critical,
+    Off
 };
 
 void
@@ -72,7 +73,7 @@ log_fwd(const LogLevel level, fmt::format_string<Ts...> format, Ts&&... args)
 }
 
 void
-setup_logging();
+setup_logging(const LogLevel log_level);
 }
 
 #define XR_LOG_ERR(msg, ...)                                                                                           \
