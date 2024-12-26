@@ -592,15 +592,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     }
 
     const small_vec_4<const char*> extensions_list{ [&supported_extensions]() {
-        small_vec_4<const char*> exts_list
-        {
+        small_vec_4<const char*> exts_list{
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(XRAY_OS_IS_WINDOWS)
-                VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #else
-                VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+            VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
-                VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
@@ -1048,7 +1048,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             }();
 
             const VkExtent3D swapchain_dimensions = swl::visit(
-                VariantVisitor {
+                VariantVisitor{
 #if defined(XRAY_OS_IS_WINDOWS)
                     [](const WindowPlatformDataWin32& win32) {
                         return VkExtent3D{ .width = win32.width, .height = win32.height, .depth = 1 };
@@ -1057,9 +1057,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                     [](const WindowPlatformDataXcb& xcb) {
                         return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
                     },
-                        [](const WindowPlatformDataXlib& xlib) {
-                            return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                        },
+                    [](const WindowPlatformDataXlib& xlib) {
+                        return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
+                    },
 #endif
                 },
                 win_data);
@@ -2179,7 +2179,7 @@ VulkanRenderer::release_staging_resources()
 void
 VulkanRenderer::dbg_set_object_name(const uint64_t object,
                                     const VkDebugReportObjectTypeEXT object_type,
-                                    const char* name) noexcept
+                                    const char* name) const noexcept
 {
     const VkDebugMarkerObjectNameInfoEXT obj_name{
         .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,

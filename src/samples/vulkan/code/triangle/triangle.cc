@@ -11,9 +11,11 @@
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
+#include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/geometry.importer.gltf.hpp"
 #include "xray/rendering/geometry.hpp"
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
+#include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/ui/events.hpp"
 #include "init_context.hpp"
 #include "xray/math/scalar4x4.hpp"
@@ -392,6 +394,16 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         _timer.update_and_reset();
     }
 
+    render_event.dbg_draw->draw_coord_sys(vec3f::stdc::zero,
+                                          vec3f::stdc::unit_x,
+                                          vec3f::stdc::unit_y,
+                                          vec3f::stdc::unit_z,
+                                          2.0f,
+                                          color_palette::material::red,
+                                          color_palette::material::green,
+                                          color_palette::material::blue);
+    render_event.dbg_draw->draw_sphere(vec3f::stdc::zero, 3.0f, color_palette::material::cyan500);
+
     render_event.renderer->dbg_marker_begin(
         render_event.frame_data->cmd_buf, "Update UBO & instances", color_palette::web::orange_red);
 
@@ -469,15 +481,16 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     };
 
     vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
-    render_event.renderer->clear_attachments(render_event.frame_data->cmd_buf, 1.0f, 0.0f, 1.0f);
+    render_event.renderer->clear_attachments(render_event.frame_data->cmd_buf, 0.0f, 0.0f, 0.0f);
 
     vkCmdBindPipeline(
         render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderstate.pipeline.handle());
 
-    const uint32_t push_const{
-        bindless_subresource_handle_from_bindless_resource_handle(_renderstate.g_instancebuffer.first, render_event.frame_data->id).value_of() << 16 |
-        render_event.frame_data->id
-    };
+    const uint32_t push_const{ bindless_subresource_handle_from_bindless_resource_handle(
+                                   _renderstate.g_instancebuffer.first, render_event.frame_data->id)
+                                       .value_of()
+                                   << 16 |
+                               render_event.frame_data->id };
     vkCmdPushConstants(render_event.frame_data->cmd_buf,
                        _renderstate.pipeline.layout(),
                        VK_SHADER_STAGE_ALL,

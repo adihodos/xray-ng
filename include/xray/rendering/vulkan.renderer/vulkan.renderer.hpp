@@ -284,11 +284,10 @@ class VulkanRenderer
 
     // @group Debugging
     template<typename VkObjectType>
-    void dbg_set_object_name(VkObjectType vkobj, const char* name) noexcept;
-
+    void dbg_set_object_name(VkObjectType vkobj, const char* name) const noexcept;
     void dbg_set_object_name(const uint64_t object,
                              const VkDebugReportObjectTypeEXT obj_type,
-                             const char* name) noexcept;
+                             const char* name) const noexcept;
     void dbg_marker_begin(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept;
     void dbg_marker_end(VkCommandBuffer cmd_buf) noexcept;
     void dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept;
@@ -321,7 +320,7 @@ class VulkanRenderer
 
 template<typename VkObjectType>
 void
-VulkanRenderer::dbg_set_object_name(VkObjectType vkobj, const char* name) noexcept
+VulkanRenderer::dbg_set_object_name(VkObjectType vkobj, const char* name) const noexcept
 {
     if constexpr (std::is_same_v<VkBuffer, VkObjectType>) {
         dbg_set_object_name(reinterpret_cast<uint64_t>(vkobj), VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, name);

@@ -58,6 +58,7 @@
 #include "xray/math/scalar4.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 #include "xray/ui/events.hpp"
@@ -132,11 +133,13 @@ class MainRunner
                xray::rendering::VulkanRenderer vkrenderer,
                xray::base::unique_pointer<xray::ui::user_interface> ui,
                xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> ui_backend,
+               xray::base::unique_pointer<xray::rendering::DebugDrawSystem> debug_draw,
                xray::rendering::BindlessUniformBufferResourceHandleEntryPair global_ubo)
         : _window{ std::move(window) }
         , _vkrenderer{ std::move(vkrenderer) }
         , _ui{ std::move(ui) }
         , _ui_backend{ std::move(ui_backend) }
+        , _debug_draw{ std::move(debug_draw) }
         , _registered_demos{ register_demos<dvk::TriangleDemo>() }
         , _global_ubo{ global_ubo }
     {
@@ -191,6 +194,7 @@ class MainRunner
     xray::rendering::VulkanRenderer _vkrenderer;
     xray::base::unique_pointer<xray::ui::user_interface> _ui{};
     xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> _ui_backend{};
+    xray::base::unique_pointer<xray::rendering::DebugDrawSystem> _debug_draw{};
     xray::base::unique_pointer<DemoBase> _demo{};
     xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::deeppurple900 };
     xray::base::timer_highp _timer{};
@@ -290,6 +294,12 @@ MainRunner::create()
         return tl::nullopt;
     }
 
+    auto debug_draw = DebugDrawSystem::create(DebugDrawSystem::InitContext{ &*renderer });
+    if (!debug_draw) {
+        XR_LOG_CRITICAL("Failed to create debug draw backend");
+        return tl::nullopt;
+    }
+
     const VulkanBufferCreateInfo bci{
         .name_tag = "UBO - FrameGlobalData",
         .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -332,6 +342,7 @@ MainRunner::create()
         std::move(*renderer.take()),
         std::move(ui),
         xray::base::make_unique<UserInterfaceRenderBackend_Vulkan>(std::move(*vk_backend)),
+        xray::base::make_unique<DebugDrawSystem>(std::move(*debug_draw)),
         g_ubo_handles);
 }
 
@@ -385,24 +396,26 @@ MainRunner::event_handler(const xray::ui::window_event& wnd_evt)
 void
 MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 {
-     static bool doing_ur_mom{ false };
-     if (!doing_ur_mom && !_demo) {
-         _demo = dvk::TriangleDemo::create(app::init_context_t{
-             .surface_width = _window.width(),
-             .surface_height = _window.height(),
-             .cfg = xr_app_config,
-             .ui = raw_ptr(_ui),
-             .renderer = &_vkrenderer,
-             .quit_receiver = cpp::bind<&MainRunner::demo_quit>(this),
-         });
-         doing_ur_mom = true;
-     }
+    static bool doing_ur_mom{ false };
+    if (!doing_ur_mom && !_demo) {
+        _demo = dvk::TriangleDemo::create(app::init_context_t{
+            .surface_width = _window.width(),
+            .surface_height = _window.height(),
+            .cfg = xr_app_config,
+            .ui = raw_ptr(_ui),
+            .renderer = &_vkrenderer,
+            .quit_receiver = cpp::bind<&MainRunner::demo_quit>(this),
+        });
+        doing_ur_mom = true;
+    }
 
     _timer.update_and_reset();
     _ui->tick(_timer.elapsed_millis());
     _ui->new_frame(loop_event.wnd_width, loop_event.wnd_height);
 
     const FrameRenderData frd{ _vkrenderer.begin_rendering() };
+
+    _debug_draw->new_frame(frd.id);
 
     //
     // flush and bind the global descriptor table
@@ -415,8 +428,12 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
                                                          _global_ubo.second.aligned_chunk_size);
 
     if (_demo) {
-        _demo->loop_event(RenderEvent{
-            loop_event, &frd, &_vkrenderer, xray::base::raw_ptr(_ui), g_ubo_mapping->as<FrameGlobalData>() });
+        _demo->loop_event(RenderEvent{ loop_event,
+                                       &frd,
+                                       &_vkrenderer,
+                                       xray::base::raw_ptr(_ui),
+                                       g_ubo_mapping->as<FrameGlobalData>(),
+                                       raw_ptr(_debug_draw) });
     } else {
         //
         // do main page UI
@@ -463,6 +480,8 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
         vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
         _vkrenderer.clear_attachments(frd.cmd_buf, 1.0f, 0.0f, 1.0f);
     }
+
+    _debug_draw->render(DebugDrawSystem::RenderContext{ .renderer = &_vkrenderer, .frd = &frd });
 
     //
     // move the UBO mapping into the lambda so that the data is flushed before the rendering starts

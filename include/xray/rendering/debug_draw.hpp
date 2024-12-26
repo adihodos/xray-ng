@@ -3,35 +3,64 @@
 #include "xray/xray.hpp"
 
 #include <span>
-#include <tl/optional.hpp>
-#include <vector>
+#include <memory>
+#include <tl/expected.hpp>
 
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
-#include "xray/rendering/geometry/surface_normal_visualizer.hpp"
-#include "xray/rendering/opengl/gl_handles.hpp"
-#include "xray/rendering/opengl/gpu_program.hpp"
-#include "xray/rendering/opengl/program_pipeline.hpp"
-#include "xray/rendering/opengl/scoped_opengl_setting.hpp"
-#include "xray/rendering/vertex_format/vertex_pc.hpp"
 
 namespace xray::rendering {
+
+#if defined(XRAY_GRAPHICS_API_VULKAN)
+struct FrameRenderData;
+class VulkanRenderer;
+struct VulkanError;
+#endif
 
 class basic_mesh;
 
 /// @brief Debug drawing
-class RenderDebugDraw
+class DebugDrawSystem
 {
+  private:
+    struct PrivateConstructionToken
+    {
+        explicit PrivateConstructionToken() noexcept = default;
+    };
+
   public:
-	enum  {
-		Draw_NoOptions = 0,
-		Draw_CircleNormal = 0b1,
-		Draw_CircleSegments = 0b10
-	};
+#if defined(XRAY_GRAPHICS_API_VULKAN)
+    struct InitContext
+    {
+        VulkanRenderer* renderer;
+    };
 
+    struct RenderContext
+    {
+        const VulkanRenderer* renderer;
+        const FrameRenderData* frd;
+    };
 
-    static tl::optional<RenderDebugDraw> create();
+    using ErrorType = VulkanError;
+#elif defined(XRAY_GRAPHICS_API_OPENGL)
+    struct InitInitContext
+    {};
+    struct RenderContext
+    {};
+    struct ErrorType
+    {};
+#else
+#endif
+
+    enum
+    {
+        Draw_NoOptions = 0,
+        Draw_CircleNormal = 0b1,
+        Draw_CircleSegments = 0b10
+    };
+
+    static tl::expected<DebugDrawSystem, ErrorType> create(const InitContext& init);
 
     /// @brief Draw a colored line between two points.
     void draw_line(const math::vec3f& from, const math::vec3f& to, const rgb_color& color);
@@ -117,40 +146,46 @@ class RenderDebugDraw
                               const float line_length = 6.0f)
 
     {
-        mSurfaceNormalVis.draw(mesh, wvp_matrix, draw_color_start, draw_color_end, line_length);
+        // mSurfaceNormalVis.draw(mesh, wvp_matrix, draw_color_start, draw_color_end, line_length);
     }
 
     /// @brief Draw a frustrum
     void draw_frustrum(const math::MatrixWithInvertedMatrixPair4f& mtx, const rgb_color& color);
+    void new_frame(const uint32_t frame_idx) noexcept;
+    void render(const RenderContext& rc) noexcept;
 
-    void render(const math::mat4f& worldViewProj);
+#if defined(XRAY_GRAPHICS_API_VULKAN)
+  private:
+    struct RenderStateVulkan;
+    using RenderState = RenderStateVulkan;
+    // struct RenderState
+    // {
+    //     std::vector<vertex_pc> mVertices;
+    //     scoped_buffer mVertexBuffer;
+    //     scoped_vertex_array mVertexArrayObj;
+    //     vertex_program mVertexShader;
+    //     fragment_program mFragmentShader;
+    //     program_pipeline mGraphicsPipeline;
+    // }
+#else
+  private:
+    struct RenderStateOpenGL;
+    using RenderState = RenderStateOpenGL;
+
+#endif
 
   private:
-    struct RenderState
+    struct RenderStateDeleter
     {
-        std::vector<vertex_pc> mVertices;
-        scoped_buffer mVertexBuffer;
-        scoped_vertex_array mVertexArrayObj;
-        vertex_program mVertexShader;
-        fragment_program mFragmentShader;
-        program_pipeline mGraphicsPipeline;
-    } mRenderState;
+        void operator()(RenderState* r) const noexcept;
+    };
+    std::unique_ptr<RenderState, RenderStateDeleter> mRenderState;
 
-    surface_normal_visualizer mSurfaceNormalVis{};
+  public:
+    DebugDrawSystem(PrivateConstructionToken, std::unique_ptr<RenderState, RenderStateDeleter>&& render_state);
 
-    RenderDebugDraw(scoped_buffer&& vertexBuffer,
-                    scoped_vertex_array vertexArray,
-                    vertex_program vertexShader,
-                    fragment_program fragmentShader,
-                    program_pipeline graphicsPipeline)
-        : mRenderState{ {},
-                        std::move(vertexBuffer),
-                        std::move(vertexArray),
-                        std::move(vertexShader),
-                        std::move(fragmentShader),
-                        std::move(graphicsPipeline) }
-    {
-    }
+    DebugDrawSystem(DebugDrawSystem&&) noexcept = default;
+    ~DebugDrawSystem();
 };
 
 }

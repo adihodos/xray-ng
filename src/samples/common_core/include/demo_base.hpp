@@ -52,6 +52,7 @@ class user_interface;
 namespace rendering {
 struct FrameRenderData;
 class VulkanRenderer;
+class DebugDrawSystem;
 } // namespace rendering
 #endif
 
@@ -68,6 +69,7 @@ struct RenderEvent
     xray::rendering::VulkanRenderer* renderer;
     xray::ui::user_interface* ui;
     FrameGlobalData* g_ubo_data;
+    xray::rendering::DebugDrawSystem* dbg_draw;
 };
 
 class DemoBase

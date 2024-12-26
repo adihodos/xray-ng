@@ -72,7 +72,7 @@ set_target_properties(
              "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib"
              VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
 
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_include_directories(
   ${PROJECT_NAME} PRIVATE ${proj_inc_dir} ${proj_src_dir}
                           "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin")
