@@ -21,9 +21,10 @@ out VS_OUT_FS_IN {
 
 void main() {
     const uint frame_idx = (g_GlobalPushConst.data) & 0xFF;
+    const uint inst_buffer_idx = (g_GlobalPushConst.data >> 16) & 0xFF;
     const FrameGlobalData_t fgd = g_FrameGlobal[frame_idx].data[0];
 
-    const InstanceRenderInfo_t inst = g_InstanceGlobal[frame_idx].data[gl_InstanceIndex];
+    const InstanceRenderInfo_t inst = g_InstanceGlobal[inst_buffer_idx].data[gl_InstanceIndex];
     // const uint vertex_index = g_IndexBufferGlobal[inst.idx_buff].data[gl_VertexIndex];
     // const VertexPBR vtx = g_VertexBufferPBRGlobal[inst.vtx_buff].data[vertex_index];
 

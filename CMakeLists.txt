@@ -32,9 +32,11 @@ cpmaddpackage(
   NAME
   cpp-lazy
   GITHUB_REPOSITORY
-  adihodos/cpp-lazy
+  # adihodos/cpp-lazy
+  Kaaserne/cpp-lazy
   GIT_TAG
-  fix-include-path
+  # fix-include-path
+  master
   OPTIONS
   "CPP-LAZY_USE_STANDALONE ON")
 

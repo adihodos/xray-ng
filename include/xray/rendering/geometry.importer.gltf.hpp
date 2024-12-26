@@ -49,7 +49,7 @@ class Node;
 
 namespace xray::rendering {
 
-struct PBRMaterialDefinition
+struct alignas(16) PBRMaterialDefinition
 {
     xray::math::vec4f base_color_factor;
     uint32_t base_color;

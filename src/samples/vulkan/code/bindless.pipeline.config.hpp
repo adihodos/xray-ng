@@ -27,7 +27,7 @@ struct FrameGlobalData
     UIData ui;
 };
 
-struct InstanceRenderInfo
+struct alignas(16) InstanceRenderInfo
 {
     xray::math::mat4f model;
     uint32_t vtx_buff;

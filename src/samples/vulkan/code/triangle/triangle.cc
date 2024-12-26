@@ -474,12 +474,16 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     vkCmdBindPipeline(
         render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderstate.pipeline.handle());
 
+    const uint32_t push_const{
+        bindless_subresource_handle_from_bindless_resource_handle(_renderstate.g_instancebuffer.first, render_event.frame_data->id).value_of() << 16 |
+        render_event.frame_data->id
+    };
     vkCmdPushConstants(render_event.frame_data->cmd_buf,
                        _renderstate.pipeline.layout(),
                        VK_SHADER_STAGE_ALL,
                        0,
                        static_cast<uint32_t>(sizeof(render_event.frame_data->id)),
-                       &render_event.frame_data->id);
+                       &push_const);
 
     const VkDeviceSize vtx_offsets[] = { 0 };
     const VkBuffer vertex_buffers[] = { _renderstate.g_vertexbuffer.buffer_handle() };
