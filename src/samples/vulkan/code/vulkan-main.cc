@@ -376,20 +376,19 @@ MainRunner::hookup_event_delegates()
 void
 MainRunner::event_handler(const xray::ui::window_event& wnd_evt)
 {
-    if (demo_running()) {
+    _ui->input_event(wnd_evt);
+
+    if (demo_running() && !_ui->wants_input()) {
         _demo->event_handler(wnd_evt);
         return;
     }
 
     if (is_input_event(wnd_evt)) {
-
         if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
             wnd_evt.event.key.type == event_action_type::press && !_ui->wants_input()) {
             _window.quit();
             return;
         }
-
-        _ui->input_event(wnd_evt);
     }
 }
 
@@ -460,28 +459,29 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
         }
         ImGui::End();
 
-        const VkViewport viewport{
-            .x = 0.0f,
-            .y = 0.0f,
-            .width = static_cast<float>(loop_event.wnd_width),
-            .height = static_cast<float>(loop_event.wnd_height),
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        };
-
-        vkCmdSetViewport(frd.cmd_buf, 0, 1, &viewport);
-
-        const VkRect2D scissor{
-            .offset = VkOffset2D{ 0, 0 },
-            .extent =
-                VkExtent2D{ static_cast<uint32_t>(loop_event.wnd_width), static_cast<uint32_t>(loop_event.wnd_height) },
-        };
-
-        vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
         _vkrenderer.clear_attachments(frd.cmd_buf, 1.0f, 0.0f, 1.0f);
     }
 
     _debug_draw->render(DebugDrawSystem::RenderContext{ .renderer = &_vkrenderer, .frd = &frd });
+
+    const VkViewport viewport{
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = static_cast<float>(loop_event.wnd_width),
+        .height = static_cast<float>(loop_event.wnd_height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
+    vkCmdSetViewport(frd.cmd_buf, 0, 1, &viewport);
+
+    const VkRect2D scissor{
+        .offset = VkOffset2D{ 0, 0 },
+        .extent =
+            VkExtent2D{ static_cast<uint32_t>(loop_event.wnd_width), static_cast<uint32_t>(loop_event.wnd_height) },
+    };
+
+    vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
 
     //
     // move the UBO mapping into the lambda so that the data is flushed before the rendering starts

@@ -151,6 +151,7 @@ class DebugDrawSystem
 
     /// @brief Draw a frustrum
     void draw_frustrum(const math::MatrixWithInvertedMatrixPair4f& mtx, const rgb_color& color);
+
     void new_frame(const uint32_t frame_idx) noexcept;
     void render(const RenderContext& rc) noexcept;
 

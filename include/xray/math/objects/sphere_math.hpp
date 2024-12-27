@@ -53,7 +53,6 @@ bounding_sphere(input_point_type first_point,
                 input_point_type last_point,
                 input_point_to_sphere_point_convert_fn conversion_fn) noexcept
 {
-
     using sphere_type = sphere<real_type>;
     using output_point_type = typename sphere_type::point_type;
 

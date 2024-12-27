@@ -2,15 +2,15 @@
 
 #include <vector>
 #include <unordered_map>
-#include <ranges>
 
 #define TINYGLTF_IMPLEMENTATION
 #include <tiny_gltf.h>
-
+#include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
 #include <mio/mmap.hpp>
 
 #include "xray/base/logger.hpp"
+#include "xray/math/objects/aabb3_math.hpp"
 #include "xray/math/scalar4.hpp"
 #include "xray/math/scalar2_math.hpp"
 #include "xray/math/scalar4x4_math.hpp"
@@ -183,28 +183,38 @@ LoadedGeometry::extract_data(void* vertex_buffer,
                              const math::vec2ui32 offsets,
                              const uint32_t mtl_offset)
 {
-    math::vec2ui32 acc_offsets{ offsets };
+    math::vec2ui32 buffer_offsets{ offsets };
     for (const tinygltf::Scene& s : gltf->scenes) {
         for (const int node_idx : s.nodes) {
-            acc_offsets += extract_single_node_data(
-                vertex_buffer, index_buffer, acc_offsets, mtl_offset, gltf->nodes[node_idx], tl::nullopt);
+            extract_single_node_data(
+                vertex_buffer, index_buffer, &buffer_offsets, mtl_offset, gltf->nodes[node_idx], tl::nullopt);
         }
     }
 
-    return acc_offsets;
+    bounding_box =
+        lz::chain(nodes).foldl(math::aabb3f::stdc::identity, [](math::aabb3f merged, const GeometryNode& node) {
+            return math::merge(merged, node.boundingbox);
+        });
+
+    bounding_sphere = math::sphere3f{
+        bounding_box.center(), math::length(bounding_box.extents())
+        // bounding_box.max_dimension() * 0.5f
+    };
+
+    return buffer_offsets;
 }
 
-math::vec2ui32
+void
 LoadedGeometry::extract_single_node_data(void* vertex_buffer,
                                          void* index_buffer,
-                                         const math::vec2ui32 initial_buffer_offsets,
+                                         math::vec2ui32* buffer_offsets,
                                          const uint32_t mtl_offset,
                                          const tinygltf::Node& node,
                                          const tl::optional<uint32_t> parent)
 {
     const math::mat4f node_transform = [n = &node]() {
         if (!n->matrix.empty()) {
-            return math::mat4f{ n->matrix.data(), n->matrix.size() };
+            return math::transpose(math::mat4f{ n->matrix.data(), n->matrix.size() });
         }
 
         const math::mat4f scale = [n]() {
@@ -233,20 +243,27 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
     }();
 
     const uint32_t node_id = static_cast<uint32_t>(nodes.size());
-    this->nodes.emplace_back(parent, node.name, math::mat4f{ node_transform }, math::aabb3f::stdc::identity, 0, 0, 0);
+    this->nodes.emplace_back(parent,
+                             node.name,
+                             math::mat4f{ node_transform },
+                             math::aabb3f::stdc::identity,
+                             math::sphere3f::stdc::null,
+                             0,
+                             0,
+                             0,
+                             0);
 
-    math::vec2ui32 accum_buffer_offsets{ initial_buffer_offsets };
     for (const int child_idx : node.children) {
-        accum_buffer_offsets += extract_single_node_data(vertex_buffer,
-                                                         index_buffer,
-                                                         accum_buffer_offsets,
-                                                         mtl_offset,
-                                                         gltf->nodes[child_idx],
-                                                         tl::optional<uint32_t>{ node_id });
+        extract_single_node_data(vertex_buffer,
+                                 index_buffer,
+                                 buffer_offsets,
+                                 mtl_offset,
+                                 gltf->nodes[child_idx],
+                                 tl::optional<uint32_t>{ node_id });
     }
 
-    this->nodes[node_id].vertex_offset = accum_buffer_offsets.x;
-    this->nodes[node_id].index_offset = accum_buffer_offsets.y;
+    this->nodes[node_id].vertex_offset = buffer_offsets->x;
+    this->nodes[node_id].index_offset = buffer_offsets->y;
 
     if (node.mesh != -1) {
         tl::optional<uint32_t> ancestor{ parent };
@@ -259,8 +276,7 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
         }
 
         nodes[node_id].transform = transform;
-        const math::mat4f normals_matrix = math::mat4f::stdc::identity;
-        // math::transpose(math::invert(transform));
+        const math::mat4f normals_matrix = math::transpose(math::invert(transform));
 
         const tinygltf::Mesh* mesh = &gltf->meshes[node.mesh];
         for (const tinygltf::Primitive& prim : mesh->primitives) {
@@ -272,7 +288,7 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
                 continue;
             }
 
-            VertexPBR* dst_data{ reinterpret_cast<VertexPBR*>(vertex_buffer) + accum_buffer_offsets.x };
+            VertexPBR* dst_data{ reinterpret_cast<VertexPBR*>(vertex_buffer) + buffer_offsets->x };
 
             uint32_t primitive_vertices{};
             if (auto attr_itr = prim.attributes.find("POSITION"); attr_itr != cend(prim.attributes)) {
@@ -296,6 +312,10 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
                     dst_data[vtx].pos = math::mul_point(transform, src_data[vtx]);
                     dst_data[vtx].color = math::vec4f{ 0.0f, 0.0f, 0.0f, 1.0f };
                     dst_data[vtx].pbr_buf_id = (uint32_t)prim.material + mtl_offset;
+
+                    math::aabb3f* bbox = &nodes[node_id].boundingbox;
+                    bbox->min = math::min(bbox->min, dst_data[vtx].pos);
+                    bbox->max = math::max(bbox->max, dst_data[vtx].pos);
                 }
 
                 primitive_vertices = accessor.count;
@@ -388,7 +408,7 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
                                                   static_cast<size_t>(accessor.count) };
 
                 for (size_t vtx = 0; vtx < static_cast<size_t>(accessor.count); ++vtx) {
-                    dst_data[vtx].tangent = src_data[vtx];
+                    dst_data[vtx].color = src_data[vtx];
                 }
             }
 
@@ -406,7 +426,7 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
                 assert(buffer_view.byteStride == 0);
                 const tinygltf::Buffer& buffer = gltf->buffers[buffer_view.buffer];
 
-                uint32_t* dst_data{ reinterpret_cast<uint32_t*>(index_buffer) + accum_buffer_offsets.y };
+                uint32_t* dst_data{ reinterpret_cast<uint32_t*>(index_buffer) + buffer_offsets->y };
 
                 if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
                     span<const uint16_t> src_data{ reinterpret_cast<const uint16_t*>(buffer.data.data() +
@@ -429,25 +449,28 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
                 //
                 // correct indices to account for the vertex offset
                 for (size_t idx = 0; idx < static_cast<size_t>(accessor.count); ++idx) {
-                    dst_data[idx] += accum_buffer_offsets.x;
+                    dst_data[idx] += buffer_offsets->x;
                 }
 
-                accum_buffer_offsets.x += primitive_vertices;
-                accum_buffer_offsets.y += accessor.count;
+                buffer_offsets->x += primitive_vertices;
+                buffer_offsets->y += accessor.count;
+                this->nodes[node_id].index_count += accessor.count;
+                this->nodes[node_id].vertex_count += primitive_vertices;
             }
         }
     }
 
-    const math::vec2ui32 node_vertex_index_counts = accum_buffer_offsets - initial_buffer_offsets;
-    this->nodes[node_id].index_count = node_vertex_index_counts.y;
+    //
+    // make sphere from the bounding box
+    GeometryNode* this_node = &nodes[node_id];
+    this_node->bounding_sphere =
+        math::sphere3f{ this_node->boundingbox.center(), math::length(this_node->boundingbox.extents()) };
 
     XR_LOG_INFO("Node {}, offsets {} {}, vertices {}, indices {}",
                 nodes[node_id].name,
                 nodes[node_id].vertex_offset,
                 nodes[node_id].index_offset,
-                node_vertex_index_counts.x,
-                node_vertex_index_counts.y);
-
-    return node_vertex_index_counts;
+                nodes[node_id].vertex_count,
+                nodes[node_id].index_count);
 }
 }

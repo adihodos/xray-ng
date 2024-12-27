@@ -5,6 +5,7 @@
 
 #include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
+#include <imgui/imgui.h>
 
 #include "xray/base/app_config.hpp"
 #include "xray/base/xray.misc.hpp"
@@ -22,8 +23,6 @@
 #include "xray/math/transforms_r2.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
-#include "xray/rendering/colors/color_cast_rgb_hsv.hpp"
-#include "xray/rendering/colors/color_palettes.hpp"
 
 #include "bindless.pipeline.config.hpp"
 
@@ -131,12 +130,6 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
 
     const xray::math::vec2ui32 vtx_idx_count = geometry->compute_vertex_index_count();
 
-    // constexpr const VertexPTC tri_vertices[] = {
-    //     { vec2f{ -1.0f, -1.0f }, vec2f{ 0.0f, 1.0f }, vec4f{ 1.0f, 0.0f, 0.0f, 1.0f } },
-    //     { vec2f{ 1.0f, -1.0f }, vec2f{ 1.0f, 1.0f }, vec4f{ 0.0f, 1.0f, 0.0f, 1.0f } },
-    //     { vec2f{ 0.0f, 1.0f }, vec2f{ 0.5f, 0.0f }, vec4f{ 0.0f, 0.0f, 1.0f, 1.0f } },
-    // };
-
     const VulkanBufferCreateInfo vbinfo{
         .name_tag = "Global vertex buffer",
         .work_package = pkgs->pkg,
@@ -152,7 +145,6 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
     if (!g_vertexbuffer)
         return nullptr;
 
-    // constexpr const uint32_t tri_indices[] = { 0, 1, 2 };
     const VulkanBufferCreateInfo ibinfo{
         .name_tag = "Global index buffer",
         .work_package = pkgs->pkg,
@@ -239,7 +231,9 @@ dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
                     .map([&](UniqueMemoryMapping map_idx) {
                         const xm::vec2ui32 counts = geometry->extract_data(
                             map_vtx.as<void>(), map_idx.as<void>(), xm::vec2ui32::stdc::zero, g_pbr_buffer_offset);
-                        return xr::Geometry{ std::move(geometry->nodes), counts, xm::aabb3f::stdc::identity };
+                        return xr::Geometry{
+                            std::move(geometry->nodes), counts, geometry->bounding_box, geometry->bounding_sphere
+                        };
                     });
             });
 
@@ -378,8 +372,41 @@ dvk::TriangleDemo::event_handler(const xray::ui::window_event& evt)
 }
 
 void
+dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui)
+{
+    char txt_scratch_buff[1024];
+
+    if (ImGui::Begin("Demo options")) {
+
+        ImGui::Checkbox("Draw world coordinate axis", &_uistate.draw_world_axis);
+        ImGui::Checkbox("Draw bounding box", &_uistate.draw_bbox);
+        ImGui::Checkbox("Draw individual nodes bounding boxes", &_uistate.draw_nodes_bbox);
+        ImGui::Checkbox("Draw bounding sphere", &_uistate.draw_sphere);
+        ImGui::Checkbox("Draw individual nodes bounding sphere", &_uistate.draw_nodes_spheres);
+
+        ImGui::SeparatorText("Geometry");
+        if (ImGui::CollapsingHeader("Nodes")) {
+
+            for (const GeometryNode& node : _world->geometry.nodes) {
+                auto result = fmt::format_to_n(txt_scratch_buff,
+                                               size(txt_scratch_buff),
+                                               "{} ({} vertices, {} indices)",
+                                               node.name,
+                                               node.vertex_count,
+                                               node.index_count);
+                *result.out = 0;
+                ImGui::Text("%s", txt_scratch_buff);
+            }
+        }
+    }
+    ImGui::End();
+}
+
+void
 dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 {
+    user_interface(render_event.ui);
+
     _simstate.arcball_cam.update_camera(_simstate.camera);
 
     static constexpr const auto sixty_herz = std::chrono::duration<float, std::milli>{ 1000.0f / 60.0f };
@@ -394,15 +421,45 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         _timer.update_and_reset();
     }
 
-    render_event.dbg_draw->draw_coord_sys(vec3f::stdc::zero,
-                                          vec3f::stdc::unit_x,
-                                          vec3f::stdc::unit_y,
-                                          vec3f::stdc::unit_z,
-                                          2.0f,
-                                          color_palette::material::red,
-                                          color_palette::material::green,
-                                          color_palette::material::blue);
-    render_event.dbg_draw->draw_sphere(vec3f::stdc::zero, 3.0f, color_palette::material::cyan500);
+    if (_uistate.draw_world_axis) {
+        render_event.dbg_draw->draw_coord_sys(vec3f::stdc::zero,
+                                              vec3f::stdc::unit_x,
+                                              vec3f::stdc::unit_y,
+                                              vec3f::stdc::unit_z,
+                                              2.0f,
+                                              color_palette::material::red,
+                                              color_palette::material::green,
+                                              color_palette::material::blue);
+    }
+
+    if (_uistate.draw_sphere) {
+        render_event.dbg_draw->draw_sphere(_world->geometry.bounding_sphere.center,
+                                           _world->geometry.bounding_sphere.radius,
+                                           color_palette::material::orange);
+    }
+
+    if (_uistate.draw_nodes_spheres) {
+        for (const GeometryNode& node : _world->geometry.nodes) {
+            if (node.index_count != 0) {
+                render_event.dbg_draw->draw_sphere(
+                    node.bounding_sphere.center, node.bounding_sphere.radius, color_palette::material::orange);
+            }
+        }
+    }
+
+    if (_uistate.draw_bbox) {
+        render_event.dbg_draw->draw_axis_aligned_box(
+            _world->geometry.boundingbox.min, _world->geometry.boundingbox.max, color_palette::material::yellow50);
+    }
+
+    if (_uistate.draw_nodes_bbox) {
+        for (const GeometryNode& node : _world->geometry.nodes) {
+            if (node.index_count != 0) {
+                render_event.dbg_draw->draw_axis_aligned_box(
+                    node.boundingbox.min, node.boundingbox.max, color_palette::material::yellow900);
+            }
+        }
+    }
 
     render_event.renderer->dbg_marker_begin(
         render_event.frame_data->cmd_buf, "Update UBO & instances", color_palette::web::orange_red);
@@ -430,29 +487,6 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
             app::InstanceRenderInfo* inst = inst_buf.as<app::InstanceRenderInfo>();
             inst->mtl = mtl;
             inst->model = xray::math::mat4f::stdc::identity;
-
-            // inst->model = mat4f{
-            //     // 1st row
-            //     r.a00,
-            //     r.a01,
-            //     0.0f,
-            //     0.0f,
-            //     // 2nd row
-            //     r.a10,
-            //     r.a11,
-            //     0.0f,
-            //     0.0f,
-            //     // 3rd row
-            //     0.0f,
-            //     0.0f,
-            //     1.0f,
-            //     0.0f,
-            //     // 4th row
-            //     0.0f,
-            //     0.0f,
-            //     0.0f,
-            //     1.0f,
-            // };
 
             inst->idx_buff = 0;
             inst->vtx_buff = 0;

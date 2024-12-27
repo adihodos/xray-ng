@@ -33,8 +33,7 @@
 
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
-#include "xray/math/scalar4x4.hpp"
-#include "xray/xray.hpp"
+#include "xray/math/math_std.hpp"
 #include <cassert>
 #include <cmath>
 #include <limits>
@@ -81,14 +80,11 @@ struct axis_aligned_bounding_box3
 
     real_type depth() const noexcept { return std::abs(max.z - min.z); }
 
-    real_type max_dimension() const noexcept { return std::max(width(), std::max(height(), depth())); }
+    real_type max_dimension() const noexcept { return math::max(width(), math::max(height(), depth())); }
 
     point_type extents() const noexcept { return max - center(); }
 
     struct stdc;
-    //   ///< The identity bounding box.
-    //   static const axis_aligned_bounding_box3<real_type> identity;
-    // };
 };
 
 template<typename T>
@@ -99,20 +95,6 @@ struct axis_aligned_bounding_box3<T>::stdc
         std::numeric_limits<T>::min(), std::numeric_limits<T>::min(), std::numeric_limits<T>::min()
     };
 };
-
-// template <typename T>
-// constexpr axis_aligned_bounding_box3<T>
-//     axis_aligned_bounding_box3<T>::stdc::identity;
-
-// template <typename real_type>
-// const axis_aligned_bounding_box3<real_type>
-//     axis_aligned_bounding_box3<real_type>::stdc::identity{
-//         std::numeric_limits<real_type>::max(),
-//         std::numeric_limits<real_type>::max(),
-//         std::numeric_limits<real_type>::max(),
-//         std::numeric_limits<real_type>::min(),
-//         std::numeric_limits<real_type>::min(),
-//         std::numeric_limits<real_type>::min()};
 
 using aabb3f = axis_aligned_bounding_box3<float>;
 using aabb3d = axis_aligned_bounding_box3<double>;

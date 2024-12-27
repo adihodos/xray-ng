@@ -38,6 +38,7 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/objects/aabb3.hpp"
+#include "xray/math/objects/sphere.hpp"
 
 namespace xray::rendering {
 
@@ -47,12 +48,11 @@ struct GeometryNode
     std::string name{};
     xray::math::mat4f transform{ xray::math::mat4f::stdc::identity };
     xray::math::aabb3f boundingbox{ xray::math::aabb3f::stdc::identity };
+    xray::math::sphere3f bounding_sphere{ xray::math::sphere3f::stdc::null };
     uint32_t vertex_offset{};
     uint32_t index_offset{};
     uint32_t index_count{};
-
-    // GeometryNode(GeometryNode&&) = default;
-    // GeometryNode& operator=(GeometryNode&&) = default;
+    uint32_t vertex_count{};
 };
 
 struct Geometry
@@ -60,9 +60,7 @@ struct Geometry
     std::vector<GeometryNode> nodes;
     xray::math::vec2ui32 vertex_index_counts{};
     xray::math::aabb3f boundingbox{ xray::math::aabb3f::stdc::identity };
-
-    // Geometry(Geometry&&) = default;
-    // Geometry& operator=(Geometry&&) = default;
+    xray::math::sphere3f bounding_sphere{ xray::math::sphere3f::stdc::null };
 };
 
 }

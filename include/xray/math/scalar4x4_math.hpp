@@ -28,14 +28,12 @@
 
 #pragma once
 
+#include <cassert>
+
 #include "xray/base/array_dimension.hpp"
-#include "xray/math/math_std.hpp"
 #include "xray/math/scalar3.hpp"
-#include "xray/math/scalar3x3.hpp"
 #include "xray/math/scalar4.hpp"
 #include "xray/math/scalar4x4.hpp"
-#include "xray/xray.hpp"
-#include <cassert>
 
 namespace xray {
 namespace math {
@@ -144,25 +142,19 @@ determinant(const scalar4x4<T>& m) noexcept
     // which states that the value of a determinant is equal to the product of
     // the minor determinants formed with the elements of p rows/columns and
     // their algebraic complements.
-    const auto k1 = m.a00 * m.a11 - m.a01 * m.a10;
-    const auto l1 = m.a22 * m.a33 - m.a23 * m.a32;
-
-    const auto k2 = m.a00 * m.a12 - m.a02 * m.a10;
-    const auto l2 = m.a21 * m.a33 - m.a12 * m.a31;
-
-    const auto k3 = m.a00 * m.a13 - m.a03 * m.a10;
-    const auto l3 = m.a21 * m.a32 - m.a22 * m.a31;
-
-    const auto k4 = m.a01 * m.a12 - m.a02 * m.a11;
-    const auto l4 = m.a20 * m.a33 - m.a32 * m.a30;
-
-    const auto k5 = m.a01 * m.a13 - m.a03 * m.a11;
-    const auto l5 = m.a20 * m.a32 - m.a22 * m.a30;
-
-    const auto k6 = m.a02 * m.a13 - m.a03 * m.a12;
-    const auto l6 = m.a20 * m.a31 - m.a21 * m.a30;
-
-    return k1 * l1 - k2 * l2 + k3 * l3 + k4 * l4 - k5 * l5 + k6 * l6;
+    const T a0 = m.a00 * m.a11 - m.a01 * m.a10;
+    const T a1 = m.a00 * m.a12 - m.a02 * m.a10;
+    const T a2 = m.a00 * m.a13 - m.a03 * m.a10;
+    const T a3 = m.a01 * m.a12 - m.a02 * m.a11;
+    const T a4 = m.a01 * m.a13 - m.a03 * m.a11;
+    const T a5 = m.a02 * m.a13 - m.a03 * m.a12;
+    const T b0 = m.a20 * m.a31 - m.a21 * m.a30;
+    const T b1 = m.a20 * m.a32 - m.a22 * m.a30;
+    const T b2 = m.a20 * m.a33 - m.a23 * m.a30;
+    const T b3 = m.a21 * m.a32 - m.a22 * m.a31;
+    const T b4 = m.a21 * m.a33 - m.a23 * m.a31;
+    const T b5 = m.a22 * m.a33 - m.a23 * m.a32;
+    return a0 * b5 - a1 * b4 + a2 * b3 + a3 * b2 - a4 * b1 + a5 * b0;
 }
 
 template<typename T>
@@ -176,10 +168,57 @@ template<typename T>
 scalar4x4<T>
 invert(const scalar4x4<T>& m) noexcept
 {
-    const auto det = determinant(m);
-    assert(!is_zero(det));
+    const T a0 = m.a00 * m.a11 - m.a01 * m.a10;
+    const T a1 = m.a00 * m.a12 - m.a02 * m.a10;
+    const T a2 = m.a00 * m.a13 - m.a03 * m.a10;
+    const T a3 = m.a01 * m.a12 - m.a02 * m.a11;
+    const T a4 = m.a01 * m.a13 - m.a03 * m.a11;
+    const T a5 = m.a02 * m.a13 - m.a03 * m.a12;
+    const T b0 = m.a20 * m.a31 - m.a21 * m.a30;
+    const T b1 = m.a20 * m.a32 - m.a22 * m.a30;
+    const T b2 = m.a20 * m.a33 - m.a23 * m.a30;
+    const T b3 = m.a21 * m.a32 - m.a22 * m.a31;
+    const T b4 = m.a21 * m.a33 - m.a23 * m.a31;
+    const T b5 = m.a22 * m.a33 - m.a23 * m.a32;
 
-    return adjoint(m) / det;
+    const T det = a0 * b5 - a1 * b4 + a2 * b3 + a3 * b2 - a4 * b1 + a5 * b0;
+    if (det != T(0)) {
+        const T invdet = T(1) / det;
+
+        // clang-format off
+        return scalar4x4{
+            //
+            // 
+            (+m.a11 * b5 - m.a12 * b4 + m.a13 * b3) * invdet,
+            (-m.a01 * b5 + m.a02 * b4 - m.a03 * b3) * invdet,
+            (+m.a31 * a5 - m.a32 * a4 + m.a33 * a3) * invdet,
+            (-m.a21 * a5 + m.a22 * a4 - m.a23 * a3) * invdet,
+
+            // 
+            //
+            (-m.a10 * b5 + m.a12 * b2 - m.a13 * b1) * invdet,
+            (+m.a00 * b5 - m.a02 * b2 + m.a03 * b1) * invdet,
+            (-m.a30 * a5 + m.a32 * a2 - m.a33 * a1) * invdet,
+            (+m.a20 * a5 - m.a22 * a2 + m.a23 * a1) * invdet,
+
+            //
+            //
+            (+m.a10 * b4 - m.a11 * b2 + m.a13 * b0) * invdet,
+            (-m.a00 * b4 + m.a01 * b2 - m.a03 * b0) * invdet,
+            (+m.a30 * a4 - m.a31 * a2 + m.a33 * a0) * invdet,
+            (-m.a20 * a4 + m.a21 * a2 - m.a23 * a0) * invdet,
+
+            //
+            //
+            (-m.a10 * b3 + m.a11 * b1 - m.a12 * b0) * invdet,
+            (+m.a00 * b3 - m.a01 * b1 + m.a02 * b0) * invdet,
+            (-m.a30 * a3 + m.a31 * a1 - m.a32 * a0) * invdet,
+            (+m.a20 * a3 - m.a21 * a1 + m.a22 * a0) * invdet
+        };
+        // clang-format on
+    } else {
+        return scalar4x4<T>::stdc::null;
+    }
 }
 
 template<typename T>
@@ -187,34 +226,39 @@ scalar4x4<T>
 adjoint(const scalar4x4<T>& m) noexcept
 {
 
-    const auto m1 = m.a22 * m.a33 - m.a23 * m.a32;
-    const auto m2 = m.a21 * m.a33 - m.a23 * m.a31;
-    const auto m3 = m.a21 * m.a32 - m.a22 * m.a31;
-    const auto m4 = m.a02 * m.a13 - m.a03 * m.a12;
-    const auto m5 = m.a01 * m.a13 - m.a03 * m.a11;
-    const auto m6 = m.a01 * m.a12 - m.a02 * m.a11;
-    const auto m7 = m.a20 * m.a33 - m.a23 * m.a30;
-    const auto m8 = m.a20 * m.a32 - m.a22 * m.a30;
-    const auto m9 = m.a12 * m.a33 - m.a13 * m.a32;
-    const auto m10 = m.a10 * m.a33 - m.a13 * m.a30;
-    const auto m11 = m.a10 * m.a32 - m.a12 * m.a30;
-    const auto m12 = m.a00 * m.a13 - m.a03 * m.a10;
-    const auto m13 = m.a00 * m.a12 - m.a02 * m.a10;
-    const auto m14 = m.a20 * m.a31 - m.a21 * m.a30;
-    const auto m15 = m.a00 * m.a11 - m.a01 * m.a10;
-    const auto m16 = m.a20 * m.a31 - m.a21 * m.a30;
+    const T a0 = m.a00 * m.a11 - m.a1 * m.a10;
+    const T a1 = m.a00 * m.a12 - m.a2 * m.a10;
+    const T a2 = m.a00 * m.a13 - m.a3 * m.a10;
+    const T a3 = m.a01 * m.a12 - m.a2 * m.a11;
+    const T a4 = m.a01 * m.a13 - m.a3 * m.a11;
+    const T a5 = m.a02 * m.a13 - m.a3 * m.a12;
+    const T b0 = m.a20 * m.a31 - m.a1 * m.a30;
+    const T b1 = m.a20 * m.a32 - m.a2 * m.a30;
+    const T b2 = m.a20 * m.a33 - m.a3 * m.a30;
+    const T b3 = m.a21 * m.a32 - m.a2 * m.a31;
+    const T b4 = m.a21 * m.a33 - m.a3 * m.a31;
+    const T b5 = m.a22 * m.a33 - m.a3 * m.a32;
 
-    return { m.a11 * m1 - m.a12 * m2 + m.a13 * m3,    -m.a01 * m1 + m.a02 * m2 - m.a03 * m3,
-             m.a31 * m4 - m.a32 * m5 + m.a33 * m6,    -m.a21 * m4 + m.a22 * m5 - m.a23 * m6,
-
-             -m.a10 * m1 + m.a12 * m7 - m.a13 * m8,   m.a00 * m1 - m.a02 * m7 + m.a03 * m8,
-             -m.a00 * m9 + m.a02 * m10 - m.a03 * m11, m.a20 * m4 - m.a11 * m12 + m.a23 * m13,
-
-             m.a10 * m2 - m.a11 * m7 + m.a13 * m16,   -m.a00 * m2 + m.a01 * m7 - m.a03 * m16,
-             m.a30 * m5 - m.a31 * m12 + m.a33 * m15,  -m.a20 * m5 + m.a21 * m12 - m.a23 * m15,
-
-             -m.a10 * m3 + m.a11 * m8 - m.a12 * m14,  m.a00 * m3 - m.a01 * m8 + m.a02 * m14,
-             -m.a30 * m6 + m.a31 * m13 - m.a32 * m15, m.a20 * m6 - m.a21 * m13 + m.a22 * m15 };
+    // clang-format off
+    return scalar4x4<T> {
+            +m.a11 * b5 - m.a12 * b4 + m.a13 * b3,
+            -m.a01 * b5 + m.a02 * b4 - m.a03 * b3,
+            +m.a31 * a5 - m.a32 * a4 + m.a33 * a3,
+            -m.a21 * a5 + m.a22 * a4 - m.a23 * a3,
+            -m.a10 * b5 + m.a12 * b2 - m.a13 * b1,
+            +m.a00 * b5 - m.a02 * b2 + m.a03 * b1,
+            -m.a30 * a5 + m.a32 * a2 - m.a33 * a1,
+            +m.a20 * a5 - m.a22 * a2 + m.a23 * a1,
+            +m.a10 * b4 - m.a11 * b2 + m.a13 * b0,
+            -m.a00 * b4 + m.a01 * b2 - m.a03 * b0,
+            +m.a30 * a4 - m.a31 * a2 + m.a33 * a0,
+            -m.a20 * a4 + m.a21 * a2 - m.a23 * a0,
+            -m.a10 * b3 + m.a11 * b1 - m.a12 * b0,
+            +m.a00 * b3 - m.a01 * b1 + m.a02 * b0,
+            -m.a30 * a3 + m.a31 * a1 - m.a32 * a0,
+            +m.a20 * a3 - m.a21 * a1 + m.a22 * a0
+    };
+    // clang-format on
 }
 
 template<typename T>

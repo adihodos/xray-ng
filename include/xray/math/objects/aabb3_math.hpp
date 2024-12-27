@@ -56,7 +56,6 @@ template<typename real_type>
 axis_aligned_bounding_box3<real_type>
 bounding_box3_axis_aligned(const scalar3<real_type>* points, const size_t num_points, const size_t stride) noexcept
 {
-
     using aabb_type = axis_aligned_bounding_box3<real_type>;
     aabb_type output_aabb{ aabb_type::stdc::identity };
 
@@ -77,8 +76,7 @@ template<typename real_type>
 axis_aligned_bounding_box3<real_type>
 merge(const axis_aligned_bounding_box3<real_type>& lhs, const axis_aligned_bounding_box3<real_type>& rhs) noexcept
 {
-    return { math::min(lhs.min.x, rhs.min.x), math::min(lhs.min.y, rhs.min.y), math::min(lhs.min.z, rhs.min.z),
-             math::max(lhs.max.x, rhs.max.x), math::max(lhs.max.y, rhs.max.y), math::max(lhs.max.z, rhs.max.z) };
+    return { math::min(lhs.min, rhs.min), math::max(lhs.max, rhs.max) };
 }
 
 /// \brief  Returns a new bounding box obtained by transforming the

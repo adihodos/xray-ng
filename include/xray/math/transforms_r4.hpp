@@ -40,7 +40,6 @@ namespace math {
 
 struct R4
 {
-
     /// \brief      Constructs an affine matrix for a translation in R3.
     template<typename T>
     static scalar4x4<T> translate(const T x, const T y, const T z) noexcept;
@@ -81,12 +80,7 @@ R4::translate(const T x, const T y, const T z) noexcept
 
 template<typename T>
 scalar4x4<T> R4::scaling(const T x, const T y, const T z) noexcept {
-    return {
-        x, T{}, T{}, T{},
-            T{}, y, T{}, T{},
-            T{}, T{}, z, T{},
-            T{}, T{}, T{}, T(1)
-    };
+    return scalar4x4<T>{x, y, z};
 }
 
 /// @}

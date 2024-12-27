@@ -113,17 +113,19 @@ class LoadedGeometry
     xray::math::vec2ui32 compute_vertex_index_count() const;
 
   private:
-    xray::math::vec2ui32 extract_single_node_data(void* vertex_buffer,
-                                                  void* index_buffer,
-                                                  const xray::math::vec2ui32 offsets,
-                                                  const uint32_t mtl_offset,
-                                                  const tinygltf::Node& node,
-                                                  const tl::optional<uint32_t> parent);
+    void extract_single_node_data(void* vertex_buffer,
+                                  void* index_buffer,
+                                  xray::math::vec2ui32* offsets,
+                                  const uint32_t mtl_offset,
+                                  const tinygltf::Node& node,
+                                  const tl::optional<uint32_t> parent);
 
     xray::math::vec2ui32 compute_node_vertex_index_count(const tinygltf::Node& node) const;
 
   public:
     std::vector<GeometryNode> nodes{};
+    xray::math::aabb3f bounding_box{ xray::math::aabb3f::stdc::identity };
+    xray::math::sphere3f bounding_sphere{ xray::math::sphere3f::stdc::null };
 
   private:
     std::unique_ptr<tinygltf::Model> gltf;

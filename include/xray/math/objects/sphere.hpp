@@ -31,6 +31,7 @@
 ///
 /// \file    sphere.hpp
 
+#include <type_traits>
 #include "xray/math/scalar3.hpp"
 #include "xray/xray.hpp"
 
@@ -41,6 +42,7 @@ namespace math {
 /// @{
 
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 class sphere
 {
   public:
@@ -53,14 +55,14 @@ class sphere
     sphere() noexcept = default;
 
     ///< \brief Construct from the components of a point and a radius.
-    sphere(const real_type cx, const real_type cy, const real_type cz, const real_type sph_radius) noexcept
+    constexpr sphere(const real_type cx, const real_type cy, const real_type cz, const real_type sph_radius) noexcept
         : center{ cx, cy, cz }
         , radius{ sph_radius }
     {
     }
 
     ///< \brief Construct from a point and a radius.
-    sphere(const point_type& center_pt, const real_type sph_radius) noexcept
+    constexpr sphere(const point_type& center_pt, const real_type sph_radius) noexcept
         : center{ center_pt }
         , radius{ sph_radius }
     {
@@ -68,15 +70,17 @@ class sphere
 
     real_type squared_radius() const noexcept { return radius * radius; }
 
-    struct stdc
-    {
-        ///<    Sphere centered at the origin, with a radius of 1.
-        static const sphere<real_type> unity;
-    };
+    struct stdc;
 };
 
 template<typename real_type>
-const sphere<real_type> sphere<real_type>::stdc::unity{ scalar3<real_type>::stdc::zero, real_type{ 1 } };
+    requires std::is_arithmetic_v<real_type>
+struct sphere<real_type>::stdc
+{
+    ///<    Sphere centered at the origin, with a radius of 1.
+    static constexpr const sphere<real_type> unity{ scalar3<real_type>::stdc::zero, real_type{ 1 } };
+    static constexpr const sphere<real_type> null{ scalar3<real_type>::stdc::zero, real_type{ 0 } };
+};
 
 /// \name   Helper typedefs
 /// @{
