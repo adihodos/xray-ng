@@ -115,27 +115,25 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
     auto work_pkg = renderer.create_work_package();
     XR_VK_PROPAGATE_ERROR(work_pkg);
 
-    auto vertex_buffer =
-        VulkanBuffer::create(renderer,
-                             VulkanBufferCreateInfo{ .name_tag = "UI vertex buffer",
-                                                     .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                                     .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                                     .bytes = MAX_VERTICES * sizeof(ImDrawVert),
-                                                     .frames = rbs.buffers
-
-                             });
+    auto vertex_buffer = VulkanBuffer::create(renderer,
+                                              VulkanBufferCreateInfo{
+                                                  .name_tag = "UI vertex buffer",
+                                                  .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                                  .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                                  .bytes = MAX_VERTICES * sizeof(ImDrawVert),
+                                                  .frames = rbs.buffers,
+                                              });
 
     XR_VK_PROPAGATE_ERROR(vertex_buffer);
 
-    auto index_buffer =
-        VulkanBuffer::create(renderer,
-                             VulkanBufferCreateInfo{ .name_tag = "UI Index buffer",
-                                                     .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                                                     .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                                     .bytes = MAX_INDICES * sizeof(ImDrawIdx),
-                                                     .frames = rbs.buffers
-
-                             });
+    auto index_buffer = VulkanBuffer::create(renderer,
+                                             VulkanBufferCreateInfo{
+                                                 .name_tag = "UI Index buffer",
+                                                 .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                                 .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                                 .bytes = MAX_INDICES * sizeof(ImDrawIdx),
+                                                 .frames = rbs.buffers,
+                                             });
     XR_VK_PROPAGATE_ERROR(index_buffer);
 
     const VkPipelineColorBlendAttachmentState enable_blending{
@@ -203,19 +201,21 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
     XR_VK_PROPAGATE_ERROR(sampler);
 
     const BindlessImageResourceHandleEntryPair bindless_img =
-        renderer.bindless_sys().add_image(std::move(*font_atlas), *sampler);
+        renderer.bindless_sys().add_image(std::move(*font_atlas), *sampler, tl::nullopt);
 
     if (backend_create_info.upload_callback) {
         (backend_create_info.upload_callback)(bindless_img.first.value_of(), backend_create_info.upload_cb_context);
     }
 
-    return tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>{ tl::in_place,
-                                                                                    PrivateConstructionToken{},
-                                                                                    std::move(*vertex_buffer),
-                                                                                    std::move(*index_buffer),
-                                                                                    std::move(*graphics_pipeline),
-                                                                                    bindless_img,
-                                                                                    *sampler };
+    return tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>{
+        tl::in_place,
+        PrivateConstructionToken{},
+        std::move(*vertex_buffer),
+        std::move(*index_buffer),
+        std::move(*graphics_pipeline),
+        bindless_img,
+        *sampler,
+    };
 }
 
 void

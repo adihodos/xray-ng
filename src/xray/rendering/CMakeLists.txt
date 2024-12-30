@@ -74,6 +74,8 @@ set(vk-project-sources
     ${vk-proj-src-dir}/vulkan.error.cc
     ${vk-proj-inc-dir}/vulkan.buffer.hpp
     ${vk-proj-src-dir}/vulkan.buffer.cc
+    ${vk-proj-inc-dir}/vulkan.async.tasks.hpp
+    ${vk-proj-src-dir}/vulkan.async.tasks.cc
     ${vk-proj-inc-dir}/vulkan.bindless.hpp
     ${vk-proj-src-dir}/vulkan.bindless.cc)
 
@@ -135,6 +137,7 @@ target_link_libraries(
          swl-variant
          strong_type::strong_type
          TBB::tbb
+         concurrencpp::concurrencpp
          cpp-lazy::cpp-lazy
          Vulkan::shaderc_combined
          Vulkan::SPIRV-Tools

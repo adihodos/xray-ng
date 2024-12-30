@@ -406,9 +406,9 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         VkImageViewType view;
     };
 
-    if (!(create_info.memory_flags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
-        assert(create_info.layers == static_cast<uint32_t>(create_info.pixels.size()));
-    }
+    //if (!(create_info.memory_flags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
+    //    assert(create_info.layers == static_cast<uint32_t>(create_info.pixels.size()));
+    //}
 
     const VkImageViewType image_view_type = [](const VulkanImageCreateInfo& ci) {
         switch (ci.type) {
@@ -487,7 +487,8 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
     }
 
     if (!create_info.pixels.empty()) {
-        auto staging_buffer = renderer.create_staging_buffer(create_info.wpkg, mem_alloc_info.allocationSize);
+        assert(create_info.wpkg.has_value());
+        auto staging_buffer = renderer.create_staging_buffer(*create_info.wpkg, mem_alloc_info.allocationSize);
         XR_VK_PROPAGATE_ERROR(staging_buffer);
 
         const auto copied_to_buffer =
@@ -502,7 +503,7 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
                 });
         XR_VK_PROPAGATE_ERROR(copied_to_buffer);
 
-        VkCommandBuffer cmd_buf = renderer.get_cmd_buf_for_work_package(create_info.wpkg);
+        VkCommandBuffer cmd_buf = renderer.get_cmd_buf_for_work_package(*create_info.wpkg);
 
         //
         // set image layout to transfer_dst
@@ -750,11 +751,14 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
 
         UniqueMemoryMapping::map_memory(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
             .map([&](UniqueMemoryMapping bufmap) {
-                ktx_internal_details::user_cbdata_optimal cbData
-                {
-                    .region = copy_regions.data(), .offset = 0, .numFaces = loaded_ktx->numFaces,
-                    .numLayers = loaded_ktx->numLayers, .dest = static_cast<uint8_t*>(bufmap._mapped_memory),
-                    .elementSize = elementSize, .numDimensions = loaded_ktx->numDimensions,
+                ktx_internal_details::user_cbdata_optimal cbData{
+                    .region = copy_regions.data(),
+                    .offset = 0,
+                    .numFaces = loaded_ktx->numFaces,
+                    .numLayers = loaded_ktx->numLayers,
+                    .dest = static_cast<uint8_t*>(bufmap._mapped_memory),
+                    .elementSize = elementSize,
+                    .numDimensions = loaded_ktx->numDimensions,
 #if defined(_DEBUG)
                     .regionsArrayEnd = copy_regions.end(),
 #endif

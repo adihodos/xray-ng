@@ -20,7 +20,9 @@
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/window.hpp"
+
 #include <algorithm>
+#include <concurrencpp/concurrencpp.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -183,12 +185,122 @@ translate_key(const KeySymbol key_sym_val)
 
 xray::ui::user_interface::user_interface() noexcept
 {
-    init({});
+    IMGUI_CHECKVERSION();
+    _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ []() {
+        auto imgui_ctx = ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
+        // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
+        ImGui::StyleColorsDark();
+
+        ImGuiStyle& style = ImGui::GetStyle();
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+            style.WindowRounding = 0.0f;
+            style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+        }
+        return imgui_ctx;
+    }() };
+    // _imcontext->IO.Fonts = new ImFontAtlas();
+
+    set_current();
+    load_fonts({});
 }
 
 xray::ui::user_interface::user_interface(const std::span<const font_info> font_list)
 {
-    init(font_list);
+    IMGUI_CHECKVERSION();
+    _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ []() {
+        auto imgui_ctx = ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
+        // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
+        ImGui::StyleColorsDark();
+
+        ImGuiStyle& style = ImGui::GetStyle();
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+            style.WindowRounding = 0.0f;
+            style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+        }
+        return imgui_ctx;
+    }() };
+
+    set_current();
+    load_fonts(font_list);
+}
+
+xray::ui::user_interface::user_interface(concurrencpp::result<FontsLoadBundle> font_pkg_future)
+{
+    IMGUI_CHECKVERSION();
+    _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ []() {
+        auto imgui_ctx = ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
+        // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
+        ImGui::StyleColorsDark();
+
+        ImGuiStyle& style = ImGui::GetStyle();
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+            style.WindowRounding = 0.0f;
+            style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+        }
+        return imgui_ctx;
+    }() };
+
+    set_current();
+
+    auto font_packages = font_pkg_future.get();
+
+    //
+    // Default fonts that always get loaded (Proggy and FontAwesome)
+    ImGuiIO& io = ImGui::GetIO();
+    auto default_font = io.Fonts->AddFontDefault();
+    _rendercontext.fonts.push_back({ "Default", 13.0f, default_font });
+
+    for (size_t i = 0, count = font_packages.info.size(); i < count; ++i) {
+        const font_info& fi = font_packages.info[i];
+        const mio::mmap_source& src = font_packages.data[i];
+
+        ImFontConfig config;
+        config.OversampleH = 3;
+        config.OversampleV = 1;
+        config.GlyphExtraSpacing.x = 1.0f;
+        config.MergeMode = true;
+        config.FontDataOwnedByAtlas = false;
+
+        auto fnt = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
+            (void*)src.data(), (int)src.size(), fi.pixel_size, &config, ImGui::GetIO().Fonts->GetGlyphRangesDefault());
+
+        if (!fnt) {
+            XR_LOG_INFO("Failed to load font {}", fi.path.string());
+            continue;
+        }
+
+        _rendercontext.fonts.emplace_back(fi.path.stem().string(), fi.pixel_size, fnt);
+    }
+
+    sort(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& f0, const loaded_font& f1) {
+        if (f0.name < f1.name) {
+            return true;
+        }
+
+        if (f0.name > f1.name) {
+            return false;
+        }
+
+        return f0.pixel_size <= f1.pixel_size;
+    });
+
+    for_each(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& fi) {
+        XR_LOG_INFO("added font {}, size {} ...", fi.name, fi.pixel_size);
+    });
+
+    io.Fonts->GetTexDataAsRGBA32(&_rendercontext.atlas_data, &_rendercontext.atlas_width, &_rendercontext.atlas_height);
 }
 
 #if defined(XRAY_RENDERER_OPENGL)
@@ -280,26 +392,6 @@ static constexpr auto IMGUI_SHADER_LEN = static_cast<uint32_t>(sizeof(IMGUI_SHAD
 void
 xray::ui::user_interface::init(const std::span<const font_info> font_list)
 {
-    IMGUI_CHECKVERSION();
-    _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ []() {
-        auto imgui_ctx = ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO();
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
-        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
-        // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
-        ImGui::StyleColorsDark();
-
-        ImGuiStyle& style = ImGui::GetStyle();
-        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-            style.WindowRounding = 0.0f;
-            style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-        }
-        return imgui_ctx;
-    }() };
-    // _imcontext->IO.Fonts = new ImFontAtlas();
-
-    set_current();
 
 #if defined(XRAY_RENDERER_DIRECTX)
 
@@ -492,6 +584,7 @@ xray::ui::user_interface::load_fonts(const std::span<const font_info> font_list)
     ImFontConfig config;
     config.MergeMode = true;
     static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+
     auto font_awesome = io.Fonts->AddFontFromFileTTF(
         ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").generic_string().c_str(),
         13.0f,

@@ -48,11 +48,14 @@
 #include <vector>
 #include <span>
 
+#include <concurrencpp/forward_declarations.h>
+
 #include <imgui/IconsFontAwesome.h>
 #include <imgui/imconfig.h>
 #include <imgui/imgui.h>
 
 #include <tl/optional.hpp>
+#include <mio/mmap.hpp>
 
 struct ImGuiIO;
 struct ImFont;
@@ -83,6 +86,12 @@ struct imcontext_deleter
 
 struct UserInterfaceBackendCreateInfo;
 
+struct FontsLoadBundle
+{
+    std::vector<font_info> info;
+    std::vector<mio::mmap_source> data;
+};
+
 class user_interface
 {
   public:
@@ -91,6 +100,7 @@ class user_interface
 
     user_interface() noexcept;
     user_interface(const std::span<const font_info> font_list);
+    explicit user_interface(concurrencpp::result<FontsLoadBundle> font_pkg_future);
     ~user_interface() noexcept;
 
     bool input_event(const window_event& evt);

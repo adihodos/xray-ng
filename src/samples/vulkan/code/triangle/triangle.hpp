@@ -1,17 +1,39 @@
 #pragma once
 
 #include "demo_base.hpp"
+
+#include <tl/expected.hpp>
+#include <concurrencpp/forward_declarations.h>
+
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera.controller.arcball.hpp"
 
+#include <vector>
+#include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
+#include "xray/rendering/geometry.importer.gltf.hpp"
+#include "xray/rendering/geometry.hpp"
+
 namespace xray::ui {
 class user_interface;
 };
 
+namespace xray::rendering {
+struct GeometryWithRenderData;
+};
+
 namespace dvk {
+
+struct LoadedGeometryBundle
+{
+    std::vector<xray::rendering::VertexPBR> vertex_mem;
+    std::vector<uint32_t> index_mem;
+    xray::rendering::ExtractedMaterialsWithImageSourcesBundle material_data;
+    xray::rendering::Geometry geometry;
+    xray::rendering::LoadedGeometry raw_data;
+};
 
 class TriangleDemo : public app::DemoBase
 {
@@ -27,7 +49,10 @@ class TriangleDemo : public app::DemoBase
 
     static std::string_view short_desc() noexcept { return "Vulkan triangle."; }
     static std::string_view detailed_desc() noexcept { return "Rendering a simple triangle using Vulkan."; }
-    static xray::base::unique_pointer<app::DemoBase> create(const app::init_context_t& initContext);
+    static xray::base::unique_pointer<app::DemoBase> create(
+        const app::init_context_t& init_ctx,
+        concurrencpp::result<tl::expected<xray::rendering::GeometryWithRenderData, xray::rendering::VulkanError>>
+            bundle);
 
   private:
     void user_interface(xray::ui::user_interface* ui);
@@ -39,7 +64,6 @@ class TriangleDemo : public app::DemoBase
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer;
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials_buffer;
         xray::rendering::GraphicsPipeline pipeline;
-        xray::rendering::BindlessImageResourceHandleEntryPair g_texture;
     } _renderstate;
 
     struct SimState
@@ -73,7 +97,6 @@ class TriangleDemo : public app::DemoBase
                  xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,
                  xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials,
                  xray::rendering::GraphicsPipeline pipeline,
-                 xray::rendering::BindlessImageResourceHandleEntryPair g_texture,
                  xray::base::unique_pointer<WorldState> _world);
 
     ~TriangleDemo();

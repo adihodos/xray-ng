@@ -87,11 +87,13 @@ target_link_libraries(
           xray-scene
           xray-ui
           xray-math
-          TBB::tbb
           itlib::itlib
           cpp-lazy::cpp-lazy
           reflectcpp
-          spdlog::spdlog)
+          spdlog::spdlog
+          concurrencpp::concurrencpp
+          TBB::tbb
+        )
 
 get_target_property(target_output_directory ${PROJECT_NAME}
                     RUNTIME_OUTPUT_DIRECTORY)

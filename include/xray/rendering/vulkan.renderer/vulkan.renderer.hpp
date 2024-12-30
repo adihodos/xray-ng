@@ -129,8 +129,38 @@ struct RenderState
 {
     PhysicalDeviceData dev_physical;
     xrUniqueVkDevice dev_logical;
+    xrUniqueBufferWithMemory staging_buffer;
+    UniqueMemoryMapping mapped_staging_buffer;
+    std::atomic_uintptr_t staging_buffer_offset;
     std::vector<Queue> queues;
     RenderingAttachments attachments;
+
+    RenderState(const PhysicalDeviceData& pd,
+                xrUniqueVkDevice&& logical,
+                xrUniqueBufferWithMemory&& staging,
+                UniqueMemoryMapping&& mapped_staging,
+                std::vector<Queue>&& qs,
+                RenderingAttachments&& atts)
+        : dev_physical{ pd }
+        , dev_logical{ std::move(logical) }
+        , staging_buffer{ std::move(staging) }
+        , mapped_staging_buffer{ std::move(mapped_staging) }
+        , staging_buffer_offset{ reinterpret_cast<uintptr_t>(mapped_staging_buffer._mapped_memory) }
+        , queues{ std::move(qs) }
+        , attachments{ std::move(atts) }
+    {
+    }
+
+    RenderState(RenderState&& rhs) noexcept
+        : dev_physical(std::move(rhs.dev_physical))
+        , dev_logical(std::move(rhs.dev_logical))
+        , staging_buffer(std::move(rhs.staging_buffer))
+        , mapped_staging_buffer(std::move(rhs.mapped_staging_buffer))
+        , staging_buffer_offset(rhs.staging_buffer_offset.load())
+        , queues(std::move(rhs.queues))
+        , attachments(std::move(rhs.attachments))
+    {
+    }
 };
 
 struct DescriptorPoolState
@@ -305,6 +335,21 @@ class VulkanRenderer
     }
     // @endgroup
 
+    std::tuple<VkQueue, uint32_t, VkCommandPool> queue_data(const uint32_t idx) const noexcept
+    {
+        return { _render_state.queues[idx].handle,
+                 _render_state.queues[idx].index,
+                 xray::base::unique_pointer_get_ptr(_render_state.queues[idx].cmd_pool) };
+    }
+
+    uintptr_t reserve_staging_buffer_memory(const size_t bytes) noexcept
+    {
+        return _render_state.staging_buffer_offset.fetch_add(bytes);
+    }
+    VkBuffer staging_buffer() const noexcept { return _render_state.staging_buffer.handle<VkBuffer>(); }
+
+    void queue_image_ownership_transfer(const BindlessResourceHandle_Image img) { _ownership_transfers.push_back(img); }
+
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
     const detail::Queue& transfer_queue() const noexcept { return _render_state.queues[1]; }
@@ -316,6 +361,7 @@ class VulkanRenderer
     WorkPackageState _work_queue;
     BindlessSystem _bindless;
     std::vector<std::filesystem::path> _shader_include_directories;
+    std::vector<BindlessResourceHandle_Image> _ownership_transfers;
 };
 
 template<typename VkObjectType>

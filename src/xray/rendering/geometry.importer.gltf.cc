@@ -28,6 +28,14 @@ LoadedGeometry::LoadedGeometry()
 {
 }
 
+LoadedGeometry::LoadedGeometry(LoadedGeometry&& rhs) noexcept
+    : nodes{ std::move(rhs.nodes) }
+    , bounding_box{ rhs.bounding_box }
+    , bounding_sphere{ rhs.bounding_sphere }
+    , gltf{ std::move(rhs.gltf) }
+{
+}
+
 LoadedGeometry::~LoadedGeometry() {}
 
 tl::expected<LoadedGeometry, GeometryImportError>
@@ -113,7 +121,7 @@ LoadedGeometry::compute_vertex_index_count() const
 }
 
 ExtractedMaterialsWithImageSourcesBundle
-LoadedGeometry::extract_images_info(const uint32_t null_texture) const noexcept
+LoadedGeometry::extract_materials(const uint32_t null_texture) const noexcept
 {
     ExtractedMaterialsWithImageSourcesBundle result{};
 
@@ -196,10 +204,7 @@ LoadedGeometry::extract_data(void* vertex_buffer,
             return math::merge(merged, node.boundingbox);
         });
 
-    bounding_sphere = math::sphere3f{
-        bounding_box.center(), math::length(bounding_box.extents())
-        // bounding_box.max_dimension() * 0.5f
-    };
+    bounding_sphere = math::sphere3f{ bounding_box.center(), math::length(bounding_box.extents()) };
 
     return buffer_offsets;
 }

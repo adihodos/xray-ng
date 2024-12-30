@@ -34,7 +34,6 @@
 #include <tl/optional.hpp>
 #include <tl/expected.hpp>
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/objects/aabb3.hpp"

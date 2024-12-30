@@ -41,7 +41,7 @@ struct VulkanImageLoadInfo
 struct VulkanImageCreateInfo
 {
     const char* tag_name{};
-    WorkPackageHandle wpkg;
+    tl::optional<WorkPackageHandle> wpkg;
     VkImageType type{ VK_IMAGE_TYPE_2D };
     VkImageUsageFlags usage_flags{ VK_IMAGE_USAGE_SAMPLED_BIT };
     VkMemoryPropertyFlags memory_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
@@ -52,7 +52,7 @@ struct VulkanImageCreateInfo
     uint32_t height{};
     uint32_t depth{ 1 };
     uint32_t layers{ 1 };
-    std::span<const std::span<const uint8_t>> pixels;
+    std::span<const std::span<const uint8_t>> pixels{};
 };
 
 class VulkanImage

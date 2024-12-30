@@ -73,8 +73,11 @@ void
 xray::base::setup_logging(const LogLevel log_lvl)
 {
     spdlog::init_thread_pool(8192, 1);
+    const std::string log_pattern{"[%H:%M:%S %z] [%n] [%^-%L-%$] [thread %t] %v"};
     auto stdout_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+    stdout_sink->set_pattern(log_pattern);
     auto rotating_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("xray.log", true);
+    rotating_sink->set_pattern(log_pattern);
     std::vector<spdlog::sink_ptr> sinks{ stdout_sink, rotating_sink };
 
     // auto logger = std::make_shared<spdlog::async_logger>(

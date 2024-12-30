@@ -97,7 +97,7 @@ class LoadedGeometry
 {
   public:
     LoadedGeometry();
-    LoadedGeometry(LoadedGeometry&&) = default;
+    LoadedGeometry(LoadedGeometry&&) noexcept;
     LoadedGeometry(const LoadedGeometry&) = delete;
     LoadedGeometry& operator=(const LoadedGeometry&) = delete;
     ~LoadedGeometry();
@@ -105,7 +105,7 @@ class LoadedGeometry
     static tl::expected<LoadedGeometry, GeometryImportError> from_file(const std::filesystem::path& path);
     static tl::expected<LoadedGeometry, GeometryImportError> from_memory(const std::span<const uint8_t> bytes);
 
-    ExtractedMaterialsWithImageSourcesBundle extract_images_info(const uint32_t null_texture_handle) const noexcept;
+    ExtractedMaterialsWithImageSourcesBundle extract_materials(const uint32_t null_texture_handle) const noexcept;
     xray::math::vec2ui32 extract_data(void* vertex_buffer,
                                       void* index_buffer,
                                       const xray::math::vec2ui32 offsets,

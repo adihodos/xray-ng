@@ -10,7 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 cpmaddpackage("gh:uxlfoundation/oneTBB@2022.0.0")
-# cpmaddpackage("gh:oneapi-src/oneTBB@2022.0.0")
+cpmaddpackage("gh:adihodos/concurrencpp#fix-compile-error")
 cpmaddpackage("gh:fmtlib/fmt#10.2.1")
 cpmaddpackage("gh:TartanLlama/optional@1.1.0")
 cpmaddpackage("gh:TartanLlama/expected@1.1.0")

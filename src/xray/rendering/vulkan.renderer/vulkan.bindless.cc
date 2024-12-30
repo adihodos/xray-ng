@@ -17,6 +17,23 @@ xray::rendering::BindlessSystem::BindlessSystem(
 {
 }
 
+xray::rendering::BindlessSystem::BindlessSystem(xray::rendering::BindlessSystem&& rhs) noexcept
+    : _bindless{ std::move(rhs._bindless) }
+    , _set_layouts{ std::move(rhs._set_layouts) }
+    , _descriptors{ std::move(rhs._descriptors) }
+    , _image_resources{ std::move(rhs._image_resources) }
+    , _ubo_resources{ std::move(rhs._ubo_resources) }
+    , _sbo_resources{ std::move(rhs._sbo_resources) }
+    , _writes_ubo{ std::move(rhs._writes_ubo) }
+    , _writes_sbo{ std::move(rhs._writes_sbo) }
+    , _writes_img{ std::move(rhs._writes_img) }
+    , _handle_idx_ubos{ rhs._handle_idx_ubos }
+    , _handle_idx_sbos{ rhs._handle_idx_sbos }
+    , _free_slot_images{ rhs._free_slot_images.load() }
+    , _sampler_table{ std::move(rhs._sampler_table) }
+{
+}
+
 xray::rendering::BindlessSystem::~BindlessSystem()
 {
     VkDevice device{ _bindless._owner };
@@ -191,12 +208,18 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
 }
 
 std::pair<xray::rendering::BindlessResourceHandle_Image, xray::rendering::BindlessResourceEntry_Image>
-xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img, VkSampler smp)
+xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img,
+                                           VkSampler smp,
+                                           const tl::optional<uint32_t> slot)
 {
-    const auto [image, image_memory, image_view] = img.release();
-    _image_resources.emplace_back(image, image_memory, image_view, img._info);
+    const uint32_t handle{ slot.value_or(_free_slot_images.fetch_add(1)) };
+    if (handle >= _image_resources.size()) {
+        _image_resources.resize(handle + 1);
+    }
 
-    const uint32_t handle{ static_cast<uint32_t>(_image_resources.size() - 1) };
+    const auto [image, image_memory, image_view] = img.release();
+    _image_resources[handle] =
+        BindlessResourceEntry_Image{ .handle = image, .memory = image_memory, .image_view = image_view };
 
     _writes_img.push_back(WriteDescriptorImageInfo{
         .dst_array = handle,
@@ -370,4 +393,12 @@ xray::rendering::BindlessSystem::get_sampler(const VkSamplerCreateInfo& sampler_
 
     const auto inserted_entry = _sampler_table.emplace(sampler_info, new_sampler);
     return inserted_entry.first->second;
+}
+
+const xray::rendering::BindlessResourceEntry_Image&
+xray::rendering::BindlessSystem::image_entry(const xray::rendering::BindlessResourceHandle_Image img) const noexcept
+{
+    const uint32_t idx = detail::BindlessResourceHandleHelper{ img.value_of() }.array_start;
+    assert(idx < _image_resources.size());
+    return _image_resources[idx];
 }

@@ -15,10 +15,10 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
     constexpr const auto mem_props_host_access =
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
 
-    if (!(create_info.memory_properties & mem_props_host_access) && create_info.initial_data.size() == 0) {
-        assert(false && "Buffer has no host memory access flags and no initial data!");
-        XR_VK_CHECK_RESULT(VK_ERROR_VALIDATION_FAILED_EXT);
-    }
+    // if (!(create_info.memory_properties & mem_props_host_access) && create_info.initial_data.size() == 0) {
+    //     assert(false && "Buffer has no host memory access flags and no initial data!");
+    //     XR_VK_CHECK_RESULT(VK_ERROR_VALIDATION_FAILED_EXT);
+    // }
 
     const VkDeviceSize alignment_by_usage =
         [&create_info, mem_props_host_access, limits = &renderer.physical().properties.base.properties.limits]() {
@@ -132,33 +132,35 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
     } else {
         //
         // immutable buffer, create a staging buffer to use as a copy source then issue a copy command
-        assert(create_info.work_package != tl::nullopt);
+        // assert(create_info.work_package != tl::nullopt);
 
-        auto staging_buffer{ renderer.create_staging_buffer(*create_info.work_package, create_info.bytes) };
-        if (!staging_buffer)
-            return tl::unexpected{ staging_buffer.error() };
+        if (create_info.work_package) {
+            auto staging_buffer{ renderer.create_staging_buffer(*create_info.work_package, create_info.bytes) };
+            if (!staging_buffer)
+                return tl::unexpected{ staging_buffer.error() };
 
-        itlib::small_vector<VkBufferCopy> buffer_copies;
-        uint32_t copy_offset{};
-        for (std::span<const uint8_t> copy_rgn : create_info.initial_data) {
-            buffer_copies.push_back(VkBufferCopy{
-                .srcOffset = copy_offset,
-                .dstOffset = copy_offset,
-                .size = static_cast<VkDeviceSize>(copy_rgn.size_bytes()),
-            });
-            copy_offset += static_cast<uint32_t>(copy_rgn.size_bytes());
+            itlib::small_vector<VkBufferCopy> buffer_copies;
+            uint32_t copy_offset{};
+            for (std::span<const uint8_t> copy_rgn : create_info.initial_data) {
+                buffer_copies.push_back(VkBufferCopy{
+                    .srcOffset = copy_offset,
+                    .dstOffset = copy_offset,
+                    .size = static_cast<VkDeviceSize>(copy_rgn.size_bytes()),
+                });
+                copy_offset += static_cast<uint32_t>(copy_rgn.size_bytes());
+            }
+
+            UniqueMemoryMapping::map_memory(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
+                .map([&](UniqueMemoryMapping bmap) {
+                    for (std::span<const uint8_t> chunk : create_info.initial_data) {
+                        memcpy(bmap._mapped_memory, chunk.data(), chunk.size_bytes());
+                    }
+                });
+
+            const VkCommandBuffer cmdbuf = renderer.get_cmd_buf_for_work_package(*create_info.work_package);
+            vkCmdCopyBuffer(
+                cmdbuf, staging_buffer->buf, buffer, static_cast<uint32_t>(buffer_copies.size()), buffer_copies.data());
         }
-
-        UniqueMemoryMapping::map_memory(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
-            .map([&](UniqueMemoryMapping bmap) {
-                for (std::span<const uint8_t> chunk : create_info.initial_data) {
-                    memcpy(bmap._mapped_memory, chunk.data(), chunk.size_bytes());
-                }
-            });
-
-        const VkCommandBuffer cmdbuf = renderer.get_cmd_buf_for_work_package(*create_info.work_package);
-        vkCmdCopyBuffer(
-            cmdbuf, staging_buffer->buf, buffer, static_cast<uint32_t>(buffer_copies.size()), buffer_copies.data());
     }
 
     return VulkanBuffer{

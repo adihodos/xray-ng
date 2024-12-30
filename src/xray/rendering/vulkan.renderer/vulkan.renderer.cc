@@ -770,10 +770,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 return tl::nullopt;
             }
 
-            const auto graphics_q_idx = r_find_pos(
-                pdd.queue_props, [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_GRAPHICS_BIT; });
+            tl::optional<uint32_t> graphics_queue_idx;
+            for (uint32_t idx = 0, count = static_cast<uint32_t>(pdd.queue_props.size()); idx < count; ++idx) {
+                if (pdd.queue_props[idx].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                    graphics_queue_idx = idx;
+                    break;
+                }
+            }
 
-            if (!graphics_q_idx) {
+            if (!graphics_queue_idx) {
                 XR_LOG_INFO("Rejecting device {}, no graphics queue support.",
                             pdd.properties.base.properties.deviceName);
                 return tl::nullopt;
@@ -781,30 +786,26 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
             // surface presentation support
 
-            if (!check_physical_device_presentation_surface_support(win_data, instance, pdd.device, *graphics_q_idx)) {
+            if (!check_physical_device_presentation_surface_support(
+                    win_data, instance, pdd.device, *graphics_queue_idx)) {
                 XR_LOG_INFO("Rejecting device {}, no surface presentation support (queue family index {})",
                             pdd.properties.base.properties.deviceName,
-                            *graphics_q_idx);
+                            *graphics_queue_idx);
                 return tl::nullopt;
             }
 
-            auto transfer_q_idx = r_find_pos(
-                pdd.queue_props, [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_TRANSFER_BIT; });
+            tl::optional<uint32_t> transfer_queue_idx{};
+            for (uint32_t idx = 0, count = static_cast<uint32_t>(pdd.queue_props.size()); idx < count; ++idx) {
+                if (pdd.queue_props[idx].queueFlags & VK_QUEUE_TRANSFER_BIT && idx != *graphics_queue_idx) {
+                    transfer_queue_idx = idx;
+                    break;
+                }
+            }
 
-            if (!transfer_q_idx) {
-                XR_LOG_INFO("Rejecting device {}, no graphics queue support.",
+            if (!transfer_queue_idx) {
+                XR_LOG_INFO("Rejecting device {}, no graphics + transfer on different queues support.",
                             pdd.properties.base.properties.deviceName);
                 return tl::nullopt;
-            }
-
-            if (transfer_q_idx == graphics_q_idx) {
-                // try to find a different queue with transfer if possible
-
-                if (const auto different_transfer_queue = r_find_pos(
-                        std::span{ std::cbegin(pdd.queue_props) + *transfer_q_idx, std::cend(pdd.queue_props) },
-                        [](const VkQueueFamilyProperties& q) { return q.queueFlags & VK_QUEUE_TRANSFER_BIT; })) {
-                    transfer_q_idx = different_transfer_queue;
-                }
             }
 
             small_vec_4<VkExtensionProperties> device_extensions{ [dev = pdd.device]() {
@@ -821,7 +822,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 XR_LOG_INFO("{} - {:#x}", ext_props.extensionName, ext_props.specVersion);
             });
 
-            return tl::make_optional(make_tuple(pdd, *graphics_q_idx, *transfer_q_idx));
+            return tl::make_optional(make_tuple(pdd, *graphics_queue_idx, *transfer_queue_idx));
         })
         .filter([](tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> data) { return data.has_value(); })
         .forEach([&phys_devices_data](tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> pd) mutable {
@@ -842,27 +843,22 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 phys_device.properties.base.properties.deviceName,
                 phys_device.properties.base.properties.vendorID);
 
-    small_vec_2<VkDeviceQueueCreateInfo> queue_create_info{};
-
-    queue_create_info.emplace_back(VkDeviceQueueCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .queueFamilyIndex = static_cast<uint32_t>(queue_graphics),
-        .queueCount = 1,
-        .pQueuePriorities = queue_priorities,
-    });
-
-    if (queue_graphics != queue_transfer) {
-        queue_create_info.emplace_back(VkDeviceQueueCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .queueFamilyIndex = static_cast<uint32_t>(queue_transfer),
-            .queueCount = 1,
-            .pQueuePriorities = queue_priorities,
-        });
-    }
+    const VkDeviceQueueCreateInfo queue_create_info[] = { VkDeviceQueueCreateInfo{
+                                                              .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                                                              .pNext = nullptr,
+                                                              .flags = 0,
+                                                              .queueFamilyIndex = static_cast<uint32_t>(queue_graphics),
+                                                              .queueCount = 1,
+                                                              .pQueuePriorities = &queue_priorities[0],
+                                                          },
+                                                          VkDeviceQueueCreateInfo{
+                                                              .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                                                              .pNext = nullptr,
+                                                              .flags = 0,
+                                                              .queueFamilyIndex = static_cast<uint32_t>(queue_transfer),
+                                                              .queueCount = 1,
+                                                              .pQueuePriorities = &queue_priorities[1],
+                                                          } };
 
     static constexpr initializer_list<const char*> device_extensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -876,7 +872,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         .pNext = &phys_device.features.base,
         .flags = 0,
         .queueCreateInfoCount = static_cast<uint32_t>(size(queue_create_info)),
-        .pQueueCreateInfos = queue_create_info.data(),
+        .pQueueCreateInfos = queue_create_info,
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
         .enabledExtensionCount = static_cast<uint32_t>(size(device_extensions)),
@@ -898,7 +894,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
 
     array<VkQueue, 2> queues{};
     vkGetDeviceQueue(raw_ptr(logical_device), queue_graphics, 0, &queues[0]);
-    vkGetDeviceQueue(raw_ptr(logical_device), queue_transfer, (queue_transfer != queue_graphics), &queues[1]);
+    vkGetDeviceQueue(raw_ptr(logical_device), queue_transfer, 0, &queues[1]);
     XR_LOG_INFO("Queue ids: graphics {}, transfer {}",
                 static_cast<const void*>(queues[0]),
                 static_cast<const void*>(queues[1]));
@@ -941,6 +937,8 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             return create_xcb_surface(*xcb, instance);
         }
 #endif
+
+        return tl::nullopt;
     }() };
 
     if (!present_to_surface) {
@@ -1184,6 +1182,54 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         return tl::nullopt;
     }
 
+    xrUniqueVkBuffer staging_buffer{ nullptr, VkResourceDeleter_VkBuffer{ raw_ptr(logical_device) } };
+    const VkBufferCreateInfo staging_create_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .size = 512 * 1024 * 1024,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+    };
+
+    WRAP_VULKAN_FUNC(
+        vkCreateBuffer, raw_ptr(logical_device), &staging_create_info, nullptr, raw_ptr_ptr(staging_buffer));
+    if (!staging_buffer)
+        return tl::nullopt;
+
+    VkMemoryRequirements staging_mem_rq{};
+    vkGetBufferMemoryRequirements(raw_ptr(logical_device), raw_ptr(staging_buffer), &staging_mem_rq);
+
+    const VkMemoryAllocateInfo staging_mem_alloc{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .allocationSize = staging_mem_rq.size,
+        .memoryTypeIndex = vk_find_allocation_memory_type(
+            phys_device.memory, staging_mem_rq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+    };
+
+    xrUniqueVkDeviceMemory staging_mem{ nullptr, VkResourceDeleter_VkDeviceMemory{ raw_ptr(logical_device) } };
+    WRAP_VULKAN_FUNC(vkAllocateMemory, raw_ptr(logical_device), &staging_mem_alloc, nullptr, raw_ptr_ptr(staging_mem));
+    if (!staging_mem)
+        return tl::nullopt;
+
+    const VkResult bind_res =
+        WRAP_VULKAN_FUNC(vkBindBufferMemory, raw_ptr(logical_device), raw_ptr(staging_buffer), raw_ptr(staging_mem), 0);
+    if (bind_res != VK_SUCCESS) {
+        return tl::nullopt;
+    }
+
+    xrUniqueBufferWithMemory staging{ raw_ptr(logical_device),
+                                      unique_pointer_release(staging_buffer),
+                                      unique_pointer_release(staging_mem) };
+
+    auto mapped_staging_buffer =
+        UniqueMemoryMapping::map_memory(raw_ptr(logical_device), staging.handle<VkDeviceMemory>(), 0, VK_WHOLE_SIZE);
+    if (!mapped_staging_buffer)
+        return tl::nullopt;
+
     return tl::make_optional<VulkanRenderer>(
         PrivateConstructionToken{},
         detail::InstanceState{
@@ -1193,6 +1239,8 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         detail::RenderState{
             phys_device,
             std::move(logical_device),
+            std::move(staging),
+            std::move(*mapped_staging_buffer),
             std::move(qs),
             detail::RenderingAttachments{
                 .view_mask = 0,
@@ -1460,6 +1508,53 @@ VulkanRenderer::begin_rendering()
     // move rendering attachments from undefined to optimal layout
     WRAP_VULKAN_FUNC(
         vkCmdPipelineBarrier2, _presentation_state.command_buffers[_presentation_state.frame_index], &dependency_info);
+
+    //
+    // do any pending ownership transfers
+    if (!_ownership_transfers.empty()) {
+        const vector<VkImageMemoryBarrier2> mem_barriers =
+            _ownership_transfers % fn::transform([this](const BindlessResourceHandle_Image img) {
+                const BindlessResourceEntry_Image& img_data = bindless_sys().image_entry(img);
+
+                return VkImageMemoryBarrier2{
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                    .pNext = nullptr,
+                    .srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                    .srcAccessMask = 0,
+                    .dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                    .dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT,
+                    .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    .srcQueueFamilyIndex = _render_state.queues[1].index,
+                    .dstQueueFamilyIndex = _render_state.queues[0].index,
+                    .image = img_data.handle,
+                    .subresourceRange =
+                        VkImageSubresourceRange{
+                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .baseMipLevel = 0,
+                            .levelCount = img_data.info.levelCount,
+                            .baseArrayLayer = 0,
+                            .layerCount = img_data.info.layerCount,
+                        },
+                };
+            }) %
+            fn::to_vector();
+
+        const VkDependencyInfo dep_info{
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .pNext = nullptr,
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+            .memoryBarrierCount = 0,
+            .pMemoryBarriers = nullptr,
+            .bufferMemoryBarrierCount = 0,
+            .pBufferMemoryBarriers = nullptr,
+            .imageMemoryBarrierCount = static_cast<uint32_t>(size(mem_barriers)),
+            .pImageMemoryBarriers = mem_barriers.data(),
+        };
+
+        vkCmdPipelineBarrier2(_presentation_state.command_buffers[_presentation_state.frame_index], &dependency_info);
+        _ownership_transfers.clear();
+    }
 
     WRAP_VULKAN_FUNC(
         vkCmdBeginRendering, _presentation_state.command_buffers[_presentation_state.frame_index], &rendering_info);
