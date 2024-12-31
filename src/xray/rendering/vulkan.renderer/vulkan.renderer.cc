@@ -592,15 +592,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
     }
 
     const small_vec_4<const char*> extensions_list{ [&supported_extensions]() {
-        small_vec_4<const char*> exts_list{
+        small_vec_4<const char*> exts_list
+        {
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(XRAY_OS_IS_WINDOWS)
-            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+                VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #else
-            VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+                VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+                VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
@@ -1046,7 +1046,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
             }();
 
             const VkExtent3D swapchain_dimensions = swl::visit(
-                VariantVisitor{
+                VariantVisitor {
 #if defined(XRAY_OS_IS_WINDOWS)
                     [](const WindowPlatformDataWin32& win32) {
                         return VkExtent3D{ .width = win32.width, .height = win32.height, .depth = 1 };
@@ -1055,9 +1055,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                     [](const WindowPlatformDataXcb& xcb) {
                         return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
                     },
-                    [](const WindowPlatformDataXlib& xlib) {
-                        return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                    },
+                        [](const WindowPlatformDataXlib& xlib) {
+                            return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
+                        },
 #endif
                 },
                 win_data);
@@ -2316,6 +2316,33 @@ VulkanRenderer::dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, con
     };
 
     vkfn::CmdDebugMarkerInsertEXT(cmd_buf, &debug_marker);
+}
+
+tl::expected<VkCommandBuffer, VulkanError>
+VulkanRenderer::new_transfer_command_buffer() noexcept
+{
+    const VkCommandBufferAllocateInfo alloc_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .commandPool = raw_ptr(_render_state.queues[1].cmd_pool),
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    VkCommandBuffer cmd_buffer{};
+    const VkResult alloc_cmdbuffs_res =
+        WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, raw_ptr(_render_state.dev_logical), &alloc_info, &cmd_buffer);
+    XR_VK_CHECK_RESULT(alloc_cmdbuffs_res);
+
+    const VkCommandBufferBeginInfo cmd_buf_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
+    vkBeginCommandBuffer(cmd_buffer, &cmd_buf_begin_info);
+
+    return tl::expected<VkCommandBuffer, VulkanError>{ cmd_buffer };
 }
 
 uint32_t

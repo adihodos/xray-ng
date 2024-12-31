@@ -31,7 +31,6 @@
 /// \file   geometry_factory.hpp    Helper classes/functions to create
 ///         geometrical shapes.
 
-#include "xray/xray.hpp"
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -98,15 +97,11 @@ xray::rendering::vertex_effect::ripple(std::span<vertex_type> vertices,
 class geometry_factory
 {
   public:
-    static void tetrahedron(geometry_data_t* mesh);
-
-    static void hexahedron(geometry_data_t* mesh);
-
-    static void octahedron(geometry_data_t* mesh);
-
-    static void dodecahedron(geometry_data_t* mesh);
-
-    static void icosahedron(geometry_data_t* mesh);
+    static geometry_data_t tetrahedron();
+    static geometry_data_t hexahedron();
+    static geometry_data_t octahedron();
+    static geometry_data_t dodecahedron();
+    static geometry_data_t icosahedron();
 
     /// Creates a circle (XZ plane), centered around the origin.
     /// \param  radius  Circle's radius.
@@ -115,18 +110,17 @@ class geometry_factory
     // static void create_circle(const float radius, const uint32_t num_slices,
     //                           geometry_data_t* circle_geometry);
 
-    static void cylinder(const uint32_t ring_tesselation_factor,
-                         const uint32_t rings_count,
-                         const float height,
-                         const float radius,
-                         geometry_data_t* cylinder);
+    static geometry_data_t cylinder(const uint32_t ring_tesselation_factor,
+                                    const uint32_t rings_count,
+                                    const float height,
+                                    const float radius);
 
     /// Creates a box centered around the origin, with the specified
     /// dimensions.
     /// \param  width   Dimension along the X axis.
     /// \param  height  Dimension along the Y axis.
     /// \param  depth   Dimension along the Z axis.
-    static void box(const float width, const float height, const float depth, geometry_data_t* box_geometry);
+    static geometry_data_t box(const float width, const float height, const float depth);
 
     ///
     /// Creates a cone, centered at the origin.
@@ -165,20 +159,17 @@ class geometry_factory
     ///         at least 3.
     /// \param  tess_factor_vert    Vertical tesselation factor. Valid values
     ///         are from 0.
-    // static void create_conical_section(const float      upper_radius,
-    //                                    const float      lower_radius,
-    //                                    const float      height,
-    //                                    const uint32_t   tess_factor_horz,
-    //                                    const uint32_t   tess_factor_vert,
-    //                                    geometry_data_t* mesh);
+    static geometry_data_t conical_section(const float upper_radius,
+                                           const float lower_radius,
+                                           const float height,
+                                           const uint32_t tess_factor_horz,
+                                           const uint32_t tess_factor_vert);
 
-    static void geosphere(const float radius, const uint32_t max_subdivisions, geometry_data_t* mesh);
-
-    static void torus(const float outer_radius,
-                      const float inner_radius,
-                      const uint32_t sides,
-                      const uint32_t rings,
-                      geometry_data_t* mesh);
+    static geometry_data_t geosphere(const float radius, const uint32_t max_subdivisions);
+    static geometry_data_t torus(const float outer_radius,
+                                 const float inner_radius,
+                                 const uint32_t sides,
+                                 const uint32_t rings);
 
     /// Creates a quad spanning the whole screen. Vertices will be in NDC
     /// space.

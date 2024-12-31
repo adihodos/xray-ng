@@ -62,4 +62,12 @@ struct Geometry
     xray::math::sphere3f bounding_sphere{ xray::math::sphere3f::stdc::null };
 };
 
+struct ObjectDrawData
+{
+    uint32_t vertices;
+    uint32_t indices;
+    uint32_t vertex_offset;
+    uint32_t index_offset;
+};
+
 }

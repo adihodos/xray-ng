@@ -132,7 +132,7 @@ ArcballCamera::input_event(const ui::window_event& e) noexcept
 
         case ui::event_type::mouse_wheel: {
             const ui::mouse_wheel_event* mwe = &e.event.wheel;
-            zoom(static_cast<float>(mwe->delta), 0.0f);
+            zoom(mwe->fdelta, 0.0f);
         } break;
 
         default:

@@ -1026,7 +1026,7 @@ xray::ui::window::message_loop()
 
     while (_quit_flag == 0) {
 
-        core.events.poll_start(poll_start_event {});
+        core.events.poll_start(poll_start_event{});
 
         while ((_quit_flag == 0) && XEventsQueued(raw_ptr(_display), QueuedAfterFlush)) {
 
@@ -1188,7 +1188,8 @@ xray::ui::window::event_mouse_button(const XButtonEvent* x11evt)
     }
 
     mouse_wheel_event mwe;
-    mwe.delta = x11evt->button == Button4 ? 1 : -1;
+    mwe.delta = x11evt->button == Button4 ? +1 : -1;
+    mwe.fdelta = mwe.delta;
     mwe.wnd = this;
     mwe.pointer_x = x11evt->x;
     mwe.pointer_y = x11evt->y;

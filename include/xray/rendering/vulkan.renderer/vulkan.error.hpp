@@ -47,6 +47,12 @@ vk_result_to_string(const int32_t vk_result);
             return tl::make_unexpected(e.error());                                                                     \
     } while (0)
 
+#define XR_VK_COR_PROPAGATE_ERROR(e)                                                                                   \
+    do {                                                                                                               \
+        if (!e)                                                                                                        \
+            co_return tl::make_unexpected(e.error());                                                                  \
+    } while (0)
+
 } // namespace xray::rendering
 
 namespace fmt {

@@ -5,7 +5,6 @@
 
 #define TINYGLTF_IMPLEMENTATION
 #include <tiny_gltf.h>
-#include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
 #include <mio/mmap.hpp>
 
@@ -199,11 +198,10 @@ LoadedGeometry::extract_data(void* vertex_buffer,
         }
     }
 
-    bounding_box =
-        lz::chain(nodes).foldl(math::aabb3f::stdc::identity, [](math::aabb3f merged, const GeometryNode& node) {
-            return math::merge(merged, node.boundingbox);
-        });
-
+    bounding_box = math::aabb3f::stdc::identity;
+    for (size_t idx = 0, count = nodes.size(); idx < count; ++idx) {
+        bounding_box = math::merge(bounding_box, nodes[idx].boundingbox);
+    }
     bounding_sphere = math::sphere3f{ bounding_box.center(), math::length(bounding_box.extents()) };
 
     return buffer_offsets;

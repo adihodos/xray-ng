@@ -843,7 +843,7 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
     std::pmr::polymorphic_allocator<char> palloc{ &buffer_resource };
     std::pmr::string dbg_str{ palloc };
 
-    XRAY_SCOPE_EXIT
+    XRAY_SCOPE_EXIT noexcept
     {
         dbg_str.append(1, '\0');
         XR_LOG_INFO("Pipeline creation info:\n{}", dbg_str);

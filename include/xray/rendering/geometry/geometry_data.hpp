@@ -51,8 +51,7 @@ struct geometry_data_t
 
     using size_type = size_t;
 
-    geometry_data_t(geometry_data_t&&) = default;
-
+    geometry_data_t(geometry_data_t&&) noexcept = default;
     geometry_data_t() noexcept = default;
 
     geometry_data_t(scoped_vector_array_t<vertex_pntt> vertices,

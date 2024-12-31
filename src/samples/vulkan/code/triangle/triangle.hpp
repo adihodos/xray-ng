@@ -2,6 +2,9 @@
 
 #include "demo_base.hpp"
 
+#include <bitset>
+#include <vector>
+
 #include <tl/expected.hpp>
 #include <concurrencpp/forward_declarations.h>
 
@@ -11,7 +14,6 @@
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera.controller.arcball.hpp"
 
-#include <vector>
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/geometry.importer.gltf.hpp"
 #include "xray/rendering/geometry.hpp"
@@ -22,6 +24,7 @@ class user_interface;
 
 namespace xray::rendering {
 struct GeometryWithRenderData;
+struct GeneratedGeometryWithRenderData;
 };
 
 namespace dvk {
@@ -52,7 +55,9 @@ class TriangleDemo : public app::DemoBase
     static xray::base::unique_pointer<app::DemoBase> create(
         const app::init_context_t& init_ctx,
         concurrencpp::result<tl::expected<xray::rendering::GeometryWithRenderData, xray::rendering::VulkanError>>
-            bundle);
+            bundle,
+        concurrencpp::result<tl::expected<xray::rendering::GeneratedGeometryWithRenderData,
+                                          xray::rendering::VulkanError>> generated_objects);
 
   private:
     void user_interface(xray::ui::user_interface* ui);
@@ -64,6 +69,14 @@ class TriangleDemo : public app::DemoBase
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer;
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials_buffer;
         xray::rendering::GraphicsPipeline pipeline;
+
+        struct GeometricShapes
+        {
+            xray::rendering::VulkanBuffer vertexbuffer;
+            xray::rendering::VulkanBuffer indexbuffer;
+            xray::rendering::GraphicsPipeline pipeline;
+            std::vector<xray::rendering::ObjectDrawData> objects;
+        } _shapes;
     } _renderstate;
 
     struct SimState
@@ -84,6 +97,8 @@ class TriangleDemo : public app::DemoBase
         bool draw_sphere{ false };
         bool draw_nodes_spheres{ false };
         bool draw_nodes_bbox{ false };
+        bool draw_ship{ true };
+        std::bitset<32> shapes_draw{ 0x0 };
     } _uistate{};
 
     struct WorldState;
@@ -97,7 +112,8 @@ class TriangleDemo : public app::DemoBase
                  xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,
                  xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials,
                  xray::rendering::GraphicsPipeline pipeline,
-                 xray::base::unique_pointer<WorldState> _world);
+                 xray::base::unique_pointer<WorldState> _world,
+                 RenderState::GeometricShapes&& grid);
 
     ~TriangleDemo();
 };

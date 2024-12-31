@@ -34,8 +34,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <vector>
-#include <mutex>
-#include <condition_variable>
 
 #include <fmt/core.h>
 #include <fmt/std.h>
@@ -50,6 +48,7 @@
 #include "xray/base/delegate.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
+#include "xray/base/random.hpp"
 #include "xray/base/variant_visitor.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
@@ -152,6 +151,7 @@ class MainRunner
                xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> ui_backend,
                xray::base::unique_pointer<xray::rendering::DebugDrawSystem> debug_draw,
                concurrencpp::result<tl::expected<GeometryWithRenderData, VulkanError>> loadbundle,
+               concurrencpp::result<tl::expected<GeneratedGeometryWithRenderData, VulkanError>> gen_objs,
                xray::rendering::BindlessUniformBufferResourceHandleEntryPair global_ubo)
         : _task_sys{ std::move(task_sys) }
         , _window{ std::move(window) }
@@ -160,6 +160,7 @@ class MainRunner
         , _ui_backend{ std::move(ui_backend) }
         , _debug_draw{ std::move(debug_draw) } // , _registered_demos{ register_demos<dvk::TriangleDemo>() }
         , _loadbundle{ std::move(loadbundle) }
+        , _genobjs{ std::move(gen_objs) }
         , _global_ubo{ global_ubo }
     {
         hookup_event_delegates();
@@ -229,6 +230,8 @@ class MainRunner
     vector<char> _combo_items{};
     concurrencpp::result<tl::expected<xray::rendering::GeometryWithRenderData, xray::rendering::VulkanError>>
         _loadbundle;
+    concurrencpp::result<tl::expected<xray::rendering::GeneratedGeometryWithRenderData, xray::rendering::VulkanError>>
+        _genobjs;
     xray::rendering::BindlessUniformBufferResourceHandleEntryPair _global_ubo;
 
     XRAY_NO_COPY(MainRunner);
@@ -316,24 +319,27 @@ MainRunner::create()
         return tl::nullopt;
     }
 
-    tl::optional<VulkanRenderer> opt_renderer{ VulkanRenderer::create(
+    tl::optional<VulkanRenderer> opt_renderer
+    {
+        VulkanRenderer::create(
 #if defined(XRAY_OS_IS_WINDOWS)
-        WindowPlatformDataWin32{
-            .module = main_window.native_module(),
-            .window = main_window.native_window(),
-            .width = static_cast<uint32_t>(main_window.width()),
-            .height = static_cast<uint32_t>(main_window.height()),
-        }
+            WindowPlatformDataWin32{
+                .module = main_window.native_module(),
+                .window = main_window.native_window(),
+                .width = static_cast<uint32_t>(main_window.width()),
+                .height = static_cast<uint32_t>(main_window.height()),
+            }
 #else
-        WindowPlatformDataXlib{
-            .display = main_window.native_display(),
-            .window = main_window.native_window(),
-            .visual = main_window.native_visual(),
-            .width = static_cast<uint32_t>(main_window.width()),
-            .height = static_cast<uint32_t>(main_window.height()),
-        }
+            WindowPlatformDataXlib{
+                .display = main_window.native_display(),
+                .window = main_window.native_window(),
+                .visual = main_window.native_visual(),
+                .width = static_cast<uint32_t>(main_window.width()),
+                .height = static_cast<uint32_t>(main_window.height()),
+            }
 #endif
-        ) };
+        )
+    };
 
     if (!opt_renderer) {
         XR_LOG_CRITICAL("Failed to create Vulkan renderer!");
@@ -352,6 +358,10 @@ MainRunner::create()
                                                             task_sys->thread_pool_exec(),
                                                             base::raw_ptr(renderer),
                                                             std::move(*loaded_geometry));
+
+    concurrencpp::result<tl::expected<GeneratedGeometryWithRenderData, VulkanError>> gen_objs_task =
+        RendererAsyncTasks::create_generated_geometry_resources_task(
+            concurrencpp::executor_tag{}, task_sys->thread_pool_exec(), base::raw_ptr(renderer));
 
     // const auto [tqueue, tidx, tcmdpool] = renderer->queue_data(1);
     // const auto [gqueue, gidx, gcmdpool] = renderer->queue_data(0);
@@ -418,6 +428,7 @@ MainRunner::create()
         xray::base::make_unique<UserInterfaceRenderBackend_Vulkan>(std::move(*vk_backend)),
         xray::base::make_unique<DebugDrawSystem>(std::move(*debug_draw)),
         std::move(geometry_load_task),
+        std::move(gen_objs_task),
         g_ubo_handles);
 }
 
@@ -481,7 +492,8 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
                 .renderer = raw_ptr(_vkrenderer),
                 .quit_receiver = cpp::bind<&MainRunner::demo_quit>(this),
             },
-            std::move(_loadbundle));
+            std::move(_loadbundle),
+            std::move(_genobjs));
         doing_ur_mom = true;
     }
 
@@ -784,110 +796,116 @@ MainRunner::loop_event(const xray::ui::window_loop_event& loop_event)
 //
 // } // namespace app
 //
-// class heightmap_generator
-// {
-//   public:
-//     void generate(const int32_t width, const int32_t height)
-//     {
-//         this->seed(width, height);
-//         smooth_terrain(32);
-//         smooth_terrain(128);
-//     }
-//
-//   private:
-//     xray::math::vec3f make_point(const float x, const float z)
-//     {
-//         return { x, _rng.next_float(0.0f, 1.0f) > 0.3f ? std::abs(std::sin(x * z) * _roughness) : 0.0f, z };
-//     }
-//
-//     float get_point(const int32_t x, const int32_t z) const
-//     {
-//         const auto xp = (x + _width) % _width;
-//         const auto zp = (z + _height) % _height;
-//
-//         return _points[zp * _width + xp].y;
-//     }
-//
-//     void set_point(const int32_t x, const int32_t z, const float value)
-//     {
-//         const auto xp = (x + _width) % _width;
-//         const auto zp = (z + _height) % _height;
-//
-//         _points[zp * _width + xp].y = value;
-//     }
-//
-//     void point_from_square(const int32_t x, const int32_t z, const int32_t size, const float value)
-//     {
-//         const auto hs = size / 2;
-//         const auto a = get_point(x - hs, z - hs);
-//         const auto b = get_point(x + hs, z - hs);
-//         const auto c = get_point(x - hs, z + hs);
-//         const auto d = get_point(x + hs, z + hs);
-//
-//         set_point(x, z, (a + b + c + d) / 4.0f + value);
-//     }
-//
-//     void point_from_diamond(const int32_t x, const int32_t z, const int32_t size, const float value)
-//     {
-//         const auto hs = size / 2;
-//         const auto a = get_point(x - hs, z);
-//         const auto b = get_point(x + hs, z);
-//         const auto c = get_point(x, z - hs);
-//         const auto d = get_point(x, z + hs);
-//
-//         set_point(x, z, (a + b + c + d) / 4.0f + value);
-//     }
-//
-//     void diamond_square(const int32_t step_size, const float scale)
-//     {
-//         const auto half_step = step_size / 2;
-//
-//         for (int32_t z = half_step; z < _height + half_step; z += half_step) {
-//             for (int32_t x = half_step; x < _width + half_step; x += half_step) {
-//                 point_from_square(x, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
-//             }
-//         }
-//
-//         for (int32_t z = 0; z < _height; z += step_size) {
-//             for (int32_t x = 0; x < _width; x += step_size) {
-//                 point_from_diamond(x + half_step, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
-//                 point_from_diamond(x, z + half_step, step_size, _rng.next_float(0.0f, 1.0f) * scale);
-//             }
-//         }
-//     }
-//
-//     void seed(const int32_t new_width, const int32_t new_height)
-//     {
-//         _width = new_width;
-//         _height = new_height;
-//
-//         _points.clear();
-//         for (int32_t z = 0; z < _height; ++z) {
-//             for (int32_t x = 0; x < _width; ++x) {
-//                 _points.push_back(
-//                     { static_cast<float>(x), _rng.next_float(0.0f, 1.0f) * _roughness, static_cast<float>(z) });
-//             }
-//         }
-//     }
-//
-//     void smooth_terrain(const int32_t pass_size)
-//     {
-//         auto sample_size = pass_size;
-//         auto scale_factor = 1.0f;
-//
-//         while (sample_size > 1) {
-//             diamond_square(sample_size, scale_factor);
-//             sample_size /= 2;
-//             scale_factor /= 2.0f;
-//         }
-//     }
-//
-//     float _roughness{ 255.0f };
-//     int32_t _width;
-//     int32_t _height;
-//     xray::base::random_number_generator _rng;
-//     std::vector<xray::math::vec3f> _points;
-// };
+
+class HeightmapGenerator
+{
+  public:
+    HeightmapGenerator() = default;
+    HeightmapGenerator(const int32_t width, const int32_t height) { generate(width, height); }
+
+    void generate(const int32_t width, const int32_t height)
+    {
+        this->seed(width, height);
+        smooth_terrain(32);
+        smooth_terrain(128);
+    }
+
+    std::span<const vec3f> points() const noexcept { return std::span{ _points }; }
+
+  private:
+    xray::math::vec3f make_point(const float x, const float z)
+    {
+        return { x, _rng.next_float(0.0f, 1.0f) > 0.3f ? std::abs(std::sin(x * z) * _roughness) : 0.0f, z };
+    }
+
+    float get_point(const int32_t x, const int32_t z) const
+    {
+        const auto xp = (x + _width) % _width;
+        const auto zp = (z + _height) % _height;
+
+        return _points[zp * _width + xp].y;
+    }
+
+    void set_point(const int32_t x, const int32_t z, const float value)
+    {
+        const auto xp = (x + _width) % _width;
+        const auto zp = (z + _height) % _height;
+
+        _points[zp * _width + xp].y = value;
+    }
+
+    void point_from_square(const int32_t x, const int32_t z, const int32_t size, const float value)
+    {
+        const auto hs = size / 2;
+        const auto a = get_point(x - hs, z - hs);
+        const auto b = get_point(x + hs, z - hs);
+        const auto c = get_point(x - hs, z + hs);
+        const auto d = get_point(x + hs, z + hs);
+
+        set_point(x, z, (a + b + c + d) / 4.0f + value);
+    }
+
+    void point_from_diamond(const int32_t x, const int32_t z, const int32_t size, const float value)
+    {
+        const auto hs = size / 2;
+        const auto a = get_point(x - hs, z);
+        const auto b = get_point(x + hs, z);
+        const auto c = get_point(x, z - hs);
+        const auto d = get_point(x, z + hs);
+
+        set_point(x, z, (a + b + c + d) / 4.0f + value);
+    }
+
+    void diamond_square(const int32_t step_size, const float scale)
+    {
+        const auto half_step = step_size / 2;
+
+        for (int32_t z = half_step; z < _height + half_step; z += half_step) {
+            for (int32_t x = half_step; x < _width + half_step; x += half_step) {
+                point_from_square(x, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
+            }
+        }
+
+        for (int32_t z = 0; z < _height; z += step_size) {
+            for (int32_t x = 0; x < _width; x += step_size) {
+                point_from_diamond(x + half_step, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
+                point_from_diamond(x, z + half_step, step_size, _rng.next_float(0.0f, 1.0f) * scale);
+            }
+        }
+    }
+
+    void seed(const int32_t new_width, const int32_t new_height)
+    {
+        _width = new_width;
+        _height = new_height;
+
+        _points.clear();
+        for (int32_t z = 0; z < _height; ++z) {
+            for (int32_t x = 0; x < _width; ++x) {
+                _points.push_back(
+                    { static_cast<float>(x), _rng.next_float(0.0f, 1.0f) * _roughness, static_cast<float>(z) });
+            }
+        }
+    }
+
+    void smooth_terrain(const int32_t pass_size)
+    {
+        auto sample_size = pass_size;
+        auto scale_factor = 1.0f;
+
+        while (sample_size > 1) {
+            diamond_square(sample_size, scale_factor);
+            sample_size /= 2;
+            scale_factor /= 2.0f;
+        }
+    }
+
+    float _roughness{ 255.0f };
+    int32_t _width;
+    int32_t _height;
+    xray::base::random_number_generator _rng;
+    std::vector<xray::math::vec3f> _points;
+};
 }
 
 int

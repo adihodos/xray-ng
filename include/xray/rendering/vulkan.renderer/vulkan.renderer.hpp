@@ -145,7 +145,7 @@ struct RenderState
         , dev_logical{ std::move(logical) }
         , staging_buffer{ std::move(staging) }
         , mapped_staging_buffer{ std::move(mapped_staging) }
-        , staging_buffer_offset{ reinterpret_cast<uintptr_t>(mapped_staging_buffer._mapped_memory) }
+        , staging_buffer_offset{ 0 }
         , queues{ std::move(qs) }
         , attachments{ std::move(atts) }
     {
@@ -346,9 +346,17 @@ class VulkanRenderer
     {
         return _render_state.staging_buffer_offset.fetch_add(bytes);
     }
+
+    uintptr_t staging_buffer_memory() const noexcept
+    {
+        return reinterpret_cast<uintptr_t>(_render_state.mapped_staging_buffer._mapped_memory);
+    }
+
     VkBuffer staging_buffer() const noexcept { return _render_state.staging_buffer.handle<VkBuffer>(); }
 
     void queue_image_ownership_transfer(const BindlessResourceHandle_Image img) { _ownership_transfers.push_back(img); }
+
+    tl::expected<VkCommandBuffer, VulkanError> new_transfer_command_buffer() noexcept;
 
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }

@@ -1,4 +1,3 @@
-
 //
 // Copyright (c) Adrian Hodos
 // All rights reserved.
@@ -37,7 +36,6 @@ namespace xray::base {
 template<typename C>
 concept ContainerLikeObject = requires(C&& c) {
     { c.size() } -> std::convertible_to<size_t>;
-
     c[0];
     std::is_pointer_v<decltype(c.data())>;
 };
