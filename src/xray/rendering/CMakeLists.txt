@@ -37,6 +37,10 @@ set(project_sources
     ${proj_src_dir}/mesh_loader.cc
     ${proj_inc_dir}/mesh.hpp
     ${proj_src_dir}/mesh.cc
+    ${proj_inc_dir}/procedural.hpp
+    ${proj_src_dir}/procedural.cc
+    ${proj_inc_dir}/geometry/heightmap.generator.hpp
+    ${proj_src_dir}/geometry/heightmap.generator.cc
     ${proj_inc_dir}/geometry.importer.gltf.hpp
     ${proj_src_dir}/geometry.importer.gltf.cc
     ${proj_inc_dir}/texture_loader.hpp

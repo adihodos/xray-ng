@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,51 +26,33 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
-#include "xray/rendering/colors/color_cast.hpp"
+#include "xray/rendering/procedural.hpp"
+#include "xray/rendering/colors/hsv_color.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/colors/rgb_variants.hpp"
-#include "xray/xray.hpp"
-#include <cmath>
-#include <cstdint>
+#include "xray/rendering/colors/color_cast_rgb_hsv.hpp"
+#include "xray/rendering/colors/color_cast_rgb_variants.hpp"
 
-namespace xray {
-namespace rendering {
-
-template<>
-struct color_caster<rgb_color, rgba_u32_color>
+std::vector<xray::math::vec4ui8>
+xray::rendering::xor_pattern(const uint32_t width, const uint32_t height, const XorPatternType pattern)
 {
-    static rgb_color cast(const rgba_u32_color& rgba) noexcept
-    {
+    std::vector<math::vec4ui8> pixels{ width * height };
 
-        const auto red = static_cast<uint8_t>((rgba.value >> 24) & 0xFF);
-        const auto green = static_cast<uint8_t>((rgba.value >> 16) & 0xFF);
-        const auto blue = static_cast<uint8_t>((rgba.value >> 8) & 0xFF);
-        const auto alpha = static_cast<uint8_t>(rgba.value & 0xFF);
-
-        return { static_cast<float>(red) / 255.0f,
-                 static_cast<float>(green) / 255.0f,
-                 static_cast<float>(blue) / 255.0f,
-                 static_cast<float>(alpha) / 255.0f };
+    for (uint32_t y = 0; y < height; ++y) {
+        for (uint32_t x = 0; x < width; ++x) {
+            const uint8_t c = x ^ y;
+            if (pattern == XorPatternType::BnW) {
+                pixels[y * width + x] = math::vec4ui8{ c, c, c, 255 };
+            } else if (pattern == XorPatternType::ColoredHSV) {
+                const hsv_color hsv{ static_cast<float>(c) / 255.0f, 1.0f, 1.0f };
+                const rgb_color rgb{ color_cast<rgb_color>(hsv) };
+                const rgba_u32_color final{ color_cast<rgba_u32_color>(rgb) };
+                pixels[y * width + x] = math::vec4ui8{ final.r, final.g, final.b, 255 };
+            } else {
+                pixels[y * width + x] = math::vec4ui8{ uint8_t(255 - c), c, uint8_t(c % 128) };
+            }
+        }
     }
-};
 
-template<>
-struct color_caster<rgba_u32_color, rgb_color>
-{
-
-    static rgba_u32_color cast(const rgb_color& rgb) noexcept
-    {
-
-        const auto red = static_cast<uint32_t>(std::ceil(255.0f * rgb.r)) << 24;
-        const auto green = static_cast<uint32_t>(std::ceil(255.0f * rgb.g)) << 16;
-        const auto blue = static_cast<uint32_t>(std::ceil(255.0f * rgb.b)) << 8;
-        const auto alpha = static_cast<uint32_t>(std::ceil(255.0f * rgb.a));
-
-        return rgba_u32_color{ red | green | blue | alpha };
-    }
-};
-
-} // namespace rendering
-} // namespace xray
+    return pixels;
+}

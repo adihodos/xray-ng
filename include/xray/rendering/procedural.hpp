@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2011, 2012, 2013 Adrian Hodos
+// Copyright Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,49 +28,19 @@
 
 #pragma once
 
-#include "xray/rendering/colors/color_cast.hpp"
-#include "xray/rendering/colors/rgb_color.hpp"
-#include "xray/rendering/colors/rgb_variants.hpp"
-#include "xray/xray.hpp"
-#include <cmath>
-#include <cstdint>
+#include <vector>
+#include "xray/math/scalar4.hpp"
 
-namespace xray {
-namespace rendering {
+namespace xray::rendering {
 
-template<>
-struct color_caster<rgb_color, rgba_u32_color>
+enum class XorPatternType
 {
-    static rgb_color cast(const rgba_u32_color& rgba) noexcept
-    {
-
-        const auto red = static_cast<uint8_t>((rgba.value >> 24) & 0xFF);
-        const auto green = static_cast<uint8_t>((rgba.value >> 16) & 0xFF);
-        const auto blue = static_cast<uint8_t>((rgba.value >> 8) & 0xFF);
-        const auto alpha = static_cast<uint8_t>(rgba.value & 0xFF);
-
-        return { static_cast<float>(red) / 255.0f,
-                 static_cast<float>(green) / 255.0f,
-                 static_cast<float>(blue) / 255.0f,
-                 static_cast<float>(alpha) / 255.0f };
-    }
+    BnW,
+    Colored,
+    ColoredHSV,
 };
 
-template<>
-struct color_caster<rgba_u32_color, rgb_color>
-{
+std::vector<math::vec4ui8>
+xor_pattern(const uint32_t width, const uint32_t height, const XorPatternType pattern);
 
-    static rgba_u32_color cast(const rgb_color& rgb) noexcept
-    {
-
-        const auto red = static_cast<uint32_t>(std::ceil(255.0f * rgb.r)) << 24;
-        const auto green = static_cast<uint32_t>(std::ceil(255.0f * rgb.g)) << 16;
-        const auto blue = static_cast<uint32_t>(std::ceil(255.0f * rgb.b)) << 8;
-        const auto alpha = static_cast<uint32_t>(std::ceil(255.0f * rgb.a));
-
-        return rgba_u32_color{ red | green | blue | alpha };
-    }
-};
-
-} // namespace rendering
-} // namespace xray
+}

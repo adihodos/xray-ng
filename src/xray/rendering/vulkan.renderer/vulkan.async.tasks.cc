@@ -8,6 +8,7 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
+#include "xray/rendering/geometry/heightmap.generator.hpp"
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
@@ -338,6 +339,9 @@ xray::rendering::RendererAsyncTasks::create_generated_geometry_resources_task(co
 {
     vector<geometry_data_t> shapes;
     shapes.push_back(geometry_factory::grid(32, 32, 1.0f, 1.0f));
+    HeightmapGenerator hmg{ shapes[0].vertex_data(), sizeof(vertex_pntt), 32, 32 };
+    XR_LOG_INFO("Size = {}, align = {}", sizeof(vertex_pntt), alignof(vertex_pntt));
+
     shapes.push_back(geometry_factory::tetrahedron());
     shapes.push_back(geometry_factory::hexahedron());
     shapes.push_back(geometry_factory::octahedron());
