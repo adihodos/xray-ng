@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include <libconfig.h>
 #include <rfl/Result.hpp>
 #include <rfl/Processors.hpp>
 #include <rfl/parsing/Parent.hpp>

@@ -156,7 +156,6 @@ class Writer
     }
 
     void end_array(OutputArrayType*) const noexcept {}
-
     void end_object(OutputObjectType*) const noexcept {}
 
   public:

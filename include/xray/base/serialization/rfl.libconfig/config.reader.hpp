@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fmt/core.h>
+#include <fmt/format.h>
 #include <libconfig.h>
 #include <rfl/Result.hpp>
 #include <rfl/always_false.hpp>
@@ -16,16 +18,25 @@ struct Reader
     template<class T>
     static constexpr bool has_custom_constructor = false;
 
+    template<typename... Fargs>
+    static rfl::Error make_config_error(const char* fmt, Fargs&&... args)
+    {
+        char scratch_buffer[1024];
+        auto out = fmt::format_to_n(scratch_buffer, 1023, fmt::runtime_format_string<>{fmt}, std::forward<Fargs>(args)...);
+        *out.out = 0;
+        return rfl::Error{ scratch_buffer };
+    }
+
     /// Retrieves a particular field from an array.
     /// Returns an rfl::Error if the index is out of bounds.
     /// If your format is schemaful, you do not need this.
     rfl::Result<InputVarType> get_field_from_array(const size_t _idx, const InputArrayType _arr) const noexcept
     {
         config_setting_t* s = config_setting_get_elem(_arr, _idx);
-        if (s)
+        if (s) {
             return s;
-        else
-            return rfl::Error("cant find field @idx");
+        }
+        return make_config_error("Field @ {} not found", _idx);
     }
 
     /// Retrieves a particular field from an object.
@@ -38,7 +49,7 @@ struct Reader
         if (s)
             return s;
         else
-            return rfl::Error("cant find field");
+            return make_config_error("Field @ {} not found", _name);
     }
 
     /// Determines whether a variable is empty (the NULL type).
@@ -54,7 +65,7 @@ struct Reader
         using ValType = std::remove_cvref_t<T>;
         if constexpr (std::is_same_v<T, std::string>) {
             const char* s = config_setting_get_string(_var);
-            return s ? rfl::Result<T>{ std::string{ s } } : rfl::Error("not a string");
+            return s ? rfl::Result<T>{ std::string{ s } } : make_config_error("variable is not a string");
         } else if constexpr (std::is_same_v<T, bool>) {
             return config_setting_get_bool(_var) != 0;
         } else if constexpr (std::is_floating_point_v<T>) {
@@ -62,7 +73,7 @@ struct Reader
         } else if constexpr (std::is_integral_v<T>) {
             return static_cast<T>(config_setting_get_int64(_var));
         } else {
-            static_assert(rfl::always_false_v<ValType>, "Not supported");
+            static_assert(rfl::always_false_v<ValType>, "Variable type not supported");
         }
     }
 
@@ -73,7 +84,7 @@ struct Reader
         if (config_setting_is_list(_var))
             return _var;
         else
-            return rfl::Error("not an array");
+            return make_config_error("Variable is not an array");
     }
 
     /// Casts _var as an InputObjectType.
@@ -82,7 +93,7 @@ struct Reader
     {
         if (config_setting_is_group(_var))
             return _var;
-        return rfl::Error("not an object");
+        return make_config_error("Variable is not an object");
     }
 
     /// Iterates through an array and inserts the values into the array
@@ -94,7 +105,7 @@ struct Reader
         for (int32_t i = 0; i < count; ++i) {
             config_setting_t* e = config_setting_get_elem(_arr, i);
             if (!e)
-                return rfl::Error("error reading array");
+                return make_config_error("Failed to read array element {}", i);
 
             const auto err = _array_reader.read(e);
             if (err)
@@ -110,12 +121,12 @@ struct Reader
     std::optional<Error> read_object(const ObjectReader& _object_reader, const InputObjectType& _obj) const noexcept
     {
         if (!config_setting_is_group(_obj))
-            return rfl::Error("Not an object");
+            return make_config_error("Not an object type");
 
         for (int32_t i = 0, count = config_setting_length(_obj); i < count; ++i) {
             config_setting_t* s = config_setting_get_elem(_obj, i);
             if (!s)
-                return rfl::Error("Error reading object");
+                return make_config_error("Failed to read member @ {} of object.", i);
             _object_reader.read(std::string_view{ config_setting_name(s) }, s);
         }
 
