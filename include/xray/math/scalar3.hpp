@@ -31,6 +31,7 @@
 #include "xray/xray.hpp"
 
 #include <cstdint>
+#include <array>
 #include <type_traits>
 
 #include "xray/math/swizzle.hpp"
@@ -43,10 +44,9 @@ namespace math {
 /// @{
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar3 : public SwizzleBase<T, 3>
 {
-    static_assert(std::is_arithmetic_v<T>, "Template parameter needs to be an arythmetic type!");
-
     union
     {
         struct
@@ -82,10 +82,10 @@ struct scalar3 : public SwizzleBase<T, 3>
     {
     }
 
-    constexpr scalar3(const Swizzle3<T> s) noexcept
-        : x{ s.x }
-        , y{ s.y }
-        , z{ s.z }
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit constexpr scalar3(const U val) noexcept
+        : scalar3{ val, val, val }
     {
     }
 
@@ -93,6 +93,63 @@ struct scalar3 : public SwizzleBase<T, 3>
         : x{ xval }
         , y{ yval }
         , z{ zval }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    constexpr scalar3(const U x, const U y, const U z) noexcept
+    {
+        this->x = static_cast<U>(x);
+        this->y = static_cast<U>(y);
+        this->z = static_cast<U>(z);
+    }
+
+    explicit constexpr scalar3(const std::array<T, 3>& arr) noexcept
+        : scalar3{ arr[0], arr[1], arr[2] }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit scalar3(const std::array<U, 3>& arr) noexcept
+        : scalar3{ arr[0], arr[1], arr[2] }
+    {
+    }
+
+    explicit constexpr scalar3(const T (&arr)[3]) noexcept
+        : scalar3{ arr[0], arr[1], arr[2] }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit scalar3(const U (&arr)[3]) noexcept
+        : scalar3{ arr[0], arr[1], arr[2] }
+    {
+    }
+
+    constexpr scalar3(const Swizzle3<T> s) noexcept
+        : scalar3{ s.x, s.y, s.z }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    constexpr scalar3(const Swizzle3<U> s) noexcept
+        : scalar3{ s.x, s.y, s.z }
+    {
+    }
+
+    explicit scalar3(const T* s) noexcept
+        : scalar3{ s[0], s[1], s[2] }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit scalar3(const U* s) noexcept
+        : scalar3{ s[0], s[1], s[2] }
     {
     }
 
@@ -122,6 +179,7 @@ struct scalar3 : public SwizzleBase<T, 3>
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar3<T>::stdc
 {
     static constexpr const scalar3<T> unit_x{ T(1.0), T(0.0), T(0.0) };
@@ -132,18 +190,23 @@ struct scalar3<T>::stdc
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar3<T> scalar3<T>::stdc::unit_x;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar3<T> scalar3<T>::stdc::unit_y;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar3<T> scalar3<T>::stdc::unit_z;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar3<T> scalar3<T>::stdc::zero;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar3<T> scalar3<T>::stdc::one;
 
 using vec3f = scalar3<scalar_lowp>;

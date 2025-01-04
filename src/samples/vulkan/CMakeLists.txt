@@ -5,7 +5,8 @@ set(proj_inc_dir "${PROJECT_SOURCE_DIR}/code")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}/code")
 
 set(project_sources
-    ${proj_src_dir}/vulkan-main.cc ${proj_inc_dir}/triangle/triangle.hpp
+    ${proj_src_dir}/vulkan-main.cc
+    ${proj_inc_dir}/triangle/triangle.hpp
     ${proj_src_dir}/bindless.pipeline.config.hpp
     ${proj_src_dir}/triangle/triangle.cc)
 
@@ -92,8 +93,8 @@ target_link_libraries(
           reflectcpp
           spdlog::spdlog
           concurrencpp::concurrencpp
-          TBB::tbb
-        )
+          $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
+          TBB::tbb)
 
 get_target_property(target_output_directory ${PROJECT_NAME}
                     RUNTIME_OUTPUT_DIRECTORY)

@@ -175,7 +175,7 @@ LoadedGeometry::extract_materials(const uint32_t null_texture) const noexcept
                     ? null_texture
                     : (uint32_t)g->textures[mtl.pbrMetallicRoughness.metallicRoughnessTexture.index].source,
                 mtl.normalTexture.index == -1 ? null_texture : (uint32_t)g->textures[mtl.normalTexture.index].source,
-                math::vec4f{ mtl.pbrMetallicRoughness.baseColorFactor.data(), 4 },
+                math::vec4f{ mtl.pbrMetallicRoughness.baseColorFactor.data() },
                 (float)mtl.pbrMetallicRoughness.metallicFactor,
                 (float)mtl.pbrMetallicRoughness.roughnessFactor
             };

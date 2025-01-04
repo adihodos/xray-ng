@@ -44,6 +44,7 @@ namespace math {
 /// @{
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>&
 scalar3<T>::operator+=(const scalar3<T>& rhs) noexcept
 {
@@ -54,6 +55,7 @@ scalar3<T>::operator+=(const scalar3<T>& rhs) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>&
 scalar3<T>::operator-=(const scalar3<T>& rhs) noexcept
 {
@@ -64,6 +66,7 @@ scalar3<T>::operator-=(const scalar3<T>& rhs) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>&
 scalar3<T>::operator*=(const T scalar) noexcept
 {
@@ -74,6 +77,7 @@ scalar3<T>::operator*=(const T scalar) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>&
 scalar3<T>::operator/=(const T scalar) noexcept
 {
@@ -98,6 +102,7 @@ operator!=(const scalar3<T>& a, const scalar3<T>& b) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 operator+(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -105,6 +110,7 @@ operator+(const scalar3<T>& a, const scalar3<T>& b) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 operator-(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -112,6 +118,7 @@ operator-(const scalar3<T>& a, const scalar3<T>& b) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 operator-(const scalar3<T>& a) noexcept
 {
@@ -119,6 +126,7 @@ operator-(const scalar3<T>& a) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 operator*(const scalar3<T>& v, const T k) noexcept
 {
@@ -126,6 +134,7 @@ operator*(const scalar3<T>& v, const T k) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 operator*(const T k, const scalar3<T>& v) noexcept
 {
@@ -133,6 +142,7 @@ operator*(const T k, const scalar3<T>& v) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 operator/(const scalar3<T>& v, const T k) noexcept
 {
@@ -141,6 +151,7 @@ operator/(const scalar3<T>& v, const T k) noexcept
 
 /// \brief Returns the dot product of two vectors.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline constexpr T
 dot(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -149,6 +160,7 @@ dot(const scalar3<T>& a, const scalar3<T>& b) noexcept
 
 /// \brief Returns a vector that is orthogonal to the input vectors.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline constexpr scalar3<T>
 cross(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -157,6 +169,7 @@ cross(const scalar3<T>& a, const scalar3<T>& b) noexcept
 
 /// \brief Returns the square of the vector's length.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline constexpr T
 length_squared(const scalar3<T>& a) noexcept
 {
@@ -165,6 +178,7 @@ length_squared(const scalar3<T>& a) noexcept
 
 /// \brief Returns the square of the vector's length.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline constexpr T
 length_squared(const T x, const T y, const T z) noexcept
 {
@@ -172,6 +186,7 @@ length_squared(const T x, const T y, const T z) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline bool
 is_zero_length(const scalar3<T>& v) noexcept
 {
@@ -179,6 +194,7 @@ is_zero_length(const scalar3<T>& v) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline bool
 is_unit_length(const scalar3<T>& v) noexcept
 {
@@ -187,6 +203,7 @@ is_unit_length(const scalar3<T>& v) noexcept
 
 /// \brief Returns the length of the vector.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 length(const scalar3<T>& v) noexcept
 {
@@ -195,6 +212,7 @@ length(const scalar3<T>& v) noexcept
 
 /// \brief Returns the length of the vector.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 length(const T x, const T y, const T z) noexcept
 {
@@ -203,6 +221,7 @@ length(const T x, const T y, const T z) noexcept
 
 /// \brief Returns a unit length vector for the input vector.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3<T>
 normalize(const scalar3<T>& v) noexcept
 {
@@ -216,6 +235,7 @@ normalize(const scalar3<T>& v) noexcept
 
 /// \brief Returns a vector representing the projection of P on the vector Q;
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 project(const scalar3<T>& p, const scalar3<T>& q) noexcept
 {
@@ -224,6 +244,7 @@ project(const scalar3<T>& p, const scalar3<T>& q) noexcept
 
 /// \brief Returns a vector that is the projection of P on the \c unit vector q.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 project_unit(const scalar3<T>& p, const scalar3<T>& q) noexcept
 {
@@ -232,6 +253,7 @@ project_unit(const scalar3<T>& p, const scalar3<T>& q) noexcept
 
 /// \brief Tests if two vectors are orthogonal.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline bool
 are_orthogonal(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -240,6 +262,7 @@ are_orthogonal(const scalar3<T>& a, const scalar3<T>& b) noexcept
 
 /// \brief Returns the angle between two vectors.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 angle_of(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -248,6 +271,7 @@ angle_of(const scalar3<T>& a, const scalar3<T>& b) noexcept
 
 /// \brief Tests if two vectors are parallel.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline bool
 are_parallel(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -256,6 +280,7 @@ are_parallel(const scalar3<T>& a, const scalar3<T>& b) noexcept
 
 /// \brief Tests if three points are collinear.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline bool
 are_collinear(const scalar3<T>& a, const scalar3<T>& b, const scalar3<T>& c) noexcept
 {
@@ -264,6 +289,7 @@ are_collinear(const scalar3<T>& a, const scalar3<T>& b, const scalar3<T>& c) noe
 
 /// \brief Returns the value of the triple scalar product.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 triple_scalar_product(const scalar3<T>& a, const scalar3<T>& b, const scalar3<T>& c) noexcept
 {
@@ -272,6 +298,7 @@ triple_scalar_product(const scalar3<T>& a, const scalar3<T>& b, const scalar3<T>
 
 /// \brief Returns the triple vector product of three vectors.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline scalar3<T>
 triple_vector_product(const scalar3<T>& a, const scalar3<T>& b, const scalar3<T>& c) noexcept
 {
@@ -280,6 +307,7 @@ triple_vector_product(const scalar3<T>& a, const scalar3<T>& b, const scalar3<T>
 
 /// \brief Returns the square of the distance between two points.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 squared_distance(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -288,6 +316,7 @@ squared_distance(const scalar3<T>& a, const scalar3<T>& b) noexcept
 
 /// \brief Returns the square of the distance between two points.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 squared_distance(const T ax, const T ay, const T az, const T bx, const T by, const T bz) noexcept
 {
@@ -296,6 +325,7 @@ squared_distance(const T ax, const T ay, const T az, const T bx, const T by, con
 
 /// \brief Returns the distance between two points.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 distance(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -304,6 +334,7 @@ distance(const scalar3<T>& a, const scalar3<T>& b) noexcept
 
 /// \brief Returns the square of the distance between two points.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 distance(const T ax, const T ay, const T az, const T bx, const T by, const T bz) noexcept
 {
@@ -312,6 +343,7 @@ distance(const T ax, const T ay, const T az, const T bx, const T by, const T bz)
 
 /// Returns the signed area of the triangle spanned by three points.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline T
 triangle_signed_area(scalar3<T> const& p0, scalar3<T> const& p1, scalar3<T> const& p2) noexcept
 {
@@ -323,6 +355,7 @@ triangle_signed_area(scalar3<T> const& p0, scalar3<T> const& p1, scalar3<T> cons
 
 /// Test if the points spanning a triangle are ordered counter clockwise.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline bool
 ccw_winded_triangle(scalar3<T> const& p0, scalar3<T> const& p1, scalar3<T> const& p2) noexcept
 {
@@ -332,6 +365,7 @@ ccw_winded_triangle(scalar3<T> const& p0, scalar3<T> const& p1, scalar3<T> const
 /// \brief Returns a vector whose components have the maximum values of the
 /// components of the two input vectors.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3<T>
 max(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -341,6 +375,7 @@ max(const scalar3<T>& a, const scalar3<T>& b) noexcept
 /// \brief Returns a vector whose components have the minimum values of the
 /// components of the two input vectors.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3<T>
 min(const scalar3<T>& a, const scalar3<T>& b) noexcept
 {
@@ -348,6 +383,7 @@ min(const scalar3<T>& a, const scalar3<T>& b) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3<T>
 abs(const scalar3<T>& a) noexcept
 {
@@ -363,6 +399,7 @@ abs(const scalar3<T>& a) noexcept
 ///       y = r * cos(phi)
 ///       z = r * sin(phi) * cos(theta)
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3<T>
 point_from_spherical_coords(const T r, const T theta, const T phi) noexcept
 {
@@ -384,6 +421,7 @@ point_from_spherical_coords(const T r, const T theta, const T phi) noexcept
 ///  phi = atan2(sqrt(pt.X/// pt.X + pt.Z/// pt.Z), pt.Y)
 ///  theta = atan2(pt.X, pt.Z)
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3<T>
 point_to_spherical_coordinates(const scalar3<T>& pt) noexcept
 {
@@ -395,6 +433,7 @@ point_to_spherical_coordinates(const scalar3<T>& pt) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct frame_vectors
 {
     scalar3<T> u;
@@ -403,6 +442,7 @@ struct frame_vectors
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 frame_vectors<T>
 make_frame_vectors(const scalar3<T>& s) noexcept
 {

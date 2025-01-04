@@ -1,9 +1,8 @@
 #include "xray/rendering/vulkan.renderer/vulkan.async.tasks.hpp"
 
-#include <coroutine>
 #include <string_view>
-
 #include <Lz/Lz.hpp>
+
 #include "xray/base/xray.misc.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"

@@ -43,6 +43,9 @@
 #include <mio/mmap.hpp>
 #include <oneapi/tbb/concurrent_priority_queue.h>
 
+#include <rfl/json.hpp>
+#include <rfl.hpp>
+
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/delegate.hpp"
@@ -72,6 +75,8 @@
 #include "init_context.hpp"
 #include "triangle/triangle.hpp"
 #include "bindless.pipeline.config.hpp"
+#include "xray/base/serialization/rfl.libconfig/config.save.hpp"
+#include "xray/base/serialization/rfl.libconfig/config.load.hpp"
 
 using namespace xray;
 using namespace xray::base;
@@ -908,11 +913,135 @@ class HeightmapGenerator
 };
 }
 
+struct Light
+{
+    std::array<float, 3> origin;
+    std::array<float, 3> direction;
+    std::array<float, 3> color;
+};
+
+struct Orientation
+{
+    std::array<float, 3> origin{ 0.0f, 0.0f, 0.0f };
+    std::array<float, 4> rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
+    float scale{ 1.0f };
+};
+
+struct Model
+{
+    std::filesystem::path path;
+    std::optional<Orientation> orientation;
+};
+
+struct GridParams
+{
+    uint32_t cellsx;
+    uint32_t cellsy;
+    float width;
+    float height;
+};
+
+struct ConeParams
+{
+    float upper_radius;
+    float lower_radius;
+    float height;
+};
+
+struct TorusParams
+{
+    float outer;
+    float inner;
+    uint32_t rings;
+};
+
+using GeneratedGeometry =
+    rfl::Variant<rfl::Field<"grid", GridParams>, rfl::Field<"cone", ConeParams>, rfl::Field<"torus", TorusParams>>;
+
+struct GeneratedObject
+{
+    GeneratedGeometry g;
+    std::optional<Orientation> o;
+};
+
+struct SceneDescription
+{
+    std::vector<Model> models;
+    std::vector<Light> lights;
+    std::vector<GeneratedObject> geometries;
+};
+
 int
 main(int argc, char** argv)
 {
     app::MainRunner::create().map_or_else(
         [](app::MainRunner runner) {
+            //
+
+            const SceneDescription sd
+        {
+            .models = {
+                Model{
+                    .path = "ur/mom/model.glb",
+                    // .orientation = Orientation{ .origin = { 0.0f, 0.0f, 0.0f },
+                    //                             .rotation = { 1.0f, 0.0f, 0.0f, 0.0f },
+                    //                             .scale = 1.0f, },
+                },
+                Model{
+                    .path = "ur/dad/model.glb",
+                    // .orientation = Orientation{ .origin = { 0.0f, 0.0f, 0.0f },
+                    //                             .rotation = { 1.0f, 0.0f, 0.0f, 0.0f },
+                    //                             .scale = 1.0f, },
+
+                },
+                },
+                .lights = { Light{
+                    .origin = { 10.0f, 3.0f, -5.0f },
+                    .direction = { 0.0f, 0.0f, 1.0f },
+                    .color = { 1.0f, 1.0f, 0.0f },
+                } },
+
+                .geometries = { GeneratedObject {
+                    .g =
+                    rfl::make_field<"grid">(GridParams{
+                            .cellsx = 32,
+                            .cellsy = 32,
+                            .width = 0.5f,
+                            .height = 0.5f
+                            }),
+                    // .o = Orientation{},
+                },},
+            };
+
+            rfl::libconfig::save("urmom.conf", sd
+                                 // std::array<float, 4>{1.0f, 2.0f, 3.0f, 1.0f}
+            );
+
+            const string s = rfl::json::write(sd);
+            XR_LOG_INFO("Scene description {}", s);
+
+            const SceneDescription loaded =
+                rfl::libconfig::read<SceneDescription>(std::filesystem::path{ "urmom.conf" }).value();
+                // rfl::json::read<SceneDescription>(s).value();
+            for (const GeneratedObject& obj : loaded.geometries) {
+                rfl::visit(
+                    [](const auto& s) {
+                        using Name = typename std::decay_t<decltype(s)>::Name;
+                        if constexpr (std::is_same<Name, rfl::Literal<"grid">>()) {
+                            XR_LOG_INFO("Generating grid");
+                        } else if constexpr (std::is_same<Name, rfl::Literal<"cone">>()) {
+                            XR_LOG_INFO("Generating cone");
+                        } else if constexpr (std::is_same<Name, rfl::Literal<"torus">>()) {
+                            XR_LOG_INFO("Generating torus");
+                        } else {
+                            // reflect-cpp also provides this very useful helper that ensures
+                            // at compile-time that you didn't forget anything.
+                            static_assert(rfl::always_false_v<GeneratedGeometry>, "Not all cases were covered.");
+                        }
+                    },
+                    obj.g);
+            }
+
             runner.run();
             XR_LOG_INFO("Shutting down ...");
         },

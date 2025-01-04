@@ -28,7 +28,7 @@
             # editors
             nvimpager
 
-            gcc
+            gcc14
             gdb
             seer
             libgit2
