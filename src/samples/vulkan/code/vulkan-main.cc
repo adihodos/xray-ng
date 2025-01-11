@@ -695,10 +695,8 @@ struct SceneResources
             *r);
 
         //
-        // color texture added 1st
-        vector<BindlessImageResourceHandleEntryPair> materials_tex{ bsys->add_image(
-            std::move(sdef->materials_nongltf.color_texture), *def_sampler, sdef->materials_nongltf.image_slot_start) };
-
+        // color texture added 1st so need to add 1 to slot
+        vector<BindlessImageResourceHandleEntryPair> materials_tex{};
         for (uint32_t idx = 0, count = static_cast<uint32_t>(sdef->materials_nongltf.textures.size()); idx < count;
              ++idx) {
             materials_tex.push_back(bsys->add_image(std::move(sdef->materials_nongltf.textures[idx]),

@@ -212,14 +212,24 @@ xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img,
                                            VkSampler smp,
                                            const tl::optional<uint32_t> slot)
 {
-    const uint32_t handle{ slot.value_or(_free_slot_images.fetch_add(1)) };
+    const uint32_t handle = [&]() {
+        if (slot)
+            return *slot;
+
+        return _free_slot_images.fetch_add(1);
+    }();
+
     if (_free_slot_images > _image_resources.size()) {
         _image_resources.resize(_free_slot_images);
     }
 
     const auto [image, image_memory, image_view] = img.release();
-    _image_resources[handle] =
-        BindlessResourceEntry_Image{ .handle = image, .memory = image_memory, .image_view = image_view };
+    _image_resources[handle] = BindlessResourceEntry_Image{
+        .handle = image,
+        .memory = image_memory,
+        .image_view = image_view,
+        .info = img._info,
+    };
 
     _writes_img.push_back(WriteDescriptorImageInfo{
         .dst_array = handle,
@@ -273,7 +283,13 @@ xray::rendering::BindlessSystem::add_chunked_storage_buffer(VulkanBuffer ssbo,
                                                             const uint32_t chunks,
                                                             const tl::optional<uint32_t> slot)
 {
-    const uint32_t handle{ slot.value_or(_handle_idx_sbos.fetch_add(chunks)) };
+    const uint32_t handle = [&]() {
+        if (slot)
+            return *slot;
+
+        return _handle_idx_sbos.fetch_add(1);
+    }();
+
     if (_handle_idx_sbos > _sbo_resources.size()) {
         _sbo_resources.resize(_handle_idx_sbos);
     }
