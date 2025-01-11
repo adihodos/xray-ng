@@ -19,8 +19,18 @@ xray::base::ConfigSystem::ConfigSystem(const char* cfg_path /*= nullptr*/)
     paths_.texture_path = "assets/textures";
     paths_.shader_path = "assets/shaders";
     paths_.fonts_path = "assets/fonts";
+    paths_.config_path = "config";
     paths_.camera_cfg_path = "config/camera";
-    paths_.objects_cfg_path = "config/objects";
+
+    //
+    // TODO: hardcoded right now
+    std::error_code err{};
+    const std::filesystem::path cwd{ std::filesystem::current_path(err) };
+    if (!err) {
+        paths_.config_path = cwd / "config";
+    }
+
+    XR_LOG_INFO("CWD = {}, config path {}", cwd.generic_string(), paths_.config_path.generic_string());
 
     const auto config_file_path = cfg_path ? cfg_path : "config/app_config.conf";
 
@@ -81,9 +91,8 @@ xray::base::ConfigSystem::ConfigSystem(const char* cfg_path /*= nullptr*/)
         if (!path_load_info.path->is_absolute())
             *path_load_info.path = paths_.root_path / *path_load_info.path;
 
+        XR_LOG_INFO("{} -> {}", path_load_info.conf_file_entry_name, path_load_info.path->generic_string());
         assert(std::filesystem::exists(*path_load_info.path));
         assert(std::filesystem::is_directory(*path_load_info.path));
-
-        XR_LOG_INFO("{} -> {}", path_load_info.conf_file_entry_name, path_load_info.path->generic_string());
     }
 }

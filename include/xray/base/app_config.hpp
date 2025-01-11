@@ -52,12 +52,14 @@ class ConfigSystem
     const path_type& root_directory() const noexcept { return paths_.root_path; }
 
     path_type model_path(const char* name) const { return paths_.model_path / name; }
+    path_type model_path(const std::filesystem::path& name) const { return paths_.model_path / name; }
 
     path_type shader_path(const char* name) const { return paths_.shader_path / name; }
 
     path_type texture_path(const char* name) const { return paths_.texture_path / name; }
+    path_type texture_path(const std::filesystem::path& name) const { return paths_.texture_path / name; }
 
-    path_type shader_config_path(const char* name) const { return paths_.shader_cfg_path / name; }
+    path_type config_path(const char* name) const { return paths_.config_path / name; }
 
     path_type camera_config_path(const char* name) const { return paths_.camera_cfg_path / name; }
 
@@ -70,6 +72,7 @@ class ConfigSystem
     const path_type& font_root() const noexcept { return paths_.fonts_path; }
     const path_type& model_root() const noexcept { return paths_.model_path; }
     const path_type& shader_root() const noexcept { return paths_.shader_path; }
+    const path_type& config_root() const noexcept { return paths_.config_path; }
 
     static ConfigSystem* instance() noexcept { return _unique_instance; }
 
@@ -82,7 +85,7 @@ class ConfigSystem
         std::filesystem::path shader_path;
         std::filesystem::path model_path;
         std::filesystem::path texture_path;
-        std::filesystem::path shader_cfg_path;
+        std::filesystem::path config_path;
         std::filesystem::path camera_cfg_path;
         std::filesystem::path objects_cfg_path;
         std::filesystem::path fonts_path;

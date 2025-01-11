@@ -197,8 +197,8 @@ dvk::TriangleDemo::create(
         init_ctx,
         std::move(loaded_resources->vertex_buffer),
         std::move(loaded_resources->index_buffer),
-        init_ctx.renderer->bindless_sys().add_chunked_storage_buffer(std::move(*g_instance_buffer), rbs.buffers),
-        init_ctx.renderer->bindless_sys().add_storage_buffer(std::move(loaded_resources->material_buffer)),
+        init_ctx.renderer->bindless_sys().add_chunked_storage_buffer(std::move(*g_instance_buffer), rbs.buffers, tl::nullopt),
+        init_ctx.renderer->bindless_sys().add_storage_buffer(std::move(loaded_resources->material_buffer), tl::nullopt),
         std::move(*pipeline),
         xray::base::make_unique<WorldState>(Geometry{
             .nodes = std::move(loaded_resources->geometry.nodes),

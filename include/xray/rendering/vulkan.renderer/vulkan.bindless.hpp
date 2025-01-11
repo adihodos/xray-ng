@@ -198,18 +198,18 @@ class BindlessSystem
     }
 
     std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer> add_storage_buffer(
-        VulkanBuffer sbo)
+        VulkanBuffer sbo,
+        tl::optional<uint32_t> slot)
     {
-        return add_chunked_storage_buffer(std::move(sbo), 1);
+        return add_chunked_storage_buffer(std::move(sbo), 1, slot);
     }
 
     std::pair<BindlessResourceHandle_UniformBuffer, BindlessResourceEntry_UniformBuffer> add_chunked_uniform_buffer(
         VulkanBuffer ubo,
         const uint32_t chunks);
 
-    std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer> add_chunked_storage_buffer(
-        VulkanBuffer ssbo,
-        const uint32_t chunks);
+    std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer>
+    add_chunked_storage_buffer(VulkanBuffer ssbo, const uint32_t chunks, const tl::optional<uint32_t> slot);
 
     void flush_descriptors(const VulkanRenderer& renderer);
     void bind_descriptors(const VulkanRenderer& renderer, VkCommandBuffer cmd_buffer) noexcept;
@@ -217,6 +217,7 @@ class BindlessSystem
                                                      const VulkanRenderer& renderer);
 
     uint32_t reserve_image_slots(const uint32_t num_images) noexcept { return _free_slot_images.fetch_add(num_images); }
+    uint32_t reserve_sbo_slots(const uint32_t slots) noexcept { return _handle_idx_sbos.fetch_add(slots); }
 
     const BindlessResourceEntry_Image& image_entry(const BindlessResourceHandle_Image img) const noexcept;
 
@@ -252,7 +253,7 @@ class BindlessSystem
     std::vector<WriteDescriptorBufferInfo> _writes_sbo;
     std::vector<WriteDescriptorImageInfo> _writes_img;
     uint32_t _handle_idx_ubos{};
-    uint32_t _handle_idx_sbos{};
+    std::atomic_uint32_t _handle_idx_sbos{};
     std::atomic_uint32_t _free_slot_images{};
     std::unordered_map<VkSamplerCreateInfo, VkSampler> _sampler_table;
 };

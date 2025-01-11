@@ -9,10 +9,8 @@ set(project_sources
     ${proj_inc_dir}/math_std.hpp
     ${proj_inc_dir}/projection.hpp
     ${proj_inc_dir}/swizzle.hpp
-
     ${proj_inc_dir}/quaternion.hpp
     ${proj_inc_dir}/quaternion_math.hpp
-
     ${proj_inc_dir}/scalar2.hpp
     ${proj_inc_dir}/scalar2x3.hpp
     ${proj_inc_dir}/scalar2x3_math.hpp
@@ -32,14 +30,13 @@ set(project_sources
     ${proj_inc_dir}/transforms_r2.hpp
     ${proj_inc_dir}/transforms_r3.hpp
     ${proj_inc_dir}/transforms_r4.hpp
+    ${proj_inc_dir}/orientation.hpp
     ${proj_inc_dir}/vector_type_tag.hpp
-
     ${proj_inc_dir}/objects/aabb3.hpp
     ${proj_inc_dir}/objects/aabb3_math.hpp
     ${proj_inc_dir}/objects/rectangle.hpp
     ${proj_inc_dir}/objects/sphere.hpp
     ${proj_inc_dir}/objects/sphere_math.hpp
-
     ${proj_inc_dir}/objects/aabb3.hpp
     ${proj_inc_dir}/objects/ray3.hpp
     ${proj_inc_dir}/objects/ray.hpp
@@ -51,21 +48,17 @@ set(project_sources
     ${proj_inc_dir}/objects/rectangle.hpp
     ${proj_inc_dir}/objects/line2.hpp
     ${proj_inc_dir}/objects/sphere.hpp
-    ${proj_inc_dir}/objects/ray2.hpp    
-)
+    ${proj_inc_dir}/objects/ray2.hpp
+    ${proj_inc_dir}/serialization/parser.scalar3.hpp
+    ${proj_inc_dir}/serialization/parser.scalar2.hpp
+    ${proj_inc_dir}/serialization/parser.scalar4.hpp)
 
 add_library(${PROJECT_NAME} INTERFACE ${project_sources})
 
 target_include_directories(
-  ${PROJECT_NAME}
-  INTERFACE
-  $<INSTALL_INTERFACE:include>
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-)
-
-target_compile_features(
-  ${PROJECT_NAME}
-  INTERFACE cxx_std_20
-)
+  ${PROJECT_NAME} INTERFACE $<INSTALL_INTERFACE:include>
+                            $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
+target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)
+target_link_libraries(${PROJECT_NAME} INTERFACE reflectcpp)
 
 source_group(math FILES ${project_sources})

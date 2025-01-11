@@ -10,10 +10,12 @@
 #include <unordered_map>
 
 #include <tl/optional.hpp>
+#include <oneapi/tbb/spin_mutex.h>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
+#include "xray/base/xray.misc.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
@@ -133,6 +135,8 @@ struct RenderState
     UniqueMemoryMapping mapped_staging_buffer;
     std::atomic_uintptr_t staging_buffer_offset;
     std::vector<Queue> queues;
+    xray::base::unique_pointer<oneapi::tbb::spin_mutex[]> queue_cmd_pool_mutex;
+    xray::base::unique_pointer<oneapi::tbb::spin_mutex[]> queue_submit_mutex;
     RenderingAttachments attachments;
 
     RenderState(const PhysicalDeviceData& pd,
@@ -147,6 +151,8 @@ struct RenderState
         , mapped_staging_buffer{ std::move(mapped_staging) }
         , staging_buffer_offset{ 0 }
         , queues{ std::move(qs) }
+        , queue_cmd_pool_mutex{ new oneapi::tbb::spin_mutex[queues.size()] }
+        , queue_submit_mutex{ new oneapi::tbb::spin_mutex[queues.size()] }
         , attachments{ std::move(atts) }
     {
     }
@@ -158,6 +164,8 @@ struct RenderState
         , mapped_staging_buffer(std::move(rhs.mapped_staging_buffer))
         , staging_buffer_offset(rhs.staging_buffer_offset.load())
         , queues(std::move(rhs.queues))
+        , queue_cmd_pool_mutex(std::move(rhs.queue_cmd_pool_mutex))
+        , queue_submit_mutex(std::move(rhs.queue_submit_mutex))
         , attachments(std::move(rhs.attachments))
     {
     }
@@ -232,6 +240,14 @@ struct StagingBuffer
     VkBuffer buf;
     VkDeviceMemory mem;
 };
+
+enum class QueueType : uint8_t
+{
+    Graphics,
+    Transfer,
+};
+
+struct JobWaitToken;
 
 class VulkanRenderer
 {
@@ -342,9 +358,31 @@ class VulkanRenderer
                  xray::base::unique_pointer_get_ptr(_render_state.queues[idx].cmd_pool) };
     }
 
+    struct QueueData
+    {
+        VkQueue handle;
+        uint32_t family;
+        VkCommandPool cmdpool;
+        std::reference_wrapper<oneapi::tbb::spin_mutex> cmdpool_lock;
+        std::reference_wrapper<oneapi::tbb::spin_mutex> submit_lock;
+    };
+
+    QueueData queue_data(const QueueType qtype) noexcept
+    {
+        return QueueData{
+            .handle = _render_state.queues[static_cast<uint32_t>(qtype)].handle,
+            .family = _render_state.queues[static_cast<uint32_t>(qtype)].index,
+            .cmdpool = xray::base::unique_pointer_get_ptr(_render_state.queues[static_cast<uint32_t>(qtype)].cmd_pool),
+            .cmdpool_lock = std::reference_wrapper{ _render_state.queue_cmd_pool_mutex[static_cast<uint32_t>(qtype)] },
+            .submit_lock = std::reference_wrapper{ _render_state.queue_submit_mutex[static_cast<uint32_t>(qtype)] },
+        };
+    }
+    //
     uintptr_t reserve_staging_buffer_memory(const size_t bytes) noexcept
     {
-        return _render_state.staging_buffer_offset.fetch_add(bytes);
+        const uintptr_t aligned_size = xray::base::align<uintptr_t>(
+            bytes, this->_render_state.dev_physical.properties.base.properties.limits.nonCoherentAtomSize);
+        return _render_state.staging_buffer_offset.fetch_add(aligned_size);
     }
 
     uintptr_t staging_buffer_memory() const noexcept
@@ -356,7 +394,11 @@ class VulkanRenderer
 
     void queue_image_ownership_transfer(const BindlessResourceHandle_Image img) { _ownership_transfers.push_back(img); }
 
-    tl::expected<VkCommandBuffer, VulkanError> new_transfer_command_buffer() noexcept;
+    /// @group async tasks
+
+    tl::expected<VkCommandBuffer, VulkanError> create_job(const QueueType qtype) noexcept;
+    tl::expected<JobWaitToken, VulkanError> submit_job(VkCommandBuffer cmd_buffer, const QueueType qtype) noexcept;
+    /// @endgroup
 
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }

@@ -737,17 +737,21 @@ xray::ui::user_interface::draw()
         return tl::nullopt;
 
     const float scale[2] = { 2.0f / draw_data->DisplaySize.x, 2.0f / draw_data->DisplaySize.y };
-    const float translate[2] = { -1.0f - draw_data->DisplayPos.x * scale[0],
-                                 -1.0f - draw_data->DisplayPos.y * scale[1] };
+    const float translate[2] = {
+        -1.0f - draw_data->DisplayPos.x * scale[0],
+        -1.0f - draw_data->DisplayPos.y * scale[1],
+    };
 
-    return UserInterfaceRenderContext{ .draw_data = draw_data,
-                                       .fb_width = fb_width,
-                                       .fb_height = fb_height,
-                                       .scale_x = scale[0],
-                                       .scale_y = scale[1],
-                                       .translate_x = translate[0],
-                                       .translate_y = translate[1],
-                                       .textureid = _rendercontext.font_atlas_handle };
+    return UserInterfaceRenderContext{
+        .draw_data = draw_data,
+        .fb_width = fb_width,
+        .fb_height = fb_height,
+        .scale_x = scale[0],
+        .scale_y = scale[1],
+        .translate_x = translate[0],
+        .translate_y = translate[1],
+        .textureid = _rendercontext.font_atlas_handle,
+    };
 #endif
 }
 

@@ -17,6 +17,7 @@ struct FrameGlobalData_t {
     mat4 ortho_proj;
     vec3 eye_pos;
     uint frame_id;
+    uint global_color_texture;
     UIData ui;
 };
 
@@ -55,6 +56,16 @@ struct VertexPBR {
     uint pbr_buf_id;
 };
 
+struct MaterialADSColored {
+    uint texel_offset;
+};
+
+struct MaterialADSTextured {
+    uint ambient;
+    uint diffuse;
+    uint specular;
+};
+
 struct PBRMaterial {
     vec4 base_color_factor;
     uint base_color;
@@ -80,6 +91,15 @@ layout (set = 1, binding = 0) readonly buffer PBRMaterialGlobal {
     PBRMaterial data[];
 } g_PBRMaterialGlobal;
 
+layout (set = 1, binding = 0) readonly buffer MaterialADSColoredGlobal {
+    MaterialADSColored data[];
+} g_MaterialADSColoredGlobal;
+
+layout (set = 1, binding = 0) readonly buffer MaterialADSTexturedGlobal {
+    MaterialADSTextured data[];
+} g_MaterialADSTexturedGlobal;
+
+layout (set = 2, binding = 0) uniform sampler1D g_Textures1DGlobal[];
 layout (set = 2, binding = 0) uniform sampler2D g_Textures2DGlobal[];
 layout (set = 2, binding = 0) uniform sampler2DArray g_Textures2DArrayGlobal[];
 layout (set = 2, binding = 0) uniform samplerCube g_TexturesCubeGlobal[];

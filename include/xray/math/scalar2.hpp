@@ -28,8 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
-
 #include <cstdint>
 #include <type_traits>
 
@@ -121,18 +119,6 @@ struct scalar2 : public SwizzleBase<T, 2>
     template<typename U>
         requires std::is_convertible_v<U, T>
     explicit constexpr scalar2(const U (&arr)[2]) noexcept
-        : scalar2{ arr[0], arr[1] }
-    {
-    }
-
-    explicit constexpr scalar2(const T* arr) noexcept
-        : scalar2{ arr[0], arr[1] }
-    {
-    }
-
-    template<typename U>
-        requires std::is_convertible_v<U, T>
-    explicit constexpr scalar2(const U* arr) noexcept
         : scalar2{ arr[0], arr[1] }
     {
     }

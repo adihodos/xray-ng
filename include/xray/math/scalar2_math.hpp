@@ -125,6 +125,14 @@ operator-(const scalar2<T>& a) noexcept
 template<typename T>
     requires std::is_arithmetic_v<T>
 inline auto
+operator*(const scalar2<T>& a, const scalar2<T>& b) noexcept
+{
+    return scalar2<T>{ a.x * b.x, a.y * b.y };
+}
+
+template<typename T>
+    requires std::is_arithmetic_v<T>
+inline auto
 operator*(const scalar2<T>& a, const T b) noexcept
 {
     return scalar2<T>{ a.x * b, a.y * b };

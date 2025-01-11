@@ -18,3 +18,5 @@ Vk Demo:
 - make the UI work for Vulkan <<< done
 - revitalize the geometry generating functions <<< done
 - add function to generate a debug texture (XOR texture - https://lodev.org/cgtutor/xortexture.html) <<< done
+
+- graphs: can use this https://github.com/bobluppes/graaf

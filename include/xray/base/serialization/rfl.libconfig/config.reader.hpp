@@ -22,7 +22,8 @@ struct Reader
     static rfl::Error make_config_error(const char* fmt, Fargs&&... args)
     {
         char scratch_buffer[1024];
-        auto out = fmt::format_to_n(scratch_buffer, 1023, fmt::runtime_format_string<>{fmt}, std::forward<Fargs>(args)...);
+        auto out =
+            fmt::format_to_n(scratch_buffer, 1023, fmt::runtime_format_string<>{ fmt }, std::forward<Fargs>(args)...);
         *out.out = 0;
         return rfl::Error{ scratch_buffer };
     }
@@ -84,7 +85,7 @@ struct Reader
         if (config_setting_is_list(_var))
             return _var;
         else
-            return make_config_error("Variable is not an array");
+            return rfl::Error("Variable is not an array");
     }
 
     /// Casts _var as an InputObjectType.
@@ -93,7 +94,7 @@ struct Reader
     {
         if (config_setting_is_group(_var))
             return _var;
-        return make_config_error("Variable is not an object");
+        return rfl::Error("Variable is not an object");
     }
 
     /// Iterates through an array and inserts the values into the array

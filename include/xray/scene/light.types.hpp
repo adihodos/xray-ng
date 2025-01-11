@@ -28,40 +28,39 @@
 
 #pragma once
 
-#include <cassert>
-#include <cstdint>
-#include <type_traits>
-#include <span>
+#include "xray/math/scalar3.hpp"
+#include "xray/math/scalar4.hpp"
 
-namespace xray::base {
-template<typename C>
-concept ContainerLikeObject = requires(C&& c) {
-    { c.size() } -> std::convertible_to<size_t>;
-    c[0];
-    std::is_pointer_v<decltype(c.data())>;
+namespace xray::scene {
+
+struct DirectionalLight
+{
+    alignas(16) math::vec3f direction;
+    alignas(16) math::vec4f ambient;
+    alignas(16) math::vec4f diffuse;
+    alignas(16) math::vec4f specular;
 };
 
-template<ContainerLikeObject C>
-[[nodiscard]] inline std::span<const uint8_t>
-to_bytes_span(C&& c) noexcept
+struct PointLight
 {
-    return std::span{ reinterpret_cast<const uint8_t*>(c.data()), c.size() * sizeof(c[0]) };
-}
+    math::vec3f position;
+    float range;
+    alignas(16) math::vec3f attenuation;
+    alignas(16) math::vec4f ambient;
+    alignas(16) math::vec4f diffuse;
+    alignas(16) math::vec4f specular;
+};
 
-template<typename T, size_t N>
-[[nodiscard]] inline constexpr std::span<const uint8_t>
-to_bytes_span(const T (&array_ref)[N]) noexcept
+struct SpotLight
 {
-    return std::span{ reinterpret_cast<const uint8_t*>(&array_ref[0]), sizeof(array_ref) };
-}
-
-template<typename T>
-    requires std::is_integral_v<T>
-[[nodiscard]] constexpr inline T
-align(const T value, const T alignment) noexcept
-{
-    assert(alignment != 0);
-    return (alignment - 1 + value) / alignment * alignment;
-}
+    math::vec3f position;
+    float range;
+    math::vec3f direction;
+    float spot;
+    alignas(16) math::vec3f attenuation;
+    alignas(16) math::vec4f ambient;
+    alignas(16) math::vec4f diffuse;
+    alignas(16) math::vec4f specular;
+};
 
 }

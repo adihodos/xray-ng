@@ -33,6 +33,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pretty.print.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.async.tasks.hpp"
 
 using namespace xray::base;
 using namespace std;
@@ -2318,17 +2319,18 @@ VulkanRenderer::dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, con
     vkfn::CmdDebugMarkerInsertEXT(cmd_buf, &debug_marker);
 }
 
-tl::expected<VkCommandBuffer, VulkanError>
-VulkanRenderer::new_transfer_command_buffer() noexcept
+tl::expected<VkCommandBuffer, xray::rendering::VulkanError>
+xray::rendering::VulkanRenderer::create_job(const QueueType qtype) noexcept
 {
     const VkCommandBufferAllocateInfo alloc_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .pNext = nullptr,
-        .commandPool = raw_ptr(_render_state.queues[1].cmd_pool),
+        .commandPool = raw_ptr(_render_state.queues[static_cast<uint8_t>(qtype)].cmd_pool),
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     };
 
+    // TODO: needs syncing here for the alloc
     VkCommandBuffer cmd_buffer{};
     const VkResult alloc_cmdbuffs_res =
         WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, raw_ptr(_render_state.dev_logical), &alloc_info, &cmd_buffer);
@@ -2343,6 +2345,41 @@ VulkanRenderer::new_transfer_command_buffer() noexcept
     vkBeginCommandBuffer(cmd_buffer, &cmd_buf_begin_info);
 
     return tl::expected<VkCommandBuffer, VulkanError>{ cmd_buffer };
+}
+
+tl::expected<xray::rendering::JobWaitToken, xray::rendering::VulkanError>
+xray::rendering::VulkanRenderer::submit_job(VkCommandBuffer cmd_buffer, const QueueType qtype) noexcept
+{
+    vkEndCommandBuffer(cmd_buffer);
+
+    using namespace xray::base;
+
+    xrUniqueVkFence wait_fence{ nullptr, VkResourceDeleter_VkFence{ device() } };
+    const VkFenceCreateInfo fence_create_info{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+    };
+    const VkResult fence_create_status =
+        WRAP_VULKAN_FUNC(vkCreateFence, device(), &fence_create_info, nullptr, raw_ptr_ptr(wait_fence));
+    XR_VK_CHECK_RESULT(fence_create_status);
+
+    const VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 0,
+        .pWaitSemaphores = nullptr,
+        .pWaitDstStageMask = nullptr,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd_buffer,
+        .signalSemaphoreCount = 0,
+        .pSignalSemaphores = nullptr,
+    };
+    const VkResult submit_result = WRAP_VULKAN_FUNC(
+        vkQueueSubmit, _render_state.queues[static_cast<uint8_t>(qtype)].handle, 1, &submit_info, raw_ptr(wait_fence));
+    XR_VK_CHECK_RESULT(submit_result);
+
+    return JobWaitToken{ cmd_buffer, std::move(wait_fence), this };
 }
 
 uint32_t

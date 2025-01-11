@@ -2,6 +2,7 @@
 
 #include <string_view>
 #include <Lz/Lz.hpp>
+#include <oneapi/tbb/spin_mutex.h>
 
 #include "xray/base/xray.misc.hpp"
 #include "xray/math/scalar2.hpp"
@@ -15,97 +16,6 @@
 using namespace std;
 
 namespace xray::rendering::detail {
-
-struct JobWaitToken
-{
-  public:
-    JobWaitToken(xrUniqueVkFence&& fence) noexcept
-        : _fence{ std::move(fence) }
-    {
-    }
-
-    JobWaitToken(JobWaitToken&& rhs) noexcept
-        : _fence{ std::move(rhs._fence) }
-    {
-    }
-
-    JobWaitToken(const JobWaitToken&) = delete;
-    JobWaitToken& operator=(const JobWaitToken&&) = delete;
-    JobWaitToken& operator=(JobWaitToken&&) = delete;
-
-    ~JobWaitToken()
-    {
-        if (_fence) {
-            VkDevice device = base::unique_pointer_get_deleter(_fence)._owner;
-            const VkFence fences[] = { base::raw_ptr(_fence) };
-            WRAP_VULKAN_FUNC(vkWaitForFences, device, 1, fences, true, 0xffffffff);
-        }
-    }
-
-  private:
-    xrUniqueVkFence _fence;
-};
-
-tl::expected<VkCommandBuffer, VulkanError>
-create_job(VkDevice device, VkCommandPool cmd_pool) noexcept
-{
-    const VkCommandBufferAllocateInfo alloc_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .commandPool = cmd_pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    };
-    VkCommandBuffer cmd_buffer{};
-    const VkResult alloc_cmdbuffs_res = WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, device, &alloc_info, &cmd_buffer);
-    XR_VK_CHECK_RESULT(alloc_cmdbuffs_res);
-
-    const VkCommandBufferBeginInfo cmd_buf_begin_info{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr,
-    };
-    vkBeginCommandBuffer(cmd_buffer, &cmd_buf_begin_info);
-
-    return tl::expected<VkCommandBuffer, VulkanError>{ cmd_buffer };
-}
-
-tl::expected<JobWaitToken, xray::rendering::VulkanError>
-submit_job(VkCommandBuffer cmd_buffer, VkDevice device, VkQueue transfer_queue)
-{
-    vkEndCommandBuffer(cmd_buffer);
-
-    using namespace xray::rendering;
-    using namespace xray::base;
-
-    xrUniqueVkFence wait_fence{ nullptr, VkResourceDeleter_VkFence{ device } };
-    const VkFenceCreateInfo fence_create_info{
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-    };
-    const VkResult fence_create_status =
-        WRAP_VULKAN_FUNC(vkCreateFence, device, &fence_create_info, nullptr, raw_ptr_ptr(wait_fence));
-    XR_VK_CHECK_RESULT(fence_create_status);
-
-    const VkSubmitInfo submit_info{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 0,
-        .pWaitSemaphores = nullptr,
-        .pWaitDstStageMask = nullptr,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd_buffer,
-        .signalSemaphoreCount = 0,
-        .pSignalSemaphores = nullptr,
-    };
-    const VkResult submit_result =
-        WRAP_VULKAN_FUNC(vkQueueSubmit, transfer_queue, 1, &submit_info, raw_ptr(wait_fence));
-    XR_VK_CHECK_RESULT(submit_result);
-
-    return JobWaitToken{ std::move(wait_fence) };
-}
 
 constexpr const string_view GRID_VS{
     R"#(
@@ -190,7 +100,7 @@ xray::rendering::RendererAsyncTasks::create_rendering_resources_task(concurrencp
                        0);
 
         const auto [queue, queue_idx, queue_pool] = r->queue_data(1);
-        auto cmd_buffer = detail::create_job(r->device(), queue_pool);
+        auto cmd_buffer = r->create_job(QueueType::Transfer);
         XR_VK_PROPAGATE_ERROR(cmd_buffer);
 
         auto vertex_buffer =
@@ -314,7 +224,7 @@ xray::rendering::RendererAsyncTasks::create_rendering_resources_task(concurrencp
             images.push_back(std::move(*image));
         }
 
-        const auto wait_token = detail::submit_job(*cmd_buffer, r->device(), queue);
+        const auto wait_token = r->submit_job(*cmd_buffer, QueueType::Transfer);
         XR_VK_PROPAGATE_ERROR(wait_token);
 
         return tl::expected<GeometryWithRenderData, VulkanError>{
@@ -389,7 +299,7 @@ xray::rendering::RendererAsyncTasks::create_generated_geometry_resources_task(co
                                            });
     XR_VK_COR_PROPAGATE_ERROR(idx_buffer);
 
-    auto cmd_buf = r->new_transfer_command_buffer();
+    auto cmd_buf = r->create_job(QueueType::Transfer);
     XR_VK_COR_PROPAGATE_ERROR(cmd_buf);
 
     VkDeviceSize copy_vtx_offset{};
@@ -435,7 +345,7 @@ xray::rendering::RendererAsyncTasks::create_generated_geometry_resources_task(co
         *cmd_buf, r->staging_buffer(), idx_buffer->buffer_handle(), copy_rgns_idx.size(), copy_rgns_idx.data());
 
     const auto [queue, queue_idx, queue_pool] = r->queue_data(1);
-    const auto wait_token = detail::submit_job(*cmd_buf, r->device(), queue);
+    const auto wait_token = r->submit_job(*cmd_buf, QueueType::Transfer);
     XR_VK_COR_PROPAGATE_ERROR(wait_token);
 
     auto graphics_pipeline = GraphicsPipelineBuilder{}
@@ -453,4 +363,20 @@ xray::rendering::RendererAsyncTasks::create_generated_geometry_resources_task(co
     co_return tl::expected<GeneratedGeometryWithRenderData, VulkanError>{
         tl::in_place, std::move(*vtx_buffer), std::move(*idx_buffer), std::move(*graphics_pipeline), std::move(objects),
     };
+}
+
+void
+xray::rendering::JobWaitToken::dispose() noexcept
+{
+    if (_fence) {
+        WRAP_VULKAN_FUNC(vkWaitForFences, _renderer->device(), 1, &_fence, true, 0xffffffff);
+        vkDestroyFence(_renderer->device(), _fence, nullptr);
+    }
+
+    if (_cmdbuf) {
+        VulkanRenderer::QueueData q = _renderer->queue_data(QueueType::Transfer);
+        using scoped_lock_type = std::remove_cv_t<decltype(q.cmdpool_lock)>;
+        scoped_lock_type cmd_pool_lock{ q.cmdpool_lock };
+        vkFreeCommandBuffers(_renderer->device(), q.cmdpool, 1, &_cmdbuf);
+    }
 }

@@ -35,6 +35,7 @@
 #include "xray/xray.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <span>
 
 namespace xray {
@@ -66,6 +67,15 @@ struct geometry_data_t
     }
 
     geometry_data_t(const size_type num_vertices, const size_type num_indices) { setup(num_vertices, num_indices); }
+    geometry_data_t& operator=(geometry_data_t&& rhs) noexcept
+    {
+        std::swap(this->vertex_count, rhs.vertex_count);
+        std::swap(this->index_count, rhs.index_count);
+        std::swap(this->geometry, rhs.geometry);
+        std::swap(this->indices, rhs.indices);
+
+        return *this;
+    }
 
     void setup(const size_type num_vertices, const size_type num_indices)
     {

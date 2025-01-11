@@ -1,7 +1,5 @@
 #pragma once
 
-#include "xray/xray.hpp"
-
 #include <initializer_list>
 #include <span>
 
@@ -11,7 +9,6 @@
 
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.handles.hpp"
 
 namespace xray::rendering {
 
@@ -20,7 +17,7 @@ class VulkanRenderer;
 struct VulkanBufferCreateInfo
 {
     const char* name_tag{};
-    tl::optional<WorkPackageHandle> work_package{};
+    tl::optional<VkCommandBuffer> job_cmd_buf{};
     VkBufferUsageFlags usage;
     VkMemoryPropertyFlags memory_properties;
     size_t bytes{ 1024 };
@@ -32,8 +29,6 @@ using xrUniqueBufferWithMemory = UniqueVulkanResourcePack<VkDevice, VkBuffer, Vk
 
 struct VulkanBuffer
 {
-    static constexpr const uint32_t NO_FRAME{ 0xffffffffu };
-
     xrUniqueBufferWithMemory buffer;
     uint32_t aligned_size;
     uint32_t alignment;

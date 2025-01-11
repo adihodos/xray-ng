@@ -28,7 +28,7 @@ xray::rendering::BindlessSystem::BindlessSystem(xray::rendering::BindlessSystem&
     , _writes_sbo{ std::move(rhs._writes_sbo) }
     , _writes_img{ std::move(rhs._writes_img) }
     , _handle_idx_ubos{ rhs._handle_idx_ubos }
-    , _handle_idx_sbos{ rhs._handle_idx_sbos }
+    , _handle_idx_sbos{ rhs._handle_idx_sbos.load() }
     , _free_slot_images{ rhs._free_slot_images.load() }
     , _sampler_table{ std::move(rhs._sampler_table) }
 {
@@ -213,8 +213,8 @@ xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img,
                                            const tl::optional<uint32_t> slot)
 {
     const uint32_t handle{ slot.value_or(_free_slot_images.fetch_add(1)) };
-    if (handle >= _image_resources.size()) {
-        _image_resources.resize(handle + 1);
+    if (_free_slot_images > _image_resources.size()) {
+        _image_resources.resize(_free_slot_images);
     }
 
     const auto [image, image_memory, image_view] = img.release();
@@ -224,7 +224,11 @@ xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img,
     _writes_img.push_back(WriteDescriptorImageInfo{
         .dst_array = handle,
         .img_info =
-            VkDescriptorImageInfo{ .sampler = smp, .imageView = image_view, .imageLayout = img._info.imageLayout },
+            VkDescriptorImageInfo{
+                .sampler = smp,
+                .imageView = image_view,
+                .imageLayout = img._info.imageLayout,
+            },
     });
 
     return std::pair{
@@ -265,12 +269,18 @@ xray::rendering::BindlessSystem::add_chunked_uniform_buffer(VulkanBuffer ubo, co
 }
 
 std::pair<xray::rendering::BindlessResourceHandle_StorageBuffer, xray::rendering::BindlessResourceEntry_StorageBuffer>
-xray::rendering::BindlessSystem::add_chunked_storage_buffer(VulkanBuffer ssbo, const uint32_t chunks)
+xray::rendering::BindlessSystem::add_chunked_storage_buffer(VulkanBuffer ssbo,
+                                                            const uint32_t chunks,
+                                                            const tl::optional<uint32_t> slot)
 {
+    const uint32_t handle{ slot.value_or(_handle_idx_sbos.fetch_add(chunks)) };
+    if (_handle_idx_sbos > _sbo_resources.size()) {
+        _sbo_resources.resize(_handle_idx_sbos);
+    }
+
     const auto [ubo_handle, ubo_mem] = ssbo.buffer.release();
 
-    const uint32_t bindless_idx{ _handle_idx_sbos };
-    _handle_idx_sbos += chunks;
+    const uint32_t bindless_idx{ handle };
     _sbo_resources.emplace_back(
         BindlessResourceEntry_StorageBuffer{ ubo_handle, ubo_mem, ssbo.aligned_size }, bindless_idx, chunks);
 

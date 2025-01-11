@@ -1,5 +1,5 @@
 //
-// Copyright (c) Adrian Hodos
+// Copyright (c) 2011, 2012, 2013 Adrian Hodos
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,40 +28,30 @@
 
 #pragma once
 
-#include <cassert>
-#include <cstdint>
-#include <type_traits>
-#include <span>
+#include "xray/math/scalar2.hpp"
 
-namespace xray::base {
-template<typename C>
-concept ContainerLikeObject = requires(C&& c) {
-    { c.size() } -> std::convertible_to<size_t>;
-    c[0];
-    std::is_pointer_v<decltype(c.data())>;
-};
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
+#include <fmt/core.h>
+#include <fmt/format.h>
+#endif
 
-template<ContainerLikeObject C>
-[[nodiscard]] inline std::span<const uint8_t>
-to_bytes_span(C&& c) noexcept
-{
-    return std::span{ reinterpret_cast<const uint8_t*>(c.data()), c.size() * sizeof(c[0]) };
-}
+#if defined(XRAY_MATH_ENABLE_FMT_SUPPORT)
 
-template<typename T, size_t N>
-[[nodiscard]] inline constexpr std::span<const uint8_t>
-to_bytes_span(const T (&array_ref)[N]) noexcept
-{
-    return std::span{ reinterpret_cast<const uint8_t*>(&array_ref[0]), sizeof(array_ref) };
-}
+namespace fmt {
 
 template<typename T>
-    requires std::is_integral_v<T>
-[[nodiscard]] constexpr inline T
-align(const T value, const T alignment) noexcept
+struct formatter<xray::math::scalar2<T>> : nested_formatter<T>
 {
-    assert(alignment != 0);
-    return (alignment - 1 + value) / alignment * alignment;
-}
+    // Formats value using the parsed format specification stored in this
+    // formatter and writes the output to ctx.out().
+    auto format(const xray::math::scalar2<T>& value, format_context& ctx) const
+    {
+        return this->write_padded(ctx, [this, value](auto out) {
+            return fmt::format_to(out, "scalar2 [ .x = {}, .y = {} ]", this->nested(value.x), this->nested(value.y));
+        });
+    }
+};
 
-}
+} // namespace fmt
+
+#endif

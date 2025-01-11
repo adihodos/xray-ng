@@ -32,6 +32,7 @@
 #include <string_view>
 #include <imgui/imgui.h>
 
+#include "vulkan.renderer/vulkan.async.tasks.hpp"
 #include "xray/ui/user.interface.backend.hpp"
 #include "xray/ui/user_interface_render_context.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
@@ -112,8 +113,6 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
     using namespace rendering;
 
     const RenderBufferingSetup rbs{ renderer.buffering_setup() };
-    auto work_pkg = renderer.create_work_package();
-    XR_VK_PROPAGATE_ERROR(work_pkg);
 
     auto vertex_buffer = VulkanBuffer::create(renderer,
                                               VulkanBufferCreateInfo{
@@ -123,7 +122,6 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
                                                   .bytes = MAX_VERTICES * sizeof(ImDrawVert),
                                                   .frames = rbs.buffers,
                                               });
-
     XR_VK_PROPAGATE_ERROR(vertex_buffer);
 
     auto index_buffer = VulkanBuffer::create(renderer,
@@ -153,28 +151,35 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
             .add_shader(ShaderStage::Vertex, UI_VERTEX_SHADER)
             .add_shader(ShaderStage::Fragment, UI_FRAGMENT_SHADER)
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
-            .rasterization_state(RasterizationState{ .poly_mode = VK_POLYGON_MODE_FILL,
-                                                     .cull_mode = VK_CULL_MODE_NONE,
-                                                     .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-                                                     .line_width = 1.0f })
+            .rasterization_state(RasterizationState{
+                .poly_mode = VK_POLYGON_MODE_FILL,
+                .cull_mode = VK_CULL_MODE_NONE,
+                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .line_width = 1.0f,
+            })
             .depth_stencil_state(DepthStencilState{ .depth_test_enable = false, .depth_write_enable = false })
             .color_blend(enable_blending)
             .create_bindless(renderer);
     XR_VK_PROPAGATE_ERROR(graphics_pipeline);
 
-    auto font_atlas = VulkanImage::from_memory(
-        renderer,
-        VulkanImageCreateInfo{ .tag_name = "UI font atlas",
-                               .wpkg = work_pkg->pkg,
-                               .type = VK_IMAGE_TYPE_2D,
-                               .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                               .format = VK_FORMAT_R8G8B8A8_UNORM,
-                               .width = backend_create_info.atlas_width,
-                               .height = backend_create_info.atlas_height,
-                               .pixels = std::span{ &backend_create_info.font_atlas_pixels, 1 } });
+    auto resources_job = renderer.create_job(QueueType::Transfer);
+    XR_VK_PROPAGATE_ERROR(resources_job);
+
+    auto font_atlas =
+        VulkanImage::from_memory(renderer,
+                                 VulkanImageCreateInfo{
+                                     .tag_name = "UI font atlas",
+                                     .wpkg = *resources_job,
+                                     .type = VK_IMAGE_TYPE_2D,
+                                     .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                     .format = VK_FORMAT_R8G8B8A8_UNORM,
+                                     .width = backend_create_info.atlas_width,
+                                     .height = backend_create_info.atlas_height,
+                                     .pixels = std::span{ &backend_create_info.font_atlas_pixels, 1 },
+                                 });
     XR_VK_PROPAGATE_ERROR(font_atlas);
 
-    renderer.submit_work_package(work_pkg->pkg);
+    auto wait_token = renderer.submit_job(*resources_job, QueueType::Transfer);
 
     auto sampler = renderer.bindless_sys().get_sampler(
         VkSamplerCreateInfo{

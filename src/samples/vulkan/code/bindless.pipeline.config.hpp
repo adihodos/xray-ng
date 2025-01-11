@@ -17,14 +17,15 @@ struct UIData
 
 struct FrameGlobalData
 {
-    xray::math::mat4f world_view_proj;
-    xray::math::mat4f projection;
-    xray::math::mat4f inv_projection;
-    xray::math::mat4f view;
-    xray::math::mat4f ortho;
-    xray::math::vec3f eye_pos;
+    alignas(16) xray::math::mat4f world_view_proj;
+    alignas(16) xray::math::mat4f projection;
+    alignas(16) xray::math::mat4f inv_projection;
+    alignas(16) xray::math::mat4f view;
+    alignas(16) xray::math::mat4f ortho;
+    alignas(16) xray::math::vec3f eye_pos;
     uint32_t frame;
-    UIData ui;
+    uint32_t global_color_texture;
+    alignas(16) UIData ui;
 };
 
 struct alignas(16) InstanceRenderInfo

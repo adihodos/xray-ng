@@ -35,8 +35,6 @@
 
 #include "xray/math/scalar3.hpp"
 #include "xray/math/swizzle.hpp"
-#include "xray/base/algorithms/copy_pod_range.hpp"
-#include "xray/math/math_std.hpp"
 
 namespace xray {
 namespace math {
@@ -54,6 +52,7 @@ namespace math {
 ///             homogeneous
 ///             point has a w component with a value different than 1.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 class scalar4 : public SwizzleBase<T, 4>
 {
     static_assert(std::is_arithmetic_v<T>, "Template parameter needs to be an arythmetic type!");
@@ -155,11 +154,8 @@ class scalar4 : public SwizzleBase<T, 4>
     }
 
     explicit constexpr scalar4(const T (&arr)[4]) noexcept
+        : scalar4{ arr[0], arr[1], arr[2], arr[3] }
     {
-        x = arr[0];
-        y = arr[1];
-        z = arr[2];
-        w = arr[4];
     }
 
     template<typename U>
@@ -172,39 +168,27 @@ class scalar4 : public SwizzleBase<T, 4>
         z = static_cast<T>(arr[4]);
     }
 
-    constexpr scalar4(const Swizzle4<T> s) noexcept
+    constexpr explicit scalar4(const Swizzle4<T> s) noexcept
         : scalar4{ s.x, s.y, s.z, s.w }
     {
     }
 
     template<typename U>
         requires std::is_convertible_v<U, T>
-    constexpr scalar4(const Swizzle4<U> s) noexcept
+    constexpr explicit scalar4(const Swizzle4<U> s) noexcept
         : scalar4{ s.x, s.y, s.z, s.w }
     {
     }
 
-    constexpr scalar4(const scalar3<T>& val, const T w_val = T(1)) noexcept
+    constexpr explicit scalar4(const scalar3<T>& val, const T w_val = T(1)) noexcept
         : scalar4{ val.x, val.y, val.z, w_val }
     {
     }
 
     template<typename U>
         requires std::is_convertible_v<U, T>
-    constexpr scalar4(const scalar3<U>& val, const U w_val = T(1)) noexcept
+    constexpr explicit scalar4(const scalar3<U>& val, const U w_val = T(1)) noexcept
         : scalar4{ val.x, val.y, val.z, w_val }
-    {
-    }
-
-    explicit scalar4(const T* inputs) noexcept
-        : scalar4{ inputs[0], inputs[1], inputs[2], inputs[3] }
-    {
-    }
-
-    template<typename U>
-        requires std::is_convertible_v<U, T>
-    explicit scalar4(const U* s) noexcept
-        : scalar4{ s[0], s[1], s[2], s[3] }
     {
     }
 
@@ -279,6 +263,7 @@ class scalar4 : public SwizzleBase<T, 4>
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar4<T>::stdc
 {
     static constexpr const scalar4<T> unit_x{ T(1.0), T(0.0), T(0.0), T(0.0) };
@@ -290,21 +275,27 @@ struct scalar4<T>::stdc
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::unit_x;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::unit_y;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::unit_z;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::unit_w;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::zero;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::one;
 
 using vec4f = scalar4<float>;
