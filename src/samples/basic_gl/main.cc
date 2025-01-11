@@ -40,8 +40,8 @@
 #include <chrono>
 #include <vector>
 
-#include <oneapi/tbb/info.h>
-#include <oneapi/tbb/task_arena.h>
+// #include <oneapi/tbb/info.h>
+// #include <oneapi/tbb/task_arena.h>
 
 #include <Lz/Lz.hpp>
 #include <swl/variant.hpp>
@@ -210,7 +210,7 @@ MainRunner::create()
 
     XR_LOG_INFO("Starting up ...");
 
-    const int num_threads = oneapi::tbb::info::default_concurrency();
+    // const int num_threads = oneapi::tbb::info::default_concurrency();
     XR_LOG_INFO("Default concurency {}", num_threads);
 
     ConfigSystem app_cfg{ "config/app_config.conf" };

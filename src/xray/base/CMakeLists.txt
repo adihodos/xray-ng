@@ -27,6 +27,7 @@ set(project_headers
     ${proj_inc_dir}/windows/com_ptr.hpp
     ${proj_inc_dir}/windows/handle_traits.hpp
     ${proj_inc_dir}/file_system_watcher.hpp
+    ${proj_inc_dir}/concurrency/spin.mutex.hpp
     ${proj_inc_dir}/serialization/rfl.libconfig/config.load.hpp
     ${proj_inc_dir}/serialization/rfl.libconfig/config.parser.hpp
     ${proj_inc_dir}/serialization/rfl.libconfig/config.reader.hpp

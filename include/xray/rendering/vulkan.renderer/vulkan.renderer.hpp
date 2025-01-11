@@ -1,7 +1,5 @@
 #pragma once
 
-#include "xray/xray.hpp"
-
 #include <span>
 #include <tuple>
 #include <vector>
@@ -10,12 +8,12 @@
 #include <unordered_map>
 
 #include <tl/optional.hpp>
-#include <oneapi/tbb/spin_mutex.h>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
 #include "xray/base/xray.misc.hpp"
+#include "xray/base/concurrency/spin.mutex.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
@@ -135,8 +133,8 @@ struct RenderState
     UniqueMemoryMapping mapped_staging_buffer;
     std::atomic_uintptr_t staging_buffer_offset;
     std::vector<Queue> queues;
-    xray::base::unique_pointer<oneapi::tbb::spin_mutex[]> queue_cmd_pool_mutex;
-    xray::base::unique_pointer<oneapi::tbb::spin_mutex[]> queue_submit_mutex;
+    xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_cmd_pool_mutex;
+    xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_submit_mutex;
     RenderingAttachments attachments;
 
     RenderState(const PhysicalDeviceData& pd,
@@ -151,8 +149,8 @@ struct RenderState
         , mapped_staging_buffer{ std::move(mapped_staging) }
         , staging_buffer_offset{ 0 }
         , queues{ std::move(qs) }
-        , queue_cmd_pool_mutex{ new oneapi::tbb::spin_mutex[queues.size()] }
-        , queue_submit_mutex{ new oneapi::tbb::spin_mutex[queues.size()] }
+        , queue_cmd_pool_mutex{ new xray::base::concurrency::spin_mutex[queues.size()] }
+        , queue_submit_mutex{ new xray::base::concurrency::spin_mutex[queues.size()] }
         , attachments{ std::move(atts) }
     {
     }
@@ -363,8 +361,8 @@ class VulkanRenderer
         VkQueue handle;
         uint32_t family;
         VkCommandPool cmdpool;
-        std::reference_wrapper<oneapi::tbb::spin_mutex> cmdpool_lock;
-        std::reference_wrapper<oneapi::tbb::spin_mutex> submit_lock;
+        std::reference_wrapper<xray::base::concurrency::spin_mutex> cmdpool_lock;
+        std::reference_wrapper<xray::base::concurrency::spin_mutex> submit_lock;
     };
 
     QueueData queue_data(const QueueType qtype) noexcept

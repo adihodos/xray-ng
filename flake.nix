@@ -38,6 +38,8 @@
             ninja
             gef
             gf
+            glogg
+            lnav
             renderdoc
             cmake
             cmakeCurses

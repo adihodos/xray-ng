@@ -1,8 +1,8 @@
 #include "xray/rendering/vulkan.renderer/vulkan.async.tasks.hpp"
 
+#include <mutex>
 #include <string_view>
 #include <Lz/Lz.hpp>
-#include <oneapi/tbb/spin_mutex.h>
 
 #include "xray/base/xray.misc.hpp"
 #include "xray/math/scalar2.hpp"
@@ -374,9 +374,8 @@ xray::rendering::JobWaitToken::dispose() noexcept
     }
 
     if (_cmdbuf) {
-        VulkanRenderer::QueueData q = _renderer->queue_data(QueueType::Transfer);
-        using scoped_lock_type = std::remove_cv_t<decltype(q.cmdpool_lock)>;
-        scoped_lock_type cmd_pool_lock{ q.cmdpool_lock };
-        vkFreeCommandBuffers(_renderer->device(), q.cmdpool, 1, &_cmdbuf);
+        VulkanRenderer::QueueData qdata = _renderer->queue_data(QueueType::Transfer);
+        std::unique_lock<xray::base::concurrency::spin_mutex> queue_lock{ qdata.cmdpool_lock };
+        vkFreeCommandBuffers(_renderer->device(), qdata.cmdpool, 1, &_cmdbuf);
     }
 }

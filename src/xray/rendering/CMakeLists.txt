@@ -140,7 +140,6 @@ target_link_libraries(
          Vulkan::Vulkan
          swl-variant
          strong_type::strong_type
-         TBB::tbb
          concurrencpp::concurrencpp
          cpp-lazy::cpp-lazy
          Vulkan::shaderc_combined

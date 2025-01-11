@@ -42,7 +42,6 @@
 #include <Lz/Lz.hpp>
 #include <swl/variant.hpp>
 #include <mio/mmap.hpp>
-#include <oneapi/tbb/concurrent_priority_queue.h>
 #include <rfl/json.hpp>
 #include <rfl.hpp>
 #include <itlib/small_vector.hpp>

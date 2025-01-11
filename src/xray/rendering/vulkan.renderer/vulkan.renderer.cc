@@ -7,6 +7,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <mutex>
 
 #include <fmt/core.h>
 #include <itlib/small_vector.hpp>
@@ -2322,19 +2323,23 @@ VulkanRenderer::dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, con
 tl::expected<VkCommandBuffer, xray::rendering::VulkanError>
 xray::rendering::VulkanRenderer::create_job(const QueueType qtype) noexcept
 {
+    QueueData qdata{ queue_data(qtype) };
+
     const VkCommandBufferAllocateInfo alloc_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .pNext = nullptr,
-        .commandPool = raw_ptr(_render_state.queues[static_cast<uint8_t>(qtype)].cmd_pool),
+        .commandPool = qdata.cmdpool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     };
 
-    // TODO: needs syncing here for the alloc
     VkCommandBuffer cmd_buffer{};
-    const VkResult alloc_cmdbuffs_res =
-        WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, raw_ptr(_render_state.dev_logical), &alloc_info, &cmd_buffer);
-    XR_VK_CHECK_RESULT(alloc_cmdbuffs_res);
+    {
+        std::unique_lock<xray::base::concurrency::spin_mutex> queue_lock{ qdata.cmdpool_lock };
+        const VkResult alloc_cmdbuffs_res =
+            WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, raw_ptr(_render_state.dev_logical), &alloc_info, &cmd_buffer);
+        XR_VK_CHECK_RESULT(alloc_cmdbuffs_res);
+    }
 
     const VkCommandBufferBeginInfo cmd_buf_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -2375,9 +2380,14 @@ xray::rendering::VulkanRenderer::submit_job(VkCommandBuffer cmd_buffer, const Qu
         .signalSemaphoreCount = 0,
         .pSignalSemaphores = nullptr,
     };
-    const VkResult submit_result = WRAP_VULKAN_FUNC(
-        vkQueueSubmit, _render_state.queues[static_cast<uint8_t>(qtype)].handle, 1, &submit_info, raw_ptr(wait_fence));
-    XR_VK_CHECK_RESULT(submit_result);
+
+    {
+        QueueData qdata{ queue_data(qtype) };
+        std::unique_lock<xray::base::concurrency::spin_mutex> submit_lock{ qdata.submit_lock };
+        const VkResult submit_result =
+            WRAP_VULKAN_FUNC(vkQueueSubmit, qdata.handle, 1, &submit_info, raw_ptr(wait_fence));
+        XR_VK_CHECK_RESULT(submit_result);
+    }
 
     return JobWaitToken{ cmd_buffer, std::move(wait_fence), this };
 }

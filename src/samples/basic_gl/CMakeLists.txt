@@ -173,7 +173,6 @@ target_link_libraries(
           xray-scene
           xray-ui
           xray-math
-          TBB::tbb
           itlib::itlib
           cpp-lazy::cpp-lazy
           reflectcpp
