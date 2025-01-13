@@ -25,7 +25,7 @@
 
 #include "xray/base/logger.hpp"
 #include "xray/base/scoped_guard.hpp"
-#include "xray/base/variant_visitor.hpp"
+#include "xray/base/variant.helpers.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"

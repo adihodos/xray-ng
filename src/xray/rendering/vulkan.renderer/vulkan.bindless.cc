@@ -3,7 +3,7 @@
 #include <itlib/small_vector.hpp>
 #include <Lz/Lz.hpp>
 
-#include "xray/base/variant_visitor.hpp"
+#include "xray/base/variant.helpers.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
@@ -287,28 +287,29 @@ xray::rendering::BindlessSystem::add_chunked_storage_buffer(VulkanBuffer ssbo,
         if (slot)
             return *slot;
 
-        return _handle_idx_sbos.fetch_add(1);
+        return _handle_idx_sbos.fetch_add(chunks);
     }();
 
-    if (_handle_idx_sbos > _sbo_resources.size()) {
-        _sbo_resources.resize(_handle_idx_sbos);
+    if (handle >= _sbo_resources.size()) {
+        _sbo_resources.resize(handle + 1);
     }
 
     const auto [ubo_handle, ubo_mem] = ssbo.buffer.release();
-
-    const uint32_t bindless_idx{ handle };
-    _sbo_resources.emplace_back(
-        BindlessResourceEntry_StorageBuffer{ ubo_handle, ubo_mem, ssbo.aligned_size }, bindless_idx, chunks);
+    _sbo_resources[handle] = SBOResourceEntry{
+        BindlessResourceEntry_StorageBuffer{ ubo_handle, ubo_mem, ssbo.aligned_size },
+        handle,
+        chunks,
+    };
 
     const BindlessResourceHandle_StorageBuffer bindless_ubo_handle{
-        detail::BindlessResourceHandleHelper{ bindless_idx, chunks }.value
+        detail::BindlessResourceHandleHelper{ handle, chunks }.value,
     };
 
     //
     // write ubo data for descriptor update
     for (uint32_t chunk_idx = 0; chunk_idx < chunks; ++chunk_idx) {
         _writes_sbo.push_back(WriteDescriptorBufferInfo{
-            .dst_array = bindless_idx + chunk_idx,
+            .dst_array = handle + chunk_idx,
             .buff_info =
                 VkDescriptorBufferInfo{
                     .buffer = ubo_handle,

@@ -42,6 +42,8 @@
 namespace xray {
 namespace scene {
 class camera_controller;
+struct SceneResources;
+struct SceneDefinition;
 } // namespace scene
 
 namespace ui {
@@ -70,6 +72,8 @@ struct RenderEvent
     xray::ui::user_interface* ui;
     FrameGlobalData* g_ubo_data;
     xray::rendering::DebugDrawSystem* dbg_draw;
+    xray::scene::SceneDefinition* sdef;
+    xray::scene::SceneResources* sres;
 };
 
 class DemoBase

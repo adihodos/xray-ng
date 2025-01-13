@@ -15,7 +15,9 @@ set(project_sources
     ${proj_inc_dir}/point_light.hpp
     ${proj_inc_dir}/light.types.hpp
     ${proj_inc_dir}/scene.description.hpp
-    ${proj_src_dir}/scene.description.cc)
+    ${proj_src_dir}/scene.description.cc
+    ${proj_inc_dir}/scene.definition.hpp
+    ${proj_src_dir}/scene.definition.cc)
 
 add_library(${PROJECT_NAME} STATIC ${project_sources})
 
@@ -30,6 +32,6 @@ target_compile_definitions(${PROJECT_NAME}
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC xray-base xray-ui $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
-         tl::optional
+  PUBLIC xray-base xray-ui xray-rendering
+         $<IF:$<PLATFORM_ID:Windows>,libconfig,config> tl::optional
   PRIVATE joboccara::pipes)

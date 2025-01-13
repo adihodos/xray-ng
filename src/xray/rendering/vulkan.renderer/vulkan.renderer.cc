@@ -25,10 +25,9 @@
 #endif
 
 #include "xray/base/fnv_hash.hpp"
-#include "xray/base/variant_visitor.hpp"
+#include "xray/base/variant.helpers.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/rangeless/fn.hpp"
-#include "xray/base/variant_visitor.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatch.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"

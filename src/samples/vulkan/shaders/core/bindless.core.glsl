@@ -29,8 +29,8 @@ struct InstanceRenderInfo_t {
     mat4 model;
     uint vtx_buff;
     uint idx_buff;
-    uint mtl_coll_offset;
-    uint mtl_id;
+    uint mtl_buffer_elem;
+    uint mtl_buffer;
 };
 
 layout (set = 1, binding = 0, row_major) readonly buffer InstancesGlobal {
@@ -89,15 +89,15 @@ layout (set = 1, binding = 0) readonly buffer IndicesGlobal {
 
 layout (set = 1, binding = 0) readonly buffer PBRMaterialGlobal {
     PBRMaterial data[];
-} g_PBRMaterialGlobal;
+} g_PBRMaterialGlobal[];
 
 layout (set = 1, binding = 0) readonly buffer MaterialADSColoredGlobal {
     MaterialADSColored data[];
-} g_MaterialADSColoredGlobal;
+} g_MaterialADSColoredGlobal[];
 
 layout (set = 1, binding = 0) readonly buffer MaterialADSTexturedGlobal {
     MaterialADSTextured data[];
-} g_MaterialADSTexturedGlobal;
+} g_MaterialADSTexturedGlobal[];
 
 layout (set = 2, binding = 0) uniform sampler1D g_Textures1DGlobal[];
 layout (set = 2, binding = 0) uniform sampler2D g_Textures2DGlobal[];

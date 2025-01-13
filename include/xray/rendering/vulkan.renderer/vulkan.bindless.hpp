@@ -14,6 +14,13 @@
 #include <tl/expected.hpp>
 #include <tl/optional.hpp>
 
+#include <strong_type/strong_type.hpp>
+#include <strong_type/bitarithmetic.hpp>
+#include <strong_type/convertible_to.hpp>
+#include <strong_type/equality.hpp>
+#include <strong_type/formattable.hpp>
+#include <strong_type/hashable.hpp>
+
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
@@ -114,7 +121,7 @@ bindless_subresource_handle_from_bindless_resource_handle(T bindless_resource, c
 }
 
 template<typename T>
-std::pair<uint32_t, uint32_t>
+std::pair<uint16_t, uint16_t>
 destructure_bindless_resource_handle(T bindless_resource) noexcept
     requires std::is_same_v<T, BindlessResourceHandle_Image> ||
              std::is_same_v<T, BindlessResourceHandle_UniformBuffer> ||

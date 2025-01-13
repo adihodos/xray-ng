@@ -33,8 +33,8 @@ struct alignas(16) InstanceRenderInfo
     xray::math::mat4f model;
     uint32_t vtx_buff;
     uint32_t idx_buff;
-    uint32_t mtl_coll;
-    uint32_t mtl;
+    uint32_t mtl_buffer_elem;
+    uint32_t mtl_buffer;
 };
 
 }

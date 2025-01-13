@@ -18,6 +18,7 @@ set(project_headers
     ${proj_inc_dir}/pod_zero.hpp
     ${proj_inc_dir}/scoped_guard.hpp
     ${proj_inc_dir}/scoped_handle.hpp
+    ${proj_inc_dir}/variant.helpers.hpp
     ${proj_inc_dir}/syscall_wrapper.hpp
     ${proj_inc_dir}/unique_handle.hpp
     ${proj_inc_dir}/logger.hpp
@@ -60,5 +61,5 @@ target_compile_definitions(
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC fmt::fmt spdlog::spdlog $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
-         reflectcpp
+         reflectcpp swl-variant
   PRIVATE itlib::itlib joboccara::pipes)
