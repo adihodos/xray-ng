@@ -493,11 +493,11 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         assert(create_info.wpkg.has_value());
 
         const uintptr_t staging_buffer_offset = renderer.reserve_staging_buffer_memory(mem_alloc_info.allocationSize);
-        uintptr_t staging_buffer_ptr = renderer.staging_buffer_memory();
+        uintptr_t staging_buffer_ptr = renderer.staging_buffer_memory() + staging_buffer_offset;
 
-        for (size_t i = 0, count = create_info.pixels.size(); i < count; ++i) {
-            memcpy((void*)((uint8_t*)(staging_buffer_ptr + staging_buffer_offset) +
-                           i * create_info.width * create_info.height),
+        for (size_t i = 0, bytes_copied = 0, count = create_info.pixels.size(); i < count;
+             ++i, bytes_copied += create_info.pixels[i].size_bytes()) {
+            memcpy(reinterpret_cast<void*>(staging_buffer_ptr + bytes_copied),
                    static_cast<const void*>(create_info.pixels[i].data()),
                    create_info.pixels[i].size_bytes());
         }
@@ -530,7 +530,7 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
                     .layerCount = create_info.layers,
                 },
             .imageOffset = {},
-            .imageExtent = { create_info.width, create_info.height, create_info.depth },
+            .imageExtent = { create_info.width, create_info.height, create_info.depth, },
         };
 
         vkCmdCopyBufferToImage(cmd_buf,
@@ -789,6 +789,12 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
                 ktxTexture_IterateLevels(ktxTexture(loaded_ktx), ktx_internal_details::optimalTilingCallback, &cbData);
             // XXX Check for possible errors.
         }
+
+        //
+        // Update all copy regions with the correct offset for the global staging buffer
+        lz::chain(copy_regions).forEach([staging_buff_offset](VkBufferImageCopy& bcpy) {
+            bcpy.bufferOffset += staging_buff_offset;
+        });
 
         // Create optimal tiled target image
         const VkImageCreateInfo imageCreateInfo{

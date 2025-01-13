@@ -12,11 +12,13 @@ Lighting
  - spot
  - PBR 
 
-Vk Demo:
- - switch to multi draw indirect, this way we can hide/show nodes
-
 - make the UI work for Vulkan <<< done
 - revitalize the geometry generating functions <<< done
 - add function to generate a debug texture (XOR texture - https://lodev.org/cgtutor/xortexture.html) <<< done
 
+Scene:
+ - SceneDefinition/SceneResources interact in weird ways, need to refactor a bit
+ - support for GLTF/PBR materials
+
 - graphs: can use this https://github.com/bobluppes/graaf
+- ECS: https://github.com/SanderMertens/flecs
