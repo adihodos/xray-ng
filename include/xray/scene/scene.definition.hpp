@@ -45,6 +45,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
+#include "xray/scene/light.types.hpp"
 
 namespace xray::rendering {
 class VulkanRenderer;
@@ -147,6 +148,10 @@ struct SceneDefinition
     NonGltfMaterialsData materials_nongltf;
     GltfMaterialsData materials_gltf;
     GraphicsPipelineResources pipelines;
+    std::vector<rendering::VulkanBuffer> sbos_lights;
+    std::vector<DirectionalLight> directional_lights;
+    std::vector<PointLight> point_lights;
+    std::vector<SpotLight> spot_lights;
 };
 
 struct SceneResources
@@ -158,6 +163,9 @@ struct SceneResources
     xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_texture_materials;
     xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_pbr_materials;
     xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_instances;
+    xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_directional_lights;
+    xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_point_lights;
+    xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_spot_lights;
     GraphicsPipelineResources pipelines;
 
     static SceneResources from_scene(SceneDefinition* sdef, xray::rendering::VulkanRenderer* r);

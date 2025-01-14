@@ -35,20 +35,20 @@ namespace xray::scene {
 
 struct DirectionalLight
 {
-    alignas(16) math::vec3f direction;
-    alignas(16) math::vec4f ambient;
-    alignas(16) math::vec4f diffuse;
-    alignas(16) math::vec4f specular;
+    math::vec3f direction;
+    math::vec4f ambient;
+    math::vec4f diffuse;
+    math::vec4f specular;
 };
 
 struct PointLight
 {
     math::vec3f position;
     float range;
-    alignas(16) math::vec3f attenuation;
-    alignas(16) math::vec4f ambient;
-    alignas(16) math::vec4f diffuse;
-    alignas(16) math::vec4f specular;
+    math::vec3f attenuation;
+    math::vec4f ambient;
+    math::vec4f diffuse;
+    math::vec4f specular;
 };
 
 struct SpotLight
@@ -57,10 +57,10 @@ struct SpotLight
     float range;
     math::vec3f direction;
     float spot;
-    alignas(16) math::vec3f attenuation;
-    alignas(16) math::vec4f ambient;
-    alignas(16) math::vec4f diffuse;
-    alignas(16) math::vec4f specular;
+    math::vec3f attenuation;
+    math::vec4f ambient;
+    math::vec4f diffuse;
+    math::vec4f specular;
 };
 
 }

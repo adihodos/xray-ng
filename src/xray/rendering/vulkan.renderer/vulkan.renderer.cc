@@ -9,8 +9,8 @@
 #include <vector>
 #include <mutex>
 
-#include <fmt/core.h>
 #include <itlib/small_vector.hpp>
+#include <fmt/core.h>
 #include <tl/optional.hpp>
 #include <swl/variant.hpp>
 #include <mio/mmap.hpp>
@@ -1019,10 +1019,10 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                               }) % fn::foldl(string{ "supported presentation modes: " }, plus<string>{}));
 
             constexpr const VkPresentModeKHR preferred_presentation_modes[] = {
+                VK_PRESENT_MODE_FIFO_KHR,
                 VK_PRESENT_MODE_MAILBOX_KHR,
                 VK_PRESENT_MODE_IMMEDIATE_KHR,
                 VK_PRESENT_MODE_FIFO_RELAXED_KHR,
-                VK_PRESENT_MODE_FIFO_KHR,
             };
 
             const auto best_preferred_supported_mode =

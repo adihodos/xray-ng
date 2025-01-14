@@ -77,6 +77,8 @@ xray::scene::SceneResources::from_scene(SceneDefinition* sdef, xray::rendering::
                                                  sdef->materials_gltf.reserved_image_slot_start + idx));
     }
 
+    const uint32_t sbo_chunks = r->buffering_setup().buffers;
+
     SceneResources scene_resources{
         .color_tex = bsys->add_image(
             std::move(sdef->materials_nongltf.color_texture), *def_sampler, sdef->materials_nongltf.image_slot_start),
@@ -87,8 +89,11 @@ xray::scene::SceneResources::from_scene(SceneDefinition* sdef, xray::rendering::
         .sbo_texture_materials = bsys->add_storage_buffer(std::move(sdef->materials_nongltf.sbo_materials_textured),
                                                           sdef->materials_nongltf.sbo_slot_start + 1),
         .sbo_pbr_materials = bsys->add_storage_buffer(std::move(sdef->materials_gltf.sbo_materials), tl::nullopt),
-        .sbo_instances = bsys->add_chunked_storage_buffer(
-            std::move(sdef->instances_buffer), r->buffering_setup().buffers, tl::nullopt),
+        .sbo_instances = bsys->add_chunked_storage_buffer(std::move(sdef->instances_buffer), sbo_chunks, tl::nullopt),
+        .sbo_directional_lights =
+            bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[0]), sbo_chunks, tl::nullopt),
+        .sbo_point_lights = bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[1]), sbo_chunks, tl::nullopt),
+        .sbo_spot_lights = bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[2]), sbo_chunks, tl::nullopt),
         .pipelines = std::move(sdef->pipelines),
     };
 

@@ -197,6 +197,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         // }
     }
 
+    const SceneDefinition* sdef = render_event.sdef;
+    const SceneResources* sres = render_event.sres;
     render_event.renderer->dbg_marker_begin(
         render_event.frame_data->cmd_buf, "Update UBO & instances", color_palette::web::orange_red);
 
@@ -207,6 +209,52 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         fgd->view = s->camera.view();
         fgd->eye_pos = s->camera.origin();
         fgd->projection = s->camera.projection();
+        fgd->lights = app::LightingSetup{
+            .sbo_directional_lights = destructure_bindless_resource_handle(
+                                          bindless_subresource_handle_from_bindless_resource_handle(
+                                              sres->sbo_directional_lights.first, render_event.frame_data->id))
+                                          .first,
+            .directional_lights_count = static_cast<uint32_t>(sdef->directional_lights.size()),
+            .sbo_point_ligths =
+                destructure_bindless_resource_handle(bindless_subresource_handle_from_bindless_resource_handle(
+                                                         sres->sbo_point_lights.first, render_event.frame_data->id))
+                    .first,
+            .point_lights_count = static_cast<uint32_t>(sdef->point_lights.size()),
+            .sbo_spot_ligths =
+                destructure_bindless_resource_handle(bindless_subresource_handle_from_bindless_resource_handle(
+                                                         sres->sbo_spot_lights.first, render_event.frame_data->id))
+                    .first,
+            .spot_lights_count = static_cast<uint32_t>(sdef->spot_lights.size()),
+        };
+
+        const std::tuple<VkDeviceMemory, VkDeviceSize, std::span<const uint8_t>> light_sbos_data[] = {
+            {
+                sres->sbo_directional_lights.second.memory,
+                sres->sbo_directional_lights.second.aligned_chunk_size,
+                to_bytes_span(sdef->directional_lights),
+            },
+            {
+                sres->sbo_point_lights.second.memory,
+                sres->sbo_point_lights.second.aligned_chunk_size,
+                to_bytes_span(sdef->point_lights),
+            },
+            {
+                sres->sbo_spot_lights.second.memory,
+                sres->sbo_spot_lights.second.aligned_chunk_size,
+                to_bytes_span(sdef->spot_lights),
+            },
+        };
+
+        for (const auto [buffer_mem, chunk_size, cpu_data] : light_sbos_data) {
+            if (cpu_data.empty())
+                continue;
+
+            UniqueMemoryMapping::map_memory(
+                render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
+                .map([=](UniqueMemoryMapping gpu_map) {
+                    memcpy(gpu_map._mapped_memory, cpu_data.data(), cpu_data.size_bytes());
+                });
+        }
     }
 
     const VkViewport viewport{
@@ -251,8 +299,6 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         }
     };
 
-    const SceneDefinition* sdef = render_event.sdef;
-    const SceneResources* sres = render_event.sres;
     auto instances_buffer =
         UniqueMemoryMapping::map_memory(render_event.renderer->device(),
                                         sres->sbo_instances.second.memory,

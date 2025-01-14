@@ -15,6 +15,15 @@ struct UIData
     uint32_t textureid;
 };
 
+struct LightingSetup {
+    uint32_t sbo_directional_lights;
+    uint32_t directional_lights_count;
+    uint32_t sbo_point_ligths;
+    uint32_t point_lights_count;
+    uint32_t sbo_spot_ligths;
+    uint32_t spot_lights_count;
+};
+
 struct FrameGlobalData
 {
     alignas(16) xray::math::mat4f world_view_proj;
@@ -26,6 +35,7 @@ struct FrameGlobalData
     uint32_t frame;
     uint32_t global_color_texture;
     alignas(16) UIData ui;
+    alignas(16) LightingSetup lights;
 };
 
 struct alignas(16) InstanceRenderInfo

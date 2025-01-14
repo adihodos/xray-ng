@@ -54,6 +54,7 @@ class TriangleDemo : public app::DemoBase
         float angle{};
         xray::scene::camera camera{};
         xray::scene::ArcballCamera arcball_cam{};
+        std::bitset<8> lights_sync{0};
 
         SimState() = default;
         SimState(const app::init_context_t& init_context);

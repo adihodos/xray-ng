@@ -3,10 +3,21 @@
 
 #extension GL_EXT_nonuniform_qualifier : require
 
+#include "core/light.types.glsl"
+
 struct UIData {
     vec2 scale;
     vec2 translate;
     uint textureid;
+};
+
+struct LightingSetup {
+    uint sbo_directional_lights;
+    uint directional_lights_count;
+    uint sbo_point_ligths;
+    uint point_lights_count;
+    uint sbo_spot_ligths;
+    uint spot_lights_count;
 };
 
 struct FrameGlobalData_t {
@@ -19,6 +30,7 @@ struct FrameGlobalData_t {
     uint frame_id;
     uint global_color_texture;
     UIData ui;
+    LightingSetup lights;
 };
 
 layout (std140, set = 0, binding  = 0, row_major) uniform FrameGlobal {
@@ -98,6 +110,18 @@ layout (set = 1, binding = 0) readonly buffer MaterialADSColoredGlobal {
 layout (set = 1, binding = 0) readonly buffer MaterialADSTexturedGlobal {
     MaterialADSTextured data[];
 } g_MaterialADSTexturedGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer DirectionalLightsGlobal {
+    DirectionalLight lights[];
+} g_DirectionalLightsGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer PointLightsGlobal {
+    PointLight lights[];
+} g_PointLightsGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer SpotLightsGlobal {
+    SpotLight lights[];
+} g_SpotLightsGlobal[];
 
 layout (set = 2, binding = 0) uniform sampler1D g_Textures1DGlobal[];
 layout (set = 2, binding = 0) uniform sampler2D g_Textures2DGlobal[];
