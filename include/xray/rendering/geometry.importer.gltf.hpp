@@ -38,7 +38,6 @@
 #include <tl/expected.hpp>
 #include <swl/variant.hpp>
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/geometry.hpp"
 
@@ -49,7 +48,7 @@ class Node;
 
 namespace xray::rendering {
 
-struct alignas(16) PBRMaterialDefinition
+struct PBRMaterialDefinition
 {
     xray::math::vec4f base_color_factor;
     uint32_t base_color;
@@ -57,6 +56,7 @@ struct alignas(16) PBRMaterialDefinition
     uint32_t normal;
     float metallic_factor;
     float roughness_factor;
+    float pad[3];
 };
 
 struct GeometryImportParseError

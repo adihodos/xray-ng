@@ -213,21 +213,64 @@ translate_error(const tl::expected<U, E>& exp) -> ProgramError
         }                                                                                                              \
     } while (0)
 
+concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>>
+task_create_graphics_pipelines(concurrencpp::executor_tag,
+                               concurrencpp::thread_pool_executor*,
+                               concurrencpp::shared_result<VulkanRenderer*> renderer_result)
+{
+    //
+    // TODO: Pipeline cache maybe ?!
+    VulkanRenderer* renderer = co_await renderer_result;
+
+    //
+    // graphics pipelines
+    tl::expected<GraphicsPipeline, VulkanError> p_ads_color{
+        GraphicsPipelineBuilder{}
+            .add_shader(ShaderStage::Vertex, xr_app_config->shader_path("triangle/ads.basic.vert"))
+            .add_shader(ShaderStage::Fragment, xr_app_config->shader_path("triangle/ads.basic.frag"))
+            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
+            .rasterization_state({ .poly_mode = VK_POLYGON_MODE_FILL,
+                                   .cull_mode = VK_CULL_MODE_BACK_BIT,
+                                   .front_face = VK_FRONT_FACE_CLOCKWISE,
+                                   .line_width = 1.0f })
+            .create_bindless(*renderer),
+    };
+    XR_VK_COR_PROPAGATE_ERROR(p_ads_color);
+
+    tl::expected<GraphicsPipeline, VulkanError> p_pbr_color{
+        GraphicsPipelineBuilder{}
+            .add_shader(ShaderStage::Vertex, xr_app_config->shader_root() / "triangle/tri.vert")
+            .add_shader(ShaderStage::Fragment, xr_app_config->shader_root() / "triangle/tri.frag")
+            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
+            .rasterization_state({ .poly_mode = VK_POLYGON_MODE_FILL,
+                                   .cull_mode = VK_CULL_MODE_BACK_BIT,
+                                   .front_face = VK_FRONT_FACE_CLOCKWISE,
+                                   .line_width = 1.0f })
+            .create_bindless(*renderer),
+    };
+    XR_VK_COR_PROPAGATE_ERROR(p_pbr_color);
+
+    co_return tl::expected<GraphicsPipelineResources, VulkanError>{
+        tl::in_place,
+        std::move(*p_ads_color),
+        std::move(*p_pbr_color),
+    };
+}
+
 using GltfResourceTaskError = swl::variant<VulkanError, GeometryImportError>;
 
-concurrencpp::result<tl::expected<GltfGeometry, GltfResourceTaskError>>
+concurrencpp::result<tl::expected<tuple<GltfGeometry, GltfMaterialsData>, GltfResourceTaskError>>
 task_create_gltf_resources(concurrencpp::executor_tag,
                            concurrencpp::thread_pool_executor*,
                            concurrencpp::shared_result<VulkanRenderer*> renderer_result,
                            const std::span<const scene::GltfGeometryDescription> gltf_geometry_defs)
 {
-    using namespace xray::scene;
-
     vector<GltfGeometryEntry> gltf_geometries;
     vector<VkDrawIndexedIndirectCommand> indirect_draw_templates;
     vector<LoadedGeometry> loaded_gltfs;
     vec2ui32 global_vertex_index_count{ vec2ui32::stdc::zero };
     vector<vec2ui32> per_obj_vertex_index_counts;
+    vector<ExtractedMaterialsWithImageSourcesBundle> mtls_data;
 
     for (const GltfGeometryDescription& gltf : gltf_geometry_defs) {
         auto gltf_geometry = xray::rendering::LoadedGeometry::from_file(xr_app_config->model_path(gltf.path));
@@ -249,6 +292,7 @@ task_create_gltf_resources(concurrencpp::executor_tag,
             .buffer_offsets = global_vertex_index_count,
         });
 
+        mtls_data.push_back(gltf_geometry->extract_materials(0));
         loaded_gltfs.push_back(std::move(*gltf_geometry));
         global_vertex_index_count += obj_vtx_idx_count;
         per_obj_vertex_index_counts.push_back(obj_vtx_idx_count);
@@ -328,42 +372,147 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     auto buffers_submit = renderer->submit_job(*cmd_buffer, QueueType::Transfer);
     XR_VK_COR_PROPAGATE_ERROR(buffers_submit);
 
+    //
+    // materials (images + material definitions)
+    vector<VulkanImage> images;
+    vector<JobWaitToken> img_wait_tokens;
+    vector<PBRMaterialDefinition> pbr_materials;
+    char scratch_buffer[1024];
+    uint32_t total_image_count{};
+
+    for (std::tuple<GltfGeometryEntry&, ExtractedMaterialsWithImageSourcesBundle&> zipped :
+         lz::zip(gltf_geometries, mtls_data)) {
+
+        auto& [this_gltf, this_gltf_materials] = zipped;
+
+        for (size_t idx = 0, count = this_gltf_materials.image_sources.size(); idx < count; ++idx) {
+            const ExtractedImageData* img_data = &this_gltf_materials.image_sources[idx];
+            auto out = fmt::format_to_n(
+                scratch_buffer, size(scratch_buffer), "texture {}", this_gltf_materials.image_sources[idx].tag);
+            *out.out = 0;
+
+            //
+            // submit each texture separatly
+            auto transfer_job = renderer->create_job(QueueType ::Transfer);
+            XR_VK_COR_PROPAGATE_ERROR(transfer_job);
+
+            const VkFormat img_format = [](const ExtractedImageData& imgdata) {
+                switch (imgdata.bits) {
+                    case 8:
+                        return VK_FORMAT_R8G8B8A8_UNORM;
+                        break;
+                    case 16:
+                        return VK_FORMAT_R16G16B16A16_UNORM;
+                        break;
+                    case 32:
+                        return VK_FORMAT_R32G32B32A32_UINT;
+                        break;
+                    default:
+                        assert(false && "Unhandled");
+                        return VK_FORMAT_R8G8B8A8_UNORM;
+                        break;
+                }
+            }(*img_data);
+
+            auto img = VulkanImage::from_memory(*renderer,
+                                                VulkanImageCreateInfo{
+                                                    .tag_name = scratch_buffer,
+                                                    .wpkg = *transfer_job,
+                                                    .type = VK_IMAGE_TYPE_2D,
+                                                    .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                    .memory_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                    .format = img_format,
+                                                    .width = img_data->width,
+                                                    .height = img_data->height,
+                                                    .pixels = { img_data->pixels },
+                                                });
+
+            XR_VK_COR_PROPAGATE_ERROR(img);
+            images.push_back(std::move(*img));
+
+            auto wait_token = renderer->submit_job(*transfer_job, QueueType ::Transfer);
+            XR_VK_COR_PROPAGATE_ERROR(wait_token);
+            img_wait_tokens.push_back(std::move(*wait_token));
+        }
+
+        //
+        // set materials buffer offset for this GLTF
+        this_gltf.materials_buffer.x = static_cast<uint32_t>(pbr_materials.size());
+
+        lz::chain(this_gltf_materials.materials)
+            .transformTo(back_inserter(pbr_materials), [total_image_count](const ExtractedMaterialDefinition& emdef) {
+                return PBRMaterialDefinition{
+                    .base_color_factor = emdef.base_color_factor,
+                    .base_color = emdef.base_color + total_image_count,
+                    .metallic = emdef.metallic + total_image_count,
+                    .normal = emdef.normal + total_image_count,
+                    .metallic_factor = emdef.metallic_factor,
+                    .roughness_factor = emdef.roughness_factor,
+                };
+            });
+
+        //
+        // set materials count
+        this_gltf.materials_buffer.y += static_cast<uint32_t>(pbr_materials.size() - this_gltf.materials_buffer.x);
+        total_image_count += static_cast<uint32_t>(this_gltf_materials.image_sources.size());
+    }
+
+    //
+    // adjust indices for the images in de material definitions
+    const uint32_t image_slot_offset = renderer->bindless_sys().reserve_image_slots(total_image_count);
+    for (PBRMaterialDefinition& pbr_mtl : pbr_materials) {
+        pbr_mtl.normal += image_slot_offset;
+        pbr_mtl.metallic += image_slot_offset;
+        pbr_mtl.base_color += image_slot_offset;
+
+        XR_LOG_INFO(
+            "PBR mat normal {}, metallic {}, base color {}", pbr_mtl.normal, pbr_mtl.metallic, pbr_mtl.base_color);
+    }
+
+    //
+    // PBR materials sbo
+    auto sbo_transfer_job = renderer->create_job(QueueType ::Transfer);
+    XR_VK_COR_PROPAGATE_ERROR(sbo_transfer_job);
+    auto pbr_material_sbo =
+        VulkanBuffer::create(*renderer,
+                             VulkanBufferCreateInfo{
+                                 .name_tag = "PBR materials SBO",
+                                 .job_cmd_buf = *sbo_transfer_job,
+                                 .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                 .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                 .bytes = container_bytes_size(pbr_materials),
+                                 .frames = 1,
+                                 .initial_data = { to_bytes_span(pbr_materials) },
+                             });
+    XR_VK_COR_PROPAGATE_ERROR(pbr_material_sbo);
+    auto sbo_wait_token = renderer->submit_job(*sbo_transfer_job, QueueType::Transfer);
+    XR_VK_COR_PROPAGATE_ERROR(sbo_wait_token);
+
     XR_LOG_INFO("[[TASK]] - gltf geometry resources done...");
 
-    co_return tl::expected<GltfGeometry, VulkanError>{
+    co_return tl::expected<tuple<GltfGeometry, GltfMaterialsData>, VulkanError>{
         tl::in_place,
-        std::move(gltf_geometries),
-        std::move(indirect_draw_templates),
-        std::move(*vertex_buffer),
-        std::move(*index_buffer),
+        GltfGeometry{
+            std::move(gltf_geometries),
+            std::move(indirect_draw_templates),
+            std::move(*vertex_buffer),
+            std::move(*index_buffer),
+        },
+        GltfMaterialsData{
+            .images = std::move(images),
+            .sbo_materials = std::move(*pbr_material_sbo),
+            .reserved_image_slot_start = image_slot_offset,
+        },
     };
-
-    //
-    // TODO: materials
-
-    // vector<xray::rendering::ExtractedMaterialsWithImageSourcesBundle> material_data;
-    // uint32_t image_bytes{};
-    // uint32_t materials_bytes{};
-    // for (const LoadedGeometry& ldgeom : loaded_gltfs) {
-    //     material_data.emplace_back(ldgeom.extract_materials(0));
-    //     const ExtractedMaterialsWithImageSourcesBundle* mtl_bundle = &material_data.back();
-    //
-    // }
-    //
-    // const size_t image_bytes = lz::chain(material_data.image_sources)
-    //                                .map([](const ExtractedImageData& img) { return img.pixels.size_bytes(); })
-    //                                .sum();
-    //
-    // const size_t material_def_bytes = material_data.materials.size() * sizeof(PBRMaterialDefinition);
 }
 
-struct GeneratedGeometryResources
+struct ProceduralGeometryRenderResources
 {
     VulkanBuffer vertexbuffer;
     VulkanBuffer indexbuffer;
 };
 
-concurrencpp::result<tl::expected<GeneratedGeometryResources, ProgramError>>
+concurrencpp::result<tl::expected<ProceduralGeometryRenderResources, ProgramError>>
 task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
                                                  concurrencpp::thread_pool_executor*,
                                                  GeometryResourceTaskParams params)
@@ -398,7 +547,7 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
     auto indexbuffer =
         VulkanBuffer::create(*renderer,
                              VulkanBufferCreateInfo{
-                                 .name_tag = "[[{}]] - index buffer",
+                                 .name_tag = scratch_buffer.data(),
                                  .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                  .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                  .bytes = index_bytes,
@@ -459,7 +608,7 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
     XR_COR_PROPAGATE_ERROR(wait_token);
 
     XR_LOG_INFO("[[TASK]] - procedural geometry resources");
-    co_return tl::expected<GeneratedGeometryResources, VulkanError>{
+    co_return tl::expected<ProceduralGeometryRenderResources, VulkanError>{
         tl::in_place,
         std::move(*vertexbuffer),
         std::move(*indexbuffer),
@@ -586,7 +735,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
                                                       .format = VK_FORMAT_R32G32B32A32_SFLOAT,
                                                       .width = 1024,
                                                       .height = 1,
-                                                      .pixels = std::span{ &pixels_span, 1 },
+                                                      .pixels = { pixels_span },
                                                   });
 
         XR_VK_PROPAGATE_ERROR(color_tex);
@@ -668,20 +817,20 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         material_sbos.emplace_back(std::move(*sbo));
     }
 
-    //
-    // graphics pipelines
-    tl::expected<GraphicsPipeline, VulkanError> pipeline_ads_colored{
-        GraphicsPipelineBuilder{}
-            .add_shader(ShaderStage::Vertex, xr_app_config->shader_path("triangle/ads.basic.vert"))
-            .add_shader(ShaderStage::Fragment, xr_app_config->shader_path("triangle/ads.basic.frag"))
-            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
-            .rasterization_state({ .poly_mode = VK_POLYGON_MODE_FILL,
-                                   .cull_mode = VK_CULL_MODE_BACK_BIT,
-                                   .front_face = VK_FRONT_FACE_CLOCKWISE,
-                                   .line_width = 1.0f })
-            .create_bindless(*renderer),
-    };
-    XR_VK_COR_PROPAGATE_ERROR(pipeline_ads_colored);
+    // //
+    // // graphics pipelines
+    // tl::expected<GraphicsPipeline, VulkanError> pipeline_ads_colored{
+    //     GraphicsPipelineBuilder{}
+    //         .add_shader(ShaderStage::Vertex, xr_app_config->shader_path("triangle/ads.basic.vert"))
+    //         .add_shader(ShaderStage::Fragment, xr_app_config->shader_path("triangle/ads.basic.frag"))
+    //         .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
+    //         .rasterization_state({ .poly_mode = VK_POLYGON_MODE_FILL,
+    //                                .cull_mode = VK_CULL_MODE_BACK_BIT,
+    //                                .front_face = VK_FRONT_FACE_CLOCKWISE,
+    //                                .line_width = 1.0f })
+    //         .create_bindless(*renderer),
+    // };
+    // XR_VK_COR_PROPAGATE_ERROR(pipeline_ads_colored);
 
     XR_LOG_INFO("[[TASK]] - non gltf materials done ...");
 
@@ -693,7 +842,6 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         std::move(loaded_textures),
         std::move(material_sbos[0]),
         std::move(material_sbos[1]),
-        std::move(*pipeline_ads_colored),
         img_slot,
         sbo_slot,
     };
@@ -708,6 +856,10 @@ main_task(concurrencpp::executor_tag,
     XR_COR_PROPAGATE_ERROR(loaded_scene);
 
     const SceneDescription* scenedes{ &loaded_scene.value() };
+
+    //
+    // spawn task for shader compilation
+    auto pipelines_task_result = task_create_graphics_pipelines(concurrencpp::executor_tag{}, tpe, renderer_result);
 
     //
     // spawn task for non-gltf materials
@@ -907,10 +1059,13 @@ main_task(concurrencpp::executor_tag,
     auto non_gltf_materials = co_await non_gltf_materials_task_result;
     XR_COR_PROPAGATE_ERROR(non_gltf_materials);
 
+    auto pipeline_resources = co_await pipelines_task_result;
+    XR_COR_PROPAGATE_ERROR(pipeline_resources);
+
     XR_LOG_INFO("[[TASK]] - main done ...");
 
     co_return SceneDefinition{
-        .gltf = std::move(*gltf_render_resources),
+        .gltf = std::move(std::get<0>(*gltf_render_resources)),
         .procedural =
             ProceduralGeometry{
                 .procedural_geometries = std::move(procedural_geometries),
@@ -921,6 +1076,8 @@ main_task(concurrencpp::executor_tag,
         .instances_buffer = std::move(*instances_buffer),
         .entities = std::move(scene_entities),
         .materials_nongltf = std::move(*non_gltf_materials),
+        .materials_gltf = std::move(std::get<1>(*gltf_render_resources)),
+        .pipelines = std::move(*pipeline_resources),
     };
 }
 
@@ -940,10 +1097,6 @@ class GameMain
              xray::base::unique_pointer<xray::ui::user_interface> ui,
              xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> ui_backend,
              xray::base::unique_pointer<xray::rendering::DebugDrawSystem> debug_draw,
-
-             // concurrencpp::result<tl::expected<GeometryWithRenderData, VulkanError>> loadbundle,
-             // concurrencpp::result<tl::expected<GeneratedGeometryWithRenderData, VulkanError>> gen_objs,
-
              xray::rendering::BindlessUniformBufferResourceHandleEntryPair global_ubo,
              xray::base::unique_pointer<SceneDefinition> scenedef,
              xray::base::unique_pointer<SceneResources> sceneres)
@@ -952,11 +1105,7 @@ class GameMain
         , _vkrenderer{ std::move(vkrenderer) }
         , _ui{ std::move(ui) }
         , _ui_backend{ std::move(ui_backend) }
-        , _debug_draw{ std::move(debug_draw) } // , _registered_demos{ register_demos<dvk::TriangleDemo>() }
-
-        // , _loadbundle{ std::move(loadbundle) }
-        // , _genobjs{ std::move(gen_objs) }
-
+        , _debug_draw{ std::move(debug_draw) }
         , _global_ubo{ global_ubo }
         , _scenedef{ std::move(scenedef) }
         , _sceneres{ std::move(sceneres) }
@@ -1004,8 +1153,6 @@ class GameMain
     void poll_end(const xray::ui::poll_end_event&);
 
     /// @}
-
-    void draw_test_scene(const app::RenderEvent& e);
 
   private:
     xray::base::unique_pointer<concurrencpp::runtime> _co_runtime;
@@ -1348,22 +1495,6 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
         });
 
     _vkrenderer->end_rendering();
-}
-
-void
-GameMain::draw_test_scene(const RenderEvent& e)
-{
-    vkCmdBindPipeline(e.frame_data->cmd_buf,
-                      VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      _scenedef->materials_nongltf.pipeline_ads_colored.handle());
-
-    for (const EntityDrawableComponent& edc : _scenedef->entities) {
-        if (ranges::find_if(_scenedef->materials_nongltf.materials_colored,
-                            [mtl = edc.material_id](const ColoredMaterial& cm) { return cm.hashed_name == mtl; }) ==
-            _scenedef->materials_nongltf.materials_colored.end()) {
-            continue;
-        }
-    }
 }
 
 //

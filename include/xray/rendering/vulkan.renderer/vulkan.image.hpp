@@ -3,6 +3,7 @@
 #include "xray/xray.hpp"
 
 #include <filesystem>
+#include <initializer_list>
 #include <span>
 
 #include <vulkan/vulkan.h>
@@ -52,7 +53,7 @@ struct VulkanImageCreateInfo
     uint32_t height{};
     uint32_t depth{ 1 };
     uint32_t layers{ 1 };
-    std::span<const std::span<const uint8_t>> pixels{};
+    std::initializer_list<const std::span<const uint8_t>> pixels{};
 };
 
 class VulkanImage

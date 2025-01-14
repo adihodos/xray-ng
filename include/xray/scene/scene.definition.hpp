@@ -77,6 +77,7 @@ struct GltfGeometryEntry
     GeometryHandleType hashed_name;
     xray::math::vec2ui32 vertex_index_count;
     xray::math::vec2ui32 buffer_offsets;
+    xray::math::vec2ui32 materials_buffer; // x - offset, y - number of materials
 };
 
 struct GltfGeometry
@@ -120,9 +121,21 @@ struct NonGltfMaterialsData
     std::vector<xray::rendering::VulkanImage> textures;
     xray::rendering::VulkanBuffer sbo_materials_colored;
     xray::rendering::VulkanBuffer sbo_materials_textured;
-    xray::rendering::GraphicsPipeline pipeline_ads_colored;
     uint32_t image_slot_start{};
     uint32_t sbo_slot_start{};
+};
+
+struct GltfMaterialsData
+{
+    std::vector<xray::rendering::VulkanImage> images;
+    xray::rendering::VulkanBuffer sbo_materials;
+    uint32_t reserved_image_slot_start{};
+};
+
+struct GraphicsPipelineResources
+{
+    xray::rendering::GraphicsPipeline p_ads_color;
+    xray::rendering::GraphicsPipeline p_pbr_color;
 };
 
 struct SceneDefinition
@@ -132,15 +145,20 @@ struct SceneDefinition
     xray::rendering::VulkanBuffer instances_buffer;
     std::vector<EntityDrawableComponent> entities;
     NonGltfMaterialsData materials_nongltf;
+    GltfMaterialsData materials_gltf;
+    GraphicsPipelineResources pipelines;
 };
 
 struct SceneResources
 {
     xray::rendering::BindlessImageResourceHandleEntryPair color_tex;
     std::vector<xray::rendering::BindlessImageResourceHandleEntryPair> materials_tex;
+    std::vector<xray::rendering::BindlessImageResourceHandleEntryPair> materials_gltf;
     xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_color_materials;
     xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_texture_materials;
+    xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_pbr_materials;
     xray::rendering::BindlessStorageBufferResourceHandleEntryPair sbo_instances;
+    GraphicsPipelineResources pipelines;
 
     static SceneResources from_scene(SceneDefinition* sdef, xray::rendering::VulkanRenderer* r);
 };

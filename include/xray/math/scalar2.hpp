@@ -173,6 +173,7 @@ using vec2f = scalar2<scalar_lowp>;
 using vec2d = scalar2<scalar_mediump>;
 using vec2i32 = scalar2<int32_t>;
 using vec2ui32 = scalar2<uint32_t>;
+using vec2ui64 = scalar2<uint64_t>;
 
 /// @}
 

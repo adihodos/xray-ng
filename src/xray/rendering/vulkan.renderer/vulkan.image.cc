@@ -442,7 +442,7 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         .arrayLayers = create_info.layers,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = create_info.usage_flags | (create_info.pixels.empty() ? 0 : VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+        .usage = create_info.usage_flags | (create_info.pixels.size() == 0 ? 0 : VK_IMAGE_USAGE_TRANSFER_DST_BIT),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
@@ -489,17 +489,18 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         renderer.dbg_set_object_name(base::raw_ptr(image), create_info.tag_name);
     }
 
-    if (!create_info.pixels.empty()) {
+    if (create_info.pixels.size() != 0) {
         assert(create_info.wpkg.has_value());
 
         const uintptr_t staging_buffer_offset = renderer.reserve_staging_buffer_memory(mem_alloc_info.allocationSize);
         uintptr_t staging_buffer_ptr = renderer.staging_buffer_memory() + staging_buffer_offset;
 
         for (size_t i = 0, bytes_copied = 0, count = create_info.pixels.size(); i < count;
-             ++i, bytes_copied += create_info.pixels[i].size_bytes()) {
+             bytes_copied += std::data(create_info.pixels)[i].size_bytes(), ++i) {
+            const std::span<const uint8_t> this_span = std::data(create_info.pixels)[i];
             memcpy(reinterpret_cast<void*>(staging_buffer_ptr + bytes_copied),
-                   static_cast<const void*>(create_info.pixels[i].data()),
-                   create_info.pixels[i].size_bytes());
+                   static_cast<const void*>(this_span.data()),
+                   this_span.size_bytes());
         }
 
         VkCommandBuffer cmd_buf = *create_info.wpkg;

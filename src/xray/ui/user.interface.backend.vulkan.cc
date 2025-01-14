@@ -175,7 +175,7 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
                                      .format = VK_FORMAT_R8G8B8A8_UNORM,
                                      .width = backend_create_info.atlas_width,
                                      .height = backend_create_info.atlas_height,
-                                     .pixels = std::span{ &backend_create_info.font_atlas_pixels, 1 },
+                                     .pixels = { backend_create_info.font_atlas_pixels },
                                  });
     XR_VK_PROPAGATE_ERROR(font_atlas);
 

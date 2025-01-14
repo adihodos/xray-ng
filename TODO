@@ -18,7 +18,7 @@ Lighting
 
 Scene:
  - SceneDefinition/SceneResources interact in weird ways, need to refactor a bit
- - support for GLTF/PBR materials
+ - support for GLTF/PBR materials << done
 
 - graphs: can use this https://github.com/bobluppes/graaf
 - ECS: https://github.com/SanderMertens/flecs

@@ -228,13 +228,89 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
     render_event.renderer->clear_attachments(render_event.frame_data->cmd_buf, 0.0f, 0.0f, 0.0f);
 
+    struct DrawDataPushConst
     {
-        const SceneDefinition* sdef = render_event.sdef;
-        const SceneResources* sres = render_event.sres;
+        union
+        {
+            uint32_t value;
+            struct
+            {
+                uint32_t frame_id : 8;
+                uint32_t instance_entry : 8;
+                uint32_t instance_buffer_id : 16;
+            };
+        };
 
-        vkCmdBindPipeline(render_event.frame_data->cmd_buf,
-                          VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          sdef->materials_nongltf.pipeline_ads_colored.handle());
+        DrawDataPushConst(const BindlessResourceHandle_StorageBuffer sbo,
+                          const uint32_t instance_entry,
+                          const uint32_t frame) noexcept
+        {
+            this->instance_buffer_id = destructure_bindless_resource_handle(sbo).first;
+            this->instance_entry = instance_entry;
+            this->frame_id = frame;
+        }
+    };
+
+    const SceneDefinition* sdef = render_event.sdef;
+    const SceneResources* sres = render_event.sres;
+    auto instances_buffer =
+        UniqueMemoryMapping::map_memory(render_event.renderer->device(),
+                                        sres->sbo_instances.second.memory,
+                                        sres->sbo_instances.second.aligned_chunk_size * render_event.frame_data->id,
+                                        sres->sbo_instances.second.aligned_chunk_size);
+
+    app::InstanceRenderInfo* iri = instances_buffer->as<app::InstanceRenderInfo>();
+    uint32_t instance{};
+
+    {
+        vkCmdBindPipeline(
+            render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_pbr_color.handle());
+
+        const VkDeviceSize offsets[] = { 0 };
+        const VkBuffer vertex_buffers[] = { sdef->gltf.vertex_buffer.buffer_handle() };
+        vkCmdBindVertexBuffers(render_event.frame_data->cmd_buf, 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(
+            render_event.frame_data->cmd_buf, sdef->gltf.index_buffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
+
+        for (const EntityDrawableComponent& edc : sdef->entities) {
+            const auto itr_geom =
+                ranges::find_if(sdef->gltf.entries,
+                                [id = edc.geometry_id](const GltfGeometryEntry& ge) { return ge.hashed_name == id; });
+            if (itr_geom == cend(sdef->gltf.entries))
+                continue;
+
+            iri->model = R4::translate(edc.orientation.origin) * rotation_matrix(edc.orientation.rotation) *
+                         R4::scaling(edc.orientation.scale);
+            iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_pbr_materials.first).first;
+
+            const DrawDataPushConst push_const = DrawDataPushConst{
+                bindless_subresource_handle_from_bindless_resource_handle(sres->sbo_instances.first,
+                                                                          render_event.frame_data->id),
+                instance,
+                render_event.frame_data->id,
+            };
+
+            vkCmdPushConstants(render_event.frame_data->cmd_buf,
+                               sdef->pipelines.p_pbr_color.layout(),
+                               VK_SHADER_STAGE_ALL,
+                               0,
+                               static_cast<uint32_t>(sizeof(push_const.value)),
+                               &push_const.value);
+            vkCmdDrawIndexed(render_event.frame_data->cmd_buf,
+                             itr_geom->vertex_index_count.y,
+                             1,
+                             itr_geom->buffer_offsets.y,
+                             static_cast<int32_t>(itr_geom->buffer_offsets.x),
+                             0);
+
+            ++iri;
+            ++instance;
+        }
+    }
+
+    {
+        vkCmdBindPipeline(
+            render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_color.handle());
 
         const VkDeviceSize offsets[] = { 0 };
         const VkBuffer vertex_buffers[] = { sdef->procedural.vertex_buffer.buffer_handle() };
@@ -243,15 +319,6 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         vkCmdBindIndexBuffer(
             render_event.frame_data->cmd_buf, sdef->procedural.index_buffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
 
-        auto instances_buffer =
-            UniqueMemoryMapping::map_memory(render_event.renderer->device(),
-                                            sres->sbo_instances.second.memory,
-                                            sres->sbo_instances.second.aligned_chunk_size * render_event.frame_data->id,
-                                            sres->sbo_instances.second.aligned_chunk_size);
-
-        app::InstanceRenderInfo* iri = instances_buffer->as<app::InstanceRenderInfo>();
-
-        uint32_t instance{};
         for (const EntityDrawableComponent& edc : sdef->entities) {
             if (ranges::find_if(sdef->procedural.procedural_geometries,
                                 [gtype = edc.geometry_id](const ProceduralGeometryEntry& pge) {
@@ -274,41 +341,19 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                     [gid = edc.geometry_id](const ProceduralGeometryEntry& pge) { return pge.hashed_name == gid; });
                 assert(itr_geometry != cend(sdef->procedural.procedural_geometries));
 
-                struct DrawDataPushConst
-                {
-                    union
-                    {
-                        uint32_t value;
-                        struct
-                        {
-                            uint32_t frame_id : 8;
-                            uint32_t instance_entry : 8;
-                            uint32_t instance_buffer_id : 16;
-                        };
-                    };
-
-                    constexpr DrawDataPushConst(const uint32_t instance_buffer_id,
-                                                const uint32_t instance_entry,
-                                                const uint32_t frame) noexcept
-                    {
-                        this->instance_buffer_id = instance_buffer_id;
-                        this->instance_entry = instance_entry;
-                        this->frame_id = frame;
-                    }
-                };
-
                 const auto [sbo_inst_handle, notused] =
                     destructure_bindless_resource_handle(bindless_subresource_handle_from_bindless_resource_handle(
                         sres->sbo_instances.first, render_event.frame_data->id));
 
                 const DrawDataPushConst push_const = DrawDataPushConst{
-                    sbo_inst_handle,
+                    bindless_subresource_handle_from_bindless_resource_handle(sres->sbo_instances.first,
+                                                                              render_event.frame_data->id),
                     instance,
                     render_event.frame_data->id,
                 };
 
                 vkCmdPushConstants(render_event.frame_data->cmd_buf,
-                                   sdef->materials_nongltf.pipeline_ads_colored.layout(),
+                                   sres->pipelines.p_ads_color.layout(),
                                    VK_SHADER_STAGE_ALL,
                                    0,
                                    sizeof(push_const).value,
@@ -318,7 +363,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                                  itr_geometry->vertex_index_count.y,
                                  1,
                                  itr_geometry->buffer_offsets.y,
-                                 itr_geometry->buffer_offsets.x,
+                                 static_cast<int32_t>(itr_geometry->buffer_offsets.x),
                                  0);
 
                 ++instance;

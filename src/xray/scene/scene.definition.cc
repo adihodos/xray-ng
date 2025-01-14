@@ -27,6 +27,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/scene/scene.definition.hpp"
+#include <Lz/Lz.hpp>
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
 xray::scene::SceneResources
@@ -69,24 +70,34 @@ xray::scene::SceneResources::from_scene(SceneDefinition* sdef, xray::rendering::
                                                 sdef->materials_nongltf.image_slot_start + 1 + idx));
     }
 
+    vector<BindlessImageResourceHandleEntryPair> materials_gltf{};
+    for (uint32_t idx = 0, count = static_cast<uint32_t>(sdef->materials_gltf.images.size()); idx < count; ++idx) {
+        materials_gltf.push_back(bsys->add_image(std::move(sdef->materials_gltf.images[idx]),
+                                                 *def_sampler,
+                                                 sdef->materials_gltf.reserved_image_slot_start + idx));
+    }
+
     SceneResources scene_resources{
         .color_tex = bsys->add_image(
             std::move(sdef->materials_nongltf.color_texture), *def_sampler, sdef->materials_nongltf.image_slot_start),
         .materials_tex = std::move(materials_tex),
+        .materials_gltf = std::move(materials_gltf),
         .sbo_color_materials = bsys->add_storage_buffer(std::move(sdef->materials_nongltf.sbo_materials_colored),
                                                         sdef->materials_nongltf.sbo_slot_start + 0),
         .sbo_texture_materials = bsys->add_storage_buffer(std::move(sdef->materials_nongltf.sbo_materials_textured),
                                                           sdef->materials_nongltf.sbo_slot_start + 1),
+        .sbo_pbr_materials = bsys->add_storage_buffer(std::move(sdef->materials_gltf.sbo_materials), tl::nullopt),
         .sbo_instances = bsys->add_chunked_storage_buffer(
             std::move(sdef->instances_buffer), r->buffering_setup().buffers, tl::nullopt),
+        .pipelines = std::move(sdef->pipelines),
     };
 
     //
     // transfer ownership to graphics queue
     r->queue_image_ownership_transfer(scene_resources.color_tex.first);
-    for (const BindlessImageResourceHandleEntryPair& e : scene_resources.materials_tex) {
-        r->queue_image_ownership_transfer(e.first);
-    }
+
+    lz::chain(lz::concat(scene_resources.materials_tex, scene_resources.materials_gltf))
+        .forEach([r](const BindlessImageResourceHandleEntryPair& e) { r->queue_image_ownership_transfer(e.first); });
 
     return scene_resources;
 }
