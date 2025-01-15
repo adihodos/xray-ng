@@ -49,7 +49,7 @@ xray::rendering::xor_pattern(const uint32_t width, const uint32_t height, const 
                 const rgba_u32_color final{ color_cast<rgba_u32_color>(rgb) };
                 pixels[y * width + x] = math::vec4ui8{ final.r, final.g, final.b, 255 };
             } else {
-                pixels[y * width + x] = math::vec4ui8{ uint8_t(255 - c), c, uint8_t(c % 128) };
+                pixels[y * width + x] = math::vec4ui8{ uint8_t(255 - c), c, uint8_t(c % 128), 255 };
             }
         }
     }

@@ -77,9 +77,13 @@ xray::scene::SceneResources::from_scene(SceneDefinition* sdef, xray::rendering::
                                                  sdef->materials_gltf.reserved_image_slot_start + idx));
     }
 
+    XR_LOG_INFO("Image slot start (color texture) {}", sdef->materials_nongltf.image_slot_start);
     const uint32_t sbo_chunks = r->buffering_setup().buffers;
 
     SceneResources scene_resources{
+        //
+        // null texture always goes to 0 in the bindless setup
+        .null_tex = bsys->add_image(std::move(sdef->materials_nongltf.null_tex), *def_sampler, 0),
         .color_tex = bsys->add_image(
             std::move(sdef->materials_nongltf.color_texture), *def_sampler, sdef->materials_nongltf.image_slot_start),
         .materials_tex = std::move(materials_tex),
@@ -99,6 +103,7 @@ xray::scene::SceneResources::from_scene(SceneDefinition* sdef, xray::rendering::
 
     //
     // transfer ownership to graphics queue
+    r->queue_image_ownership_transfer(scene_resources.null_tex.first);
     r->queue_image_ownership_transfer(scene_resources.color_tex.first);
 
     lz::chain(lz::concat(scene_resources.materials_tex, scene_resources.materials_gltf))

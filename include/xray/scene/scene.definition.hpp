@@ -116,6 +116,7 @@ struct TexturedMaterial
 
 struct NonGltfMaterialsData
 {
+    xray::rendering::VulkanImage null_tex;
     std::vector<ColoredMaterial> materials_colored;
     std::vector<TexturedMaterial> materials_textured;
     xray::rendering::VulkanImage color_texture;
@@ -156,6 +157,7 @@ struct SceneDefinition
 
 struct SceneResources
 {
+    xray::rendering::BindlessImageResourceHandleEntryPair null_tex;
     xray::rendering::BindlessImageResourceHandleEntryPair color_tex;
     std::vector<xray::rendering::BindlessImageResourceHandleEntryPair> materials_tex;
     std::vector<xray::rendering::BindlessImageResourceHandleEntryPair> materials_gltf;

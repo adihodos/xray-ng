@@ -61,6 +61,7 @@
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/geometry.importer.gltf.hpp"
+#include "xray/rendering/procedural.hpp"
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
@@ -719,33 +720,49 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
     }
 
     //
-    // create the color texture
-    tl::expected<VulkanImage, VulkanError> color_tex = [&]() -> tl::expected<VulkanImage, VulkanError> {
+    // create the null + color texture
+    tl::expected<SmallVec<VulkanImage, 2>, VulkanError> special_textures =
+        [&]() -> tl::expected<SmallVec<VulkanImage, 2>, VulkanError> {
         auto transfer_job = renderer->create_job(QueueType::Transfer);
         XR_VK_PROPAGATE_ERROR(transfer_job);
 
-        const auto pixels_span = to_bytes_span(color_pixels);
-        auto color_tex = VulkanImage::from_memory(*renderer,
-                                                  VulkanImageCreateInfo{
-                                                      .tag_name = "color_texture",
-                                                      .wpkg = *transfer_job,
-                                                      .type = VK_IMAGE_TYPE_1D,
-                                                      .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                                      .width = 1024,
-                                                      .height = 1,
-                                                      .pixels = { pixels_span },
-                                                  });
+        const vector<vec4ui8> null_texture_pixels{ xor_pattern(256, 256, XorPatternType::Colored) };
+        const VulkanImageCreateInfo tex_data[] = {
+            VulkanImageCreateInfo{
+                .tag_name = "null_texture",
+                .wpkg = *transfer_job,
+                .type = VK_IMAGE_TYPE_2D,
+                .format = VK_FORMAT_R8G8B8A8_UNORM,
+                .width = 256,
+                .height = 256,
+                .pixels = { to_bytes_span(null_texture_pixels) },
+            },
+            VulkanImageCreateInfo{
+                .tag_name = "color_texture",
+                .wpkg = *transfer_job,
+                .type = VK_IMAGE_TYPE_1D,
+                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                .width = 1024,
+                .height = 1,
+                .pixels = { to_bytes_span(color_pixels) },
+            },
+        };
 
-        XR_VK_PROPAGATE_ERROR(color_tex);
+        SmallVec<VulkanImage, 2> imgs;
+        for (const VulkanImageCreateInfo& im : tex_data) {
+            auto tex = VulkanImage::from_memory(*renderer, im);
+            XR_VK_PROPAGATE_ERROR(tex);
+            imgs.push_back(std::move(*tex));
+        }
 
         auto wait_token = renderer->submit_job(*transfer_job, QueueType ::Transfer);
         XR_VK_PROPAGATE_ERROR(wait_token);
 
         pending_jobs.emplace_back(std::move(*wait_token));
-        return color_tex;
+        return imgs;
     }();
 
-    XR_VK_COR_PROPAGATE_ERROR(color_tex);
+    XR_VK_COR_PROPAGATE_ERROR(special_textures);
 
     const uint32_t image_count = static_cast<uint32_t>(texture_files.size() + 1);
     const uint32_t img_slot = renderer->bindless_sys().reserve_image_slots(image_count);
@@ -819,9 +836,10 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
 
     co_return tl::expected<NonGltfMaterialsData, ProgramError>{
         tl::in_place,
+        std::move((*special_textures)[0]),
         std::move(colored_materials),
         std::move(textured_materials),
-        std::move(*color_tex),
+        std::move((*special_textures)[1]),
         std::move(loaded_textures),
         std::move(material_sbos[0]),
         std::move(material_sbos[1]),
@@ -1249,6 +1267,8 @@ GameMain::create()
 
     auto renderer = xray::base::make_unique<VulkanRenderer>(std::move(*opt_renderer));
     renderer->add_shader_include_directories({ xr_app_config->shader_root() });
+    auto slot_null_tex = renderer->bindless_sys().reserve_image_slots(1);
+    assert(slot_null_tex == 0);
 
     //
     // resume anyone waiting for the renderer
@@ -1398,7 +1418,8 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
     }
 
     _timer.update_and_reset();
-    _ui->tick(_timer.elapsed_millis());
+    const float delta = _timer.elapsed_millis();
+    _ui->tick(delta);
     _ui->new_frame(loop_event.wnd_width, loop_event.wnd_height);
 
     const FrameRenderData frd{ _vkrenderer->begin_rendering() };
@@ -1425,6 +1446,7 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
             .dbg_draw = raw_ptr(_debug_draw),
             .sdef = raw_ptr(_scenedef),
             .sres = raw_ptr(_sceneres),
+            .delta = delta,
         });
     } else {
         //
@@ -1729,4 +1751,3 @@ main(int argc, char** argv)
 
     return EXIT_SUCCESS;
 }
-

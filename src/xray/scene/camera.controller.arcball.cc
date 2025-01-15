@@ -49,11 +49,15 @@ ArcballCamera::ArcballCamera(math::vec3f center, const float zoom_speed_, math::
 void
 ArcballCamera::rotate(const math::vec2f mouse_pos) noexcept
 {
-    const math::vec2f mouse_cur{ math::clamp(mouse_pos.x * 2.0f * inv_screen.x - 1.0f, -1.0f, 1.0f),
-                                 math::clamp(1.0f - 2.0f * mouse_pos.y * inv_screen.y, -1.0f, 1.0f) };
+    const math::vec2f mouse_cur{
+        math::clamp(mouse_pos.x * 2.0f * inv_screen.x - 1.0f, -1.0f, 1.0f),
+        math::clamp(1.0f - 2.0f * mouse_pos.y * inv_screen.y, -1.0f, 1.0f),
+    };
 
-    const math::vec2f mouse_prev{ math::clamp(prev_mouse.x * 2.0f * inv_screen.x - 1.0f, -1.0f, 1.0f),
-                                  math::clamp(1.0f - 2.0f * prev_mouse.y * inv_screen.y, -1.0f, 1.0f) };
+    const math::vec2f mouse_prev{
+        math::clamp(prev_mouse.x * 2.0f * inv_screen.x - 1.0f, -1.0f, 1.0f),
+        math::clamp(1.0f - 2.0f * prev_mouse.y * inv_screen.y, -1.0f, 1.0f),
+    };
 
     const math::quatf mouse_cur_ball = screen_to_arcball(mouse_cur);
     const math::quatf mouse_prev_ball = screen_to_arcball(mouse_prev);

@@ -209,7 +209,8 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
         renderer.bindless_sys().add_image(std::move(*font_atlas), *sampler, tl::nullopt);
 
     if (backend_create_info.upload_callback) {
-        (backend_create_info.upload_callback)(bindless_img.first.value_of(), backend_create_info.upload_cb_context);
+        (backend_create_info.upload_callback)(destructure_bindless_resource_handle(bindless_img.first).first,
+                                              backend_create_info.upload_cb_context);
     }
 
     return tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>{

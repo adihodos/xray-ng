@@ -74,6 +74,7 @@ struct RenderEvent
     xray::rendering::DebugDrawSystem* dbg_draw;
     xray::scene::SceneDefinition* sdef;
     xray::scene::SceneResources* sres;
+    float delta;
 };
 
 class DemoBase

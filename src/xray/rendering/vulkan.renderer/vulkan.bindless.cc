@@ -219,6 +219,8 @@ xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img,
         return _free_slot_images.fetch_add(1);
     }();
 
+    XR_LOG_INFO("[[bindles]] - img {:#08x} -> {}", (uintptr_t)img.image(), handle);
+
     if (_free_slot_images > _image_resources.size()) {
         _image_resources.resize(_free_slot_images);
     }
@@ -241,9 +243,13 @@ xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img,
             },
     });
 
+    const BindlessResourceHandle_Image bindless_ubo_handle{
+        detail::BindlessResourceHandleHelper{ handle, 1 }.value,
+    };
+
     return std::pair{
-        BindlessResourceHandle_Image{ handle },
-        _image_resources.back(),
+        bindless_ubo_handle,
+        _image_resources[handle],
     };
 }
 
@@ -319,7 +325,7 @@ xray::rendering::BindlessSystem::add_chunked_storage_buffer(VulkanBuffer ssbo,
         });
     }
 
-    return std::pair{ bindless_ubo_handle, _sbo_resources.back().sbo };
+    return std::pair{ bindless_ubo_handle, _sbo_resources[handle].sbo };
 }
 
 void

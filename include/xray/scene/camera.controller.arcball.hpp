@@ -103,6 +103,7 @@ struct ArcballCamera
         update();
     }
 
+    void set_zoom_speed(const float s) noexcept { zoom_speed = s; }
     void pan(const math::vec2f mouse_cur) noexcept;
     void input_event(const ui::window_event& e) noexcept;
     void update_camera(camera& cam) const noexcept;

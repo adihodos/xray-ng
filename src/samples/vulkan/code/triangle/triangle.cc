@@ -1,7 +1,6 @@
 #include "triangle.hpp"
 
 #include <array>
-#include <random>
 #include <algorithm>
 
 #include <concurrencpp/concurrencpp.h>
@@ -9,21 +8,16 @@
 #include <itlib/small_vector.hpp>
 #include <imgui/imgui.h>
 
-#include "xray/base/app_config.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.async.tasks.hpp"
 #include "xray/rendering/debug_draw.hpp"
-#include "xray/rendering/geometry.importer.gltf.hpp"
-#include "xray/rendering/geometry.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/scene/scene.definition.hpp"
 #include "xray/ui/events.hpp"
 #include "init_context.hpp"
 #include "xray/math/scalar4x4.hpp"
-#include "xray/math/transforms_r2.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 
@@ -36,16 +30,13 @@ using namespace xray::ui;
 using namespace xray::math;
 using namespace xray::scene;
 
-namespace xr = xray::rendering;
-namespace xm = xray::math;
-
 dvk::TriangleDemo::SimState::SimState(const app::init_context_t& init_context)
     : arcball_cam{ xray::math::vec3f::stdc::zero, 1.0f, { init_context.surface_width, init_context.surface_height } }
 {
     //
     // projection
-    const auto perspective_projection = xm::perspective_symmetric(
-        (float)init_context.surface_width / (float)init_context.surface_height, xm::radians(65.0f), 0.1f, 1000.0f);
+    const auto perspective_projection = perspective_symmetric(
+        (float)init_context.surface_width / (float)init_context.surface_height, radians(65.0f), 0.1f, 1000.0f);
 
     // TODO: check perspective function, doesnt seem to be correct
     // xray::math::perspective(0.0f,
@@ -143,6 +134,7 @@ void
 dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 {
     user_interface(render_event.ui);
+    _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
     _simstate.arcball_cam.update_camera(_simstate.camera);
 
     static constexpr const auto sixty_herz = std::chrono::duration<float, std::milli>{ 1000.0f / 60.0f };
@@ -199,10 +191,11 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
     const SceneDefinition* sdef = render_event.sdef;
     const SceneResources* sres = render_event.sres;
-    render_event.renderer->dbg_marker_begin(
-        render_event.frame_data->cmd_buf, "Update UBO & instances", color_palette::web::orange_red);
 
     {
+        render_event.renderer->dbg_marker_begin(
+            render_event.frame_data->cmd_buf, "Update UBO/SBO", color_palette::web::orange_red);
+
         app::FrameGlobalData* fgd = render_event.g_ubo_data;
         SimState* s = &_simstate;
         fgd->world_view_proj = s->camera.projection_view(); // identity for model -> world
@@ -226,6 +219,9 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                     .first,
             .spot_lights_count = static_cast<uint32_t>(sdef->spot_lights.size()),
         };
+        const uint32_t color_tex_handle = destructure_bindless_resource_handle(sres->color_tex.first).first;
+        fgd->global_color_texture = color_tex_handle;
+        XR_LOG_INFO("Global color texture is {}", color_tex_handle);
 
         const std::tuple<VkDeviceMemory, VkDeviceSize, std::span<const uint8_t>> light_sbos_data[] = {
             {
@@ -255,6 +251,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                     memcpy(gpu_map._mapped_memory, cpu_data.data(), cpu_data.size_bytes());
                 });
         }
+
+        render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
 
     const VkViewport viewport{
@@ -309,6 +307,9 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     uint32_t instance{};
 
     {
+        render_event.renderer->dbg_marker_insert(
+            render_event.frame_data->cmd_buf, "Rendering GLTF models", color_palette::web::sea_green);
+
         vkCmdBindPipeline(
             render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_pbr_color.handle());
 
@@ -352,9 +353,13 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
             ++iri;
             ++instance;
         }
+        render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
 
     {
+        render_event.renderer->dbg_marker_insert(
+            render_event.frame_data->cmd_buf, "Rendering procedural models", color_palette::web::sea_green);
+
         vkCmdBindPipeline(
             render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_color.handle());
 
@@ -379,7 +384,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                 itr_mtl != sdef->materials_nongltf.materials_colored.end()) {
                 iri->model = R4::translate(edc.orientation.origin) * rotation_matrix(edc.orientation.rotation) *
                              R4::scaling(edc.orientation.scale);
-                iri->mtl_buffer = sres->sbo_color_materials.first.value_of();
+                iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_color_materials.first).first;
                 iri->mtl_buffer_elem = 0; // always 0 for color textures
 
                 const auto itr_geometry = ranges::find_if(
@@ -416,32 +421,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                 ++iri;
             }
         }
+        render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
-
-    // const auto [g_instance_buffer_handle, g_instance_buffer_entry] = _renderstate.g_instancebuffer;
-    //
-    // UniqueMemoryMapping::map_memory(render_event.renderer->device(),
-    //                                 g_instance_buffer_entry.memory,
-    //                                 render_event.frame_data->id * g_instance_buffer_entry.aligned_chunk_size,
-    //                                 g_instance_buffer_entry.aligned_chunk_size)
-    //     .map([angle = _simstate.angle,
-    //           mtl = _renderstate.g_materials_buffer.first.value_of()](UniqueMemoryMapping inst_buf) {
-    //         const xray::math::scalar2x3<float> r = xray::math::R2::rotate(angle);
-    //         const std::array<float, 4> vkmtx{ r.a00, r.a01, r.a10, r.a11 };
-    //
-    //         app::InstanceRenderInfo* inst = inst_buf.as<app::InstanceRenderInfo>();
-    //         inst->mtl = mtl;
-    //         inst->model = xray::math::mat4f::stdc::identity;
-    //
-    //         inst->idx_buff = 0;
-    //         inst->vtx_buff = 0;
-    //         inst->mtl_coll = 0;
-    //     });
-    //
-    render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
-
-    render_event.renderer->dbg_marker_insert(
-        render_event.frame_data->cmd_buf, "Rendering triangle", color_palette::web::sea_green);
 
     if (_uistate.draw_ship) {
         // vkCmdBindPipeline(
