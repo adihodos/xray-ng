@@ -457,11 +457,12 @@ xray::rendering::geometry_factory::grid(const uint32_t cellsx, const uint32_t ce
 
     for (size_t z = 0; z <= cellsz; ++z) {
         for (size_t x = 0; x <= cellsx; ++x) {
-            vtx[z * cellsx + x].position =
+            vtx[z * (cellsx + 1) + x].position =
                 vec3f{ static_cast<float>(x) * sx - hx, .0f, static_cast<float>(z) * sz - hz };
 
-            vtx[z * cellsx + x].normal = vec3f::stdc::unit_y;
-            vtx[z * cellsx + x].texcoords = vec2f{ static_cast<float>(x) * du, static_cast<float>(z) * dz };
+            vtx[z * (cellsx + 1) + x].normal = vec3f::stdc::unit_y;
+            vtx[z * (cellsx + 1) + x].texcoords =
+                vec2f{ static_cast<float>(x) * du, 1.0f - static_cast<float>(z) * dz };
         }
     }
 
@@ -469,13 +470,13 @@ xray::rendering::geometry_factory::grid(const uint32_t cellsx, const uint32_t ce
     for (size_t z = 0; z < cellsz; ++z) {
         for (size_t x = 0; x < cellsx; ++x) {
 
-            *idx++ = static_cast<uint32_t>(z * cellsx + x);
-            *idx++ = static_cast<uint32_t>(z * cellsx + x + 1);
-            *idx++ = static_cast<uint32_t>((z + 1) * cellsx + x + 1);
+            *idx++ = static_cast<uint32_t>(z * (cellsx + 1) + x);
+            *idx++ = static_cast<uint32_t>(z * (cellsx + 1) + x + 1);
+            *idx++ = static_cast<uint32_t>((z + 1) * (cellsx + 1) + x + 1);
 
-            *idx++ = static_cast<uint32_t>(z * cellsx + x);
-            *idx++ = static_cast<uint32_t>((z + 1) * cellsx + x + 1);
-            *idx++ = static_cast<uint32_t>((z + 1) * cellsx + x);
+            *idx++ = static_cast<uint32_t>(z * (cellsx + 1) + x);
+            *idx++ = static_cast<uint32_t>((z + 1) * (cellsx + 1) + x + 1);
+            *idx++ = static_cast<uint32_t>((z + 1) * (cellsx + 1) + x);
         }
     }
 

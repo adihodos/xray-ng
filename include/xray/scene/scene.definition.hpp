@@ -38,6 +38,8 @@
 #include <strong_type/equality.hpp>
 #include <strong_type/formattable.hpp>
 #include <strong_type/hashable.hpp>
+#include <swl/variant.hpp>
+#include <tl/optional.hpp>
 
 #include "xray/math/scalar2.hpp"
 #include "xray/math/orientation.hpp"
@@ -55,6 +57,14 @@ namespace xray::scene {
 
 using GeometryHandleType =
     strong::type<uint32_t, struct GeometryHandleTypeTag, strong::equality, strong::formattable, strong::hashable>;
+
+using ColorMaterialType =
+    strong::type<uint32_t, struct ColorMaterialTypeTag, strong::equality, strong::formattable, strong::hashable>;
+
+using TexturedMaterialType =
+    strong::type<uint32_t, struct TexturedMaterialTypeTag, strong::equality, strong::formattable, strong::hashable>;
+
+using EntityMaterialType = swl::variant<ColorMaterialType, TexturedMaterialType>;
 
 struct ProceduralGeometryEntry
 {
@@ -94,7 +104,7 @@ struct EntityDrawableComponent
     std::string name;
     uint32_t hashed_name;
     GeometryHandleType geometry_id;
-    uint32_t material_id;
+    tl::optional<EntityMaterialType> material_id;
     xray::math::OrientationF32 orientation;
 };
 
@@ -137,6 +147,7 @@ struct GltfMaterialsData
 struct GraphicsPipelineResources
 {
     xray::rendering::GraphicsPipeline p_ads_color;
+    xray::rendering::GraphicsPipeline p_ads_textured;
     xray::rendering::GraphicsPipeline p_pbr_color;
 };
 

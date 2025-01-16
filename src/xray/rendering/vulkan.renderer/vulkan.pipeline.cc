@@ -248,13 +248,31 @@ create_shader_module_from_string(VkDevice device,
                                  const std::string_view source_code,
                                  const char* shader_tag,
                                  const ShaderTraits shader_traits,
-                                 const bool optimize)
+                                 const ShaderBuildOptions& build_options)
 {
     shaderc::CompileOptions compile_opts{};
     compile_opts.SetGenerateDebugInfo();
     compile_opts.SetIncluder(std::make_unique<ShaderIncludesResolver>(shader_include_dirs));
-    compile_opts.SetOptimizationLevel(optimize ? shaderc_optimization_level::shaderc_optimization_level_size
-                                               : shaderc_optimization_level::shaderc_optimization_level_zero);
+    compile_opts.SetOptimizationLevel(build_options.compile_options & ShaderBuildOptions::Compile_EnabledOptimizations
+                                          ? shaderc_optimization_level::shaderc_optimization_level_size
+                                          : shaderc_optimization_level::shaderc_optimization_level_zero);
+    if (build_options.compile_options & ShaderBuildOptions::Compile_GenerateDebugInfo) {
+        compile_opts.SetGenerateDebugInfo();
+    }
+    if (build_options.compile_options & ShaderBuildOptions::Compile_WarningsToErrors) {
+        compile_opts.SetWarningsAsErrors();
+    }
+    if (build_options.compile_options & ShaderBuildOptions::Compile_SuppressWarnings) {
+        compile_opts.SetSuppressWarnings();
+    }
+
+    for (const auto [macro_name, macro_val] : build_options.defines) {
+        if (!macro_val.empty()) {
+            compile_opts.AddMacroDefinition(macro_name.data(), macro_name.size(), macro_val.data(), macro_val.size());
+        } else {
+            compile_opts.AddMacroDefinition(std::string{ macro_name });
+        }
+    }
 
     shaderc::Compiler compiler{};
     const shaderc::PreprocessedSourceCompilationResult preprocessed_result{ compiler.PreprocessGlsl(
@@ -266,11 +284,21 @@ create_shader_module_from_string(VkDevice device,
         return tl::nullopt;
     }
 
-    const shaderc::SpvCompilationResult compilation_result{ shaderc::Compiler{}.CompileGlslToSpv(
-        preprocessed_result.cbegin(),
-        preprocessed_result.cend() - preprocessed_result.cbegin(),
-        shader_traits.kind,
-        shader_tag) };
+    const shaderc::SpvCompilationResult compilation_result{
+        build_options.entry_point.empty()
+            ? shaderc::Compiler{}.CompileGlslToSpv(preprocessed_result.cbegin(),
+                                                   preprocessed_result.cend() - preprocessed_result.cbegin(),
+                                                   shader_traits.kind,
+                                                   shader_tag)
+            :
+
+            shaderc::Compiler{}.CompileGlslToSpv(preprocessed_result.cbegin(),
+                                                 preprocessed_result.cend() - preprocessed_result.cbegin(),
+                                                 shader_traits.kind,
+                                                 shader_tag,
+                                                 build_options.entry_point.data(),
+                                                 compile_opts)
+    };
 
     if (compilation_result.GetCompilationStatus() != shaderc_compilation_status_success) {
         XR_LOG_CRITICAL("{}", compilation_result.GetErrorMessage());
@@ -304,14 +332,9 @@ tl::optional<ShaderModuleWithSpirVBlob>
 create_shader_module_from_file(VkDevice device,
                                std::span<const std::filesystem::path> shader_include_dirs,
                                const std::filesystem::path& fs_path,
-                               const bool optimize)
+                               const ShaderTraits shader_traits,
+                               const ShaderBuildOptions& sbo)
 {
-    const auto shader_traits = shader_traits_from_shader_file(fs_path);
-    if (!shader_traits) {
-        XR_LOG_ERR("Cannot determine shader stage base on file extension: {}", fs_path.generic_string());
-        return {};
-    }
-
     const auto path_gs{ fs_path.generic_string() };
 
     std::error_code err_code{};
@@ -325,8 +348,8 @@ create_shader_module_from_file(VkDevice device,
                                             shader_include_dirs,
                                             string_view{ shader_file.data(), shader_file.size() },
                                             path_gs.c_str(),
-                                            *shader_traits,
-                                            optimize);
+                                            shader_traits,
+                                            sbo);
 }
 
 struct SpirVReflectionResult
@@ -583,17 +606,21 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
         const auto& shader_source = _stage_modules[stage];
         tl::optional<ShaderModuleWithSpirVBlob> shader_with_spirv{
             [r = &renderer, s = &shader_source, stage, device, shader_opt = _optimize_shaders]() {
-                if (const std::string_view* sv = swl::get_if<std::string_view>(s)) {
+                if (const std::string_view* sv = swl::get_if<std::string_view>(&s->code_or_file_path)) {
                     return create_shader_module_from_string(
                         device,
                         r->shader_include_directories(),
                         *sv,
                         "string_view_shader",
                         *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
-                        shader_opt);
+                        *s);
                 } else {
                     return create_shader_module_from_file(
-                        device, r->shader_include_directories(), *swl::get_if<filesystem::path>(s), false);
+                        device,
+                        r->shader_include_directories(),
+                        *swl::get_if<filesystem::path>(&s->code_or_file_path),
+                        *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
+                        *s);
                 }
             }()
         };

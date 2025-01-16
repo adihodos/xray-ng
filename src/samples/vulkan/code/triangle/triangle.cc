@@ -5,13 +5,13 @@
 
 #include <concurrencpp/concurrencpp.h>
 #include <Lz/Lz.hpp>
-#include <itlib/small_vector.hpp>
 #include <imgui/imgui.h>
 
 #include "xray/base/xray.misc.hpp"
+#include "xray/base/small.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.async.tasks.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
 #include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/scene/scene.definition.hpp"
@@ -221,7 +221,6 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         };
         const uint32_t color_tex_handle = destructure_bindless_resource_handle(sres->color_tex.first).first;
         fgd->global_color_texture = color_tex_handle;
-        XR_LOG_INFO("Global color texture is {}", color_tex_handle);
 
         const std::tuple<VkDeviceMemory, VkDeviceSize, std::span<const uint8_t>> light_sbos_data[] = {
             {
@@ -306,6 +305,22 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     app::InstanceRenderInfo* iri = instances_buffer->as<app::InstanceRenderInfo>();
     uint32_t instance{};
 
+    //
+    // partition into gltf/nongltf
+
+    using SmallVecType = SmallVec<const EntityDrawableComponent*, sizeof(void*) * 128>;
+    SmallVecType::allocator_type::arena_type arena{};
+    SmallVecType entities{ arena };
+    lz::chain(sdef->entities).map([](const EntityDrawableComponent& e) { return &e; }).copyTo(back_inserter(entities));
+
+    SmallVecType gltf_entities{ arena };
+    SmallVecType procedural_entities{ arena };
+    auto [last, out0, out1] =
+        ranges::partition_copy(entities,
+                               back_inserter(gltf_entities),
+                               back_inserter(procedural_entities),
+                               [](const EntityDrawableComponent* edc) { return !edc->material_id; });
+
     {
         render_event.renderer->dbg_marker_insert(
             render_event.frame_data->cmd_buf, "Rendering GLTF models", color_palette::web::sea_green);
@@ -319,12 +334,13 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         vkCmdBindIndexBuffer(
             render_event.frame_data->cmd_buf, sdef->gltf.index_buffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
 
-        for (const EntityDrawableComponent& edc : sdef->entities) {
+        for (const EntityDrawableComponent* itr : gltf_entities) {
+            const EntityDrawableComponent& edc = *itr;
             const auto itr_geom =
                 ranges::find_if(sdef->gltf.entries,
                                 [id = edc.geometry_id](const GltfGeometryEntry& ge) { return ge.hashed_name == id; });
-            if (itr_geom == cend(sdef->gltf.entries))
-                continue;
+
+            assert(itr_geom != cend(sdef->gltf.entries));
 
             iri->model = R4::translate(edc.orientation.origin) * rotation_matrix(edc.orientation.rotation) *
                          R4::scaling(edc.orientation.scale);
@@ -356,45 +372,41 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
 
+    auto r0 = ranges::partition(procedural_entities, [](const EntityDrawableComponent* edc) {
+        return swl::holds_alternative<ColorMaterialType>(*edc->material_id);
+    });
+
     {
         render_event.renderer->dbg_marker_insert(
             render_event.frame_data->cmd_buf, "Rendering procedural models", color_palette::web::sea_green);
 
-        vkCmdBindPipeline(
-            render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_color.handle());
+        auto draw_entities_fn = [&](const span<const EntityDrawableComponent*> ents) {
+            for (const EntityDrawableComponent* e : ents) {
+                const EntityDrawableComponent& edc = *e;
 
-        const VkDeviceSize offsets[] = { 0 };
-        const VkBuffer vertex_buffers[] = { sdef->procedural.vertex_buffer.buffer_handle() };
-        vkCmdBindVertexBuffers(
-            render_event.frame_data->cmd_buf, 0, static_cast<uint32_t>(size(vertex_buffers)), vertex_buffers, offsets);
-        vkCmdBindIndexBuffer(
-            render_event.frame_data->cmd_buf, sdef->procedural.index_buffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
-
-        for (const EntityDrawableComponent& edc : sdef->entities) {
-            if (ranges::find_if(sdef->procedural.procedural_geometries,
-                                [gtype = edc.geometry_id](const ProceduralGeometryEntry& pge) {
-                                    return pge.hashed_name == gtype;
-                                }) == sdef->procedural.procedural_geometries.end()) {
-                continue;
-            }
-
-            if (const auto itr_mtl = ranges::find_if(
-                    sdef->materials_nongltf.materials_colored,
-                    [mtype = edc.material_id](const ColoredMaterial& cm) { return mtype == cm.hashed_name; });
-                itr_mtl != sdef->materials_nongltf.materials_colored.end()) {
                 iri->model = R4::translate(edc.orientation.origin) * rotation_matrix(edc.orientation.rotation) *
                              R4::scaling(edc.orientation.scale);
-                iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_color_materials.first).first;
-                iri->mtl_buffer_elem = 0; // always 0 for color textures
+
+                if (swl::holds_alternative<TexturedMaterialType>(*e->material_id)) {
+                    const TexturedMaterialType tex_mtl = swl::get<TexturedMaterialType>(*e->material_id);
+                    auto itr_mtl = ranges::find_if(
+                        sdef->materials_nongltf.materials_textured,
+                        [id = tex_mtl.value_of()](const TexturedMaterial& tm) { return id == tm.hashed_name; });
+
+                    iri->mtl_buffer_elem =
+                        itr_mtl == ranges::end(sdef->materials_nongltf.materials_textured)
+                            ? 0
+                            : ranges::distance(ranges::begin(sdef->materials_nongltf.materials_textured), itr_mtl);
+                    iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_texture_materials.first).first;
+                } else {
+                    iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_color_materials.first).first;
+                    iri->mtl_buffer_elem = 0; // always 0 for color materials
+                }
 
                 const auto itr_geometry = ranges::find_if(
                     sdef->procedural.procedural_geometries,
                     [gid = edc.geometry_id](const ProceduralGeometryEntry& pge) { return pge.hashed_name == gid; });
                 assert(itr_geometry != cend(sdef->procedural.procedural_geometries));
-
-                const auto [sbo_inst_handle, notused] =
-                    destructure_bindless_resource_handle(bindless_subresource_handle_from_bindless_resource_handle(
-                        sres->sbo_instances.first, render_event.frame_data->id));
 
                 const DrawDataPushConst push_const = DrawDataPushConst{
                     bindless_subresource_handle_from_bindless_resource_handle(sres->sbo_instances.first,
@@ -420,7 +432,25 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                 ++instance;
                 ++iri;
             }
-        }
+        };
+
+        const VkDeviceSize offsets[] = { 0 };
+        const VkBuffer vertex_buffers[] = { sdef->procedural.vertex_buffer.buffer_handle() };
+        vkCmdBindVertexBuffers(
+            render_event.frame_data->cmd_buf, 0, static_cast<uint32_t>(size(vertex_buffers)), vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(
+            render_event.frame_data->cmd_buf, sdef->procedural.index_buffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdBindPipeline(
+            render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_color.handle());
+
+        draw_entities_fn(span{ ranges::begin(procedural_entities), ranges::begin(r0) });
+        // TODO: support for textured materials
+
+        vkCmdBindPipeline(
+            render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_textured.handle());
+        draw_entities_fn(span{ r0 });
+
         render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
 

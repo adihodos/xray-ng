@@ -32,7 +32,7 @@
 #include <string_view>
 #include <imgui/imgui.h>
 
-#include "vulkan.renderer/vulkan.async.tasks.hpp"
+#include "vulkan.renderer/vulkan.queue.submit.token.hpp"
 #include "xray/ui/user.interface.backend.hpp"
 #include "xray/ui/user_interface_render_context.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
@@ -148,8 +148,14 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
 
     auto graphics_pipeline =
         GraphicsPipelineBuilder{}
-            .add_shader(ShaderStage::Vertex, UI_VERTEX_SHADER)
-            .add_shader(ShaderStage::Fragment, UI_FRAGMENT_SHADER)
+            .add_shader(ShaderStage::Vertex,
+                        ShaderBuildOptions{
+                            .code_or_file_path = UI_VERTEX_SHADER,
+                        })
+            .add_shader(ShaderStage::Fragment,
+                        ShaderBuildOptions{
+                            .code_or_file_path = UI_FRAGMENT_SHADER,
+                        })
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
             .rasterization_state(RasterizationState{
                 .poly_mode = VK_POLYGON_MODE_FILL,

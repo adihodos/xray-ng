@@ -163,8 +163,14 @@ DebugDrawSystem::RenderStateVulkan::create(const DebugDrawSystem::InitContext& i
     )#";
 
     auto graphicsPipeline = GraphicsPipelineBuilder{}
-                                .add_shader(ShaderStage::Vertex, kDebugVertexShader)
-                                .add_shader(ShaderStage::Fragment, kDebugFragmentShaderCode)
+                                .add_shader(ShaderStage::Vertex,
+                                            ShaderBuildOptions{
+                                                .code_or_file_path = kDebugVertexShader,
+                                            })
+                                .add_shader(ShaderStage::Fragment,
+                                            ShaderBuildOptions{
+                                                .code_or_file_path = kDebugFragmentShaderCode,
+                                            })
                                 .input_assembly_state(InputAssemblyState{ .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST })
                                 .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
                                 .create_bindless(*init.renderer);

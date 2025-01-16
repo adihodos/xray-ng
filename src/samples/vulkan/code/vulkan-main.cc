@@ -65,7 +65,7 @@
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.async.tasks.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/user_interface.hpp"
@@ -227,21 +227,64 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     // graphics pipelines
     tl::expected<GraphicsPipeline, VulkanError> p_ads_color{
         GraphicsPipelineBuilder{}
-            .add_shader(ShaderStage::Vertex, xr_app_config->shader_path("triangle/ads.basic.vert"))
-            .add_shader(ShaderStage::Fragment, xr_app_config->shader_path("triangle/ads.basic.frag"))
+            .add_shader(ShaderStage::Vertex,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
+                            .defines = { { "__VERT_SHADER__", "" } },
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo,
+                        })
+            .add_shader(ShaderStage::Fragment,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
+                            .defines = { { "__FRAG_SHADER__", "" } },
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo,
+                        })
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
-            .rasterization_state({ .poly_mode = VK_POLYGON_MODE_FILL,
-                                   .cull_mode = VK_CULL_MODE_BACK_BIT,
-                                   .front_face = VK_FRONT_FACE_CLOCKWISE,
-                                   .line_width = 1.0f })
+            .rasterization_state({
+                .poly_mode = VK_POLYGON_MODE_FILL,
+                .cull_mode = VK_CULL_MODE_BACK_BIT,
+                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .line_width = 1.0f,
+            })
             .create_bindless(*renderer),
     };
     XR_VK_COR_PROPAGATE_ERROR(p_ads_color);
 
+    tl::expected<GraphicsPipeline, VulkanError> p_ads_textured{
+        GraphicsPipelineBuilder{}
+            .add_shader(ShaderStage::Vertex,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
+                            .defines = { { "__VERT_SHADER__", "" }, { "__ADS_TEXTURED__", "" } },
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo,
+                        })
+            .add_shader(ShaderStage::Fragment,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
+                            .defines = { { "__FRAG_SHADER__", "" }, { "__ADS_TEXTURED__", "" } },
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo,
+                        })
+            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
+            .rasterization_state({
+                .poly_mode = VK_POLYGON_MODE_FILL,
+                .cull_mode = VK_CULL_MODE_BACK_BIT,
+                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .line_width = 1.0f,
+            })
+            .create_bindless(*renderer),
+    };
+    XR_VK_COR_PROPAGATE_ERROR(p_ads_textured);
+
     tl::expected<GraphicsPipeline, VulkanError> p_pbr_color{
         GraphicsPipelineBuilder{}
-            .add_shader(ShaderStage::Vertex, xr_app_config->shader_root() / "triangle/tri.vert")
-            .add_shader(ShaderStage::Fragment, xr_app_config->shader_root() / "triangle/tri.frag")
+            .add_shader(ShaderStage::Vertex,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("triangle/tri.vert"),
+                        })
+            .add_shader(ShaderStage::Fragment,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("triangle/tri.frag"),
+                        })
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
             .rasterization_state({ .poly_mode = VK_POLYGON_MODE_FILL,
                                    .cull_mode = VK_CULL_MODE_BACK_BIT,
@@ -254,6 +297,7 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     co_return tl::expected<GraphicsPipelineResources, VulkanError>{
         tl::in_place,
         std::move(*p_ads_color),
+        std::move(*p_ads_textured),
         std::move(*p_pbr_color),
     };
 }
@@ -377,7 +421,7 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     //
     // materials (images + material definitions)
     vector<VulkanImage> images;
-    vector<JobWaitToken> img_wait_tokens;
+    vector<QueueSubmitWaitToken> img_wait_tokens;
     vector<PBRMaterialDefinition> pbr_materials;
     char scratch_buffer[1024];
     uint32_t total_image_count{};
@@ -676,13 +720,13 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
     }
 
     VulkanRenderer* renderer = co_await renderer_result;
-    SmallVec<JobWaitToken> pending_jobs;
+    SmallVec<QueueSubmitWaitToken> pending_jobs;
 
     XRAY_SCOPE_EXIT noexcept
     {
-        const SmallVec<VkFence> fences{
-            lz::chain(pending_jobs).map([](const JobWaitToken& token) { return token.fence(); }).to<SmallVec<VkFence>>()
-        };
+        const SmallVec<VkFence> fences{ lz::chain(pending_jobs)
+                                            .map([](const QueueSubmitWaitToken& token) { return token.fence(); })
+                                            .to<SmallVec<VkFence>>() };
 
         WRAP_VULKAN_FUNC(
             vkWaitForFences, renderer->device(), static_cast<uint32_t>(fences.size()), fences.data(), true, 0xffffffff);
@@ -1016,7 +1060,9 @@ main_task(concurrencpp::executor_tag,
             .name = pe.name,
             .hashed_name = FNV::fnv1a(pe.name),
             .geometry_id = geometry_id,
-            .material_id = FNV::fnv1a(pe.material),
+            // assume color material for all since the task that creates the materials is not yet ready
+            // it will be fix it later when the task results are ready
+            .material_id = ColorMaterialType{ FNV::fnv1a(pe.material) },
             .orientation = pe.orientation.value_or(OrientationF32{}),
         });
 
@@ -1032,7 +1078,7 @@ main_task(concurrencpp::executor_tag,
             .name = ee.name,
             .hashed_name = FNV::fnv1a(ee.name),
             .geometry_id = GeometryHandleType{ FNV::fnv1a(ee.gltf) },
-            .material_id = 0,
+            .material_id = tl::nullopt,
             .orientation = ee.orientation.value_or(OrientationF32{}),
         });
     }
@@ -1079,6 +1125,23 @@ main_task(concurrencpp::executor_tag,
 
     auto non_gltf_materials = co_await non_gltf_materials_task_result;
     XR_COR_PROPAGATE_ERROR(non_gltf_materials);
+
+    lz::chain(scene_entities)
+        .filter([](const EntityDrawableComponent& e) { return e.material_id.has_value(); })
+        .forEach([m = &*non_gltf_materials](EntityDrawableComponent& e) {
+            const uint32_t mtl_id = swl::visit(VariantVisitor{
+                                                   [](ColorMaterialType cm) { return cm.value_of(); },
+                                                   [](TexturedMaterialType tm) { return tm.value_of(); },
+                                               },
+                                               *e.material_id);
+
+            if (const auto itr_color = ranges::find_if(
+                    m->materials_textured, [mtl_id](const TexturedMaterial& tm) { return tm.hashed_name == mtl_id; });
+                itr_color != ranges::cend(m->materials_textured)) {
+                e.material_id = TexturedMaterialType{ itr_color->hashed_name };
+                return;
+            }
+        });
 
     auto pipeline_resources = co_await pipelines_task_result;
     XR_COR_PROPAGATE_ERROR(pipeline_resources);

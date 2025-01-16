@@ -33,7 +33,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pretty.print.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.async.tasks.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
 
 using namespace xray::base;
 using namespace std;
@@ -2351,7 +2351,7 @@ xray::rendering::VulkanRenderer::create_job(const QueueType qtype) noexcept
     return tl::expected<VkCommandBuffer, VulkanError>{ cmd_buffer };
 }
 
-tl::expected<xray::rendering::JobWaitToken, xray::rendering::VulkanError>
+tl::expected<xray::rendering::QueueSubmitWaitToken, xray::rendering::VulkanError>
 xray::rendering::VulkanRenderer::submit_job(VkCommandBuffer cmd_buffer, const QueueType qtype) noexcept
 {
     vkEndCommandBuffer(cmd_buffer);
@@ -2388,7 +2388,7 @@ xray::rendering::VulkanRenderer::submit_job(VkCommandBuffer cmd_buffer, const Qu
         XR_VK_CHECK_RESULT(submit_result);
     }
 
-    return JobWaitToken{ cmd_buffer, std::move(wait_fence), this };
+    return QueueSubmitWaitToken{ cmd_buffer, std::move(wait_fence), this };
 }
 
 uint32_t

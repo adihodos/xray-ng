@@ -245,7 +245,7 @@ enum class QueueType : uint8_t
     Transfer,
 };
 
-struct JobWaitToken;
+struct QueueSubmitWaitToken;
 
 class VulkanRenderer
 {
@@ -395,7 +395,7 @@ class VulkanRenderer
     /// @group async tasks
 
     tl::expected<VkCommandBuffer, VulkanError> create_job(const QueueType qtype) noexcept;
-    tl::expected<JobWaitToken, VulkanError> submit_job(VkCommandBuffer cmd_buffer, const QueueType qtype) noexcept;
+    tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(VkCommandBuffer cmd_buffer, const QueueType qtype) noexcept;
     /// @endgroup
 
   private:
