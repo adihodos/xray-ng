@@ -199,6 +199,6 @@ add_subdirectory(third_party/imgui-docking/src)
 # add_subdirectory(third_party/ktx/lib)
 #
 # include_directories(third_party/libnoise/include)
-# add_subdirectory(third_party/libnoise)
+add_subdirectory(third_party/libnoise)
 #
 add_subdirectory(src)

@@ -92,10 +92,23 @@ target_link_libraries(
           reflectcpp
           spdlog::spdlog
           concurrencpp::concurrencpp
-          $<IF:$<PLATFORM_ID:Windows>,libconfig,config>)
+          $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
+          noise)
 
 get_target_property(target_output_directory ${PROJECT_NAME}
                     RUNTIME_OUTPUT_DIRECTORY)
+
+add_custom_target(
+  COPY_CONFIGS ALL
+  COMMAND
+    ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/config/scenes"
+    ${target_output_directory}/config/scenes
+  COMMENT "::: Copy scene configuration step :::"
+  VERBATIM
+  DEPENDS "${PROJECT_SOURCE_DIR}/config/scenes/simple.scene.conf"
+  SOURCES "${PROJECT_SOURCE_DIR}/config/scenes/simple.scene.conf")
+
+add_dependencies(${PROJECT_NAME} COPY_CONFIGS)
 
 add_custom_command(
   TARGET ${PROJECT_NAME}
@@ -121,7 +134,7 @@ add_custom_command(
     build-info-tool $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args}>
     $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}>
   BYPRODUCTS $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_byproducts}>
-  COMMENT "::: Copying configuration files :::")
+  COMMENT "::: Overwrite config step :::")
 
 add_custom_command(
   TARGET ${PROJECT_NAME}

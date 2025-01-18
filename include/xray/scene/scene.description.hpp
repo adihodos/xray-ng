@@ -39,6 +39,7 @@
 #include "xray/math/scalar4.hpp"
 #include "xray/math/orientation.hpp"
 #include "xray/scene/light.types.hpp"
+#include "xray/rendering/geometry/geometry_factory.hpp"
 
 namespace xray::scene {
 
@@ -48,35 +49,15 @@ struct GltfGeometryDescription
     std::filesystem::path path;
 };
 
-struct GridParams
-{
-    uint32_t cellsx;
-    uint32_t cellsy;
-    float width;
-    float height;
-};
-
-struct ConeParams
-{
-    float upper_radius;
-    float lower_radius;
-    float height;
-    uint32_t tess_vert;
-    uint32_t tess_horz;
-};
-
-struct TorusParams
-{
-    float outer;
-    float inner;
-    uint32_t rings;
-    uint32_t sides;
-};
-
 struct ProceduralGeometryDescription
 {
     std::string name;
-    rfl::Variant<rfl::Field<"grid", GridParams>, rfl::Field<"cone", ConeParams>, rfl::Field<"torus", TorusParams>>
+    rfl::Variant<rfl::Field<"grid", rendering::GridParams>,
+                 rfl::Field<"cone", rendering::ConeParams>,
+                 rfl::Field<"torus", rendering::TorusParams>,
+                 rfl::Field<"sphere", rendering::SphereParams>,
+                 rfl::Field<"ring", rendering::RingGeometryParams>,
+                 rfl::Field<"torus_knot", rendering::TorusKnotParams>>
         gen_params;
 };
 

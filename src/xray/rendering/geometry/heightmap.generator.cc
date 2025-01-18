@@ -29,9 +29,9 @@
 #include "xray/rendering/geometry/heightmap.generator.hpp"
 
 void
-xray::rendering::HeightmapGenerator::point_from_square(const int32_t x,
-                                                       const int32_t z,
-                                                       const int32_t size,
+xray::rendering::HeightmapGenerator::point_from_square(const uint32_t x,
+                                                       const uint32_t z,
+                                                       const uint32_t size,
                                                        const float value) noexcept
 {
     const auto hs = size / 2;
@@ -44,9 +44,9 @@ xray::rendering::HeightmapGenerator::point_from_square(const int32_t x,
 }
 
 void
-xray::rendering::HeightmapGenerator::point_from_diamond(const int32_t x,
-                                                        const int32_t z,
-                                                        const int32_t size,
+xray::rendering::HeightmapGenerator::point_from_diamond(const uint32_t x,
+                                                        const uint32_t z,
+                                                        const uint32_t size,
                                                         const float value) noexcept
 {
     const auto hs = size / 2;
@@ -59,18 +59,18 @@ xray::rendering::HeightmapGenerator::point_from_diamond(const int32_t x,
 }
 
 void
-xray::rendering::HeightmapGenerator::diamond_square(const int32_t step_size, const float scale) noexcept
+xray::rendering::HeightmapGenerator::diamond_square(const uint32_t step_size, const float scale) noexcept
 {
     const auto half_step = step_size / 2;
 
-    for (int32_t z = half_step; z < _height + half_step; z += half_step) {
-        for (int32_t x = half_step; x < _width + half_step; x += half_step) {
+    for (uint32_t z = half_step; z < _height + half_step; z += half_step) {
+        for (uint32_t x = half_step; x < _width + half_step; x += half_step) {
             point_from_square(x, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
         }
     }
 
-    for (int32_t z = 0; z < _height; z += step_size) {
-        for (int32_t x = 0; x < _width; x += step_size) {
+    for (uint32_t z = 0; z < _height; z += step_size) {
+        for (uint32_t x = 0; x < _width; x += step_size) {
             point_from_diamond(x + half_step, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
             point_from_diamond(x, z + half_step, step_size, _rng.next_float(0.0f, 1.0f) * scale);
         }
@@ -80,16 +80,16 @@ xray::rendering::HeightmapGenerator::diamond_square(const int32_t step_size, con
 void
 xray::rendering::HeightmapGenerator::seed() noexcept
 {
-    for (int32_t z = 0; z < _height; ++z) {
-        for (int32_t x = 0; x < _width; ++x) {
+    for (uint32_t z = 0; z < _height; ++z) {
+        for (uint32_t x = 0; x < _width; ++x) {
             point_at(x, z)->y = 0.0f;
-                //_rng.next_float(0.0f, 1.0f) * _roughness;
+            //_rng.next_float(0.0f, 1.0f) * _roughness;
         }
     }
 }
 
 void
-xray::rendering::HeightmapGenerator::smooth_terrain(const int32_t pass_size) noexcept
+xray::rendering::HeightmapGenerator::smooth_terrain(const uint32_t pass_size) noexcept
 {
     auto sample_size = pass_size;
     auto scale_factor = 1.0f;
@@ -105,9 +105,9 @@ xray::rendering::HeightmapGenerator::smooth_terrain(const int32_t pass_size) noe
 // {
 //   public:
 //     HeightmapGenerator() = default;
-//     HeightmapGenerator(const int32_t width, const int32_t height) { generate(width, height); }
+//     HeightmapGenerator(const uint32_t width, const uint32_t height) { generate(width, height); }
 //
-//     void generate(const int32_t width, const int32_t height)
+//     void generate(const uint32_t width, const uint32_t height)
 //     {
 //         this->seed(width, height);
 //         smooth_terrain(32);
@@ -122,7 +122,7 @@ xray::rendering::HeightmapGenerator::smooth_terrain(const int32_t pass_size) noe
 //         return { x, _rng.next_float(0.0f, 1.0f) > 0.3f ? std::abs(std::sin(x * z) * _roughness) : 0.0f, z };
 //     }
 //
-//     float get_point(const int32_t x, const int32_t z) const
+//     float get_point(const uint32_t x, const uint32_t z) const
 //     {
 //         const auto xp = (x + _width) % _width;
 //         const auto zp = (z + _height) % _height;
@@ -130,7 +130,7 @@ xray::rendering::HeightmapGenerator::smooth_terrain(const int32_t pass_size) noe
 //         return _points[zp * _width + xp].y;
 //     }
 //
-//     void set_point(const int32_t x, const int32_t z, const float value)
+//     void set_point(const uint32_t x, const uint32_t z, const float value)
 //     {
 //         const auto xp = (x + _width) % _width;
 //         const auto zp = (z + _height) % _height;
@@ -138,7 +138,7 @@ xray::rendering::HeightmapGenerator::smooth_terrain(const int32_t pass_size) noe
 //         _points[zp * _width + xp].y = value;
 //     }
 //
-//     void point_from_square(const int32_t x, const int32_t z, const int32_t size, const float value)
+//     void point_from_square(const uint32_t x, const uint32_t z, const uint32_t size, const float value)
 //     {
 //         const auto hs = size / 2;
 //         const auto a = get_point(x - hs, z - hs);
@@ -149,7 +149,7 @@ xray::rendering::HeightmapGenerator::smooth_terrain(const int32_t pass_size) noe
 //         set_point(x, z, (a + b + c + d) / 4.0f + value);
 //     }
 //
-//     void point_from_diamond(const int32_t x, const int32_t z, const int32_t size, const float value)
+//     void point_from_diamond(const uint32_t x, const uint32_t z, const uint32_t size, const float value)
 //     {
 //         const auto hs = size / 2;
 //         const auto a = get_point(x - hs, z);
@@ -160,39 +160,39 @@ xray::rendering::HeightmapGenerator::smooth_terrain(const int32_t pass_size) noe
 //         set_point(x, z, (a + b + c + d) / 4.0f + value);
 //     }
 //
-//     void diamond_square(const int32_t step_size, const float scale)
+//     void diamond_square(const uint32_t step_size, const float scale)
 //     {
 //         const auto half_step = step_size / 2;
 //
-//         for (int32_t z = half_step; z < _height + half_step; z += half_step) {
-//             for (int32_t x = half_step; x < _width + half_step; x += half_step) {
+//         for (uint32_t z = half_step; z < _height + half_step; z += half_step) {
+//             for (uint32_t x = half_step; x < _width + half_step; x += half_step) {
 //                 point_from_square(x, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
 //             }
 //         }
 //
-//         for (int32_t z = 0; z < _height; z += step_size) {
-//             for (int32_t x = 0; x < _width; x += step_size) {
+//         for (uint32_t z = 0; z < _height; z += step_size) {
+//             for (uint32_t x = 0; x < _width; x += step_size) {
 //                 point_from_diamond(x + half_step, z, step_size, _rng.next_float(0.0f, 1.0f) * scale);
 //                 point_from_diamond(x, z + half_step, step_size, _rng.next_float(0.0f, 1.0f) * scale);
 //             }
 //         }
 //     }
 //
-//     void seed(const int32_t new_width, const int32_t new_height)
+//     void seed(const uint32_t new_width, const uint32_t new_height)
 //     {
 //         _width = new_width;
 //         _height = new_height;
 //
 //         _points.clear();
-//         for (int32_t z = 0; z < _height; ++z) {
-//             for (int32_t x = 0; x < _width; ++x) {
+//         for (uint32_t z = 0; z < _height; ++z) {
+//             for (uint32_t x = 0; x < _width; ++x) {
 //                 _points.push_back(
 //                     { static_cast<float>(x), _rng.next_float(0.0f, 1.0f) * _roughness, static_cast<float>(z) });
 //             }
 //         }
 //     }
 //
-//     void smooth_terrain(const int32_t pass_size)
+//     void smooth_terrain(const uint32_t pass_size)
 //     {
 //         auto sample_size = pass_size;
 //         auto scale_factor = 1.0f;
@@ -205,8 +205,8 @@ xray::rendering::HeightmapGenerator::smooth_terrain(const int32_t pass_size) noe
 //     }
 //
 //     float _roughness{ 255.0f };
-//     int32_t _width;
-//     int32_t _height;
+//     uint32_t _width;
+//     uint32_t _height;
 //     xray::base::random_number_generator _rng;
 //     std::vector<xray::math::vec3f> _points;
 // };

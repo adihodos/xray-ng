@@ -57,6 +57,15 @@ constexpr scalar_type pi_over_180 = scalar_type(0.0174532925);
 template<typename scalar_type>
 constexpr scalar_type one_eighty_over_pi = scalar_type(57.29577957);
 
+struct F32
+{
+    static constexpr const auto TwoPi = two_pi<float>;
+    static constexpr const auto Pi = pi<float>;
+    static constexpr const auto HalfPi = half_pi<float>;
+    static constexpr const auto PiOver180 = pi_over_180<float>;
+    static constexpr const auto OneEightyOverPi = one_eighty_over_pi<float>;
+};
+
 /// @}
 
 } // namespace math

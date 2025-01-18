@@ -58,15 +58,15 @@ subdivide_geometry(std::vector<vertex_pntt>* input_vertices, std::vector<uint32_
     input_indices->resize(0);
 
     /*
-        v1
+        v2 (2)
          .
         / \
        /   \
-    m0.-----.m1
+(5) m2.-----.m1 (4)
      / \   / \
     /   \ /   \
     .-----.-----.
-    v0    m2     v2
+  (0) v0 (3)  m0   (1)  v1
 
      */
 
@@ -84,17 +84,9 @@ subdivide_geometry(std::vector<vertex_pntt>* input_vertices, std::vector<uint32_
         // For subdivision, we just care about the position component.  We derive
         // the other vertex_pntt components in CreateGeosphere.
 
-        m0.position = vec3f{ 0.5f * (v0.position.x + v1.position.x),
-                             0.5f * (v0.position.y + v1.position.y),
-                             0.5f * (v0.position.z + v1.position.z) };
-
-        m1.position = vec3f{ 0.5f * (v1.position.x + v2.position.x),
-                             0.5f * (v1.position.y + v2.position.y),
-                             0.5f * (v1.position.z + v2.position.z) };
-
-        m2.position = vec3f{ 0.5f * (v0.position.x + v2.position.x),
-                             0.5f * (v0.position.y + v2.position.y),
-                             0.5f * (v0.position.z + v2.position.z) };
+        m0.position = 0.5f * (v0.position + v1.position);
+        m1.position = 0.5f * (v1.position + v2.position);
+        m2.position = 0.5f * (v2.position + v0.position);
 
         //
         // Add new geometry.
@@ -107,62 +99,22 @@ subdivide_geometry(std::vector<vertex_pntt>* input_vertices, std::vector<uint32_
         input_vertices->push_back(m2); // 5
 
         input_indices->push_back(i * 6 + 0);
-        input_indices->push_back(i * 6 + 5);
-        input_indices->push_back(i * 6 + 3);
-
         input_indices->push_back(i * 6 + 3);
         input_indices->push_back(i * 6 + 5);
-        input_indices->push_back(i * 6 + 4);
-
-        input_indices->push_back(i * 6 + 5);
-        input_indices->push_back(i * 6 + 2);
-        input_indices->push_back(i * 6 + 4);
 
         input_indices->push_back(i * 6 + 3);
         input_indices->push_back(i * 6 + 4);
+        input_indices->push_back(i * 6 + 5);
+
+        input_indices->push_back(i * 6 + 3);
         input_indices->push_back(i * 6 + 1);
+        input_indices->push_back(i * 6 + 4);
+
+        input_indices->push_back(i * 6 + 5);
+        input_indices->push_back(i * 6 + 4);
+        input_indices->push_back(i * 6 + 2);
     }
 }
-
-// void xray::rendering::geometry_factory::create_circle(
-//     const float radius, const uint32_t tess_factor, geometry_data_t* mesh)
-//     {
-//   const uint32_t circle_slices = tess_factor < 3U ? 3U : tess_factor;
-
-//   mesh->setup(circle_slices + 2, circle_slices * 3);
-
-//   const float theta_step = two_pi<float>() / circle_slices;
-
-//   mesh->geometry[0].position  = math::vec3f::null;
-//   mesh->geometry[0].normal    = math::vec3f::unit_y;
-//   mesh->geometry[0].tangent   = math::vec3f::unit_x;
-//   mesh->geometry[0].texcoords = math::vec2f{0.5f, 0.5f};
-
-//   //
-//   //  need to duplicate last vertex, otherwise texture coordinates and
-//   //  tangents won't be correct.
-//   for (size_t idx = 1; idx < circle_slices + 2; ++idx) {
-//     mesh->geometry[idx].position =
-//         math::vec3f{radius * cos((idx - 1) * theta_step), 0.0f,
-//                      radius * sin((idx - 1) * theta_step)};
-
-//     mesh->geometry[idx].normal = math::vec3f::unit_y;
-
-//     mesh->geometry[idx].tangent =
-//         math::vec3f{-radius * sin((idx - 1) * theta_step), 0.0f,
-//                      radius * cos((idx - 1) * theta_step)};
-
-//     mesh->geometry[idx].texcoords =
-//         math::vec2f{cos((idx - 1) * theta_step) * 0.5f + 0.5f,
-//                      sin((idx - 1) * theta_step) * 0.5f + 0.5f};
-//   }
-
-//   for (uint32_t idx = 0; idx < circle_slices; ++idx) {
-//     mesh->indices[idx * 3 + 0] = 0;
-//     mesh->indices[idx * 3 + 1] = idx + 1;
-//     mesh->indices[idx * 3 + 2] = idx + 2;
-//   }
-// }
 
 xray::rendering::geometry_data_t
 xray::rendering::geometry_factory::cylinder(const uint32_t ring_tesselation_factor,
@@ -241,8 +193,10 @@ xray::rendering::geometry_factory::cylinder(const uint32_t ring_tesselation_fact
 }
 
 xray::rendering::geometry_data_t
-xray::rendering::geometry_factory::box(const float width, const float height, const float depth)
+xray::rendering::geometry_factory::box(const BoxParams params)
 {
+    const auto [width, height, depth] = params;
+
     geometry_data_t mesh_data{ 24, 36 };
 
     const float w2 = 0.5f * width;
@@ -250,8 +204,6 @@ xray::rendering::geometry_factory::box(const float width, const float height, co
     const float d2 = 0.5f * depth;
 
     auto v = base::raw_ptr(mesh_data.geometry);
-    //      gsl::span<vertex_pntt>{base::raw_ptr(mesh_data->geometry),
-    //                             static_cast<ptrdiff_t>(mesh_data->vertex_count)};
 
     // Fill in the front face vertex data.
     v[0] = vertex_pntt(-w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
@@ -292,8 +244,6 @@ xray::rendering::geometry_factory::box(const float width, const float height, co
     //
     // Create the indices.
     auto i = raw_ptr(mesh_data.indices);
-    //          gsl::span<uint32_t>{raw_ptr(mesh_data->indices),
-    //                               static_cast<ptrdiff_t>(mesh_data->index_count)};
 
     // Fill in the front face index data
     i[0] = 0;
@@ -439,8 +389,10 @@ xray::rendering::geometry_factory::box(const float width, const float height, co
 // }
 
 xray::rendering::geometry_data_t
-xray::rendering::geometry_factory::grid(const uint32_t cellsx, const uint32_t cellsz, const float sx, const float sz)
+xray::rendering::geometry_factory::grid(const GridParams& params)
 {
+    const auto [cellsx, cellsz, sx, sz] = params;
+
     const size_t vertex_count = (cellsx + 1) * (cellsx + 1);
     const size_t faces = cellsx * cellsz * 2;
     const size_t index_count = faces * 3;
@@ -481,63 +433,6 @@ xray::rendering::geometry_factory::grid(const uint32_t cellsx, const uint32_t ce
     }
 
     return gdata;
-}
-
-void
-xray::rendering::geometry_factory::grid(const float width,
-                                        const float depth,
-                                        const uint32_t vertices_x,
-                                        const uint32_t vertices_z,
-                                        geometry_data_t* grid)
-{
-
-    const auto vertex_count = vertices_x * vertices_z;
-    const auto face_count = (vertices_x - 1) * (vertices_z - 1) * 2;
-
-    const auto half_width = 0.5f * width;
-    const auto half_depth = 0.5f * depth;
-
-    const float dx = width / static_cast<float>(vertices_x - 1);
-    const float dz = depth / static_cast<float>(vertices_z - 1);
-
-    const float du = 1.0f / static_cast<float>(vertices_x - 1);
-    const float dv = 1.0f / static_cast<float>(vertices_z - 1);
-
-    grid->setup(vertex_count, face_count * 3);
-
-    for (uint32_t i = 0; i < vertices_z; ++i) {
-        const float z = half_depth - i * dz;
-
-        for (uint32_t j = 0; j < vertices_x; ++j) {
-            const float x = -half_width + j * dx;
-
-            auto gptr = &grid->geometry[i * vertices_x + j];
-
-            gptr->position = vec3f{ x, 0.0f, z };
-            gptr->normal = vec3f::stdc::unit_y;
-            gptr->texcoords = vec2f{ j * du, i * dv };
-        }
-    }
-
-    //
-    // Setup indices for the generated vertices.
-    auto index_array = std::span<uint32_t>(raw_ptr(grid->indices), grid->index_count);
-
-    uint32_t k{};
-
-    for (uint32_t i = 0; i < vertices_z - 1; ++i) {
-        for (uint32_t j = 0; j < vertices_x - 1; ++j) {
-            index_array[k + 0] = (i + 1) * vertices_x + j;
-            index_array[k + 1] = i * vertices_x + j + 1;
-            index_array[k + 2] = i * vertices_x + j;
-
-            index_array[k + 3] = (i + 1) * vertices_x + j;
-            index_array[k + 4] = (i + 1) * vertices_x + j + 1;
-            index_array[k + 5] = i * vertices_x + j + 1;
-
-            k += 6;
-        }
-    }
 }
 
 void
@@ -659,12 +554,10 @@ xray::rendering::geometry_factory::fullscreen_quad(geometry_data_t* grid_geometr
 // }
 
 xray::rendering::geometry_data_t
-xray::rendering::geometry_factory::conical_section(const float upper_radius,
-                                                   const float lower_radius,
-                                                   const float height,
-                                                   const uint32_t tess_factor_horz,
-                                                   const uint32_t tess_factor_vert)
+xray::rendering::geometry_factory::conical_section(const ConeParams& params)
 {
+    const auto [upper_radius, lower_radius, height, tess_factor_horz, tess_factor_vert] = params;
+
     assert(upper_radius > 0.0f);
     assert(lower_radius > 0.0f);
     assert(height > 0.0f);
@@ -748,27 +641,31 @@ xray::rendering::geometry_factory::conical_section(const float upper_radius,
 }
 
 xray::rendering::geometry_data_t
-xray::rendering::geometry_factory::geosphere(const float radius, const uint32_t max_subdivisions)
+xray::rendering::geometry_factory::geosphere(const SphereParams sparams)
 {
+    const auto [radius, max_subdivisions] = sparams;
     assert(radius > 0.0f);
 
     const uint32_t subdivisions = math::clamp(max_subdivisions, max_subdivisions, uint32_t{ 5 });
 
     //
     // Approximate a sphere by tessellating an icosahedron.
-    constexpr auto xpos = 0.525731f;
-    constexpr auto zpos = 0.850651f;
+    constexpr const float xpos = 0.525731f;
+    constexpr const float zpos = 0.850651f;
 
-    constexpr vec3f pos[12] = { math::vec3f{ -xpos, 0.0f, +zpos }, math::vec3f{ +xpos, 0.0f, +zpos },
-                                math::vec3f{ -xpos, 0.0f, -zpos }, math::vec3f{ +xpos, 0.0f, -zpos },
-                                math::vec3f{ 0.0f, +zpos, +xpos }, math::vec3f{ 0.0f, +zpos, -xpos },
-                                math::vec3f{ 0.0f, -zpos, +xpos }, math::vec3f{ 0.0f, -zpos, -xpos },
-                                math::vec3f{ +zpos, +xpos, 0.0f }, math::vec3f{ -zpos, +xpos, 0.0f },
-                                math::vec3f{ +zpos, -xpos, 0.0f }, math::vec3f{ -zpos, -xpos, 0.0f } };
+    constexpr const vec3f pos[12] = {
+        math::vec3f{ -xpos, 0.0f, +zpos }, math::vec3f{ +xpos, 0.0f, +zpos }, math::vec3f{ -xpos, 0.0f, -zpos },
+        math::vec3f{ +xpos, 0.0f, -zpos }, math::vec3f{ 0.0f, +zpos, +xpos }, math::vec3f{ 0.0f, +zpos, -xpos },
+        math::vec3f{ 0.0f, -zpos, +xpos }, math::vec3f{ 0.0f, -zpos, -xpos }, math::vec3f{ +zpos, +xpos, 0.0f },
+        math::vec3f{ -zpos, +xpos, 0.0f }, math::vec3f{ +zpos, -xpos, 0.0f }, math::vec3f{ -zpos, -xpos, 0.0f },
+    };
 
-    constexpr uint32_t k[60] = {
+    constexpr const uint32_t k[60] = {
         1, 0, 4,  4,  0, 9, 4, 9, 5,  8, 4,  5, 1, 4, 8, 1,  8, 10, 10, 8, 3, 8, 5, 3,  3, 5, 2, 3,  2, 7,
         3, 7, 10, 10, 7, 6, 6, 7, 11, 6, 11, 0, 6, 0, 1, 10, 6, 1,  11, 9, 0, 2, 9, 11, 5, 9, 2, 11, 7, 2,
+
+        // 1, 4,  0, 4,  9, 0, 4, 5,  9, 8, 5, 4,  1, 8, 4, 1,  10, 8, 10, 3, 8, 8, 3,  5, 3, 2, 5, 3,  7, 2,
+        // 3, 10, 7, 10, 6, 7, 6, 11, 7, 6, 0, 11, 6, 1, 0, 10, 1,  6, 11, 0, 9, 2, 11, 9, 5, 2, 9, 11, 2, 7,
     };
 
     //
@@ -792,8 +689,7 @@ xray::rendering::geometry_factory::geosphere(const float radius, const uint32_t 
         //
         // Derive texture coordinates from spherical coordinates.
         const float theta = angle_from_xy(vertices[i].position.x, vertices[i].position.z);
-
-        const float phi = acosf(vertices[i].position.x / radius);
+        const float phi = acosf(vertices[i].position.y / radius);
 
         vertices[i].texcoords.x = theta / two_pi<float>;
         vertices[i].texcoords.y = phi / pi<float>;
@@ -1063,67 +959,243 @@ xray::rendering::geometry_factory::icosahedron()
 }
 
 xray::rendering::geometry_data_t
-xray::rendering::geometry_factory::torus(const float outer_radius,
-                                         const float inner_radius,
-                                         const uint32_t sides,
-                                         const uint32_t rings)
+xray::rendering::geometry_factory::torus(const xray::rendering::TorusParams& params)
 {
-    const auto faces = sides * rings;
-    const auto vertex_cnt = sides * (rings + 1);
-
-    geometry_data_t mesh{ vertex_cnt, 6 * faces };
-
-    const auto ring_factor = two_pi<float> / static_cast<float>(rings);
-    const auto side_factor = two_pi<float> / static_cast<float>(sides);
-
+    const auto [radius, tube, radial_segments, tubular_segments, arc] = params;
     //
-    // vertices
-    {
-        auto vptr = raw_ptr(mesh.geometry);
+    // yoinked from here: https://github.com/mrdoob/three.js/blob/dev/src/geometries/TorusGeometry.js
 
-        for (uint32_t ring = 0; ring <= rings; ++ring) {
-            const auto u = static_cast<float>(ring) * ring_factor;
-            const auto cu = cos(u);
-            const auto su = sin(u);
+    geometry_data_t gdata{ (radial_segments + 1) * (tubular_segments + 1), radial_segments * tubular_segments * 6 };
+    vertex_pntt* vertices = gdata.vertex_data();
 
-            for (uint32_t side = 0; side < sides; ++side) {
-                const auto v = static_cast<float>(side) * side_factor;
-                const auto cv = cos(v);
-                const auto sv = sin(v);
-                const auto r = (outer_radius + inner_radius * cv);
+    for (uint32_t j = 0; j <= radial_segments; j++) {
+        for (uint32_t i = 0; i <= tubular_segments; i++) {
 
-                vptr->position = { r * cu, r * su, inner_radius * sv };
-                vptr->normal = normalize(vec3f{ cv * cu * r, cv * su * r, sv * r });
-                vptr->texcoords = { u / two_pi<float>, v / two_pi<float> };
-                ++vptr;
-            }
+            const auto u = static_cast<float>(i) / static_cast<float>(tubular_segments) * arc;
+            const auto v = static_cast<float>(j) / static_cast<float>(radial_segments) * two_pi<float>;
+
+            const vec3f vertex{
+                (radius + tube * std::cos(v)) * std::cos(u),
+                (radius + tube * std::cos(v)) * std::sin(u),
+                tube * std::sin(v),
+            };
+
+            const vec3f center{
+                radius * std::cos(u),
+                radius * std::sin(u),
+                0.0f,
+            };
+            const vec3f normal = normalize(vertex - center);
+
+            const vec2f uv = vec2f{
+                static_cast<float>(i) / static_cast<float>(tubular_segments),
+                static_cast<float>(j) / static_cast<float>(radial_segments),
+            };
+
+            *vertices++ = vertex_pntt{ vertex, normal, vec3f::stdc::zero, uv };
         }
     }
 
+    // generate indices
+    uint32_t* indices = gdata.index_data();
+
+    for (uint32_t j = 1; j <= radial_segments; j++) {
+        for (uint32_t i = 1; i <= tubular_segments; i++) {
+
+            // indices
+
+            const uint32_t a = (tubular_segments + 1) * j + i - 1;
+            const uint32_t b = (tubular_segments + 1) * (j - 1) + i - 1;
+            const uint32_t c = (tubular_segments + 1) * (j - 1) + i;
+            const uint32_t d = (tubular_segments + 1) * j + i;
+
+            // faces
+
+            *indices++ = a;
+            *indices++ = d;
+            *indices++ = b;
+
+            *indices++ = b;
+            *indices++ = d;
+            *indices++ = c;
+        }
+    }
+
+    return gdata;
+}
+
+xray::rendering::geometry_data_t
+xray::rendering::geometry_factory::ring_geometry(const RingGeometryParams& params)
+{
     //
+    // https://github.com/mrdoob/three.js/blob/dev/src/geometries/RingGeometry.js
+    float radius = params.inner_radius;
+    const float radius_step = ((params.outer_radius - params.inner_radius) / params.phi_segments);
+
+    // generate vertices, normals and uvs
+
+    geometry_data_t geometry{
+        (params.phi_segments + 1) * (params.theta_segments + 1),
+        (params.phi_segments * params.theta_segments) * 6,
+    };
+    vertex_pntt* vertexptr = geometry.vertex_data();
+
+    for (uint32_t j = 0; j <= params.phi_segments; j++) {
+        for (uint32_t i = 0; i <= params.theta_segments; i++) {
+
+            // values are generate from the inside of the ring to the outside
+            const float segment = params.theta_start + static_cast<float>(i) /
+                                                           static_cast<float>(params.theta_segments) *
+                                                           params.theta_lengt;
+
+            vertexptr->position = vec3f{ radius * std::cos(segment), radius * std::sin(segment), 0.0f };
+            vertexptr->normal = vec3f{ 0, 0, 1 };
+            vertexptr->texcoords = vec2f{
+                (vertexptr->position.x / params.outer_radius + 1) / 2,
+                (vertexptr->position.y / params.outer_radius + 1) / 2,
+            };
+
+            ++vertexptr;
+        }
+        // increase the radius for next row of vertices
+        radius += radius_step;
+    }
+
     // indices
-    {
-        auto iptr = raw_ptr(mesh.indices);
+    uint32_t* indices = geometry.index_data();
+    for (uint32_t j = 0; j < params.phi_segments; j++) {
+        const uint32_t theta_segment_level = j * (params.theta_segments + 1);
 
-        for (uint32_t ring = 0; ring < rings; ++ring) {
-            const auto ring_start = ring * sides;
-            const auto next_ring_start = (ring + 1) * sides;
+        for (uint32_t i = 0; i < params.theta_segments; i++) {
 
-            for (uint32_t side = 0; side < sides; ++side) {
-                const auto next_side = (side + 1) % sides;
+            const uint32_t segment = i + theta_segment_level;
 
-                iptr[0] = ring_start + side;
-                iptr[1] = next_ring_start + side;
-                iptr[2] = next_ring_start + next_side;
+            const uint32_t a = segment;
+            const uint32_t b = segment + params.theta_segments + 1;
+            const uint32_t c = segment + params.theta_segments + 2;
+            const uint32_t d = segment + 1;
 
-                iptr[3] = ring_start + side;
-                iptr[4] = next_ring_start + next_side;
-                iptr[5] = ring_start + next_side;
+            // faces
 
-                iptr += 6;
-            }
+            *indices++ = a;
+            *indices++ = b;
+            *indices++ = d;
+
+            *indices++ = b;
+            *indices++ = c;
+            *indices++ = d;
         }
     }
 
-    return mesh;
+    return geometry;
+}
+
+xray::rendering::geometry_data_t
+xray::rendering::geometry_factory::torus_knot(const TorusKnotParams& params)
+{
+    //
+    // https://github.com/mrdoob/three.js/blob/dev/src/geometries/TorusKnotGeometry.js
+
+    geometry_data_t geometry{
+        (params.radial_segments + 1) * (params.tubular_segments + 1),
+        params.radial_segments * params.tubular_segments * 6,
+    };
+
+    //
+    // this function calculates the current position on the torus curve
+    auto calc_position_on_curve = [](const float u, const float p, const float q, const float radius) {
+        const float cu = std::cos(u);
+        const float su = std::sin(u);
+        const float quOverP = q / p * u;
+        const float cs = std::cos(quOverP);
+
+        return vec3f{
+            radius * (2.0f + cs) * 0.5f * cu,
+            radius * (2.0f + cs) * su * 0.5f,
+            radius * std::sin(quOverP) * 0.5f,
+        };
+    };
+
+    //
+    // generate vertices, normals and uvs
+    vertex_pntt* vptr = geometry.vertex_data();
+    for (uint32_t i = 0; i <= params.tubular_segments; ++i) {
+        //
+        // the radian "u" is used to calculate the position on the torus curve of the current tubular segment
+        const float u = static_cast<float>(i) / static_cast<float>(params.tubular_segments) *
+                        static_cast<float>(params.p) * F32::TwoPi;
+
+        //
+        // now we calculate two points. P1 is our current position on the curve, P2 is a little farther ahead.
+        // these points are used to create a special "coordinate space", which is necessary to calculate the correct
+        // vertex positions
+
+        const vec3f P1 =
+            calc_position_on_curve(u, static_cast<float>(params.p), static_cast<float>(params.q), params.radius);
+        const vec3f P2 =
+            calc_position_on_curve(u + 0.01, static_cast<float>(params.p), static_cast<float>(params.q), params.radius);
+
+        //
+        // calculate orthonormal basis
+        // normalize B, N. T can be ignored, we don't use it
+        const vec3f T = P2 - P1;
+        const vec3f N0 = P2 + P1;
+        const vec3f B = normalize(cross(T, N0));
+        const vec3f N = normalize(cross(B, T));
+
+        for (uint32_t j = 0; j <= params.radial_segments; ++j) {
+            //
+            // now calculate the vertices. they are nothing more than an extrusion of the torus curve.
+            // because we extrude a shape in the xy-plane, there is no need to calculate a z-value.
+
+            const float v = static_cast<float>(j) / static_cast<float>(params.radial_segments) * F32::TwoPi;
+            const float cx = -params.tube * std::cos(v);
+            const float cy = params.tube * std::sin(v);
+
+            //
+            // now calculate the final vertex position.
+            // first we orient the extrusion with our basis vectors, then we add it to the current position on the curve
+            vptr->position = vec3f{
+                P1.x + (cx * N.x + cy * B.x),
+                P1.y + (cx * N.y + cy * B.y),
+                P1.z + (cx * N.z + cy * B.z),
+            };
+
+            //
+            // normal (P1 is always the center/origin of the extrusion, thus we can use it to calculate the normal)
+            vptr->normal = normalize(vptr->position - P1);
+
+            //
+            // uv
+            vptr->texcoords = vec2f{
+                static_cast<float>(i) / static_cast<float>(params.tubular_segments),
+                static_cast<float>(j) / static_cast<float>(params.radial_segments),
+            };
+
+            ++vptr;
+        }
+    }
+
+    // generate indices
+    uint32_t* idxptr = geometry.index_data();
+    for (uint32_t j = 1; j <= params.tubular_segments; j++) {
+        for (uint32_t i = 1; i <= params.radial_segments; i++) {
+            // indices
+            const uint32_t a = (params.radial_segments + 1) * (j - 1) + (i - 1);
+            const uint32_t b = (params.radial_segments + 1) * j + (i - 1);
+            const uint32_t c = (params.radial_segments + 1) * j + i;
+            const uint32_t d = (params.radial_segments + 1) * (j - 1) + i;
+
+            // faces
+            *idxptr++ = a;
+            *idxptr++ = d;
+            *idxptr++ = b;
+
+            *idxptr++ = b;
+            *idxptr++ = d;
+            *idxptr++ = c;
+        }
+    }
+
+    return geometry;
 }

@@ -46,6 +46,9 @@
 #include <rfl.hpp>
 #include <itlib/small_vector.hpp>
 
+#include <noise/noise.h>
+#include <noise/noiseutils.h>
+
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/delegate.hpp"
@@ -61,6 +64,7 @@
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/geometry.importer.gltf.hpp"
+#include "xray/rendering/geometry/heightmap.generator.hpp"
 #include "xray/rendering/procedural.hpp"
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
@@ -931,103 +935,90 @@ main_task(concurrencpp::executor_tag,
     //
     // procedurally generated shapes
     for (const ProceduralGeometryDescription& pg : loaded_scene.value().procedural_geometries) {
-        rfl::visit(
+        geometry_data_t geometry = rfl::visit(
             [&](const auto& s) {
                 using Name = typename std::decay_t<decltype(s)>::Name;
                 if constexpr (std::is_same<Name, rfl::Literal<"grid">>()) {
-                    const auto [cellsx, cellsy, width, height] = s.value();
-                    XR_LOG_INFO(
-                        "Generating grid {} -> cells {}x{}, dimensions {}x{}", pg.name, cellsx, cellsy, width, height);
-                    geometry_data_t grid = geometry_factory::grid(cellsx, cellsy, width, height);
+                    const GridParams gp = s.value();
+                    geometry_data_t grid = geometry_factory::grid(gp);
 
-                    vertex_span.push_back(to_bytes_span(grid.vertex_span()));
-                    index_span.push_back(grid.index_span());
+                    noise::module::RidgedMulti ridged;
+                    noise::module::Billow base_flat_terrain;
+                    base_flat_terrain.SetFrequency(2.0);
 
-                    draw_indirect_template.push_back(VkDrawIndexedIndirectCommand{
-                        .indexCount = static_cast<uint32_t>(grid.index_count),
-                        .instanceCount = 1,
-                        .firstIndex = vtx_idx_accum.y,
-                        .vertexOffset = static_cast<int32_t>(vtx_idx_accum.x),
-                        .firstInstance = 0,
-                    });
+                    noise::module::ScaleBias flat_terrain;
+                    flat_terrain.SetSourceModule(0, base_flat_terrain);
+                    flat_terrain.SetScale(0.125);
+                    flat_terrain.SetBias(-0.75);
 
-                    procedural_geometries.emplace_back(pg.name,
-                                                       GeometryHandleType{ FNV::fnv1a(pg.name) },
-                                                       vec2ui32{ grid.vertex_count, grid.index_count },
-                                                       vtx_idx_accum);
-                    gdata.push_back(std::move(grid));
+                    noise::module::Perlin terrain_type;
+                    terrain_type.SetOctaveCount(6);
+                    terrain_type.SetFrequency(0.5);
+                    terrain_type.SetPersistence(0.25);
 
-                    vtx_idx_accum.x += grid.vertex_count;
-                    vtx_idx_accum.y += grid.index_count;
+                    noise::module::Select terrain_selector;
+                    terrain_selector.SetSourceModule(0, flat_terrain);
+                    terrain_selector.SetSourceModule(1, ridged);
+                    terrain_selector.SetControlModule(terrain_type);
+                    terrain_selector.SetBounds(0.0f, 1000.0f);
+                    terrain_selector.SetEdgeFalloff(0.125);
 
+                    noise::module::Turbulence final_terrain;
+                    final_terrain.SetSourceModule(0, terrain_selector);
+                    final_terrain.SetFrequency(4.0);
+                    final_terrain.SetPower(0.125);
+
+                    noise::utils::NoiseMap heightmap;
+                    noise::utils::NoiseMapBuilderPlane heightmap_builder;
+                    heightmap_builder.SetDestNoiseMap(heightmap);
+                    heightmap_builder.SetSourceModule(final_terrain);
+                    heightmap_builder.SetDestSize((gp.cellsx + 1), (gp.cellsy + 1));
+                    heightmap_builder.SetBounds(-3.0, 3.0, 1.0, 4.0);
+                    heightmap_builder.Build();
+
+                    vertex_pntt* verts = grid.vertex_data();
+                    for (uint32_t z = 0; z < gp.cellsy + 1; ++z) {
+                        for (uint32_t x = 0; x < gp.cellsx + 1; ++x) {
+                            verts[z * (gp.cellsx + 1) + x].position.y = heightmap.GetValue(x, z);
+                        }
+                    }
+
+                    return grid;
                 } else if constexpr (std::is_same<Name, rfl::Literal<"cone">>()) {
-                    const auto [upper_radius, lower_radius, height, tess_factor_horz, tess_factor_vert] = s.value();
-                    XR_LOG_INFO("Generating cone: upper radius {}, lower radius {}, height {}, tesselation "
-                                "(vert/horz) {}/{}",
-                                upper_radius,
-                                lower_radius,
-                                height,
-                                tess_factor_vert,
-                                tess_factor_horz);
-
-                    geometry_data_t cone = geometry_factory::conical_section(
-                        upper_radius, lower_radius, height, tess_factor_horz, tess_factor_vert);
-
-                    vertex_span.push_back(to_bytes_span(cone.vertex_span()));
-                    index_span.push_back(cone.index_span());
-
-                    draw_indirect_template.push_back(VkDrawIndexedIndirectCommand{
-                        .indexCount = static_cast<uint32_t>(cone.index_count),
-                        .instanceCount = 1,
-                        .firstIndex = vtx_idx_accum.y,
-                        .vertexOffset = static_cast<int32_t>(vtx_idx_accum.x),
-                        .firstInstance = 0,
-                    });
-
-                    procedural_geometries.emplace_back(pg.name,
-                                                       GeometryHandleType{ FNV::fnv1a(pg.name) },
-                                                       vec2ui32{ cone.vertex_count, cone.index_count },
-                                                       vtx_idx_accum);
-                    gdata.push_back(std::move(cone));
-
-                    vtx_idx_accum.x += cone.vertex_count;
-                    vtx_idx_accum.y += cone.index_count;
-
+                    return geometry_factory::conical_section(s.value());
+                } else if constexpr (std::is_same<Name, rfl::Literal<"sphere">>()) {
+                    return geometry_factory::geosphere(s.value());
                 } else if constexpr (std::is_same<Name, rfl::Literal<"torus">>()) {
-                    const auto [outer_radius, inner_radius, rings, sides] = s.value();
-                    XR_LOG_INFO("Generating torus: outer {}, inner {}, sides {}, rings {}",
-                                outer_radius,
-                                inner_radius,
-                                sides,
-                                rings);
-
-                    geometry_data_t torus = geometry_factory::torus(outer_radius, inner_radius, sides, rings);
-
-                    vertex_span.push_back(to_bytes_span(torus.vertex_span()));
-                    index_span.push_back(torus.index_span());
-
-                    draw_indirect_template.push_back(VkDrawIndexedIndirectCommand{
-                        .indexCount = static_cast<uint32_t>(torus.index_count),
-                        .instanceCount = 1,
-                        .firstIndex = vtx_idx_accum.y,
-                        .vertexOffset = static_cast<int32_t>(vtx_idx_accum.x),
-                        .firstInstance = 0,
-                    });
-
-                    procedural_geometries.emplace_back(pg.name,
-                                                       GeometryHandleType{ FNV::fnv1a(pg.name) },
-                                                       vec2ui32{ torus.vertex_count, torus.index_count },
-                                                       vtx_idx_accum);
-                    gdata.push_back(std::move(torus));
-
-                    vtx_idx_accum.x += torus.vertex_count;
-                    vtx_idx_accum.y += torus.index_count;
-
+                    return geometry_factory::torus(s.value());
+                } else if constexpr (std::is_same<Name, rfl::Literal<"ring">>()) {
+                    return geometry_factory::ring_geometry(s.value());
+                } else if constexpr (std::is_same<Name, rfl::Literal<"torus_knot">>()) {
+                    return geometry_factory::torus_knot(s.value());
                 } else {
                     static_assert(rfl::always_false_v<ProceduralGeometryDescription>, "Not all cases were covered.");
                 }
             },
             pg.gen_params);
+
+        vertex_span.push_back(to_bytes_span(geometry.vertex_span()));
+        index_span.push_back(geometry.index_span());
+
+        draw_indirect_template.push_back(VkDrawIndexedIndirectCommand{
+            .indexCount = static_cast<uint32_t>(geometry.index_count),
+            .instanceCount = 1,
+            .firstIndex = vtx_idx_accum.y,
+            .vertexOffset = static_cast<int32_t>(vtx_idx_accum.x),
+            .firstInstance = 0,
+        });
+
+        procedural_geometries.emplace_back(pg.name,
+                                           GeometryHandleType{ FNV::fnv1a(pg.name) },
+                                           vec2ui32{ geometry.vertex_count, geometry.index_count },
+                                           vtx_idx_accum);
+
+        vtx_idx_accum.x += geometry.vertex_count;
+        vtx_idx_accum.y += geometry.index_count;
+        gdata.push_back(std::move(geometry));
     }
 
     //

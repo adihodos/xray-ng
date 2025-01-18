@@ -36,6 +36,8 @@
 #include <cstdint>
 #include <span>
 
+#include "xray/math/constants.hpp"
+
 namespace xray {
 namespace rendering {
 
@@ -94,6 +96,65 @@ xray::rendering::vertex_effect::ripple(std::span<vertex_type> vertices,
     }
 }
 
+struct RingGeometryParams
+{
+    float inner_radius{ 0.5f };
+    float outer_radius{ 1.0f };
+    uint32_t theta_segments{ 32 };
+    uint32_t phi_segments{ 1 };
+    float theta_start{ 0.0f };
+    float theta_lengt{ math::F32::TwoPi };
+};
+
+struct TorusParams
+{
+    float outer_radius;
+    float tube_radius;
+    uint32_t radial_segments;
+    uint32_t tubular_segments;
+    float arc;
+};
+
+struct SphereParams
+{
+    float radius;
+    uint32_t subdivisions;
+};
+
+struct GridParams
+{
+    uint32_t cellsx;
+    uint32_t cellsy;
+    float width;
+    float height;
+};
+
+struct ConeParams
+{
+    float upper_radius;
+    float lower_radius;
+    float height;
+    uint32_t tess_vert;
+    uint32_t tess_horz;
+};
+
+struct BoxParams
+{
+    float width;
+    float height;
+    float depth;
+};
+
+struct TorusKnotParams
+{
+    float radius;
+    float tube;
+    uint32_t tubular_segments;
+    uint32_t radial_segments;
+    uint32_t p;
+    uint32_t q;
+};
+
 class geometry_factory
 {
   public:
@@ -102,13 +163,6 @@ class geometry_factory
     static geometry_data_t octahedron();
     static geometry_data_t dodecahedron();
     static geometry_data_t icosahedron();
-
-    /// Creates a circle (XZ plane), centered around the origin.
-    /// \param  radius  Circle's radius.
-    /// \param  num_slices  Number of vertices used approximate the circle.
-    ///         A higher number leads to a smoother circle.
-    // static void create_circle(const float radius, const uint32_t num_slices,
-    //                           geometry_data_t* circle_geometry);
 
     static geometry_data_t cylinder(const uint32_t ring_tesselation_factor,
                                     const uint32_t rings_count,
@@ -120,7 +174,7 @@ class geometry_factory
     /// \param  width   Dimension along the X axis.
     /// \param  height  Dimension along the Y axis.
     /// \param  depth   Dimension along the Z axis.
-    static geometry_data_t box(const float width, const float height, const float depth);
+    static geometry_data_t box(const BoxParams boxparams);
 
     ///
     /// Creates a cone, centered at the origin.
@@ -134,15 +188,7 @@ class geometry_factory
     //                                  geometry_data_t* mesh);
 
     /// Creates a grid in the XZ plane, centered around the origin.
-    /// \param  grid_width  Length along the X axis.
-    /// \param  grid_depth  Length along the Z axis.
-    static void grid(const float width,
-                     const float depth,
-                     const uint32_t vertices_x,
-                     const uint32_t vertices_z,
-                     geometry_data_t* grid);
-
-    static geometry_data_t grid(const uint32_t cellsx, const uint32_t cellsy, const float sx, const float sz);
+    static geometry_data_t grid(const GridParams& params);
 
     /// Creates a sphere, centered at the origin.
     /// \param  tess_factor_horz    Horizontal tesselation factor. Must be
@@ -159,21 +205,18 @@ class geometry_factory
     ///         at least 3.
     /// \param  tess_factor_vert    Vertical tesselation factor. Valid values
     ///         are from 0.
-    static geometry_data_t conical_section(const float upper_radius,
-                                           const float lower_radius,
-                                           const float height,
-                                           const uint32_t tess_factor_horz,
-                                           const uint32_t tess_factor_vert);
+    static geometry_data_t conical_section(const ConeParams& coneparams);
 
-    static geometry_data_t geosphere(const float radius, const uint32_t max_subdivisions);
-    static geometry_data_t torus(const float outer_radius,
-                                 const float inner_radius,
-                                 const uint32_t sides,
-                                 const uint32_t rings);
+    static geometry_data_t geosphere(const SphereParams);
+    static geometry_data_t torus(const TorusParams& params);
+    static geometry_data_t torus_knot(const TorusKnotParams& params);
 
     /// Creates a quad spanning the whole screen. Vertices will be in NDC
     /// space.
     static void fullscreen_quad(geometry_data_t* grid_geometry);
+
+    /// Creates a planar ring (XY plane)
+    static geometry_data_t ring_geometry(const RingGeometryParams& params);
 };
 
 /// @}

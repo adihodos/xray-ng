@@ -40,8 +40,8 @@ class HeightmapGenerator
   public:
     HeightmapGenerator(void* vertices,
                        const size_t stride,
-                       const int32_t width,
-                       const int32_t height,
+                       const uint32_t width,
+                       const uint32_t height,
                        const float roughness = 255.0f) noexcept
         : _vertexptr{ vertices }
         , _stride{ stride }
@@ -60,24 +60,24 @@ class HeightmapGenerator
         return _rng.next_float(0.0f, 1.0f) > 0.3f ? (std::abs(std::sin(x * z) * _roughness)) : 0.0f;
     }
 
-    math::vec3f* point_at(const int32_t x, const int32_t y) noexcept
+    math::vec3f* point_at(const uint32_t x, const uint32_t y) noexcept
     {
         return (math::vec3f*)(((uint8_t*)_vertexptr) + (y * _width + x) * _stride);
     }
 
-    const math::vec3f* point_at(const int32_t x, const int32_t y) const noexcept
+    const math::vec3f* point_at(const uint32_t x, const uint32_t y) const noexcept
     {
         return (math::vec3f*)(((const uint8_t*)_vertexptr) + (y * _width + x) * _stride);
     }
 
-    float get_point(const int32_t x, const int32_t z) const noexcept
+    float get_point(const uint32_t x, const uint32_t z) const noexcept
     {
         const auto xp = (x + _width) % _width;
         const auto zp = (z + _height) % _height;
         return point_at(xp, zp)->y;
     }
 
-    void set_point(const int32_t x, const int32_t z, const float value) noexcept
+    void set_point(const uint32_t x, const uint32_t z, const float value) noexcept
     {
         const auto xp = (x + _width) % _width;
         const auto zp = (z + _height) % _height;
@@ -85,16 +85,16 @@ class HeightmapGenerator
         point_at(xp, zp)->y = value;
     }
 
-    void point_from_square(const int32_t x, const int32_t z, const int32_t size, const float value) noexcept;
-    void point_from_diamond(const int32_t x, const int32_t z, const int32_t size, const float value) noexcept;
-    void diamond_square(const int32_t step_size, const float scale) noexcept;
+    void point_from_square(const uint32_t x, const uint32_t z, const uint32_t size, const float value) noexcept;
+    void point_from_diamond(const uint32_t x, const uint32_t z, const uint32_t size, const float value) noexcept;
+    void diamond_square(const uint32_t step_size, const float scale) noexcept;
     void seed() noexcept;
-    void smooth_terrain(const int32_t pass_size) noexcept;
+    void smooth_terrain(const uint32_t pass_size) noexcept;
 
     void* _vertexptr;
     size_t _stride;
-    int32_t _width;
-    int32_t _height;
+    uint32_t _width;
+    uint32_t _height;
     float _roughness;
     xray::base::random_number_generator _rng;
 };
