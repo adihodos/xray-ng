@@ -101,12 +101,20 @@ get_target_property(target_output_directory ${PROJECT_NAME}
 add_custom_target(
   COPY_CONFIGS ALL
   COMMAND
-    ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/config/scenes"
-    ${target_output_directory}/config/scenes
+    ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/config" ${target_output_directory}/config
+  COMMAND
+    ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/config/vk_layer_settings.txt" "${target_output_directory}/vk_layer_settings.txt"
   COMMENT "::: Copy scene configuration step :::"
   VERBATIM
-  DEPENDS "${PROJECT_SOURCE_DIR}/config/scenes/simple.scene.conf"
-  SOURCES "${PROJECT_SOURCE_DIR}/config/scenes/simple.scene.conf")
+  DEPENDS 
+  "${PROJECT_SOURCE_DIR}/config/scenes/simple.scene.conf"
+  "${PROJECT_SOURCE_DIR}/config/renderer.conf"
+  "${PROJECT_SOURCE_DIR}/config/vk_layer_settings.txt" 
+  SOURCES 
+  "${PROJECT_SOURCE_DIR}/config/scenes/simple.scene.conf"
+  "${PROJECT_SOURCE_DIR}/config/renderer.conf"
+  "${PROJECT_SOURCE_DIR}/config/vk_layer_settings.txt" 
+)
 
 add_dependencies(${PROJECT_NAME} COPY_CONFIGS)
 
@@ -132,7 +140,7 @@ add_custom_command(
           ${target_output_directory}/config
   COMMAND
     build-info-tool $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args}>
-    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}>
+    # $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}
   BYPRODUCTS $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_byproducts}>
   COMMENT "::: Overwrite config step :::")
 

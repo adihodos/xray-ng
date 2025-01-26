@@ -246,6 +246,7 @@ enum class QueueType : uint8_t
 };
 
 struct QueueSubmitWaitToken;
+struct RendererConfig;
 
 class VulkanRenderer
 {
@@ -256,7 +257,7 @@ class VulkanRenderer
     };
 
   public:
-    static tl::optional<VulkanRenderer> create(const WindowPlatformData& win_data);
+    static tl::optional<VulkanRenderer> create(const WindowPlatformData& win_data, const RendererConfig& cfg);
 
     VulkanRenderer(PrivateConstructionToken,
                    detail::InstanceState instance_state,
@@ -395,12 +396,21 @@ class VulkanRenderer
     /// @group async tasks
 
     tl::expected<VkCommandBuffer, VulkanError> create_job(const QueueType qtype) noexcept;
-    tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(VkCommandBuffer cmd_buffer, const QueueType qtype) noexcept;
+    tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(VkCommandBuffer cmd_buffer,
+                                                               const QueueType qtype) noexcept;
     /// @endgroup
 
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
     const detail::Queue& transfer_queue() const noexcept { return _render_state.queues[1]; }
+
+    enum class SwapchainReacquireAfterSuboptimal
+    {
+        Always_,
+        Never_
+    };
+
+    void handle_swapchain_suboptimal_out_of_date(const SwapchainReacquireAfterSuboptimal reacquire);
 
     detail::InstanceState _instance_state;
     detail::RenderState _render_state;

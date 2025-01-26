@@ -34,6 +34,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pretty.print.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 
 using namespace xray::base;
 using namespace std;
@@ -585,7 +586,7 @@ tl::optional<detail::SwapchainState>
 create_swapchain_state(const SwapchainStateCreationInfo& create_info);
 
 tl::optional<VulkanRenderer>
-VulkanRenderer::create(const WindowPlatformData& win_data)
+VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig& cfg)
 {
     const itlib::small_vector<VkExtensionProperties, 4> supported_extensions{ enumerate_instance_extensions() };
     for (const VkExtensionProperties& e : supported_extensions) {
@@ -664,12 +665,8 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
         .ppEnabledExtensionNames = extensions_list.data(),
     };
 
-    xrUniqueVkInstance vkinstance{ [&]() {
-                                      VkInstance instance{};
-                                      WRAP_VULKAN_FUNC(vkCreateInstance, &instance_create_info, nullptr, &instance);
-                                      return instance;
-                                  }(),
-                                   VkResourceDeleter_VkInstance{ NotOwnedVulkanResource{} } };
+    xrUniqueVkInstance vkinstance{ VK_NULL_HANDLE, VkResourceDeleter_VkInstance{ NotOwnedVulkanResource{} } };
+    WRAP_VULKAN_FUNC(vkCreateInstance, &instance_create_info, nullptr, raw_ptr_ptr(vkinstance));
 
     if (!vkinstance)
         return tl::nullopt;
@@ -844,22 +841,24 @@ VulkanRenderer::create(const WindowPlatformData& win_data)
                 phys_device.properties.base.properties.deviceName,
                 phys_device.properties.base.properties.vendorID);
 
-    const VkDeviceQueueCreateInfo queue_create_info[] = { VkDeviceQueueCreateInfo{
-                                                              .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                                                              .pNext = nullptr,
-                                                              .flags = 0,
-                                                              .queueFamilyIndex = static_cast<uint32_t>(queue_graphics),
-                                                              .queueCount = 1,
-                                                              .pQueuePriorities = &queue_priorities[0],
-                                                          },
-                                                          VkDeviceQueueCreateInfo{
-                                                              .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                                                              .pNext = nullptr,
-                                                              .flags = 0,
-                                                              .queueFamilyIndex = static_cast<uint32_t>(queue_transfer),
-                                                              .queueCount = 1,
-                                                              .pQueuePriorities = &queue_priorities[1],
-                                                          } };
+    const VkDeviceQueueCreateInfo queue_create_info[] = {
+        VkDeviceQueueCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .queueFamilyIndex = static_cast<uint32_t>(queue_graphics),
+            .queueCount = 1,
+            .pQueuePriorities = &queue_priorities[0],
+        },
+        VkDeviceQueueCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .queueFamilyIndex = static_cast<uint32_t>(queue_transfer),
+            .queueCount = 1,
+            .pQueuePriorities = &queue_priorities[1],
+        },
+    };
 
     static constexpr initializer_list<const char*> device_extensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -1304,90 +1303,23 @@ VulkanRenderer::begin_rendering()
 
     if (wait_fence_result != VK_SUCCESS) {
         XR_LOG_CRITICAL("Failed to wait on fence!");
-        // TODO: handle device lost
     }
 
     WRAP_VULKAN_FUNC(vkResetFences, raw_ptr(_render_state.dev_logical), 1, fences);
 
-    const VkResult acquire_image_result{ WRAP_VULKAN_FUNC(
-        vkAcquireNextImageKHR,
-        raw_ptr(_render_state.dev_logical),
-        raw_ptr(_presentation_state.swapchain_state.swapchain),
-        numeric_limits<uint64_t>::max(),
-        raw_ptr(_presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
-        nullptr,
-        &_presentation_state.acquired_image) };
+    const VkResult acquire_image_result{
+        WRAP_VULKAN_FUNC(vkAcquireNextImageKHR,
+                         raw_ptr(_render_state.dev_logical),
+                         raw_ptr(_presentation_state.swapchain_state.swapchain),
+                         numeric_limits<uint64_t>::max(),
+                         raw_ptr(_presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
+                         nullptr,
+                         &_presentation_state.acquired_image),
+    };
 
     if (acquire_image_result == VK_SUBOPTIMAL_KHR || acquire_image_result == VK_ERROR_OUT_OF_DATE_KHR ||
         _presentation_state.state_bits & detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL) {
-
-        XR_LOG_INFO("Swapchain is sub-optimal/out-of-date, trying to recreate ...");
-
-        VkSurfaceCapabilitiesKHR surface_caps;
-        const VkResult query_result = WRAP_VULKAN_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
-                                                       _render_state.dev_physical.device,
-                                                       raw_ptr(_presentation_state.surface_state.surface),
-                                                       &surface_caps);
-
-        if (query_result == VK_SUCCESS &&
-            (surface_caps.currentExtent.width != _presentation_state.surface_state.caps.currentExtent.width ||
-             surface_caps.currentExtent.height != _presentation_state.surface_state.caps.currentExtent.height)) {
-            XR_LOG_INFO("Suboptimal/out of date : surface caps = {}", surface_caps);
-
-            if (surface_caps.currentExtent.width == numeric_limits<uint32_t>::max() ||
-                surface_caps.currentExtent.height == numeric_limits<uint32_t>::max()) {
-                surface_caps.currentExtent = _presentation_state.surface_state.caps.currentExtent;
-            }
-
-            wait_device_idle();
-
-            const SwapchainStateCreationInfo swapchain_state_creation_info{
-                .device = raw_ptr(_render_state.dev_logical),
-                .retired_swapchain = raw_ptr(_presentation_state.swapchain_state.swapchain),
-                .surface = raw_ptr(_presentation_state.surface_state.surface),
-                .surface_caps = surface_caps,
-                .fmt = _presentation_state.surface_state.format,
-                .present_mode = _presentation_state.surface_state.present_mode,
-                .mem_props = _render_state.dev_physical.memory,
-                .image_count = static_cast<uint32_t>(_presentation_state.max_frames),
-                .dimensions =
-                    VkExtent3D{
-                        .width = surface_caps.currentExtent.width,
-                        .height = surface_caps.currentExtent.height,
-                        .depth = 1,
-                    },
-                .depth_att_format = _presentation_state.surface_state.depth_stencil_format,
-            };
-
-            create_swapchain_state(swapchain_state_creation_info)
-                .map_or_else(
-                    [&](detail::SwapchainState new_swapchain_state) {
-                        _presentation_state.swapchain_state = std::move(new_swapchain_state);
-                        _presentation_state.state_bits &= ~detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL;
-                        _presentation_state.surface_state.caps = surface_caps;
-
-                        const uint32_t previous_acquired_image{ _presentation_state.acquired_image };
-
-                        WRAP_VULKAN_FUNC(
-                            vkAcquireNextImageKHR,
-                            raw_ptr(_render_state.dev_logical),
-                            raw_ptr(_presentation_state.swapchain_state.swapchain),
-                            numeric_limits<uint64_t>::max(),
-                            raw_ptr(
-                                _presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
-                            nullptr,
-                            &_presentation_state.acquired_image);
-
-                        XR_LOG_INFO("swapchain recreation previous acquired image {}, re-acquired image {}",
-                                    previous_acquired_image,
-                                    _presentation_state.acquired_image);
-
-                        const VkFence reset_fences[] = { raw_ptr(
-                            _presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index]) };
-                        WRAP_VULKAN_FUNC(vkResetFences, this->device(), 1, reset_fences);
-                    },
-                    []() { XR_LOG_CRITICAL("Could not create new swapchain state"); });
-        }
+        handle_swapchain_suboptimal_out_of_date(SwapchainReacquireAfterSuboptimal::Always_);
     }
 
     const uint32_t acquired_image{ _presentation_state.acquired_image };
@@ -1426,7 +1358,7 @@ VulkanRenderer::begin_rendering()
         .resolveImageView = nullptr,
         .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .clearValue = VkClearValue{},
     };
 
@@ -1453,13 +1385,13 @@ VulkanRenderer::begin_rendering()
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .pNext = nullptr,
             .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+            .srcAccessMask = 0,
             .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
             .dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .srcQueueFamilyIndex = 0,
-            .dstQueueFamilyIndex = 0,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image = _presentation_state.swapchain_state.swapchain_images[acquired_image],
             .subresourceRange =
                 VkImageSubresourceRange{
@@ -1473,14 +1405,14 @@ VulkanRenderer::begin_rendering()
         VkImageMemoryBarrier2{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .pNext = nullptr,
-            .srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
-            .srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+            .srcAccessMask = 0,
             .dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
             .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .srcQueueFamilyIndex = 0,
-            .dstQueueFamilyIndex = 0,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image = raw_ptr(_presentation_state.swapchain_state.depth_stencil_images[acquired_image].image),
             .subresourceRange =
                 VkImageSubresourceRange{
@@ -1582,7 +1514,7 @@ VulkanRenderer::end_rendering()
         .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
         .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
         .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+        .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         .srcQueueFamilyIndex = 0,
         .dstQueueFamilyIndex = 0,
@@ -1651,12 +1583,13 @@ VulkanRenderer::end_rendering()
         .pSignalSemaphoreInfos = &semaphore_signal_rendering_done,
     };
 
-    const VkResult submit_result{ WRAP_VULKAN_FUNC(
-        vkQueueSubmit2,
-        _render_state.queues[0].handle,
-        1,
-        &submit_info,
-        raw_ptr(_presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index])) };
+    const VkResult submit_result{
+        WRAP_VULKAN_FUNC(vkQueueSubmit2,
+                         _render_state.queues[0].handle,
+                         1,
+                         &submit_info,
+                         raw_ptr(_presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index])),
+    };
 
     if (submit_result != VK_SUCCESS) {
         // TODO: handle submit error ??!!
@@ -1683,10 +1616,85 @@ VulkanRenderer::end_rendering()
 
     if (present_result != VK_SUCCESS) {
         if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
-            //
-            // this is handled when begin_rendering is called next frame ...
-            _presentation_state.state_bits |= detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL;
+            handle_swapchain_suboptimal_out_of_date(SwapchainReacquireAfterSuboptimal::Never_);
         }
+    }
+}
+
+void
+VulkanRenderer::handle_swapchain_suboptimal_out_of_date(
+    const VulkanRenderer::SwapchainReacquireAfterSuboptimal reacquire)
+{
+    XR_LOG_INFO("Swapchain is sub-optimal/out-of-date, trying to recreate ...");
+
+    VkSurfaceCapabilitiesKHR surface_caps;
+    const VkResult query_result = WRAP_VULKAN_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
+                                                   _render_state.dev_physical.device,
+                                                   raw_ptr(_presentation_state.surface_state.surface),
+                                                   &surface_caps);
+
+    if (query_result == VK_SUCCESS &&
+        (surface_caps.currentExtent.width != _presentation_state.surface_state.caps.currentExtent.width ||
+         surface_caps.currentExtent.height != _presentation_state.surface_state.caps.currentExtent.height)) {
+        XR_LOG_INFO("Suboptimal/out of date : surface caps = {}", surface_caps);
+
+        if (surface_caps.currentExtent.width == numeric_limits<uint32_t>::max() ||
+            surface_caps.currentExtent.height == numeric_limits<uint32_t>::max()) {
+            surface_caps.currentExtent = _presentation_state.surface_state.caps.currentExtent;
+        }
+
+        wait_device_idle();
+
+        const SwapchainStateCreationInfo swapchain_state_creation_info{
+            .device = raw_ptr(_render_state.dev_logical),
+            .retired_swapchain = raw_ptr(_presentation_state.swapchain_state.swapchain),
+            .surface = raw_ptr(_presentation_state.surface_state.surface),
+            .surface_caps = surface_caps,
+            .fmt = _presentation_state.surface_state.format,
+            .present_mode = _presentation_state.surface_state.present_mode,
+            .mem_props = _render_state.dev_physical.memory,
+            .image_count = static_cast<uint32_t>(_presentation_state.max_frames),
+            .dimensions =
+                VkExtent3D{
+                    .width = surface_caps.currentExtent.width,
+                    .height = surface_caps.currentExtent.height,
+                    .depth = 1,
+                },
+            .depth_att_format = _presentation_state.surface_state.depth_stencil_format,
+        };
+
+        create_swapchain_state(swapchain_state_creation_info)
+            .map_or_else(
+                [&](detail::SwapchainState new_swapchain_state) {
+                    //
+                    // assign new swapchain state
+                    _presentation_state.swapchain_state = std::move(new_swapchain_state);
+                    _presentation_state.state_bits &= ~detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL;
+                    _presentation_state.surface_state.caps = surface_caps;
+
+                    if (reacquire == VulkanRenderer::SwapchainReacquireAfterSuboptimal::Always_) {
+                        const uint32_t previous_acquired_image{ _presentation_state.acquired_image };
+
+                        WRAP_VULKAN_FUNC(
+                            vkAcquireNextImageKHR,
+                            raw_ptr(_render_state.dev_logical),
+                            raw_ptr(_presentation_state.swapchain_state.swapchain),
+                            numeric_limits<uint64_t>::max(),
+                            raw_ptr(
+                                _presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
+                            nullptr,
+                            &_presentation_state.acquired_image);
+
+                        XR_LOG_INFO("swapchain recreation previous acquired image {}, re-acquired image {}",
+                                    previous_acquired_image,
+                                    _presentation_state.acquired_image);
+
+                        const VkFence reset_fences[] = { raw_ptr(
+                            _presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index]) };
+                        WRAP_VULKAN_FUNC(vkResetFences, this->device(), 1, reset_fences);
+                    }
+                },
+                []() { XR_LOG_CRITICAL("Could not create new swapchain state"); });
     }
 }
 

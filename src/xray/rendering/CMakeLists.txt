@@ -81,7 +81,11 @@ set(vk-project-sources
     ${vk-proj-inc-dir}/vulkan.queue.submit.token.hpp
     ${vk-proj-src-dir}/vulkan.queue.submit.token.cc
     ${vk-proj-inc-dir}/vulkan.bindless.hpp
-    ${vk-proj-src-dir}/vulkan.bindless.cc)
+    ${vk-proj-src-dir}/vulkan.bindless.cc
+    ${vk-proj-inc-dir}/vulkan.renderer.config.hpp
+    ${vk-proj-src-dir}/vulkan.renderer.config.cc
+  )
+
 
 add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl}
                                    ${vk-project-sources})

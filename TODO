@@ -22,3 +22,7 @@ Scene:
 
 - graphs: can use this https://github.com/bobluppes/graaf
 - ECS: https://github.com/SanderMertens/flecs
+
+Allocators:
+- https://www.gingerbill.org/series/memory-allocation-strategies/
+- https://github.com/PixelRifts/c-codebase/blob/master/source/base/mem.c

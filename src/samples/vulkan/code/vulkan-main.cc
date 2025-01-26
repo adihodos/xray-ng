@@ -70,6 +70,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/user_interface.hpp"
@@ -1293,6 +1294,8 @@ GameMain::create()
         return tl::make_unexpected(MiscError{ .what = "Failed to initialize application window" });
     }
 
+    const RendererConfig rcfg{ RendererConfig::from_file(xr_app_config->config_root() / "renderer.conf") };
+
     tl::optional<VulkanRenderer> opt_renderer
     {
         VulkanRenderer::create(
@@ -1312,6 +1315,8 @@ GameMain::create()
                 .height = static_cast<uint32_t>(main_window.height()),
             }
 #endif
+            ,
+            rcfg
         )
     };
 
