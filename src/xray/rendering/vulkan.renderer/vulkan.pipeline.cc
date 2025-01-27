@@ -24,6 +24,10 @@
 #include <spirv_reflect.h>
 
 #include "xray/base/logger.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/containers/arena.string.hpp"
+#include "xray/base/containers/arena.unorderered_map.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
@@ -89,7 +93,7 @@ shader_traits_from_vk_stage(const VkShaderStageFlagBits vks)
 struct ShaderModuleWithSpirVBlob
 {
     xrUniqueVkShaderModule module;
-    vector<uint32_t> spirv;
+    xray::base::containers::vector<uint32_t> spirv;
 };
 
 struct IncludedShaderSource
@@ -242,31 +246,39 @@ ShaderIncludesResolver::ReleaseInclude(shaderc_include_result*)
     // nothing to do, everything is released when this object is destroyed
 }
 
+struct ShaderModuleCreateParams
+{
+    VkDevice device;
+    std::span<const std::filesystem::path> shader_include_dirs;
+    std::string_view source_code;
+    std::string_view shader_tag;
+    ShaderTraits shader_traits;
+    const ShaderBuildOptions* build_options;
+    xray::base::MemoryArena* arena_perm;
+    xray::base::MemoryArena* arena_temp;
+};
+
 tl::optional<ShaderModuleWithSpirVBlob>
-create_shader_module_from_string(VkDevice device,
-                                 std::span<const std::filesystem::path> shader_include_dirs,
-                                 const std::string_view source_code,
-                                 const char* shader_tag,
-                                 const ShaderTraits shader_traits,
-                                 const ShaderBuildOptions& build_options)
+create_shader_module_from_string(const ShaderModuleCreateParams& params)
 {
     shaderc::CompileOptions compile_opts{};
     compile_opts.SetGenerateDebugInfo();
-    compile_opts.SetIncluder(std::make_unique<ShaderIncludesResolver>(shader_include_dirs));
-    compile_opts.SetOptimizationLevel(build_options.compile_options & ShaderBuildOptions::Compile_EnabledOptimizations
+    compile_opts.SetIncluder(std::make_unique<ShaderIncludesResolver>(params.shader_include_dirs));
+    compile_opts.SetOptimizationLevel(params.build_options->compile_options &
+                                              ShaderBuildOptions::Compile_EnabledOptimizations
                                           ? shaderc_optimization_level::shaderc_optimization_level_size
                                           : shaderc_optimization_level::shaderc_optimization_level_zero);
-    if (build_options.compile_options & ShaderBuildOptions::Compile_GenerateDebugInfo) {
+    if (params.build_options->compile_options & ShaderBuildOptions::Compile_GenerateDebugInfo) {
         compile_opts.SetGenerateDebugInfo();
     }
-    if (build_options.compile_options & ShaderBuildOptions::Compile_WarningsToErrors) {
+    if (params.build_options->compile_options & ShaderBuildOptions::Compile_WarningsToErrors) {
         compile_opts.SetWarningsAsErrors();
     }
-    if (build_options.compile_options & ShaderBuildOptions::Compile_SuppressWarnings) {
+    if (params.build_options->compile_options & ShaderBuildOptions::Compile_SuppressWarnings) {
         compile_opts.SetSuppressWarnings();
     }
 
-    for (const auto [macro_name, macro_val] : build_options.defines) {
+    for (const auto [macro_name, macro_val] : params.build_options->defines) {
         if (!macro_val.empty()) {
             compile_opts.AddMacroDefinition(macro_name.data(), macro_name.size(), macro_val.data(), macro_val.size());
         } else {
@@ -276,33 +288,38 @@ create_shader_module_from_string(VkDevice device,
 
     shaderc::Compiler compiler{};
     const shaderc::PreprocessedSourceCompilationResult preprocessed_result{ compiler.PreprocessGlsl(
-        source_code.data(), source_code.size(), shader_traits.kind, shader_tag, compile_opts) };
+        params.source_code.data(),
+        params.source_code.size(),
+        params.shader_traits.kind,
+        params.shader_tag.data(),
+        compile_opts) };
 
     if (preprocessed_result.GetCompilationStatus() != shaderc_compilation_status_success) {
-        XR_LOG_CRITICAL(
-            "Shader preprocess error: {}\nShader code:\n{}", preprocessed_result.GetErrorMessage(), source_code);
+        XR_LOG_CRITICAL("Shader preprocess error: {}\nShader code:\n{}",
+                        preprocessed_result.GetErrorMessage(),
+                        params.source_code.data());
         return tl::nullopt;
     }
 
     const shaderc::SpvCompilationResult compilation_result{
-        build_options.entry_point.empty()
+        params.build_options->entry_point.empty()
             ? shaderc::Compiler{}.CompileGlslToSpv(preprocessed_result.cbegin(),
                                                    preprocessed_result.cend() - preprocessed_result.cbegin(),
-                                                   shader_traits.kind,
-                                                   shader_tag)
+                                                   params.shader_traits.kind,
+                                                   params.shader_tag.data())
             :
 
             shaderc::Compiler{}.CompileGlslToSpv(preprocessed_result.cbegin(),
                                                  preprocessed_result.cend() - preprocessed_result.cbegin(),
-                                                 shader_traits.kind,
-                                                 shader_tag,
-                                                 build_options.entry_point.data(),
+                                                 params.shader_traits.kind,
+                                                 params.shader_tag.data(),
+                                                 params.build_options->entry_point.data(),
                                                  compile_opts)
     };
 
     if (compilation_result.GetCompilationStatus() != shaderc_compilation_status_success) {
         XR_LOG_CRITICAL("{}", compilation_result.GetErrorMessage());
-        XR_LOG_INFO("Dumping shader code:\n{}", source_code);
+        XR_LOG_INFO("Dumping shader code:\n{}", params.source_code);
         return tl::nullopt;
     }
 
@@ -315,27 +332,35 @@ create_shader_module_from_string(VkDevice device,
     };
 
     VkShaderModule shader_module{};
-    WRAP_VULKAN_FUNC(vkCreateShaderModule, device, &shader_module_create_info, nullptr, &shader_module);
+    WRAP_VULKAN_FUNC(vkCreateShaderModule, params.device, &shader_module_create_info, nullptr, &shader_module);
 
     return tl::make_optional<ShaderModuleWithSpirVBlob>(
         xrUniqueVkShaderModule{
             shader_module,
-            VkResourceDeleter_VkShaderModule{ device },
+            VkResourceDeleter_VkShaderModule{ params.device },
         },
-        vector<uint32_t>{
+        xray::base::containers::vector<uint32_t>{
             compilation_result.cbegin(),
             compilation_result.cend(),
+            *params.arena_perm,
         });
 }
 
-tl::optional<ShaderModuleWithSpirVBlob>
-create_shader_module_from_file(VkDevice device,
-                               std::span<const std::filesystem::path> shader_include_dirs,
-                               const std::filesystem::path& fs_path,
-                               const ShaderTraits shader_traits,
-                               const ShaderBuildOptions& sbo)
+struct ShaderModuleCreateFromFileParams
 {
-    const auto path_gs{ fs_path.generic_string() };
+    VkDevice device;
+    std::filesystem::path file_path;
+    std::span<const std::filesystem::path> shader_include_dirs;
+    ShaderTraits shader_traits;
+    const ShaderBuildOptions* build_options;
+    xray::base::MemoryArena* arena_perm;
+    xray::base::MemoryArena* arena_temp;
+};
+
+tl::optional<ShaderModuleWithSpirVBlob>
+create_shader_module_from_file(const ShaderModuleCreateFromFileParams& params)
+{
+    const auto path_gs{ params.file_path.generic_string() };
 
     std::error_code err_code{};
     const mio::mmap_source shader_file{ mio::make_mmap_source(path_gs.c_str(), err_code) };
@@ -344,23 +369,31 @@ create_shader_module_from_file(VkDevice device,
         return {};
     }
 
-    return create_shader_module_from_string(device,
-                                            shader_include_dirs,
-                                            string_view{ shader_file.data(), shader_file.size() },
-                                            path_gs.c_str(),
-                                            shader_traits,
-                                            sbo);
+    return create_shader_module_from_string(ShaderModuleCreateParams{
+        .device = params.device,
+        .shader_include_dirs = params.shader_include_dirs,
+        .source_code = string_view{ shader_file.data(), shader_file.size() },
+        .shader_tag = path_gs,
+        .shader_traits = params.shader_traits,
+        .build_options = params.build_options,
+        .arena_perm = params.arena_perm,
+        .arena_temp = params.arena_temp,
+    });
 }
 
 struct SpirVReflectionResult
 {
-    std::unordered_map<uint32_t, vector<VkDescriptorSetLayoutBinding>> descriptor_sets_layout_bindings;
-    std::vector<VkPushConstantRange> push_constants;
-    tl::optional<std::pair<uint32_t, vector<VkVertexInputAttributeDescription>>> vertex_inputs;
+    xray::base::containers::unordered_map<uint32_t, xray::base::containers::vector<VkDescriptorSetLayoutBinding>>
+        descriptor_sets_layout_bindings;
+    xray::base::containers::vector<VkPushConstantRange> push_constants;
+    tl::optional<std::pair<uint32_t, xray::base::containers::vector<VkVertexInputAttributeDescription>>> vertex_inputs;
 };
 
 tl::optional<SpirVReflectionResult>
-parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
+parse_spirv_binary(VkDevice device,
+                   const span<const uint32_t> spirv_binary,
+                   base::MemoryArena* arena_perm,
+                   base::MemoryArena* arena_temp)
 {
     spv_reflect::ShaderModule shader_module{
         spirv_binary.size() * 4,
@@ -383,7 +416,8 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
         return tl::nullopt;
     }
 
-    small_vec_4<SpvReflectDescriptorSet*> descriptor_sets{ descriptor_sets_count };
+    base::ScratchPadArena scratchPad{ arena_temp };
+    base::containers::vector<SpvReflectDescriptorSet*> descriptor_sets{ descriptor_sets_count, scratchPad };
     if (spvReflectEnumerateDescriptorSets(&shader_module.GetShaderModule(),
                                           &descriptor_sets_count,
                                           descriptor_sets.data()) != SPV_REFLECT_RESULT_SUCCESS) {
@@ -391,12 +425,14 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
         return tl::nullopt;
     }
 
-    unordered_map<uint32_t, vector<VkDescriptorSetLayoutBinding>> dsets;
+    base::containers::unordered_map<uint32_t, base::containers::vector<VkDescriptorSetLayoutBinding>> dsets{
+        *arena_perm
+    };
 
     for (uint32_t idx = 0; idx < descriptor_sets_count; ++idx) {
         const SpvReflectDescriptorSet* reflected_set = descriptor_sets[idx];
 
-        vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings{};
+        base::containers::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings{ *arena_perm };
         descriptor_set_layout_bindings.reserve(reflected_set->binding_count);
 
         for (uint32_t binding_idx = 0; binding_idx < reflected_set->binding_count; ++binding_idx) {
@@ -419,11 +455,11 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
     uint32_t push_constants_count{};
     spvReflectEnumeratePushConstantBlocks(&shader_module.GetShaderModule(), &push_constants_count, nullptr);
 
-    small_vec_4<SpvReflectBlockVariable*> push_constants{ push_constants_count };
+    base::containers::vector<SpvReflectBlockVariable*> push_constants{ push_constants_count, scratchPad };
     spvReflectEnumeratePushConstantBlocks(
         &shader_module.GetShaderModule(), &push_constants_count, push_constants.data());
 
-    vector<VkPushConstantRange> push_constant_ranges{};
+    base::containers::vector<VkPushConstantRange> push_constant_ranges{ *arena_perm };
 
     for (uint32_t idx = 0; idx < push_constants_count; ++idx) {
         const SpvReflectBlockVariable* reflect_push_const = push_constants[idx];
@@ -449,11 +485,11 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
         uint32_t input_vars_count{};
         spvReflectEnumerateInputVariables(&shader_module.GetShaderModule(), &input_vars_count, nullptr);
 
-        small_vec_4<SpvReflectInterfaceVariable*> input_vars{};
+        base::containers::vector<SpvReflectInterfaceVariable*> input_vars{ scratchPad };
         input_vars.resize(input_vars_count);
         spvReflectEnumerateInputVariables(&shader_module.GetShaderModule(), &input_vars_count, input_vars.data());
 
-        vector<VkVertexInputAttributeDescription> input_attribute_descriptions;
+        base::containers::vector<VkVertexInputAttributeDescription> input_attribute_descriptions{ *arena_perm };
 
         for (uint32_t idx = 0; idx < input_vars_count; ++idx) {
             const SpvReflectInterfaceVariable* reflected_variable = input_vars[idx];
@@ -503,7 +539,7 @@ parse_spirv_binary(VkDevice device, const span<const uint32_t> spirv_binary)
         return tl::make_optional<SpirVReflectionResult>(
             std::move(dsets),
             std::move(push_constant_ranges),
-            tl::optional<std::pair<uint32_t, vector<VkVertexInputAttributeDescription>>>{
+            tl::optional<std::pair<uint32_t, base::containers::vector<VkVertexInputAttributeDescription>>>{
                 std::pair{ stride, std::move(input_attribute_descriptions) } });
     } else {
         return tl::make_optional<SpirVReflectionResult>(std::move(dsets), std::move(push_constant_ranges), tl::nullopt);
@@ -582,13 +618,16 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
 {
     VkDevice device = renderer.device();
 
+    base::ScratchPadArena scratchpad{ _arena_perm };
+    base::ScratchPadArena scratchpad_temp{ _arena_temp };
+
     if (!_stage_modules.contains(ShaderStage::Vertex)) {
         XR_LOG_CRITICAL("Missing vertex shader stage!");
         return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
     }
 
-    small_vec_4<ShaderModuleWithSpirVBlob> shader_modules;
-    vector<VkPipelineShaderStageCreateInfo> shader_stage_create_info;
+    base::containers::vector<ShaderModuleWithSpirVBlob> shader_modules{ scratchpad_temp };
+    base::containers::vector<VkPipelineShaderStageCreateInfo> shader_stage_create_info{ scratchpad_temp };
 
     const initializer_list<uint32_t> shader_stages{
         static_cast<uint32_t>(VK_SHADER_STAGE_VERTEX_BIT),
@@ -605,22 +644,28 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
 
         const auto& shader_source = _stage_modules[stage];
         tl::optional<ShaderModuleWithSpirVBlob> shader_with_spirv{
-            [r = &renderer, s = &shader_source, stage, device, shader_opt = _optimize_shaders]() {
+            [r = &renderer, s = &shader_source, stage, device, this]() {
                 if (const std::string_view* sv = swl::get_if<std::string_view>(&s->code_or_file_path)) {
-                    return create_shader_module_from_string(
-                        device,
-                        r->shader_include_directories(),
-                        *sv,
-                        "string_view_shader",
-                        *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
-                        *s);
+                    return create_shader_module_from_string(ShaderModuleCreateParams{
+                        .device = device,
+                        .shader_include_dirs = r->shader_include_directories(),
+                        .source_code = *sv,
+                        .shader_tag = "string_view_shader",
+                        .shader_traits = *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
+                        .build_options = s,
+                        .arena_perm = _arena_perm,
+                        .arena_temp = _arena_temp,
+                    });
                 } else {
-                    return create_shader_module_from_file(
-                        device,
-                        r->shader_include_directories(),
-                        *swl::get_if<filesystem::path>(&s->code_or_file_path),
-                        *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
-                        *s);
+                    return create_shader_module_from_file(ShaderModuleCreateFromFileParams{
+                        .device = device,
+                        .file_path = *swl::get_if<filesystem::path>(&s->code_or_file_path),
+                        .shader_include_dirs = r->shader_include_directories(),
+                        .shader_traits = *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
+                        .build_options = s,
+                        .arena_perm = _arena_perm,
+                        .arena_temp = _arena_temp,
+                    });
                 }
             }()
         };
@@ -646,16 +691,17 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
 
     //
     // element stride, vertex attributes collection
-    pair<uint32_t, vector<VkVertexInputAttributeDescription>> vertex_input_state;
+    tl::optional<pair<uint32_t, base::containers::vector<VkVertexInputAttributeDescription>>> vertex_input_state;
 
     auto pipeline_layout = [&]() -> tl::expected<GraphicsPipeline::pipeline_layout_t, VulkanError> {
         //
         // reflect all compiled shader modules and extract info
-        vector<SpirVReflectionResult> reflected_shaders{};
+        base::containers::vector<SpirVReflectionResult> reflected_shaders{ *_arena_temp };
         uint32_t descriptor_set_count{ 0 };
 
         for (const ShaderModuleWithSpirVBlob& smb : shader_modules) {
-            tl::optional<SpirVReflectionResult> reflect_result{ parse_spirv_binary(device, smb.spirv) };
+            tl::optional<SpirVReflectionResult> reflect_result{ parse_spirv_binary(
+                device, smb.spirv, _arena_perm, _arena_temp) };
             if (!reflect_result) {
                 XR_LOG_CRITICAL("Failed to reflect SPIR-V binary!");
                 return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
@@ -664,7 +710,9 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
             descriptor_set_count =
                 std::max(descriptor_set_count,
                          lz::chain(reflect_result->descriptor_sets_layout_bindings)
-                             .map([](const pair<uint32_t, vector<VkDescriptorSetLayoutBinding>>& e) { return e.first; })
+                             .map([](const pair<uint32_t, base::containers::vector<VkDescriptorSetLayoutBinding>>& e) {
+                                 return e.first;
+                             })
                              .max());
 
             reflected_shaders.push_back(std::move(*reflect_result.take()));
@@ -679,7 +727,7 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
             //
             // if this was a vertex shader reflection object extract the vertex inputs
             reflection.vertex_inputs.take().map(
-                [&vertex_input_state](pair<uint32_t, vector<VkVertexInputAttributeDescription>> ia) {
+                [&vertex_input_state](pair<uint32_t, base::containers::vector<VkVertexInputAttributeDescription>> ia) {
                     vertex_input_state = std::move(ia);
                 });
         }
@@ -694,14 +742,14 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
         }
 
         using pipeline_layout_definition_table_t =
-            // unordered_map<uint32_t, VkDescriptorSetLayoutBinding>;
-            itlib::flat_map<uint32_t,
-                            VkDescriptorSetLayoutBinding,
-                            less<uint32_t>,
-                            itlib::static_vector<pair<uint32_t, VkDescriptorSetLayoutBinding>, 16>>;
+            base::containers::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>;
+        // itlib::flat_map<uint32_t,
+        //                 VkDescriptorSetLayoutBinding,
+        //                 less<uint32_t>,
+        //                 itlib::static_vector<pair<uint32_t, VkDescriptorSetLayoutBinding>, 16>>;
 
-        vector<VkPushConstantRange> push_constant_ranges{};
-        pipeline_layout_definition_table_t pipeline_layout_deftable;
+        base::containers::vector<VkPushConstantRange> push_constant_ranges{ *_arena_perm };
+        pipeline_layout_definition_table_t pipeline_layout_deftable{ *_arena_temp };
 
         for (SpirVReflectionResult& reflection : reflected_shaders) {
             //
@@ -866,9 +914,10 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
 
     //
     // dump some debug info
-    std::pmr::monotonic_buffer_resource buffer_resource{ 4096 };
-    std::pmr::polymorphic_allocator<char> palloc{ &buffer_resource };
-    std::pmr::string dbg_str{ palloc };
+    // std::pmr::monotonic_buffer_resource buffer_resource{ 4096 };
+    // std::pmr::polymorphic_allocator<char> palloc{ &buffer_resource };
+    // std::pmr::string dbg_str{ palloc };
+    base::containers::basic_string<char> dbg_str{ *_arena_temp };
 
     XRAY_SCOPE_EXIT noexcept
     {
@@ -877,9 +926,9 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
     };
 
     fmt::format_to(
-        std::back_inserter(dbg_str), "Vertex input description (stride {}) = {{\n", vertex_input_state.first);
+        std::back_inserter(dbg_str), "Vertex input description (stride {}) = {{\n", vertex_input_state->first);
 
-    for (const VkVertexInputAttributeDescription& vtx_desc : vertex_input_state.second) {
+    for (const VkVertexInputAttributeDescription& vtx_desc : vertex_input_state->second) {
         fmt::format_to(std::back_inserter(dbg_str),
                        "\n={{\n\t.location = {}\n\t.format = {}\n\t.offset = {}\n\t.binding = {}\n}},",
                        vtx_desc.location,
@@ -892,7 +941,7 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
 
     const VkVertexInputBindingDescription vertex_input_binding_description = {
         .binding = 0,
-        .stride = vertex_input_state.first,
+        .stride = vertex_input_state->first,
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
     };
 
@@ -901,10 +950,11 @@ GraphicsPipelineBuilder::create_impl(const VulkanRenderer& renderer,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .vertexBindingDescriptionCount = static_cast<uint32_t>(vertex_input_state.second.empty() ? 0 : 1),
-        .pVertexBindingDescriptions = vertex_input_state.second.empty() ? nullptr : &vertex_input_binding_description,
-        .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_input_state.second.size()),
-        .pVertexAttributeDescriptions = vertex_input_state.second.empty() ? nullptr : vertex_input_state.second.data(),
+        .vertexBindingDescriptionCount = static_cast<uint32_t>(vertex_input_state->second.empty() ? 0 : 1),
+        .pVertexBindingDescriptions = vertex_input_state->second.empty() ? nullptr : &vertex_input_binding_description,
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_input_state->second.size()),
+        .pVertexAttributeDescriptions =
+            vertex_input_state->second.empty() ? nullptr : vertex_input_state->second.data(),
     };
 
     const VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {

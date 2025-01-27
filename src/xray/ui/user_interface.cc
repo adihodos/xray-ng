@@ -913,8 +913,10 @@ xray::ui::user_interface::render_backend_create_info() noexcept
         .upload_callback = &user_interface::font_atlas_upload_callback,
         .upload_cb_context = static_cast<void*>(this),
         .font_atlas_pixels =
-            std::span<const uint8_t>{ _rendercontext.atlas_data,
-                                      (size_t)(_rendercontext.atlas_width * _rendercontext.atlas_height * 4) },
+            std::span<const uint8_t>{
+                _rendercontext.atlas_data,
+                (size_t)(_rendercontext.atlas_width * _rendercontext.atlas_height * 4),
+            },
         .atlas_width = (uint32_t)_rendercontext.atlas_width,
         .atlas_height = (uint32_t)_rendercontext.atlas_height,
     };

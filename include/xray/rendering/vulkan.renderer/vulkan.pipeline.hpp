@@ -17,6 +17,10 @@
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
 
+namespace xray::base {
+struct MemoryArena;
+}
+
 namespace xray::rendering {
 
 class VulkanRenderer;
@@ -115,7 +119,11 @@ struct ShaderBuildOptions
 class GraphicsPipelineBuilder
 {
   public:
-    GraphicsPipelineBuilder() = default;
+    GraphicsPipelineBuilder(base::MemoryArena* arena_perm, base::MemoryArena* arena_temp)
+        : _arena_perm(arena_perm)
+        , _arena_temp(arena_temp)
+    {
+    }
 
     GraphicsPipelineBuilder& add_shader(const uint32_t stage, ShaderBuildOptions so)
     {
@@ -177,6 +185,8 @@ class GraphicsPipelineBuilder
                                                             const PipelineType pipeline_type,
                                                             const GraphicsPipelineCreateData& pcd);
 
+    base::MemoryArena* _arena_perm;
+    base::MemoryArena* _arena_temp;
     // using ShaderModuleSource = swl::variant<std::string_view, std::filesystem::path>;
     std::unordered_map<uint32_t, ShaderBuildOptions> _stage_modules;
     bool _optimize_shaders{ false };

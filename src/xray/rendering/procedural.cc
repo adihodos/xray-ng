@@ -27,6 +27,9 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/rendering/procedural.hpp"
+
+#include <cassert>
+
 #include "xray/rendering/colors/hsv_color.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/colors/rgb_variants.hpp"
@@ -38,21 +41,59 @@ xray::rendering::xor_pattern(const uint32_t width, const uint32_t height, const 
 {
     std::vector<math::vec4ui8> pixels{ width * height };
 
+    // for (uint32_t y = 0; y < height; ++y) {
+    //     for (uint32_t x = 0; x < width; ++x) {
+    //         const uint8_t c = x ^ y;
+    //         if (pattern == XorPatternType::BnW) {
+    //             pixels[y * width + x] = math::vec4ui8{ c, c, c, 255 };
+    //         } else if (pattern == XorPatternType::ColoredHSV) {
+    //             const hsv_color hsv{ static_cast<float>(c) / 255.0f, 1.0f, 1.0f };
+    //             const rgb_color rgb{ color_cast<rgb_color>(hsv) };
+    //             const rgba_u32_color final{ color_cast<rgba_u32_color>(rgb) };
+    //             pixels[y * width + x] = math::vec4ui8{ final.r, final.g, final.b, 255 };
+    //         } else {
+    //             pixels[y * width + x] = math::vec4ui8{ uint8_t(255 - c), c, uint8_t(c % 128), 255 };
+    //         }
+    //     }
+    // }
+
+    xor_fill(width,
+             height,
+             pattern,
+             std::span{ reinterpret_cast<uint8_t*>(pixels.data()), pixels.size() * sizeof(pixels[0]) });
+    return pixels;
+}
+
+void
+xray::rendering::xor_fill(const uint32_t width,
+                          const uint32_t height,
+                          const XorPatternType pattern,
+                          std::span<uint8_t> region)
+{
+    assert(width * height * 4 == region.size());
+
     for (uint32_t y = 0; y < height; ++y) {
         for (uint32_t x = 0; x < width; ++x) {
             const uint8_t c = x ^ y;
             if (pattern == XorPatternType::BnW) {
-                pixels[y * width + x] = math::vec4ui8{ c, c, c, 255 };
+                region[y * width * 4 + x * 4 + 0] = c;
+                region[y * width * 4 + x * 4 + 1] = c;
+                region[y * width * 4 + x * 4 + 2] = c;
+                region[y * width * 4 + x * 4 + 3] = 255;
             } else if (pattern == XorPatternType::ColoredHSV) {
                 const hsv_color hsv{ static_cast<float>(c) / 255.0f, 1.0f, 1.0f };
                 const rgb_color rgb{ color_cast<rgb_color>(hsv) };
                 const rgba_u32_color final{ color_cast<rgba_u32_color>(rgb) };
-                pixels[y * width + x] = math::vec4ui8{ final.r, final.g, final.b, 255 };
+                region[y * width * 4 + x * 4 + 0] = final.r;
+                region[y * width * 4 + x * 4 + 1] = final.g;
+                region[y * width * 4 + x * 4 + 2] = final.b;
+                region[y * width * 4 + x * 4 + 3] = 255;
             } else {
-                pixels[y * width + x] = math::vec4ui8{ uint8_t(255 - c), c, uint8_t(c % 128), 255 };
+                region[y * width * 4 + x * 4 + 0] = uint8_t(255 - c);
+                region[y * width * 4 + x * 4 + 1] = c;
+                region[y * width * 4 + x * 4 + 2] = uint8_t(c % 128);
+                region[y * width * 4 + x * 4 + 3] = 255;
             }
         }
     }
-
-    return pixels;
 }

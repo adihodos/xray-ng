@@ -108,7 +108,9 @@ UserInterfaceRenderBackend_Vulkan::UserInterfaceRenderBackend_Vulkan(
 
 tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>
 UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
-                                          const UserInterfaceBackendCreateInfo& backend_create_info)
+                                          const UserInterfaceBackendCreateInfo& backend_create_info,
+                                          base::MemoryArena* arena_perm,
+                                          base::MemoryArena* arena_temp)
 {
     using namespace rendering;
 
@@ -147,7 +149,7 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
     };
 
     auto graphics_pipeline =
-        GraphicsPipelineBuilder{}
+        GraphicsPipelineBuilder{ arena_perm, arena_temp }
             .add_shader(ShaderStage::Vertex,
                         ShaderBuildOptions{
                             .code_or_file_path = UI_VERTEX_SHADER,

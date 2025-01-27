@@ -162,7 +162,7 @@ DebugDrawSystem::RenderStateVulkan::create(const DebugDrawSystem::InitContext& i
     }
     )#";
 
-    auto graphicsPipeline = GraphicsPipelineBuilder{}
+    auto graphicsPipeline = GraphicsPipelineBuilder{init.arena_perm, init.arena_temp}
                                 .add_shader(ShaderStage::Vertex,
                                             ShaderBuildOptions{
                                                 .code_or_file_path = kDebugVertexShader,

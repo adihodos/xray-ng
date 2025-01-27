@@ -11,6 +11,10 @@
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 
+namespace xray::base {
+struct MemoryArena;
+}
+
 namespace xray::rendering {
 class VulkanRenderer;
 struct FrameRenderData;
@@ -42,7 +46,9 @@ class UserInterfaceRenderBackend_Vulkan
 
     static tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError> create(
         rendering::VulkanRenderer& renderer,
-        const UserInterfaceBackendCreateInfo& backend_create_info);
+        const UserInterfaceBackendCreateInfo& backend_create_info,
+        base::MemoryArena* arena_perm,
+        base::MemoryArena* arena_temp);
 
     UIRenderUniform uniform_data() const noexcept;
 

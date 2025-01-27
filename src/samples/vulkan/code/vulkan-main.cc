@@ -31,6 +31,12 @@
 #include "build.config.hpp"
 #include "xray/xray.hpp"
 
+#if defined(XRAY_OS_IS_POSIX_FAMILY)
+#include <sys/mman.h>
+#include "xray/base/syscall_wrapper.hpp"
+#else
+#endif
+
 #include <cstdint>
 #include <filesystem>
 #include <vector>
@@ -45,6 +51,7 @@
 #include <rfl/json.hpp>
 #include <rfl.hpp>
 #include <itlib/small_vector.hpp>
+#include <atomic_queue/atomic_queue.h>
 
 #include <noise/noise.h>
 #include <noise/noiseutils.h>
@@ -56,6 +63,7 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/base/xray.misc.hpp"
+#include "xray/base/memory.arena.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
@@ -99,6 +107,156 @@ using namespace std;
 
 xray::base::ConfigSystem* xr_app_config{ nullptr };
 
+struct GlobalMemoryConfig
+{
+    uint32_t medium_arenas{ 8 };
+    uint32_t large_arenas{ 4 };
+    uint32_t small_arenas{ 16 };
+    uint32_t large_arena_size{ 64 };
+    uint32_t medium_arena_size{ 32 };
+    uint32_t small_arena_size{ 16 };
+};
+
+namespace GlobalMemoryBuffers {
+uint8_t SmallArenas[16][16 * 1024 * 1024];
+uint8_t MediumArenas[8][32 * 1024 * 1024];
+uint8_t LargeArenas[4][64 * 1024 * 1024];
+};
+
+struct LargeArenaTag
+{};
+struct MediumArenaTag
+{};
+struct SmallArenaTag
+{};
+
+template<typename TagType>
+struct ScopedMemoryArena
+{
+    explicit ScopedMemoryArena(std::span<uint8_t> s) noexcept
+        : arena{ s }
+    {
+    }
+
+    ScopedMemoryArena(uint8_t* backing_buffer, size_t backing_buffer_length) noexcept
+        : arena{ backing_buffer, backing_buffer_length }
+    {
+    }
+
+    ~ScopedMemoryArena();
+
+    MemoryArena arena;
+};
+
+using ScopedSmallArenaType = ScopedMemoryArena<SmallArenaTag>;
+using ScopedMediumArenaType = ScopedMemoryArena<MediumArenaTag>;
+using ScopedLargeArenaType = ScopedMemoryArena<LargeArenaTag>;
+
+class GlobalMemorySystem
+{
+  private:
+    GlobalMemorySystem()
+    {
+        for (size_t idx = 0; idx < std::size(GlobalMemoryBuffers::SmallArenas); ++idx) {
+            free_small.push(reinterpret_cast<void*>(&GlobalMemoryBuffers::SmallArenas[idx]));
+        }
+
+        for (size_t idx = 0; idx < std::size(GlobalMemoryBuffers::MediumArenas); ++idx) {
+            free_medium.push(reinterpret_cast<void*>(&GlobalMemoryBuffers::MediumArenas[idx]));
+        }
+
+        for (size_t idx = 0; idx < std::size(GlobalMemoryBuffers::LargeArenas); ++idx) {
+            free_large.push(reinterpret_cast<void*>(&GlobalMemoryBuffers::LargeArenas[idx]));
+        }
+    }
+
+  public:
+    static GlobalMemorySystem* instance() noexcept
+    {
+        static GlobalMemorySystem the_one_and_only{};
+        return &the_one_and_only;
+    }
+
+    template<typename TagType>
+    ScopedMemoryArena<TagType> grab_arena()
+    {
+        if constexpr (std::is_same_v<TagType, LargeArenaTag>) {
+            void* mem_ptr{};
+            if (!this->free_large.try_pop(mem_ptr)) {
+                // TODO: handle memory exhausted
+            }
+
+            return ScopedMemoryArena<TagType>{
+                static_cast<uint8_t*>(mem_ptr),
+                std::size(GlobalMemoryBuffers::LargeArenas[0]),
+            };
+        } else if constexpr (std::is_same_v<TagType, MediumArenaTag>) {
+            void* mem_ptr{};
+            if (!free_medium.try_pop(mem_ptr)) {
+                // TODO: handle memory exhausted
+            }
+            return ScopedMemoryArena<TagType>{
+                static_cast<uint8_t*>(mem_ptr),
+                std::size(GlobalMemoryBuffers::MediumArenas[0]),
+            };
+        } else if constexpr (std::is_same_v<TagType, SmallArenaTag>) {
+            void* mem_ptr{};
+            if (!free_small.try_pop(mem_ptr)) {
+                // TODO: handle memory exhausted
+            }
+            return ScopedMemoryArena<TagType>{
+                static_cast<uint8_t*>(mem_ptr),
+                std::size(GlobalMemoryBuffers::SmallArenas[0]),
+            };
+        } else {
+            static_assert(false, "Unhandled arena type");
+        }
+    }
+
+    template<typename TagType>
+    void release_arena(MemoryArena& arena)
+    {
+        if constexpr (std::is_same_v<TagType, LargeArenaTag>) {
+            free_large.push(arena.buf);
+        } else if constexpr (std::is_same_v<TagType, MediumArenaTag>) {
+            free_medium.push(arena.buf);
+        } else if constexpr (std::is_same_v<TagType, SmallArenaTag>) {
+            free_small.push(arena.buf);
+        } else {
+            static_assert(false, "Unhandled arena type");
+        }
+    }
+
+    auto grab_large_arena() noexcept { return grab_arena<LargeArenaTag>(); }
+    auto grab_medium_arena() noexcept { return grab_arena<MediumArenaTag>(); }
+    auto grab_small_arena() noexcept { return grab_arena<SmallArenaTag>(); }
+
+    ~GlobalMemorySystem()
+    {
+        // for (size_t i = 0; i < std::size(_reserved_blocks); ++i)
+        //     munmap(_reserved_blocks[i], 64 * 1024 * 1024);
+    }
+
+  private:
+    atomic_queue::AtomicQueue<void*, 16> free_small;
+    // atomic_queue::AtomicQueue<void*, 16> used_small;
+
+    atomic_queue::AtomicQueue<void*, 16> free_medium;
+    // atomic_queue::AtomicQueue<void*, 16> used_medium;
+
+    atomic_queue::AtomicQueue<void*, 16> free_large;
+    // atomic_queue::AtomicQueue<void*, 16> used_large;
+
+    GlobalMemorySystem(const GlobalMemorySystem&) = delete;
+    GlobalMemorySystem& operator=(const GlobalMemorySystem&) = delete;
+};
+
+template<typename TagType>
+ScopedMemoryArena<TagType>::~ScopedMemoryArena()
+{
+    GlobalMemorySystem::instance()->release_arena<TagType>(this->arena);
+}
+
 namespace app {
 
 struct RegisteredDemo
@@ -141,7 +299,10 @@ using SmallVec = itlib::small_vector<T, N>;
 concurrencpp::result<FontsLoadBundle>
 task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
 {
-    XR_LOG_INFO("Load fonts IO work package added ...");
+    XR_LOG_INFO("[[TASK]] Load fonts");
+    timer_highp exec_timer{};
+    exec_timer.start();
+
     namespace fs = std::filesystem;
 
     FontsLoadBundle font_pkgs;
@@ -166,7 +327,9 @@ task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
         font_pkgs.data.emplace_back(std::move(font_data));
     };
 
-    XR_LOG_INFO("Load fonts IO work package done ...");
+    exec_timer.end();
+    XR_LOG_INFO("[[TASK]] Font load task done, time {}", exec_timer.elapsed_millis());
+
     co_return font_pkgs;
 }
 
@@ -224,14 +387,20 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
                                concurrencpp::thread_pool_executor*,
                                concurrencpp::shared_result<VulkanRenderer*> renderer_result)
 {
+    timer_highp exec_timer{};
+    exec_timer.start();
+
     //
     // TODO: Pipeline cache maybe ?!
     VulkanRenderer* renderer = co_await renderer_result;
 
+    ScopedMediumArenaType perm = GlobalMemorySystem::instance()->grab_medium_arena();
+    ScopedMediumArenaType temp = GlobalMemorySystem::instance()->grab_medium_arena();
+
     //
     // graphics pipelines
     tl::expected<GraphicsPipeline, VulkanError> p_ads_color{
-        GraphicsPipelineBuilder{}
+        GraphicsPipelineBuilder{ &perm.arena, &temp.arena }
             .add_shader(ShaderStage::Vertex,
                         ShaderBuildOptions{
                             .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
@@ -256,7 +425,7 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     XR_VK_COR_PROPAGATE_ERROR(p_ads_color);
 
     tl::expected<GraphicsPipeline, VulkanError> p_ads_textured{
-        GraphicsPipelineBuilder{}
+        GraphicsPipelineBuilder{ &perm.arena, &temp.arena }
             .add_shader(ShaderStage::Vertex,
                         ShaderBuildOptions{
                             .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
@@ -281,7 +450,7 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     XR_VK_COR_PROPAGATE_ERROR(p_ads_textured);
 
     tl::expected<GraphicsPipeline, VulkanError> p_pbr_color{
-        GraphicsPipelineBuilder{}
+        GraphicsPipelineBuilder{ &perm.arena, &temp.arena }
             .add_shader(ShaderStage::Vertex,
                         ShaderBuildOptions{
                             .code_or_file_path = xr_app_config->shader_path("triangle/tri.vert"),
@@ -299,6 +468,9 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     };
     XR_VK_COR_PROPAGATE_ERROR(p_pbr_color);
 
+    exec_timer.end();
+    XR_LOG_INFO("[[TASK]] Graphics pipeline done, time {}", exec_timer.elapsed_millis());
+
     co_return tl::expected<GraphicsPipelineResources, VulkanError>{
         tl::in_place,
         std::move(*p_ads_color),
@@ -315,6 +487,9 @@ task_create_gltf_resources(concurrencpp::executor_tag,
                            concurrencpp::shared_result<VulkanRenderer*> renderer_result,
                            const std::span<const scene::GltfGeometryDescription> gltf_geometry_defs)
 {
+    timer_highp exec_timer{};
+    exec_timer.start();
+
     vector<GltfGeometryEntry> gltf_geometries;
     vector<VkDrawIndexedIndirectCommand> indirect_draw_templates;
     vector<LoadedGeometry> loaded_gltfs;
@@ -536,7 +711,8 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     auto sbo_wait_token = renderer->submit_job(*sbo_transfer_job, QueueType::Transfer);
     XR_VK_COR_PROPAGATE_ERROR(sbo_wait_token);
 
-    XR_LOG_INFO("[[TASK]] - gltf geometry resources done...");
+    exec_timer.end();
+    XR_LOG_INFO("[[TASK]] - gltf geometry resources done, {} ms", exec_timer.elapsed_millis());
 
     co_return tl::expected<tuple<GltfGeometry, GltfMaterialsData>, VulkanError>{
         tl::in_place,
@@ -565,6 +741,9 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
                                                  concurrencpp::thread_pool_executor*,
                                                  GeometryResourceTaskParams params)
 {
+    timer_highp exec_timer{};
+    exec_timer.start();
+
     const size_t vertex_bytes =
         lz::chain(params.vertex_data).map([](const std::span<const uint8_t> sv) { return sv.size_bytes(); }).sum();
     const size_t index_bytes =
@@ -655,13 +834,18 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
     auto wait_token = renderer->submit_job(*cmd_buf, QueueType::Transfer);
     XR_COR_PROPAGATE_ERROR(wait_token);
 
-    XR_LOG_INFO("[[TASK]] - procedural geometry resources");
+    exec_timer.end();
+    XR_LOG_INFO("[[TASK]] - procedural geometry resources, {} ms", exec_timer.elapsed_millis());
+
     co_return tl::expected<ProceduralGeometryRenderResources, VulkanError>{
         tl::in_place,
         std::move(*vertexbuffer),
         std::move(*indexbuffer),
     };
 }
+
+template<typename T>
+using ScratchPadVector = std::vector<T, MemoryArenaAllocator<T>>;
 
 concurrencpp::result<tl::expected<NonGltfMaterialsData, ProgramError>>
 task_create_non_gltf_materials(concurrencpp::executor_tag,
@@ -671,9 +855,14 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
 {
     using namespace xray::scene;
 
-    vector<vec4f> color_pixels{}; // store 1024 colors max
+    timer_highp exec_timer{};
+    exec_timer.start();
+
+    ScopedSmallArenaType task_mem_arena = GlobalMemorySystem::instance()->grab_small_arena();
+
+    ScratchPadVector<vec4f> color_pixels{ task_mem_arena.arena }; // store 1024 colors max
     vector<ColoredMaterial> colored_materials;
-    vector<std::filesystem::path> texture_files;
+    ScratchPadVector<std::filesystem::path> texture_files{ task_mem_arena.arena };
     vector<TexturedMaterial> textured_materials;
 
     for (const MaterialDescription& md : material_descriptions) {
@@ -688,7 +877,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
                 } else if constexpr (std::is_same<Name, rfl::Literal<"textured">>()) {
                     const auto& [name, ambient_tex, diffuse_tex, specular_tex] = s.value();
 
-                    auto add_material_to_collection_fn = [](vector<std::filesystem::path>& material_coll,
+                    auto add_material_to_collection_fn = [](ScratchPadVector<std::filesystem::path>& material_coll,
                                                             const std::filesystem::path& material) {
                         uint32_t material_id{};
                         //
@@ -725,14 +914,14 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
     }
 
     VulkanRenderer* renderer = co_await renderer_result;
-    SmallVec<QueueSubmitWaitToken> pending_jobs;
+    ScratchPadVector<QueueSubmitWaitToken> pending_jobs{ task_mem_arena.arena };
 
     XRAY_SCOPE_EXIT noexcept
     {
-        const SmallVec<VkFence> fences{ lz::chain(pending_jobs)
-                                            .map([](const QueueSubmitWaitToken& token) { return token.fence(); })
-                                            .to<SmallVec<VkFence>>() };
-
+        ScratchPadVector<VkFence> fences{ task_mem_arena.arena };
+        lz::chain(pending_jobs).transformTo(back_inserter(fences), [](const QueueSubmitWaitToken& token) {
+            return token.fence();
+        });
         WRAP_VULKAN_FUNC(
             vkWaitForFences, renderer->device(), static_cast<uint32_t>(fences.size()), fences.data(), true, 0xffffffff);
     };
@@ -775,7 +964,11 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         auto transfer_job = renderer->create_job(QueueType::Transfer);
         XR_VK_PROPAGATE_ERROR(transfer_job);
 
-        const vector<vec4ui8> null_texture_pixels{ xor_pattern(256, 256, XorPatternType::Colored) };
+        ScratchPadArena scratch_pad{ &task_mem_arena.arena };
+
+        ScratchPadVector<uint8_t> null_texture_pixels{ size_t{ 256 * 256 * 4 }, uint8_t{}, scratch_pad };
+        xor_fill(256, 256, XorPatternType ::Colored, std::span{ null_texture_pixels });
+
         const VulkanImageCreateInfo tex_data[] = {
             VulkanImageCreateInfo{
                 .tag_name = "null_texture",
@@ -822,7 +1015,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         uint32_t texel;
     };
 
-    SmallVec<GPUColoredMaterial> gpu_colored_mtls;
+    ScratchPadVector<GPUColoredMaterial> gpu_colored_mtls{ task_mem_arena.arena };
     for (ColoredMaterial& cm : colored_materials) {
         gpu_colored_mtls.emplace_back(cm.texel);
     }
@@ -833,7 +1026,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         uint32_t diffuse;
         uint32_t specular;
     };
-    SmallVec<GPUTexturedMaterial> gpu_textured_mtls;
+    ScratchPadVector<GPUTexturedMaterial> gpu_textured_mtls{ task_mem_arena.arena };
     for (const TexturedMaterial& tm : textured_materials) {
         //
         // colors texture takes first slot reserved from BindlessSys
@@ -846,7 +1039,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         { "sbo_textured_materials", to_bytes_span(gpu_textured_mtls) },
     };
 
-    SmallVec<VulkanBuffer> material_sbos;
+    ScratchPadVector<VulkanBuffer> material_sbos{ task_mem_arena.arena };
     for (const auto [sbo_name, sbo_data] : material_sbos_create_data) {
         auto sbo =
             VulkanBuffer::create(*renderer,
@@ -881,7 +1074,8 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         material_sbos.emplace_back(std::move(*sbo));
     }
 
-    XR_LOG_INFO("[[TASK]] - non gltf materials done ...");
+    exec_timer.end();
+    XR_LOG_INFO("[[TASK]] - non gltf materials done , {}", exec_timer.elapsed_millis());
 
     co_return tl::expected<NonGltfMaterialsData, ProgramError>{
         tl::in_place,
@@ -902,6 +1096,9 @@ main_task(concurrencpp::executor_tag,
           concurrencpp::thread_pool_executor* tpe,
           concurrencpp::shared_result<VulkanRenderer*> renderer_result)
 {
+    timer_highp exec_timer{};
+    exec_timer.start();
+
     const auto loaded_scene = SceneDescription::from_file(xr_app_config->config_path("scenes/simple.scene.conf"));
     XR_COR_PROPAGATE_ERROR(loaded_scene);
 
@@ -1138,7 +1335,8 @@ main_task(concurrencpp::executor_tag,
     auto pipeline_resources = co_await pipelines_task_result;
     XR_COR_PROPAGATE_ERROR(pipeline_resources);
 
-    XR_LOG_INFO("[[TASK]] - main done ...");
+    exec_timer.end();
+    XR_LOG_INFO("[[TASK]] - main done, {} ...", exec_timer.elapsed_millis());
 
     co_return SceneDefinition{
         .gltf = std::move(std::get<0>(*gltf_render_resources)),
@@ -1261,6 +1459,7 @@ GameMain::create()
     using namespace xray::base;
 
     xray::base::setup_logging(LogLevel::Debug);
+    auto gmem = GlobalMemorySystem::instance();
 
     XR_LOG_INFO("Xray source commit: {}, built on {}, user {}, machine {}, working directory {}",
                 xray::build::config::commit_hash_str,
@@ -1316,8 +1515,7 @@ GameMain::create()
             }
 #endif
             ,
-            rcfg
-        )
+            rcfg)
     };
 
     if (!opt_renderer) {
@@ -1333,7 +1531,14 @@ GameMain::create()
     // resume anyone waiting for the renderer
     renderer_promise.set_result(raw_ptr(renderer));
 
-    auto debug_draw = DebugDrawSystem::create(DebugDrawSystem::InitContext{ &*renderer });
+    ScopedMediumArenaType arena_perm = GlobalMemorySystem::instance()->grab_medium_arena();
+    ScopedSmallArenaType arena_temp = GlobalMemorySystem::instance()->grab_small_arena();
+
+    auto debug_draw = DebugDrawSystem::create(DebugDrawSystem::InitContext{
+        .renderer = &*renderer,
+        .arena_perm = &arena_perm.arena,
+        .arena_temp = &arena_temp.arena,
+    });
     XR_PROPAGATE_ERROR(debug_draw);
 
     const VulkanBufferCreateInfo bci{
@@ -1378,8 +1583,10 @@ GameMain::create()
     xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(
         std::move(font_pkg_load_result)) };
 
-    tl::expected<UserInterfaceRenderBackend_Vulkan, VulkanError> vk_backend{ UserInterfaceRenderBackend_Vulkan::create(
-        *renderer, ui->render_backend_create_info()) };
+    tl::expected<UserInterfaceRenderBackend_Vulkan, VulkanError> vk_backend{
+        UserInterfaceRenderBackend_Vulkan::create(
+            *renderer, ui->render_backend_create_info(), &arena_perm.arena, &arena_temp.arena),
+    };
     XR_PROPAGATE_ERROR(vk_backend);
 
     ui->set_global_font("TerminessNerdFontMono-Regular");
@@ -1786,6 +1993,7 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 int
 main(int argc, char** argv)
 {
+
     app::GameMain::create()
         .map([](app::GameMain runner) {
             runner.run();
