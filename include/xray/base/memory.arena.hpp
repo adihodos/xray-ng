@@ -1,10 +1,53 @@
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cassert>
 #include <cstring>
 #include <span>
+
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer) // for clang
+// GCC and MSVC already set this
+// https://learn.microsoft.com/en-us/cpp/sanitizers/asan-building?view=msvc-160
+#define __SANITIZE_ADDRESS__
+#endif
+#endif
+
+#if defined(__SANITIZE_ADDRESS__)
+#include <sanitizer/asan_interface.h>
+#endif
+
+namespace xray::base::details {
+
+#if defined(__SANITIZE_ADDRESS__)
+
+inline void
+poison_memory_region(void* ptr, std::size_t n)
+{
+    ASAN_POISON_MEMORY_REGION(ptr, n);
+}
+
+inline void
+unpoison_memory_region(void* ptr, std::size_t n)
+{
+    ASAN_UNPOISON_MEMORY_REGION(ptr, n);
+}
+#else
+
+inline void
+poison_memory_region(void* ptr, std::size_t n)
+{
+}
+
+inline void
+unpoison_memory_region(void* ptr, std::size_t n)
+{
+}
+
+#endif
+
+}
 
 //
 // based on this article
@@ -48,13 +91,17 @@ struct MemoryArena
     MemoryArena(std::span<uint8_t> s) noexcept
         : MemoryArena{ s.data(), s.size_bytes() }
     {
+        details::poison_memory_region(this->buf, this->buf_len);
     }
 
     MemoryArena(uint8_t* backing_buffer, size_t backing_buffer_length) noexcept
         : buf{ backing_buffer }
         , buf_len{ backing_buffer_length }
     {
+        details::poison_memory_region(this->buf, this->buf_len);
     }
+
+    ~MemoryArena() { details::unpoison_memory_region(this->buf, this->buf_len); }
 
     void* alloc_align(size_t size, size_t align) noexcept
     {
@@ -69,6 +116,8 @@ struct MemoryArena
             this->prev_offset = offset;
             this->curr_offset = offset + size;
 
+            details::unpoison_memory_region(ptr, size);
+
             // Zero new memory by default
             memset(ptr, 0, size);
             return ptr;
@@ -77,23 +126,23 @@ struct MemoryArena
         return nullptr;
     }
 
-    void free(void* ptr) noexcept
-    {
-        // Do nothing
-    }
+    void free(void* ptr, std::size_t n) noexcept { details::unpoison_memory_region(ptr, n); }
 
     void* resize_align(void* old_memory, size_t old_size, size_t new_size, size_t align) noexcept
     {
-        unsigned char* old_mem = (unsigned char*)old_memory;
+        unsigned char* old_mem = static_cast<unsigned char*>(old_memory);
 
         assert(is_power_of_two(align));
 
-        if (old_mem == NULL || old_size == 0) {
+        if (old_mem == nullptr || old_size == 0) {
             return alloc_align(new_size, align);
         } else if (this->buf <= old_mem && old_mem < this->buf + buf_len) {
             if (this->buf + this->prev_offset == old_mem) {
                 this->curr_offset = this->prev_offset + new_size;
                 if (new_size > old_size) {
+
+                    details::unpoison_memory_region(&this->buf[this->curr_offset], new_size - old_size);
+                    //
                     // Zero the new memory by default
                     memset(&this->buf[this->curr_offset], 0, new_size - old_size);
                 }
@@ -107,7 +156,7 @@ struct MemoryArena
             }
         } else {
             assert(0 && "Memory is out of bounds of the buffer in this arena");
-            return NULL;
+            return nullptr;
         }
     }
 
@@ -151,54 +200,46 @@ class MemoryArenaAllocator
     using value_type = T;
     static auto constexpr alignment = Align;
 
-    MemoryArenaAllocator<T, Align> select_on_container_copy_construction() noexcept {
-      return MemoryArenaAllocator{this->a_};
+    MemoryArenaAllocator<T, Align> select_on_container_copy_construction() noexcept
+    {
+        return MemoryArenaAllocator{ this->a_ };
     }
-
-    using propagate_on_container_copy_assignment = std::true_type;
-    using propagate_on_container_move_assignment = std::true_type;
-    using propagate_on_container_swap = std::true_type;
 
   private:
     MemoryArena* a_;
 
   public:
-    MemoryArenaAllocator(const MemoryArenaAllocator&) = default;
-    MemoryArenaAllocator& operator=(const MemoryArenaAllocator&) = default;
-    MemoryArenaAllocator(MemoryArenaAllocator&&) = default;
-    MemoryArenaAllocator& operator=(MemoryArenaAllocator&&) = default;
-
     MemoryArenaAllocator(ScratchPadArena& s) noexcept
-        : a_{s.arena}
+        : a_{ s.arena }
     {
     }
 
     MemoryArenaAllocator(MemoryArena& a) noexcept
-        : a_{&a}
+        : a_{ &a }
     {
     }
 
     template<class U>
     MemoryArenaAllocator(const MemoryArenaAllocator<U, alignment>& a) noexcept
-        : a_{a.a_}
+        : a_{ a.a_ }
     {
     }
 
-    template<class _Up>
-    struct rebind
-    {
-        using other = MemoryArenaAllocator<_Up, alignment>;
-    };
+    T* allocate(std::size_t n) noexcept { return reinterpret_cast<T*>(a_->alloc_align(n * sizeof(T), alignof(T))); }
 
-    T* allocate(std::size_t n) { return reinterpret_cast<T*>(a_->alloc_align(n * sizeof(T), alignof(T))); }
-
-    void deallocate(T* p, std::size_t n) noexcept { a_->free(reinterpret_cast<void*>(p)); }
+    void deallocate(T* p, std::size_t n) noexcept { a_->free(reinterpret_cast<void*>(p), n); }
 
     template<class T1, std::size_t A1, class U, std::size_t A2>
     friend bool operator==(const MemoryArenaAllocator<T1, A1>& x, const MemoryArenaAllocator<U, A2>& y) noexcept;
 
     template<class U, std::size_t A>
     friend class MemoryArenaAllocator;
+
+    template<class _Up>
+    struct rebind
+    {
+        using other = MemoryArenaAllocator<_Up, alignment>;
+    };
 };
 
 template<class T, std::size_t A1, class U, std::size_t A2>

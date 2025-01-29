@@ -30,6 +30,17 @@ cpmaddpackage(
 
 cpmaddpackage(
   NAME
+  fastgltf
+  GITHUB_REPOSITORY
+  adihodos/fastgltf
+  GIT_TAG
+  build-as-static-library
+  OPTIONS
+  "FASTGLTF_COMPILE_AS_CPP20 ON"
+  "FASTGLTF_BUILD_STATIC_LIBRARY ON")
+
+cpmaddpackage(
+  NAME
   cpp-lazy
   GITHUB_REPOSITORY
   # adihodos/cpp-lazy

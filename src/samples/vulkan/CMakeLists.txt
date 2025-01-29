@@ -95,6 +95,7 @@ target_link_libraries(
           $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
           noise
           atomic_queue
+          fastgltf::fastgltf
         )
 
 get_target_property(target_output_directory ${PROJECT_NAME}

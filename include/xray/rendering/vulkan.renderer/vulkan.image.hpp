@@ -6,9 +6,12 @@
 #include <initializer_list>
 #include <span>
 
+#include <swl/variant.hpp>
 #include <vulkan/vulkan.h>
 #include <tl/expected.hpp>
+#include <tl/optional.hpp>
 
+#include "xray/base/delegate.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
@@ -39,6 +42,19 @@ struct VulkanImageLoadInfo
     VkImageTiling tiling;
 };
 
+using FillPixelsDelegate = cpp::delegate<void(std::span<std::byte>)>;
+struct FillPixelsMemory {
+    std::initializer_list<std::span<const std::byte>> source;
+};
+
+using PixelFillStrategy = swl::variant<FillPixelsDelegate, FillPixelsMemory>;
+
+struct PixelFill
+{
+    VkCommandBuffer cmd_buff;
+    PixelFillStrategy fill_strategy;
+};
+
 struct VulkanImageCreateInfo
 {
     const char* tag_name{};
@@ -54,6 +70,7 @@ struct VulkanImageCreateInfo
     uint32_t depth{ 1 };
     uint32_t layers{ 1 };
     std::initializer_list<const std::span<const uint8_t>> pixels{};
+    tl::optional<PixelFill> pixel_fill{};
 };
 
 class VulkanImage

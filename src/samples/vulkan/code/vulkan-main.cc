@@ -53,8 +53,14 @@
 #include <itlib/small_vector.hpp>
 #include <atomic_queue/atomic_queue.h>
 
+#include <fastgltf/core.hpp>
+#include <fastgltf/types.hpp>
+#include <fastgltf/tools.hpp>
+
 #include <noise/noise.h>
 #include <noise/noiseutils.h>
+
+#include <stb/stb_image.h>
 
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
@@ -479,7 +485,105 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     };
 }
 
+struct TimedBlock
+{
+    TimedBlock(std::string_view name)
+        : _name{ name }
+    {
+        _timer.start();
+    }
+
+    void display()
+    {
+        _timer.end();
+        XR_LOG_INFO("{} {} ms", _name, _timer.elapsed_millis());
+        _displ = true;
+    }
+
+    ~TimedBlock()
+    {
+        if (!_displ) {
+            display();
+        }
+    }
+
+    base::timer_highp _timer;
+    std::string_view _name;
+    bool _displ{ false };
+};
+
 using GltfResourceTaskError = swl::variant<VulkanError, GeometryImportError>;
+
+auto
+decode_image_from_memory_fn(std::span<const std::byte> pixels,
+                            std::string_view tag,
+                            VulkanRenderer* renderer,
+                            vector<VulkanImage>* img_collection,
+                            vector<QueueSubmitWaitToken>* wait_tokens_coll)
+    -> tl::expected<std::true_type, GltfResourceTaskError>
+{
+    int32_t width{};
+    int32_t height{};
+    int32_t components{};
+
+    stbi_uc* decoded_image = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(pixels.data()),
+                                                   static_cast<int>(pixels.size_bytes()),
+                                                   &width,
+                                                   &height,
+                                                   &components,
+                                                   4);
+
+    if (!decoded_image) {
+        return tl::make_unexpected(fmt::format("stbi_error: tag {}, message: {}", tag, stbi_failure_reason()));
+    }
+
+    XRAY_SCOPE_EXIT noexcept
+    {
+        stbi_image_free(reinterpret_cast<void*>(decoded_image));
+    };
+
+    const size_t bytes_size = static_cast<size_t>(width * height * components);
+
+    auto transfer_job = renderer->create_job(QueueType ::Transfer);
+    if (!transfer_job)
+        return tl::make_unexpected(transfer_job.error());
+
+    auto img = VulkanImage::from_memory(*renderer,
+                                        VulkanImageCreateInfo{
+                                            .tag_name = tag.data(),
+                                            .type = VK_IMAGE_TYPE_2D,
+                                            .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
+                                            .memory_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                            .format = VK_FORMAT_R8G8B8A8_UNORM,
+                                            .width = static_cast<uint32_t>(width),
+                                            .height = static_cast<uint32_t>(height),
+                                            .pixel_fill =
+                                                PixelFill{
+                                                    .cmd_buff = *transfer_job,
+                                                    .fill_strategy =
+                                                        FillPixelsMemory{
+                                                            .source = {
+                                                                std::span<const std::byte>{
+                                                                    reinterpret_cast<const std::byte*>(decoded_image),
+                                                                    static_cast<size_t>(width * height * 4),
+                                                                },
+                                                                },
+                                                        },
+                                                },
+                                        });
+
+    if (!img)
+        return tl::make_unexpected(img.error());
+
+    img_collection->push_back(std::move(*img));
+
+    auto wait_token = renderer->submit_job(*transfer_job, QueueType ::Transfer);
+    if (!wait_token)
+        return tl::make_unexpected(wait_token.error());
+
+    wait_tokens_coll->push_back(std::move(*wait_token));
+    return std::true_type{};
+};
 
 concurrencpp::result<tl::expected<tuple<GltfGeometry, GltfMaterialsData>, GltfResourceTaskError>>
 task_create_gltf_resources(concurrencpp::executor_tag,
@@ -487,19 +591,21 @@ task_create_gltf_resources(concurrencpp::executor_tag,
                            concurrencpp::shared_result<VulkanRenderer*> renderer_result,
                            const std::span<const scene::GltfGeometryDescription> gltf_geometry_defs)
 {
-    timer_highp exec_timer{};
-    exec_timer.start();
+    TimedBlock mblk{"[[gltf]] resource task"};
 
     vector<GltfGeometryEntry> gltf_geometries;
     vector<VkDrawIndexedIndirectCommand> indirect_draw_templates;
     vector<LoadedGeometry> loaded_gltfs;
     vec2ui32 global_vertex_index_count{ vec2ui32::stdc::zero };
     vector<vec2ui32> per_obj_vertex_index_counts;
-    vector<ExtractedMaterialsWithImageSourcesBundle> mtls_data;
 
+    TimedBlock blk1{ "[[gltf]] initial geometry pass" };
     for (const GltfGeometryDescription& gltf : gltf_geometry_defs) {
+        const auto file_path = xr_app_config->model_path(gltf.path);
         XR_LOG_INFO("Loading model {}", xr_app_config->model_path(gltf.path));
+
         auto gltf_geometry = xray::rendering::LoadedGeometry::from_file(xr_app_config->model_path(gltf.path));
+
         XR_VK_COR_PROPAGATE_ERROR(gltf_geometry);
 
         const vec2ui32 obj_vtx_idx_count = gltf_geometry->compute_vertex_index_count();
@@ -518,15 +624,16 @@ task_create_gltf_resources(concurrencpp::executor_tag,
             .buffer_offsets = global_vertex_index_count,
         });
 
-        mtls_data.push_back(gltf_geometry->extract_materials(0));
         loaded_gltfs.push_back(std::move(*gltf_geometry));
         global_vertex_index_count += obj_vtx_idx_count;
         per_obj_vertex_index_counts.push_back(obj_vtx_idx_count);
     }
+    blk1.display();
 
     const vec2ui32 buffer_bytes =
         global_vertex_index_count * vec2ui32{ (uint32_t)sizeof(VertexPBR), (uint32_t)sizeof(uint32_t) };
 
+    TimedBlock blk0{ "[[gltf]] extract + copy geomtry to GPU" };
     VulkanRenderer* renderer = co_await renderer_result;
 
     auto vertex_buffer =
@@ -597,90 +704,116 @@ task_create_gltf_resources(concurrencpp::executor_tag,
 
     auto buffers_submit = renderer->submit_job(*cmd_buffer, QueueType::Transfer);
     XR_VK_COR_PROPAGATE_ERROR(buffers_submit);
+    blk0.display();
 
-    //
     // materials (images + material definitions)
     vector<VulkanImage> images;
     vector<QueueSubmitWaitToken> img_wait_tokens;
     vector<PBRMaterialDefinition> pbr_materials;
-    char scratch_buffer[1024];
     uint32_t total_image_count{};
 
-    for (std::tuple<GltfGeometryEntry&, ExtractedMaterialsWithImageSourcesBundle&> zipped :
-         lz::zip(gltf_geometries, mtls_data)) {
+    assert(loaded_gltfs.size() == gltf_geometries.size());
 
-        auto& [this_gltf, this_gltf_materials] = zipped;
+    {
+        TimedBlock blkimg{ "[[gltf]] load images" };
 
-        for (size_t idx = 0, count = this_gltf_materials.image_sources.size(); idx < count; ++idx) {
-            const ExtractedImageData* img_data = &this_gltf_materials.image_sources[idx];
-            auto out = fmt::format_to_n(
-                scratch_buffer, size(scratch_buffer), "Tex {}", this_gltf_materials.image_sources[idx].tag);
-            *out.out = 0;
+        for (size_t idx = 0, geometry_count = loaded_gltfs.size(); idx < geometry_count; ++idx) {
+            const LoadedGeometry& loaded_gltf = loaded_gltfs[idx];
+            const fastgltf::Asset* asset = loaded_gltf.raw_asset();
+
+            uint32_t image_count{};
+            for (const fastgltf::Image& image : asset->images) {
+                const auto extract_result = std::visit(
+                    base::VariantVisitor{
+                        [](auto arg) -> tl::expected<std::true_type, GltfResourceTaskError> {
+                            return std::true_type{};
+                        },
+                        [&](const fastgltf::sources::URI& file_path)
+                            -> tl::expected<std::true_type, GltfResourceTaskError> {
+                            error_code e{};
+                            mio::mmap_source mmaped_file = mio::make_mmap_source(file_path.uri.string(), e);
+                            if (e) {
+                                return tl::make_unexpected(e);
+                            }
+
+                            return decode_image_from_memory_fn(
+                                std::span{ reinterpret_cast<const std::byte*>(mmaped_file.data()),
+                                           mmaped_file.length() },
+                                "img",
+                                renderer,
+                                &images,
+                                &img_wait_tokens);
+                        },
+                        [&](const fastgltf::sources::Array& vec)
+                            -> tl::expected<std::true_type, GltfResourceTaskError> {
+                            return decode_image_from_memory_fn(std::span{ vec.bytes.cbegin(), vec.bytes.cend() },
+                                                               "bytesvec",
+                                                               renderer,
+                                                               &images,
+                                                               &img_wait_tokens);
+                        },
+                        [&](const fastgltf::sources::BufferView& view)
+                            -> tl::expected<std::true_type, GltfResourceTaskError> {
+                            auto& buffer_view = asset->bufferViews[view.bufferViewIndex];
+                            auto& buffer = asset->buffers[buffer_view.bufferIndex];
+
+                            char temp_buffer[512];
+                            auto out = fmt::format_to_n(
+                                temp_buffer, std::size(temp_buffer), "img/bv/{}", buffer_view.bufferIndex);
+                            *out.out = 0;
+
+                            if (const fastgltf::sources::Array* arr =
+                                    std::get_if<fastgltf::sources::Array>(&buffer.data)) {
+                                return decode_image_from_memory_fn(
+                                    std::span{ arr->bytes.data() + buffer_view.byteOffset, buffer_view.byteLength },
+                                    temp_buffer,
+                                    renderer,
+                                    &images,
+                                    &img_wait_tokens);
+                            }
+
+                            return std::true_type{};
+                        } },
+                    image.data);
+
+                if (!extract_result)
+                    co_return tl::make_unexpected(extract_result.error());
+                ++image_count;
+            }
+
+            GltfGeometryEntry* g = &gltf_geometries[idx];
+            //
+            // set materials buffer offset for this GLTF
+            g->materials_buffer.x = static_cast<uint32_t>(pbr_materials.size());
+
+            lz::chain(asset->materials)
+                .transformTo(back_inserter(pbr_materials), [asset, total_image_count](const fastgltf::Material& mtl) {
+                    return PBRMaterialDefinition{
+                        .base_color_factor =
+                            math::vec4f{
+                                mtl.pbrData.baseColorFactor.x(),
+                                mtl.pbrData.baseColorFactor.y(),
+                                mtl.pbrData.baseColorFactor.z(),
+                                mtl.pbrData.baseColorFactor.w(),
+                            },
+                        .base_color = static_cast<uint32_t>(
+                            *asset->textures[mtl.pbrData.baseColorTexture->textureIndex].imageIndex +
+                            total_image_count),
+                        .metallic = static_cast<uint32_t>(
+                            *asset->textures[mtl.pbrData.metallicRoughnessTexture->textureIndex].imageIndex +
+                            total_image_count),
+                        .normal = static_cast<uint32_t>(*asset->textures[mtl.emissiveTexture->textureIndex].imageIndex +
+                                                        total_image_count),
+                        .metallic_factor = mtl.pbrData.metallicFactor,
+                        .roughness_factor = mtl.pbrData.roughnessFactor,
+                    };
+                });
 
             //
-            // submit each texture separatly
-            auto transfer_job = renderer->create_job(QueueType ::Transfer);
-            XR_VK_COR_PROPAGATE_ERROR(transfer_job);
-
-            const VkFormat img_format = [](const ExtractedImageData& imgdata) {
-                switch (imgdata.bits) {
-                    case 8:
-                        return VK_FORMAT_R8G8B8A8_UNORM;
-                        break;
-                    case 16:
-                        return VK_FORMAT_R16G16B16A16_UNORM;
-                        break;
-                    case 32:
-                        return VK_FORMAT_R32G32B32A32_UINT;
-                        break;
-                    default:
-                        assert(false && "Unhandled");
-                        return VK_FORMAT_R8G8B8A8_UNORM;
-                        break;
-                }
-            }(*img_data);
-
-            auto img = VulkanImage::from_memory(*renderer,
-                                                VulkanImageCreateInfo{
-                                                    .tag_name = scratch_buffer,
-                                                    .wpkg = *transfer_job,
-                                                    .type = VK_IMAGE_TYPE_2D,
-                                                    .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
-                                                    .memory_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                    .format = img_format,
-                                                    .width = img_data->width,
-                                                    .height = img_data->height,
-                                                    .pixels = { img_data->pixels },
-                                                });
-
-            XR_VK_COR_PROPAGATE_ERROR(img);
-            images.push_back(std::move(*img));
-
-            auto wait_token = renderer->submit_job(*transfer_job, QueueType ::Transfer);
-            XR_VK_COR_PROPAGATE_ERROR(wait_token);
-            img_wait_tokens.push_back(std::move(*wait_token));
+            // set materials count
+            g->materials_buffer.y += static_cast<uint32_t>(pbr_materials.size() - g->materials_buffer.x);
+            total_image_count += image_count;
         }
-
-        //
-        // set materials buffer offset for this GLTF
-        this_gltf.materials_buffer.x = static_cast<uint32_t>(pbr_materials.size());
-
-        lz::chain(this_gltf_materials.materials)
-            .transformTo(back_inserter(pbr_materials), [total_image_count](const ExtractedMaterialDefinition& emdef) {
-                return PBRMaterialDefinition{
-                    .base_color_factor = emdef.base_color_factor,
-                    .base_color = emdef.base_color + total_image_count,
-                    .metallic = emdef.metallic + total_image_count,
-                    .normal = emdef.normal + total_image_count,
-                    .metallic_factor = emdef.metallic_factor,
-                    .roughness_factor = emdef.roughness_factor,
-                };
-            });
-
-        //
-        // set materials count
-        this_gltf.materials_buffer.y += static_cast<uint32_t>(pbr_materials.size() - this_gltf.materials_buffer.x);
-        total_image_count += static_cast<uint32_t>(this_gltf_materials.image_sources.size());
     }
 
     //
@@ -692,6 +825,7 @@ task_create_gltf_resources(concurrencpp::executor_tag,
         pbr_mtl.base_color += image_slot_offset;
     }
 
+    TimedBlock blkmat{ "[[gltf]] materials cpu -> gpu" };
     //
     // PBR materials sbo
     auto sbo_transfer_job = renderer->create_job(QueueType ::Transfer);
@@ -710,9 +844,6 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     XR_VK_COR_PROPAGATE_ERROR(pbr_material_sbo);
     auto sbo_wait_token = renderer->submit_job(*sbo_transfer_job, QueueType::Transfer);
     XR_VK_COR_PROPAGATE_ERROR(sbo_wait_token);
-
-    exec_timer.end();
-    XR_LOG_INFO("[[TASK]] - gltf geometry resources done, {} ms", exec_timer.elapsed_millis());
 
     co_return tl::expected<tuple<GltfGeometry, GltfMaterialsData>, VulkanError>{
         tl::in_place,
@@ -1785,235 +1916,41 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
     _vkrenderer->end_rendering();
 }
 
-//
-// void
-// main_app::run_demo(const demo_type type)
-// {
-//     // auto make_demo_fn =
-//     //   [this, w = _window](const demo_type dtype) -> unique_pointer<demo_base> {
-//     //   const init_context_t init_context{
-//     //     w->width(),
-//     //     w->height(),
-//     //     xr_app_config,
-//     //     xray::base::raw_ptr(_ui),
-//     //     make_delegate(*this, &main_app::demo_quit)};
-//     //
-//     //   switch (dtype) {
-//     //
-//     //     //    case demo_type::colored_circle:
-//     //     //      return xray::base::make_unique<colored_circle_demo>();
-//     //     //      break;
-//     //
-//     //   case demo_type::fractal:
-//     //     return xray::base::make_unique<fractal_demo>(init_context);
-//     //     break;
-//     //
-//     //   case demo_type::texture_array:
-//     //     return xray::base::make_unique<texture_array_demo>(init_context);
-//     //     break;
-//     //
-//     //   case demo_type::mesh:
-//     //     return xray::base::make_unique<mesh_demo>(init_context);
-//     //     break;
-//     //
-//     //     //    case demo_type::bufferless_draw:
-//     //     //      return xray::base::make_unique<bufferless_draw_demo>();
-//     //     //      break;
-//     //
-//     //   case demo_type::lighting_directional:
-//     //     return xray::base::make_unique<directional_light_demo>(init_context);
-//     //     break;
-//     //
-//     //     //    case demo_type::procedural_city:
-//     //     //      return
-//     //     //      xray::base::make_unique<procedural_city_demo>(init_context);
-//     //     //      break;
-//     //
-//     //   case demo_type::instanced_drawing:
-//     //     return xray::base::make_unique<instanced_drawing_demo>(init_context);
-//     //     break;
-//     //
-//     //     //    case demo_type::geometric_shapes:
-//     //     //      return
-//     //     //      xray::base::make_unique<geometric_shapes_demo>(init_context);
-//     //     //      break;
-//     //
-//     //     //    case demo_type::lighting_point:
-//     //     //      return
-//     //     xray::base::make_unique<point_light_demo>(&init_context);
-//     //     //      break;
-//     //
-//     //     // case demo_type::terrain_basic:
-//     //     //   return xray::base::make_unique<terrain_demo>(init_context);
-//     //     //   break;
-//     //
-//     //   default:
-//     //     break;
-//     //   }
-//     //
-//     //   return nullptr;
-//     // };
-//     //
-//     // _demo = make_demo_fn(type);
-//     // if (!_demo) {
-//     //   return;
-//     // }
-//     //
-//     // _window->events.loop       = make_delegate(*_demo, &demo_base::loop_event);
-//     // _window->events.poll_start = make_delegate(*_demo, &demo_base::poll_start);
-//     // _window->events.poll_end   = make_delegate(*_demo, &demo_base::poll_end);
-//     // _window->events.window     = make_delegate(*_demo,
-//     // &demo_base::event_handler);
-// }
-//
-// void
-// debug_proc(GLenum source,
-//            GLenum type,
-//            GLuint id,
-//            GLenum severity,
-//            GLsizei /*length*/,
-//            const GLchar* message,
-//            const void* /*userParam*/)
-// {
-//
-//     auto msg_source = [source]() {
-//         switch (source) {
-//             case gl::DEBUG_SOURCE_API:
-//                 return "API";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_APPLICATION:
-//                 return "APPLICATION";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_OTHER:
-//                 return "OTHER";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_SHADER_COMPILER:
-//                 return "SHADER COMPILER";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_THIRD_PARTY:
-//                 return "THIRD PARTY";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_WINDOW_SYSTEM:
-//                 return "WINDOW SYSTEM";
-//                 break;
-//
-//             default:
-//                 return "UNKNOWN";
-//                 break;
-//         }
-//     }();
-//
-//     const auto msg_type = [type]() {
-//         switch (type) {
-//             case gl::DEBUG_TYPE_ERROR:
-//                 return "ERROR";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-//                 return "DEPRECATED BEHAVIOUR";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_MARKER:
-//                 return "MARKER";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_OTHER:
-//                 return "OTHER";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_PERFORMANCE:
-//                 return "PERFORMANCE";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_POP_GROUP:
-//                 return "POP GROUP";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_PORTABILITY:
-//                 return "PORTABILITY";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_PUSH_GROUP:
-//                 return "PUSH GROUP";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-//                 return "UNDEFINED BEHAVIOUR";
-//                 break;
-//
-//             default:
-//                 return "UNKNOWN";
-//                 break;
-//         }
-//     }();
-//
-//     auto msg_severity = [severity]() {
-//         switch (severity) {
-//             case gl::DEBUG_SEVERITY_HIGH:
-//                 return "HIGH";
-//                 break;
-//
-//             case gl::DEBUG_SEVERITY_LOW:
-//                 return "LOW";
-//                 break;
-//
-//             case gl::DEBUG_SEVERITY_MEDIUM:
-//                 return "MEDIUM";
-//                 break;
-//
-//             case gl::DEBUG_SEVERITY_NOTIFICATION:
-//                 return "NOTIFICATION";
-//                 break;
-//
-//             default:
-//                 return "UNKNOWN";
-//                 break;
-//         }
-//     }();
-//
-//     XR_LOG_DEBUG("OpenGL debug message\n[MESSAGE] : {}\n[SOURCE] : {}\n[TYPE] : "
-//                  "{}\n[SEVERITY] "
-//                  ": {}\n[ID] : {}",
-//                  message,
-//                  msg_source,
-//                  msg_type,
-//                  msg_severity,
-//                  id);
-// }
-//
-// } // namespace app
-//
+}
+
+auto
+fmt_geometry_err(const GeometryImportError& e) -> std::string
+{
+    return swl::visit(VariantVisitor{
+                          [](const GeometryImportParseError& pe) { return pe.err_data; },
+                          [](const std::error_code e) { return e.message(); },
+                          [](const std::string& s) { return s; },
+                      },
+                      e);
 }
 
 int
 main(int argc, char** argv)
 {
-
     app::GameMain::create()
         .map([](app::GameMain runner) {
             runner.run();
             XR_LOG_INFO("Shutting down ...");
         })
         .map_error([](app::ProgramError&& f) {
-            XR_LOG_CRITICAL(
-                "{} ...",
-                swl::visit(xray::base::VariantVisitor{
-                               [](const VulkanError& vkerr) {
-                                   return fmt::format("Vulkan error {} {}:{} ({:#0x})",
-                                                      vkerr.function,
-                                                      vkerr.file,
-                                                      vkerr.line,
-                                                      vkerr.err_code);
-                               },
-                               [](const xray::scene::SceneError& serr) { return serr.err; },
-                               [](const app::MiscError& msc) { return msc.what; },
-                               [](const GeometryImportError& ge) { return std::string{ "geometry error" }; } },
-                           f));
+            XR_LOG_CRITICAL("{} ...",
+                            swl::visit(xray::base::VariantVisitor{
+                                           [](const VulkanError& vkerr) {
+                                               return fmt::format("Vulkan error {} {}:{} ({:#0x})",
+                                                                  vkerr.function,
+                                                                  vkerr.file,
+                                                                  vkerr.line,
+                                                                  vkerr.err_code);
+                                           },
+                                           [](const xray::scene::SceneError& serr) { return serr.err; },
+                                           [](const app::MiscError& msc) { return msc.what; },
+                                           [](const GeometryImportError& ge) { return fmt_geometry_err(ge); } },
+                                       f));
         });
 
     return EXIT_SUCCESS;

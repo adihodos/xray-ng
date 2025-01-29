@@ -11,6 +11,7 @@
 #include <ktx.h>
 #include <mio/mmap.hpp>
 
+#include "xray/base/variant.helpers.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
@@ -442,7 +443,7 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         .arrayLayers = create_info.layers,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = create_info.usage_flags | (create_info.pixels.size() == 0 ? 0 : VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+        .usage = create_info.usage_flags | (create_info.pixel_fill ? VK_IMAGE_USAGE_TRANSFER_DST_BIT : 0),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
@@ -489,21 +490,31 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         renderer.dbg_set_object_name(base::raw_ptr(image), create_info.tag_name);
     }
 
-    if (create_info.pixels.size() != 0) {
-        assert(create_info.wpkg.has_value());
-
+    create_info.pixel_fill.map([&](PixelFill pixfill) {
+        //
+        // reserve staging memory
         const uintptr_t staging_buffer_offset = renderer.reserve_staging_buffer_memory(mem_alloc_info.allocationSize);
         uintptr_t staging_buffer_ptr = renderer.staging_buffer_memory() + staging_buffer_offset;
 
-        for (size_t i = 0, bytes_copied = 0, count = create_info.pixels.size(); i < count;
-             bytes_copied += std::data(create_info.pixels)[i].size_bytes(), ++i) {
-            const std::span<const uint8_t> this_span = std::data(create_info.pixels)[i];
-            memcpy(reinterpret_cast<void*>(staging_buffer_ptr + bytes_copied),
-                   static_cast<const void*>(this_span.data()),
-                   this_span.size_bytes());
-        }
+        swl::visit(base::VariantVisitor{ [&](FillPixelsDelegate fill_pixels) {
+                                            fill_pixels(std::span<std::byte>{
+                                                reinterpret_cast<std::byte*>(staging_buffer_ptr),
+                                                mem_alloc_info.allocationSize,
+                                            });
+                                        },
 
-        VkCommandBuffer cmd_buf = *create_info.wpkg;
+                                         [staging_buffer_ptr](FillPixelsMemory pixels) {
+                                             for (size_t i = 0, bytes_copied = 0, count = pixels.source.size(); i < count;
+                                                  bytes_copied += std::data(pixels.source)[i].size_bytes(), ++i) {
+                                                 const std::span<const std::byte> this_span = std::data(pixels.source)[i];
+                                                 memcpy(reinterpret_cast<void*>(staging_buffer_ptr + bytes_copied),
+                                                        static_cast<const void*>(this_span.data()),
+                                                        this_span.size_bytes());
+                                             }
+                                         } },
+                   pixfill.fill_strategy);
+
+        VkCommandBuffer cmd_buf = pixfill.cmd_buff;
 
         //
         // set image layout to transfer_dst
@@ -558,7 +569,7 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         } else {
             assert(false && "Needs to be implemented");
         }
-    }
+    });
 
     xrUniqueVkImageView img_view{ nullptr, VkResourceDeleter_VkImageView{ renderer.device() } };
     const VkImageViewCreateInfo img_view_create{

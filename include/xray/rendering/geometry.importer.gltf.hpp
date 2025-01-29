@@ -46,6 +46,11 @@ class Model;
 class Node;
 }
 
+namespace fastgltf {
+class Asset;
+struct Node;
+}
+
 namespace xray::rendering {
 
 struct PBRMaterialDefinition
@@ -91,12 +96,13 @@ struct ExtractedMaterialsWithImageSourcesBundle
     std::vector<ExtractedMaterialDefinition> materials;
 };
 
-using GeometryImportError = swl::variant<GeometryImportParseError, std::error_code>;
+using GeometryImportError = swl::variant<GeometryImportParseError, std::error_code, std::string>;
 
 class LoadedGeometry
 {
   public:
     LoadedGeometry();
+    LoadedGeometry(fastgltf::Asset&& asset);
     LoadedGeometry(LoadedGeometry&&) noexcept;
     LoadedGeometry(const LoadedGeometry&) = delete;
     LoadedGeometry& operator=(const LoadedGeometry&) = delete;
@@ -106,11 +112,18 @@ class LoadedGeometry
     static tl::expected<LoadedGeometry, GeometryImportError> from_memory(const std::span<const uint8_t> bytes);
 
     ExtractedMaterialsWithImageSourcesBundle extract_materials(const uint32_t null_texture_handle) const noexcept;
+    tl::expected<ExtractedMaterialsWithImageSourcesBundle, GeometryImportError> extract_materials(
+        void* dst_buffer) const noexcept;
+
     xray::math::vec2ui32 extract_data(void* vertex_buffer,
                                       void* index_buffer,
                                       const xray::math::vec2ui32 offsets,
                                       const uint32_t mtl_offset);
+
     xray::math::vec2ui32 compute_vertex_index_count() const;
+    size_t compute_image_bytes_size() const;
+
+    const fastgltf::Asset* raw_asset() const noexcept { return gltf_asset.get(); }
 
   private:
     void extract_single_node_data(void* vertex_buffer,
@@ -120,7 +133,15 @@ class LoadedGeometry
                                   const tinygltf::Node& node,
                                   const tl::optional<uint32_t> parent);
 
+    void extract_single_node_data(void* vertex_buffer,
+                                  void* index_buffer,
+                                  xray::math::vec2ui32* offsets,
+                                  const uint32_t mtl_offset,
+                                  const fastgltf::Node& node,
+                                  const tl::optional<uint32_t> parent);
+
     xray::math::vec2ui32 compute_node_vertex_index_count(const tinygltf::Node& node) const;
+    xray::math::vec2ui32 compute_node_vertex_index_count(const fastgltf::Node& node) const;
 
   public:
     std::vector<GeometryNode> nodes{};
@@ -129,6 +150,7 @@ class LoadedGeometry
 
   private:
     std::unique_ptr<tinygltf::Model> gltf;
+    std::unique_ptr<fastgltf::Asset> gltf_asset;
 };
 
 }
