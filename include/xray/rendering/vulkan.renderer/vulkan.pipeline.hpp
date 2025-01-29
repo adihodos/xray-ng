@@ -17,6 +17,10 @@
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
 
+namespace xray::base {
+struct MemoryArena;
+}
+
 namespace xray::rendering {
 
 class VulkanRenderer;
@@ -99,20 +103,31 @@ struct GraphicsPipelineCreateData
     uint16_t image_descriptors{ 1 };
 };
 
+struct ShaderBuildOptions
+{
+    static constexpr const uint32_t Compile_EnabledOptimizations = 1 << 0;
+    static constexpr const uint32_t Compile_GenerateDebugInfo = 1 << 1;
+    static constexpr const uint32_t Compile_WarningsToErrors = 1 << 2;
+    static constexpr const uint32_t Compile_SuppressWarnings = 1 << 2;
+
+    swl::variant<std::string_view, std::filesystem::path> code_or_file_path;
+    std::string_view entry_point{};
+    std::initializer_list<std::pair<std::string_view, std::string_view>> defines{};
+    uint32_t compile_options{ Compile_GenerateDebugInfo };
+};
+
 class GraphicsPipelineBuilder
 {
   public:
-    GraphicsPipelineBuilder() = default;
-
-    GraphicsPipelineBuilder& add_shader(const uint32_t stage, std::string_view code)
+    GraphicsPipelineBuilder(base::MemoryArena* arena_perm, base::MemoryArena* arena_temp)
+        : _arena_perm(arena_perm)
+        , _arena_temp(arena_temp)
     {
-        _stage_modules.emplace(stage, code);
-        return *this;
     }
 
-    GraphicsPipelineBuilder& add_shader(const uint32_t stage, std::filesystem::path p)
+    GraphicsPipelineBuilder& add_shader(const uint32_t stage, ShaderBuildOptions so)
     {
-        _stage_modules.emplace(stage, std::move(p));
+        _stage_modules.emplace(stage, so);
         return *this;
     }
 
@@ -170,8 +185,10 @@ class GraphicsPipelineBuilder
                                                             const PipelineType pipeline_type,
                                                             const GraphicsPipelineCreateData& pcd);
 
-    using ShaderModuleSource = swl::variant<std::string_view, std::filesystem::path>;
-    std::unordered_map<uint32_t, ShaderModuleSource> _stage_modules;
+    base::MemoryArena* _arena_perm;
+    base::MemoryArena* _arena_temp;
+    // using ShaderModuleSource = swl::variant<std::string_view, std::filesystem::path>;
+    std::unordered_map<uint32_t, ShaderBuildOptions> _stage_modules;
     bool _optimize_shaders{ false };
     InputAssemblyState _input_assembly{};
     std::vector<VkVertexInputBindingDescription> _vertex_binding_description;

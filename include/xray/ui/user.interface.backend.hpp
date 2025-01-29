@@ -5,6 +5,10 @@
 
 #include "xray/math/scalar2.hpp"
 
+namespace xray::base {
+struct MemoryArena;
+}
+
 namespace xray::ui {
 
 struct UserInterfaceBackendCreateInfo

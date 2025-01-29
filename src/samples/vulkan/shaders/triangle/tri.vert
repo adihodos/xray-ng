@@ -16,15 +16,18 @@ out gl_PerVertex {
 
 out VS_OUT_FS_IN {
     layout (location = 0) vec2 uv;
-    layout (location = 1) flat uint mtl;
+    layout (location = 1) flat uint mtl_buffer_elem;
+    layout (location = 2) flat uint mtl_buffer;
 } vs_out;
 
 void main() {
-    const uint frame_idx = (g_GlobalPushConst.data) & 0xFF;
-    const uint inst_buffer_idx = (g_GlobalPushConst.data >> 16) & 0xFF;
-    const FrameGlobalData_t fgd = g_FrameGlobal[frame_idx].data[0];
 
-    const InstanceRenderInfo_t inst = g_InstanceGlobal[inst_buffer_idx].data[gl_InstanceIndex];
+    const uint frame_idx = (g_GlobalPushConst.data) & 0xFF;
+    const uint inst_buffer_idx = (g_GlobalPushConst.data & 0xFFFF0000) >> 16;
+    const uint instance_index = (g_GlobalPushConst.data & 0x0000FF00) >> 8;
+
+    const FrameGlobalData_t fgd = g_FrameGlobal[frame_idx].data[0];
+    const InstanceRenderInfo_t inst = g_InstanceGlobal[inst_buffer_idx].data[instance_index];
     // const uint vertex_index = g_IndexBufferGlobal[inst.idx_buff].data[gl_VertexIndex];
     // const VertexPBR vtx = g_VertexBufferPBRGlobal[inst.vtx_buff].data[vertex_index];
 
@@ -33,7 +36,8 @@ void main() {
 
     gl_Position = fgd.world_view_proj * inst.model * vec4(pos, 1.0);
     vs_out.uv = uv;
-    vs_out.mtl = pbr;
+    vs_out.mtl_buffer_elem = pbr;
+    vs_out.mtl_buffer = inst.mtl_buffer;
     // vs_out.mtl = inst.mtl_id;
 }
 

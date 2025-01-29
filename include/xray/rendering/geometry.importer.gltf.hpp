@@ -38,7 +38,6 @@
 #include <tl/expected.hpp>
 #include <swl/variant.hpp>
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/rendering/geometry.hpp"
 
@@ -49,7 +48,7 @@ class Node;
 
 namespace xray::rendering {
 
-struct alignas(16) PBRMaterialDefinition
+struct PBRMaterialDefinition
 {
     xray::math::vec4f base_color_factor;
     uint32_t base_color;
@@ -57,6 +56,7 @@ struct alignas(16) PBRMaterialDefinition
     uint32_t normal;
     float metallic_factor;
     float roughness_factor;
+    float pad[3];
 };
 
 struct GeometryImportParseError
@@ -97,7 +97,7 @@ class LoadedGeometry
 {
   public:
     LoadedGeometry();
-    LoadedGeometry(LoadedGeometry&&) = default;
+    LoadedGeometry(LoadedGeometry&&) noexcept;
     LoadedGeometry(const LoadedGeometry&) = delete;
     LoadedGeometry& operator=(const LoadedGeometry&) = delete;
     ~LoadedGeometry();
@@ -105,7 +105,7 @@ class LoadedGeometry
     static tl::expected<LoadedGeometry, GeometryImportError> from_file(const std::filesystem::path& path);
     static tl::expected<LoadedGeometry, GeometryImportError> from_memory(const std::span<const uint8_t> bytes);
 
-    ExtractedMaterialsWithImageSourcesBundle extract_images_info(const uint32_t null_texture_handle) const noexcept;
+    ExtractedMaterialsWithImageSourcesBundle extract_materials(const uint32_t null_texture_handle) const noexcept;
     xray::math::vec2ui32 extract_data(void* vertex_buffer,
                                       void* index_buffer,
                                       const xray::math::vec2ui32 offsets,

@@ -3,10 +3,21 @@
 
 #extension GL_EXT_nonuniform_qualifier : require
 
+#include "core/light.types.glsl"
+
 struct UIData {
     vec2 scale;
     vec2 translate;
     uint textureid;
+};
+
+struct LightingSetup {
+    uint sbo_directional_lights;
+    uint directional_lights_count;
+    uint sbo_point_ligths;
+    uint point_lights_count;
+    uint sbo_spot_ligths;
+    uint spot_lights_count;
 };
 
 struct FrameGlobalData_t {
@@ -17,7 +28,9 @@ struct FrameGlobalData_t {
     mat4 ortho_proj;
     vec3 eye_pos;
     uint frame_id;
+    uint global_color_texture;
     UIData ui;
+    LightingSetup lights;
 };
 
 layout (std140, set = 0, binding  = 0, row_major) uniform FrameGlobal {
@@ -28,8 +41,8 @@ struct InstanceRenderInfo_t {
     mat4 model;
     uint vtx_buff;
     uint idx_buff;
-    uint mtl_coll_offset;
-    uint mtl_id;
+    uint mtl_buffer_elem;
+    uint mtl_buffer;
 };
 
 layout (set = 1, binding = 0, row_major) readonly buffer InstancesGlobal {
@@ -55,6 +68,16 @@ struct VertexPBR {
     uint pbr_buf_id;
 };
 
+struct MaterialADSColored {
+    uint texel_offset;
+};
+
+struct MaterialADSTextured {
+    uint ambient;
+    uint diffuse;
+    uint specular;
+};
+
 struct PBRMaterial {
     vec4 base_color_factor;
     uint base_color;
@@ -78,8 +101,29 @@ layout (set = 1, binding = 0) readonly buffer IndicesGlobal {
 
 layout (set = 1, binding = 0) readonly buffer PBRMaterialGlobal {
     PBRMaterial data[];
-} g_PBRMaterialGlobal;
+} g_PBRMaterialGlobal[];
 
+layout (set = 1, binding = 0) readonly buffer MaterialADSColoredGlobal {
+    MaterialADSColored data[];
+} g_MaterialADSColoredGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer MaterialADSTexturedGlobal {
+    MaterialADSTextured data[];
+} g_MaterialADSTexturedGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer DirectionalLightsGlobal {
+    DirectionalLight lights[];
+} g_DirectionalLightsGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer PointLightsGlobal {
+    PointLight lights[];
+} g_PointLightsGlobal[];
+
+layout (set = 1, binding = 0) readonly buffer SpotLightsGlobal {
+    SpotLight lights[];
+} g_SpotLightsGlobal[];
+
+layout (set = 2, binding = 0) uniform sampler1D g_Textures1DGlobal[];
 layout (set = 2, binding = 0) uniform sampler2D g_Textures2DGlobal[];
 layout (set = 2, binding = 0) uniform sampler2DArray g_Textures2DArrayGlobal[];
 layout (set = 2, binding = 0) uniform samplerCube g_TexturesCubeGlobal[];

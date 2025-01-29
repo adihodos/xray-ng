@@ -51,6 +51,14 @@ struct R4
         return translate(vec.x, vec.y, vec.z);
     }
 
+    /// Uniform scaling
+    template<typename T>
+    static scalar4x4<T> scaling(const T s) noexcept
+    {
+        return scaling(s, s, s);
+    }
+
+    /// Non-uniform scaling
     template<typename T>
     static scalar4x4<T> scaling(const scalar3<T>& vec) noexcept
     {

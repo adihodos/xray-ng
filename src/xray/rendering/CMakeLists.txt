@@ -37,6 +37,10 @@ set(project_sources
     ${proj_src_dir}/mesh_loader.cc
     ${proj_inc_dir}/mesh.hpp
     ${proj_src_dir}/mesh.cc
+    ${proj_inc_dir}/procedural.hpp
+    ${proj_src_dir}/procedural.cc
+    ${proj_inc_dir}/geometry/heightmap.generator.hpp
+    ${proj_src_dir}/geometry/heightmap.generator.cc
     ${proj_inc_dir}/geometry.importer.gltf.hpp
     ${proj_src_dir}/geometry.importer.gltf.cc
     ${proj_inc_dir}/texture_loader.hpp
@@ -74,8 +78,14 @@ set(vk-project-sources
     ${vk-proj-src-dir}/vulkan.error.cc
     ${vk-proj-inc-dir}/vulkan.buffer.hpp
     ${vk-proj-src-dir}/vulkan.buffer.cc
+    ${vk-proj-inc-dir}/vulkan.queue.submit.token.hpp
+    ${vk-proj-src-dir}/vulkan.queue.submit.token.cc
     ${vk-proj-inc-dir}/vulkan.bindless.hpp
-    ${vk-proj-src-dir}/vulkan.bindless.cc)
+    ${vk-proj-src-dir}/vulkan.bindless.cc
+    ${vk-proj-inc-dir}/vulkan.renderer.config.hpp
+    ${vk-proj-src-dir}/vulkan.renderer.config.cc
+  )
+
 
 add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl}
                                    ${vk-project-sources})
@@ -134,7 +144,7 @@ target_link_libraries(
          Vulkan::Vulkan
          swl-variant
          strong_type::strong_type
-         TBB::tbb
+         concurrencpp::concurrencpp
          cpp-lazy::cpp-lazy
          Vulkan::shaderc_combined
          Vulkan::SPIRV-Tools

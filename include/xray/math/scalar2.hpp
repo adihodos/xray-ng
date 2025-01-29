@@ -28,8 +28,6 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
-
 #include <cstdint>
 #include <type_traits>
 
@@ -45,10 +43,9 @@ namespace math {
 /// \class scalar2
 /// \brief  Two component vector/point in R2.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar2 : public SwizzleBase<T, 2>
 {
-    static_assert(std::is_arithmetic_v<T>, "template parameter must be an arithmetic type !");
-
     union
     {
         struct
@@ -82,14 +79,47 @@ struct scalar2 : public SwizzleBase<T, 2>
     {
     }
 
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    constexpr scalar2(const U xval, const U yval) noexcept
+        : x{ static_cast<T>(xval) }
+        , y{ static_cast<T>(yval) }
+    {
+    }
+
     constexpr scalar2(const Swizzle2<T> s) noexcept
         : x{ s.x }
         , y{ s.y }
     {
     }
 
+    template<typename U>
+    constexpr scalar2(const Swizzle2<U> s) noexcept
+        : scalar2{ s.x, s.y }
+    {
+    }
+
     explicit constexpr scalar2(const T val) noexcept
         : scalar2<T>{ val, val }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit constexpr scalar2(const U val) noexcept
+        : scalar2{ val, val }
+    {
+    }
+
+    explicit constexpr scalar2(const T (&arr)[2]) noexcept
+        : scalar2{ arr[0], arr[1] }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit constexpr scalar2(const U (&arr)[2]) noexcept
+        : scalar2{ arr[0], arr[1] }
     {
     }
 
@@ -114,6 +144,7 @@ struct scalar2 : public SwizzleBase<T, 2>
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar2<T>::stdc
 {
     static constexpr const scalar2<T> unit_x{ T(1.0), T(0.0) };
@@ -123,21 +154,26 @@ struct scalar2<T>::stdc
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar2<T> scalar2<T>::stdc::unit_x;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar2<T> scalar2<T>::stdc::unit_y;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar2<T> scalar2<T>::stdc::zero;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar2<T> scalar2<T>::stdc::one;
 
 using vec2f = scalar2<scalar_lowp>;
 using vec2d = scalar2<scalar_mediump>;
 using vec2i32 = scalar2<int32_t>;
 using vec2ui32 = scalar2<uint32_t>;
+using vec2ui64 = scalar2<uint64_t>;
 
 /// @}
 

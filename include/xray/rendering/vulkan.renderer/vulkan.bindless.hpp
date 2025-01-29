@@ -2,6 +2,7 @@
 
 #include "xray/xray.hpp"
 
+#include <atomic>
 #include <cstdint>
 #include <cassert>
 #include <utility>
@@ -11,6 +12,14 @@
 
 #include <vulkan/vulkan.h>
 #include <tl/expected.hpp>
+#include <tl/optional.hpp>
+
+#include <strong_type/strong_type.hpp>
+#include <strong_type/bitarithmetic.hpp>
+#include <strong_type/convertible_to.hpp>
+#include <strong_type/equality.hpp>
+#include <strong_type/formattable.hpp>
+#include <strong_type/hashable.hpp>
 
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
@@ -112,7 +121,7 @@ bindless_subresource_handle_from_bindless_resource_handle(T bindless_resource, c
 }
 
 template<typename T>
-std::pair<uint32_t, uint32_t>
+std::pair<uint16_t, uint16_t>
 destructure_bindless_resource_handle(T bindless_resource) noexcept
     requires std::is_same_v<T, BindlessResourceHandle_Image> ||
              std::is_same_v<T, BindlessResourceHandle_UniformBuffer> ||
@@ -176,7 +185,7 @@ class BindlessSystem
     ~BindlessSystem();
     BindlessSystem(const BindlessSystem&) = delete;
     BindlessSystem& operator=(const BindlessSystem&) = delete;
-    BindlessSystem(BindlessSystem&&) = default;
+    BindlessSystem(BindlessSystem&&) noexcept;
 
     static tl::expected<BindlessSystem, VulkanError> create(VkDevice device,
                                                             const VkPhysicalDeviceDescriptorIndexingProperties& props);
@@ -185,7 +194,9 @@ class BindlessSystem
     std::span<const VkDescriptorSetLayout> descriptor_set_layouts() const noexcept { return _set_layouts; }
     std::span<const VkDescriptorSet> descriptor_sets() const noexcept { return _descriptors; }
 
-    std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image> add_image(VulkanImage img, VkSampler smp);
+    std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image> add_image(VulkanImage img,
+                                                                                   VkSampler smp,
+                                                                                   tl::optional<uint32_t> slot);
 
     std::pair<BindlessResourceHandle_UniformBuffer, BindlessResourceEntry_UniformBuffer> add_uniform_buffer(
         VulkanBuffer ubo)
@@ -194,23 +205,28 @@ class BindlessSystem
     }
 
     std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer> add_storage_buffer(
-        VulkanBuffer sbo)
+        VulkanBuffer sbo,
+        tl::optional<uint32_t> slot)
     {
-        return add_chunked_storage_buffer(std::move(sbo), 1);
+        return add_chunked_storage_buffer(std::move(sbo), 1, slot);
     }
 
     std::pair<BindlessResourceHandle_UniformBuffer, BindlessResourceEntry_UniformBuffer> add_chunked_uniform_buffer(
         VulkanBuffer ubo,
         const uint32_t chunks);
 
-    std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer> add_chunked_storage_buffer(
-        VulkanBuffer ssbo,
-        const uint32_t chunks);
+    std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer>
+    add_chunked_storage_buffer(VulkanBuffer ssbo, const uint32_t chunks, const tl::optional<uint32_t> slot);
 
     void flush_descriptors(const VulkanRenderer& renderer);
     void bind_descriptors(const VulkanRenderer& renderer, VkCommandBuffer cmd_buffer) noexcept;
     tl::expected<VkSampler, VulkanError> get_sampler(const VkSamplerCreateInfo& sampler_info,
                                                      const VulkanRenderer& renderer);
+
+    uint32_t reserve_image_slots(const uint32_t num_images) noexcept { return _free_slot_images.fetch_add(num_images); }
+    uint32_t reserve_sbo_slots(const uint32_t slots) noexcept { return _handle_idx_sbos.fetch_add(slots); }
+
+    const BindlessResourceEntry_Image& image_entry(const BindlessResourceHandle_Image img) const noexcept;
 
   private:
     BindlessSystem(UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,
@@ -244,7 +260,8 @@ class BindlessSystem
     std::vector<WriteDescriptorBufferInfo> _writes_sbo;
     std::vector<WriteDescriptorImageInfo> _writes_img;
     uint32_t _handle_idx_ubos{};
-    uint32_t _handle_idx_sbos{};
+    std::atomic_uint32_t _handle_idx_sbos{};
+    std::atomic_uint32_t _free_slot_images{};
     std::unordered_map<VkSamplerCreateInfo, VkSampler> _sampler_table;
 };
 

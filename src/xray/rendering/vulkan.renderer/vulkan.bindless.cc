@@ -3,7 +3,7 @@
 #include <itlib/small_vector.hpp>
 #include <Lz/Lz.hpp>
 
-#include "xray/base/variant_visitor.hpp"
+#include "xray/base/variant.helpers.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
@@ -14,6 +14,23 @@ xray::rendering::BindlessSystem::BindlessSystem(
     : _bindless{ std::move(bindless) }
     , _set_layouts{ std::move(set_layouts) }
     , _descriptors{ std::move(descriptors) }
+{
+}
+
+xray::rendering::BindlessSystem::BindlessSystem(xray::rendering::BindlessSystem&& rhs) noexcept
+    : _bindless{ std::move(rhs._bindless) }
+    , _set_layouts{ std::move(rhs._set_layouts) }
+    , _descriptors{ std::move(rhs._descriptors) }
+    , _image_resources{ std::move(rhs._image_resources) }
+    , _ubo_resources{ std::move(rhs._ubo_resources) }
+    , _sbo_resources{ std::move(rhs._sbo_resources) }
+    , _writes_ubo{ std::move(rhs._writes_ubo) }
+    , _writes_sbo{ std::move(rhs._writes_sbo) }
+    , _writes_img{ std::move(rhs._writes_img) }
+    , _handle_idx_ubos{ rhs._handle_idx_ubos }
+    , _handle_idx_sbos{ rhs._handle_idx_sbos.load() }
+    , _free_slot_images{ rhs._free_slot_images.load() }
+    , _sampler_table{ std::move(rhs._sampler_table) }
 {
 }
 
@@ -191,22 +208,48 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
 }
 
 std::pair<xray::rendering::BindlessResourceHandle_Image, xray::rendering::BindlessResourceEntry_Image>
-xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img, VkSampler smp)
+xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img,
+                                           VkSampler smp,
+                                           const tl::optional<uint32_t> slot)
 {
-    const auto [image, image_memory, image_view] = img.release();
-    _image_resources.emplace_back(image, image_memory, image_view, img._info);
+    const uint32_t handle = [&]() {
+        if (slot)
+            return *slot;
 
-    const uint32_t handle{ static_cast<uint32_t>(_image_resources.size() - 1) };
+        return _free_slot_images.fetch_add(1);
+    }();
+
+    XR_LOG_INFO("[[bindles]] - img {:#08x} -> {}", (uintptr_t)img.image(), handle);
+
+    if (_free_slot_images > _image_resources.size()) {
+        _image_resources.resize(_free_slot_images);
+    }
+
+    const auto [image, image_memory, image_view] = img.release();
+    _image_resources[handle] = BindlessResourceEntry_Image{
+        .handle = image,
+        .memory = image_memory,
+        .image_view = image_view,
+        .info = img._info,
+    };
 
     _writes_img.push_back(WriteDescriptorImageInfo{
         .dst_array = handle,
         .img_info =
-            VkDescriptorImageInfo{ .sampler = smp, .imageView = image_view, .imageLayout = img._info.imageLayout },
+            VkDescriptorImageInfo{
+                .sampler = smp,
+                .imageView = image_view,
+                .imageLayout = img._info.imageLayout,
+            },
     });
 
+    const BindlessResourceHandle_Image bindless_ubo_handle{
+        detail::BindlessResourceHandleHelper{ handle, 1 }.value,
+    };
+
     return std::pair{
-        BindlessResourceHandle_Image{ handle },
-        _image_resources.back(),
+        bindless_ubo_handle,
+        _image_resources[handle],
     };
 }
 
@@ -242,24 +285,37 @@ xray::rendering::BindlessSystem::add_chunked_uniform_buffer(VulkanBuffer ubo, co
 }
 
 std::pair<xray::rendering::BindlessResourceHandle_StorageBuffer, xray::rendering::BindlessResourceEntry_StorageBuffer>
-xray::rendering::BindlessSystem::add_chunked_storage_buffer(VulkanBuffer ssbo, const uint32_t chunks)
+xray::rendering::BindlessSystem::add_chunked_storage_buffer(VulkanBuffer ssbo,
+                                                            const uint32_t chunks,
+                                                            const tl::optional<uint32_t> slot)
 {
-    const auto [ubo_handle, ubo_mem] = ssbo.buffer.release();
+    const uint32_t handle = [&]() {
+        if (slot)
+            return *slot;
 
-    const uint32_t bindless_idx{ _handle_idx_sbos };
-    _handle_idx_sbos += chunks;
-    _sbo_resources.emplace_back(
-        BindlessResourceEntry_StorageBuffer{ ubo_handle, ubo_mem, ssbo.aligned_size }, bindless_idx, chunks);
+        return _handle_idx_sbos.fetch_add(chunks);
+    }();
+
+    if (handle >= _sbo_resources.size()) {
+        _sbo_resources.resize(handle + 1);
+    }
+
+    const auto [ubo_handle, ubo_mem] = ssbo.buffer.release();
+    _sbo_resources[handle] = SBOResourceEntry{
+        BindlessResourceEntry_StorageBuffer{ ubo_handle, ubo_mem, ssbo.aligned_size },
+        handle,
+        chunks,
+    };
 
     const BindlessResourceHandle_StorageBuffer bindless_ubo_handle{
-        detail::BindlessResourceHandleHelper{ bindless_idx, chunks }.value
+        detail::BindlessResourceHandleHelper{ handle, chunks }.value,
     };
 
     //
     // write ubo data for descriptor update
     for (uint32_t chunk_idx = 0; chunk_idx < chunks; ++chunk_idx) {
         _writes_sbo.push_back(WriteDescriptorBufferInfo{
-            .dst_array = bindless_idx + chunk_idx,
+            .dst_array = handle + chunk_idx,
             .buff_info =
                 VkDescriptorBufferInfo{
                     .buffer = ubo_handle,
@@ -269,7 +325,7 @@ xray::rendering::BindlessSystem::add_chunked_storage_buffer(VulkanBuffer ssbo, c
         });
     }
 
-    return std::pair{ bindless_ubo_handle, _sbo_resources.back().sbo };
+    return std::pair{ bindless_ubo_handle, _sbo_resources[handle].sbo };
 }
 
 void
@@ -370,4 +426,12 @@ xray::rendering::BindlessSystem::get_sampler(const VkSamplerCreateInfo& sampler_
 
     const auto inserted_entry = _sampler_table.emplace(sampler_info, new_sampler);
     return inserted_entry.first->second;
+}
+
+const xray::rendering::BindlessResourceEntry_Image&
+xray::rendering::BindlessSystem::image_entry(const xray::rendering::BindlessResourceHandle_Image img) const noexcept
+{
+    const uint32_t idx = detail::BindlessResourceHandleHelper{ img.value_of() }.array_start;
+    assert(idx < _image_resources.size());
+    return _image_resources[idx];
 }

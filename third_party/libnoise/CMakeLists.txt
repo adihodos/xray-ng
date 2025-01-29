@@ -1,25 +1,19 @@
-cmake_minimum_required(VERSION 2.8.8 FATAL_ERROR)
-cmake_policy(VERSION 2.8.8)
+cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
 project(noise)
-
-set(TARGET "noise")
 
 set(proj_inc_dir ${CMAKE_SOURCE_DIR}/third_party/libnoise/include)
 set(proj_src_dir ${CMAKE_SOURCE_DIR}/third_party/libnoise/src)
 
-list(APPEND SOURCES
-  "${proj_src_dir}/latlon.cpp"
-  "${proj_src_dir}/noisegen.cpp"
-  "${proj_src_dir}/noiseutils.cpp")
+list(APPEND SOURCES "${proj_src_dir}/latlon.cpp" "${proj_src_dir}/noisegen.cpp"
+     "${proj_src_dir}/noiseutils.cpp")
 
-list(APPEND SOURCES_MODEL
-  "${proj_src_dir}/model/cylinder.cpp"
-  "${proj_src_dir}/model/line.cpp"
-  "${proj_src_dir}/model/plane.cpp"
-  "${proj_src_dir}/model/sphere.cpp"
-  )
+list(APPEND SOURCES_MODEL "${proj_src_dir}/model/cylinder.cpp"
+     "${proj_src_dir}/model/line.cpp" "${proj_src_dir}/model/plane.cpp"
+     "${proj_src_dir}/model/sphere.cpp")
 
-list(APPEND SOURCES_MODULE
+list(
+  APPEND
+  SOURCES_MODULE
   "${proj_src_dir}/module/abs.cpp"
   "${proj_src_dir}/module/add.cpp"
   "${proj_src_dir}/module/billow.cpp"
@@ -47,10 +41,15 @@ list(APPEND SOURCES_MODULE
   "${proj_src_dir}/module/terrace.cpp"
   "${proj_src_dir}/module/translatepoint.cpp"
   "${proj_src_dir}/module/turbulence.cpp"
-  "${proj_src_dir}/module/voronoi.cpp"
-)
+  "${proj_src_dir}/module/voronoi.cpp")
 
 add_library(noise STATIC ${SOURCES} ${SOURCES_MODEL} ${SOURCES_MODULE})
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_include_directories(
+  ${PROJECT_NAME} PUBLIC $<INSTALL_INTERFACE:include>
+                         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+  # PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+)
 
 set_target_properties(noise PROPERTIES LIBRARY_OUTPUT_NAME "noise")
 set_target_properties(noise PROPERTIES SUFFIX ".a")

@@ -41,7 +41,6 @@ namespace rendering {
 template<>
 struct color_caster<rgb_color, rgba_u32_color>
 {
-
     static rgb_color cast(const rgba_u32_color& rgba) noexcept
     {
 

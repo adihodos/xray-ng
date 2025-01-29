@@ -34,7 +34,6 @@
 #include <tl/optional.hpp>
 #include <tl/expected.hpp>
 
-#include "xray/xray.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/objects/aabb3.hpp"
@@ -61,6 +60,14 @@ struct Geometry
     xray::math::vec2ui32 vertex_index_counts{};
     xray::math::aabb3f boundingbox{ xray::math::aabb3f::stdc::identity };
     xray::math::sphere3f bounding_sphere{ xray::math::sphere3f::stdc::null };
+};
+
+struct ObjectDrawData
+{
+    uint32_t vertices;
+    uint32_t indices;
+    uint32_t vertex_offset;
+    uint32_t index_offset;
 };
 
 }

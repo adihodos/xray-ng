@@ -406,9 +406,9 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         VkImageViewType view;
     };
 
-    if (!(create_info.memory_flags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
-        assert(create_info.layers == static_cast<uint32_t>(create_info.pixels.size()));
-    }
+    // if (!(create_info.memory_flags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
+    //     assert(create_info.layers == static_cast<uint32_t>(create_info.pixels.size()));
+    // }
 
     const VkImageViewType image_view_type = [](const VulkanImageCreateInfo& ci) {
         switch (ci.type) {
@@ -442,7 +442,7 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         .arrayLayers = create_info.layers,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = create_info.usage_flags,
+        .usage = create_info.usage_flags | (create_info.pixels.size() == 0 ? 0 : VK_IMAGE_USAGE_TRANSFER_DST_BIT),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
@@ -454,18 +454,21 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         WRAP_VULKAN_FUNC(vkCreateImage, renderer.device(), &vk_create_info, nullptr, base::raw_ptr_ptr(image));
     XR_VK_CHECK_RESULT(img_create_res);
 
-    const VkImageMemoryRequirementsInfo2 mem_req_info{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
-                                                       .pNext = nullptr,
-                                                       .image = base::raw_ptr(image) };
+    const VkImageMemoryRequirementsInfo2 mem_req_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+        .pNext = nullptr,
+        .image = base::raw_ptr(image),
+    };
     VkMemoryRequirements2 mem_requirements{ .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2, .pNext = nullptr };
     vkGetImageMemoryRequirements2(renderer.device(), &mem_req_info, &mem_requirements);
 
-    const VkMemoryAllocateInfo mem_alloc_info{ .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                                               .pNext = nullptr,
-                                               .allocationSize = mem_requirements.memoryRequirements.size,
-                                               .memoryTypeIndex = renderer.find_allocation_memory_type(
-                                                   mem_requirements.memoryRequirements.memoryTypeBits,
-                                                   create_info.memory_flags) };
+    const VkMemoryAllocateInfo mem_alloc_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .allocationSize = mem_requirements.memoryRequirements.size,
+        .memoryTypeIndex = renderer.find_allocation_memory_type(mem_requirements.memoryRequirements.memoryTypeBits,
+                                                                create_info.memory_flags),
+    };
 
     xrUniqueVkDeviceMemory image_memory{ nullptr, VkResourceDeleter_VkDeviceMemory{ renderer.device() } };
     const VkResult mem_alloc_res = WRAP_VULKAN_FUNC(
@@ -486,23 +489,21 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         renderer.dbg_set_object_name(base::raw_ptr(image), create_info.tag_name);
     }
 
-    if (!create_info.pixels.empty()) {
-        auto staging_buffer = renderer.create_staging_buffer(create_info.wpkg, mem_alloc_info.allocationSize);
-        XR_VK_PROPAGATE_ERROR(staging_buffer);
+    if (create_info.pixels.size() != 0) {
+        assert(create_info.wpkg.has_value());
 
-        const auto copied_to_buffer =
-            UniqueMemoryMapping::map_memory(renderer.device(), staging_buffer->mem, 0, 0)
-                .map([&create_info](UniqueMemoryMapping mapping) {
-                    for (size_t i = 0, count = create_info.pixels.size(); i < count; ++i) {
-                        memcpy((void*)((uint8_t*)mapping._mapped_memory + i * create_info.width * create_info.height),
-                               static_cast<const void*>(create_info.pixels[i].data()),
-                               create_info.pixels[i].size_bytes());
-                    }
-                    return std::true_type{};
-                });
-        XR_VK_PROPAGATE_ERROR(copied_to_buffer);
+        const uintptr_t staging_buffer_offset = renderer.reserve_staging_buffer_memory(mem_alloc_info.allocationSize);
+        uintptr_t staging_buffer_ptr = renderer.staging_buffer_memory() + staging_buffer_offset;
 
-        VkCommandBuffer cmd_buf = renderer.get_cmd_buf_for_work_package(create_info.wpkg);
+        for (size_t i = 0, bytes_copied = 0, count = create_info.pixels.size(); i < count;
+             bytes_copied += std::data(create_info.pixels)[i].size_bytes(), ++i) {
+            const std::span<const uint8_t> this_span = std::data(create_info.pixels)[i];
+            memcpy(reinterpret_cast<void*>(staging_buffer_ptr + bytes_copied),
+                   static_cast<const void*>(this_span.data()),
+                   this_span.size_bytes());
+        }
+
+        VkCommandBuffer cmd_buf = *create_info.wpkg;
 
         //
         // set image layout to transfer_dst
@@ -510,26 +511,31 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
                          base::raw_ptr(image),
                          VK_IMAGE_LAYOUT_UNDEFINED,
                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                  .baseMipLevel = 0,
-                                                  .levelCount = 1,
-                                                  .baseArrayLayer = 0,
-                                                  .layerCount = create_info.layers });
+                         VkImageSubresourceRange{
+                             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                             .baseMipLevel = 0,
+                             .levelCount = 1,
+                             .baseArrayLayer = 0,
+                             .layerCount = create_info.layers,
+                         });
 
         const VkBufferImageCopy buffer_image_cpy{
-            .bufferOffset = 0,
+            .bufferOffset = staging_buffer_offset,
             .bufferRowLength = 0,
             .bufferImageHeight = 0,
-            .imageSubresource = VkImageSubresourceLayers{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                          .mipLevel = 0,
-                                                          .baseArrayLayer = 0,
-                                                          .layerCount = create_info.layers },
+            .imageSubresource =
+                VkImageSubresourceLayers{
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = 0,
+                    .baseArrayLayer = 0,
+                    .layerCount = create_info.layers,
+                },
             .imageOffset = {},
-            .imageExtent = { create_info.width, create_info.height, create_info.depth }
+            .imageExtent = { create_info.width, create_info.height, create_info.depth, },
         };
 
         vkCmdCopyBufferToImage(cmd_buf,
-                               staging_buffer->buf,
+                               renderer.staging_buffer(),
                                base::raw_ptr(image),
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                1,
@@ -542,11 +548,13 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
                              base::raw_ptr(image),
                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                             VkImageSubresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                      .baseMipLevel = 0,
-                                                      .levelCount = 1,
-                                                      .baseArrayLayer = 0,
-                                                      .layerCount = create_info.layers });
+                             VkImageSubresourceRange{
+                                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                 .baseMipLevel = 0,
+                                 .levelCount = 1,
+                                 .baseArrayLayer = 0,
+                                 .layerCount = create_info.layers,
+                             });
         } else {
             assert(false && "Needs to be implemented");
         }
@@ -581,18 +589,24 @@ xray::rendering::VulkanImage::from_memory(VulkanRenderer& renderer, const Vulkan
         WRAP_VULKAN_FUNC(vkCreateImageView, renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
     XR_VK_CHECK_RESULT(create_res);
 
-    return VulkanImage{ xrUniqueImageWithMemoryAndView{ renderer.device(),
-                                                        base::unique_pointer_release(image),
-                                                        base::unique_pointer_release(image_memory),
-                                                        base::unique_pointer_release(img_view) },
-                        VulkanTextureInfo{ create_info.width,
-                                           create_info.height,
-                                           create_info.depth,
-                                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                           create_info.format,
-                                           1,
-                                           create_info.layers,
-                                           image_view_type } };
+    return VulkanImage{
+        xrUniqueImageWithMemoryAndView{
+            renderer.device(),
+            base::unique_pointer_release(image),
+            base::unique_pointer_release(image_memory),
+            base::unique_pointer_release(img_view),
+        },
+        VulkanTextureInfo{
+            create_info.width,
+            create_info.height,
+            create_info.depth,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            create_info.format,
+            1,
+            create_info.layers,
+            image_view_type,
+        },
+    };
 }
 
 tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError>
@@ -742,43 +756,46 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
         // Create a host-visible staging buffer that contains the raw image data
         const uint32_t numCopyRegions{ loaded_ktx->numLevels };
 
-        auto staging_buffer{ renderer.create_staging_buffer(load_info.wpkg, textureSize) };
-        if (!staging_buffer)
-            return tl::unexpected{ staging_buffer.error() };
+        const uintptr_t staging_buff_offset = renderer.reserve_staging_buffer_memory(textureSize);
+        uintptr_t staging_buff_ptr = renderer.staging_buffer_memory() + staging_buff_offset;
 
         itlib::small_vector<VkBufferImageCopy> copy_regions{ static_cast<size_t>(numCopyRegions), VkBufferImageCopy{} };
 
-        UniqueMemoryMapping::map_memory(renderer.device(), staging_buffer->mem, 0, VK_WHOLE_SIZE)
-            .map([&](UniqueMemoryMapping bufmap) {
-                ktx_internal_details::user_cbdata_optimal cbData
-                {
-                    .region = copy_regions.data(), .offset = 0, .numFaces = loaded_ktx->numFaces,
-                    .numLayers = loaded_ktx->numLayers, .dest = static_cast<uint8_t*>(bufmap._mapped_memory),
-                    .elementSize = elementSize, .numDimensions = loaded_ktx->numDimensions,
+        {
+            ktx_internal_details::user_cbdata_optimal cbData
+            {
+                .region = copy_regions.data(), .offset = 0, .numFaces = loaded_ktx->numFaces,
+                .numLayers = loaded_ktx->numLayers, .dest = reinterpret_cast<uint8_t*>(staging_buff_ptr),
+                .elementSize = elementSize, .numDimensions = loaded_ktx->numDimensions,
 #if defined(_DEBUG)
-                    .regionsArrayEnd = copy_regions.end(),
+                .regionsArrayEnd = copy_regions.end(),
 #endif
-                };
+            };
 
-                if (loaded_ktx->pData) {
-                    // Image data has already been loaded. Copy to staging
-                    // buffer.
-                    memcpy(bufmap._mapped_memory, loaded_ktx->pData, loaded_ktx->dataSize);
-                } else {
-                    /* Load the image data directly into the staging buffer. */
-                    const ktxResult kResult = ktxTexture_LoadImageData(ktxTexture(loaded_ktx),
-                                                                       static_cast<ktx_uint8_t*>(bufmap._mapped_memory),
-                                                                       (ktx_size_t)textureSize);
-                    if (kResult != KTX_SUCCESS) {
-                        // TODO: error handling
-                    }
+            if (loaded_ktx->pData) {
+                // Image data has already been loaded. Copy to staging
+                // buffer.
+                memcpy(reinterpret_cast<void*>(staging_buff_ptr), loaded_ktx->pData, loaded_ktx->dataSize);
+            } else {
+                /* Load the image data directly into the staging buffer. */
+                const ktxResult kResult = ktxTexture_LoadImageData(
+                    ktxTexture(loaded_ktx), reinterpret_cast<ktx_uint8_t*>(staging_buff_ptr), (ktx_size_t)textureSize);
+                if (kResult != KTX_SUCCESS) {
+                    // TODO: error handling
                 }
+            }
 
-                // Iterate over mip levels to set up the copy regions.
-                const ktxResult kResult = ktxTexture_IterateLevels(
-                    ktxTexture(loaded_ktx), ktx_internal_details::optimalTilingCallback, &cbData);
-                // XXX Check for possible errors.
-            });
+            // Iterate over mip levels to set up the copy regions.
+            const ktxResult kResult =
+                ktxTexture_IterateLevels(ktxTexture(loaded_ktx), ktx_internal_details::optimalTilingCallback, &cbData);
+            // XXX Check for possible errors.
+        }
+
+        //
+        // Update all copy regions with the correct offset for the global staging buffer
+        lz::chain(copy_regions).forEach([staging_buff_offset](VkBufferImageCopy& bcpy) {
+            bcpy.bufferOffset += staging_buff_offset;
+        });
 
         // Create optimal tiled target image
         const VkImageCreateInfo imageCreateInfo{
@@ -864,7 +881,7 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
             .layerCount = numImageLayers,
         };
 
-        VkCommandBuffer cmdbuf = renderer.get_cmd_buf_for_work_package(load_info.wpkg);
+        VkCommandBuffer cmdbuf = load_info.cmd_buf;
 
         // Image barrier to transition, possibly only the base level, image
         // layout to TRANSFER_DST_OPTIMAL so it can be used as the copy
@@ -873,7 +890,7 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
             cmdbuf, raw_ptr(image), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresource_range);
 
         vkCmdCopyBufferToImage(cmdbuf,
-                               staging_buffer->buf,
+                               renderer.staging_buffer(),
                                raw_ptr(image),
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                static_cast<uint32_t>(copy_regions.size()),

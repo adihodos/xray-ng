@@ -1,4 +1,3 @@
-
 //
 // Copyright (c) Adrian Hodos
 // All rights reserved.
@@ -29,6 +28,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <type_traits>
 #include <span>
@@ -36,26 +36,32 @@
 namespace xray::base {
 template<typename C>
 concept ContainerLikeObject = requires(C&& c) {
-    {
-        c.size()
-    } -> std::convertible_to<size_t>;
-
+    { c.size() } -> std::convertible_to<size_t>;
     c[0];
     std::is_pointer_v<decltype(c.data())>;
 };
 
 template<ContainerLikeObject C>
-inline std::span<const uint8_t>
+[[nodiscard]] inline std::span<const uint8_t>
 to_bytes_span(C&& c) noexcept
 {
     return std::span{ reinterpret_cast<const uint8_t*>(c.data()), c.size() * sizeof(c[0]) };
 }
 
 template<typename T, size_t N>
-inline constexpr std::span<const uint8_t>
+[[nodiscard]] inline constexpr std::span<const uint8_t>
 to_bytes_span(const T (&array_ref)[N]) noexcept
 {
     return std::span{ reinterpret_cast<const uint8_t*>(&array_ref[0]), sizeof(array_ref) };
+}
+
+template<typename T>
+    requires std::is_integral_v<T>
+[[nodiscard]] constexpr inline T
+align(const T value, const T alignment) noexcept
+{
+    assert(alignment != 0);
+    return (alignment - 1 + value) / alignment * alignment;
 }
 
 }

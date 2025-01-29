@@ -5,7 +5,6 @@
 
 #define TINYGLTF_IMPLEMENTATION
 #include <tiny_gltf.h>
-#include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
 #include <mio/mmap.hpp>
 
@@ -25,6 +24,14 @@ namespace xray::rendering {
 
 LoadedGeometry::LoadedGeometry()
     : gltf{ std::make_unique<tinygltf::Model>() }
+{
+}
+
+LoadedGeometry::LoadedGeometry(LoadedGeometry&& rhs) noexcept
+    : nodes{ std::move(rhs.nodes) }
+    , bounding_box{ rhs.bounding_box }
+    , bounding_sphere{ rhs.bounding_sphere }
+    , gltf{ std::move(rhs.gltf) }
 {
 }
 
@@ -113,7 +120,7 @@ LoadedGeometry::compute_vertex_index_count() const
 }
 
 ExtractedMaterialsWithImageSourcesBundle
-LoadedGeometry::extract_images_info(const uint32_t null_texture) const noexcept
+LoadedGeometry::extract_materials(const uint32_t null_texture) const noexcept
 {
     ExtractedMaterialsWithImageSourcesBundle result{};
 
@@ -168,7 +175,12 @@ LoadedGeometry::extract_images_info(const uint32_t null_texture) const noexcept
                     ? null_texture
                     : (uint32_t)g->textures[mtl.pbrMetallicRoughness.metallicRoughnessTexture.index].source,
                 mtl.normalTexture.index == -1 ? null_texture : (uint32_t)g->textures[mtl.normalTexture.index].source,
-                math::vec4f{ mtl.pbrMetallicRoughness.baseColorFactor.data(), 4 },
+                math::vec4f{
+                    mtl.pbrMetallicRoughness.baseColorFactor[0],
+                    mtl.pbrMetallicRoughness.baseColorFactor[1],
+                    mtl.pbrMetallicRoughness.baseColorFactor[2],
+                    mtl.pbrMetallicRoughness.baseColorFactor[3],
+                },
                 (float)mtl.pbrMetallicRoughness.metallicFactor,
                 (float)mtl.pbrMetallicRoughness.roughnessFactor
             };
@@ -191,15 +203,11 @@ LoadedGeometry::extract_data(void* vertex_buffer,
         }
     }
 
-    bounding_box =
-        lz::chain(nodes).foldl(math::aabb3f::stdc::identity, [](math::aabb3f merged, const GeometryNode& node) {
-            return math::merge(merged, node.boundingbox);
-        });
-
-    bounding_sphere = math::sphere3f{
-        bounding_box.center(), math::length(bounding_box.extents())
-        // bounding_box.max_dimension() * 0.5f
-    };
+    bounding_box = math::aabb3f::stdc::identity;
+    for (size_t idx = 0, count = nodes.size(); idx < count; ++idx) {
+        bounding_box = math::merge(bounding_box, nodes[idx].boundingbox);
+    }
+    bounding_sphere = math::sphere3f{ bounding_box.center(), math::length(bounding_box.extents()) };
 
     return buffer_offsets;
 }

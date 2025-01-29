@@ -72,3 +72,23 @@ struct fmt::formatter<VkSurfaceCapabilitiesKHR>
             caps.maxImageExtent);
     }
 };
+
+template<>
+struct fmt::formatter<VkDrawIndexedIndirectCommand>
+{
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename Context>
+    constexpr auto format(const VkDrawIndexedIndirectCommand& caps, Context& ctx) const
+    {
+        return fmt::format_to(
+            ctx.out(),
+            "VkDrawIndexedIndirectCommand = {{\n\t.indexCount = {},\n\t.instanceCount = {},\n\t.firstIndex = "
+            "{},\n\t.vertexOffset = {},\n\t.firstInstance = {}\n}}",
+            caps.indexCount,
+            caps.instanceCount,
+            caps.firstIndex,
+            caps.vertexOffset,
+            caps.firstInstance);
+    }
+};

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "xray/xray.hpp"
-
 #include <span>
 #include <tuple>
 #include <vector>
@@ -14,6 +12,8 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
+#include "xray/base/xray.misc.hpp"
+#include "xray/base/concurrency/spin.mutex.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
@@ -129,8 +129,44 @@ struct RenderState
 {
     PhysicalDeviceData dev_physical;
     xrUniqueVkDevice dev_logical;
+    xrUniqueBufferWithMemory staging_buffer;
+    UniqueMemoryMapping mapped_staging_buffer;
+    std::atomic_uintptr_t staging_buffer_offset;
     std::vector<Queue> queues;
+    xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_cmd_pool_mutex;
+    xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_submit_mutex;
     RenderingAttachments attachments;
+
+    RenderState(const PhysicalDeviceData& pd,
+                xrUniqueVkDevice&& logical,
+                xrUniqueBufferWithMemory&& staging,
+                UniqueMemoryMapping&& mapped_staging,
+                std::vector<Queue>&& qs,
+                RenderingAttachments&& atts)
+        : dev_physical{ pd }
+        , dev_logical{ std::move(logical) }
+        , staging_buffer{ std::move(staging) }
+        , mapped_staging_buffer{ std::move(mapped_staging) }
+        , staging_buffer_offset{ 0 }
+        , queues{ std::move(qs) }
+        , queue_cmd_pool_mutex{ new xray::base::concurrency::spin_mutex[queues.size()] }
+        , queue_submit_mutex{ new xray::base::concurrency::spin_mutex[queues.size()] }
+        , attachments{ std::move(atts) }
+    {
+    }
+
+    RenderState(RenderState&& rhs) noexcept
+        : dev_physical(std::move(rhs.dev_physical))
+        , dev_logical(std::move(rhs.dev_logical))
+        , staging_buffer(std::move(rhs.staging_buffer))
+        , mapped_staging_buffer(std::move(rhs.mapped_staging_buffer))
+        , staging_buffer_offset(rhs.staging_buffer_offset.load())
+        , queues(std::move(rhs.queues))
+        , queue_cmd_pool_mutex(std::move(rhs.queue_cmd_pool_mutex))
+        , queue_submit_mutex(std::move(rhs.queue_submit_mutex))
+        , attachments(std::move(rhs.attachments))
+    {
+    }
 };
 
 struct DescriptorPoolState
@@ -203,6 +239,15 @@ struct StagingBuffer
     VkDeviceMemory mem;
 };
 
+enum class QueueType : uint8_t
+{
+    Graphics,
+    Transfer,
+};
+
+struct QueueSubmitWaitToken;
+struct RendererConfig;
+
 class VulkanRenderer
 {
   private:
@@ -212,7 +257,7 @@ class VulkanRenderer
     };
 
   public:
-    static tl::optional<VulkanRenderer> create(const WindowPlatformData& win_data);
+    static tl::optional<VulkanRenderer> create(const WindowPlatformData& win_data, const RendererConfig& cfg);
 
     VulkanRenderer(PrivateConstructionToken,
                    detail::InstanceState instance_state,
@@ -305,9 +350,67 @@ class VulkanRenderer
     }
     // @endgroup
 
+    std::tuple<VkQueue, uint32_t, VkCommandPool> queue_data(const uint32_t idx) const noexcept
+    {
+        return { _render_state.queues[idx].handle,
+                 _render_state.queues[idx].index,
+                 xray::base::unique_pointer_get_ptr(_render_state.queues[idx].cmd_pool) };
+    }
+
+    struct QueueData
+    {
+        VkQueue handle;
+        uint32_t family;
+        VkCommandPool cmdpool;
+        std::reference_wrapper<xray::base::concurrency::spin_mutex> cmdpool_lock;
+        std::reference_wrapper<xray::base::concurrency::spin_mutex> submit_lock;
+    };
+
+    QueueData queue_data(const QueueType qtype) noexcept
+    {
+        return QueueData{
+            .handle = _render_state.queues[static_cast<uint32_t>(qtype)].handle,
+            .family = _render_state.queues[static_cast<uint32_t>(qtype)].index,
+            .cmdpool = xray::base::unique_pointer_get_ptr(_render_state.queues[static_cast<uint32_t>(qtype)].cmd_pool),
+            .cmdpool_lock = std::reference_wrapper{ _render_state.queue_cmd_pool_mutex[static_cast<uint32_t>(qtype)] },
+            .submit_lock = std::reference_wrapper{ _render_state.queue_submit_mutex[static_cast<uint32_t>(qtype)] },
+        };
+    }
+    //
+    uintptr_t reserve_staging_buffer_memory(const size_t bytes) noexcept
+    {
+        const uintptr_t aligned_size = xray::base::align<uintptr_t>(
+            bytes, this->_render_state.dev_physical.properties.base.properties.limits.nonCoherentAtomSize);
+        return _render_state.staging_buffer_offset.fetch_add(aligned_size);
+    }
+
+    uintptr_t staging_buffer_memory() const noexcept
+    {
+        return reinterpret_cast<uintptr_t>(_render_state.mapped_staging_buffer._mapped_memory);
+    }
+
+    VkBuffer staging_buffer() const noexcept { return _render_state.staging_buffer.handle<VkBuffer>(); }
+
+    void queue_image_ownership_transfer(const BindlessResourceHandle_Image img) { _ownership_transfers.push_back(img); }
+
+    /// @group async tasks
+
+    tl::expected<VkCommandBuffer, VulkanError> create_job(const QueueType qtype) noexcept;
+    tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(VkCommandBuffer cmd_buffer,
+                                                               const QueueType qtype) noexcept;
+    /// @endgroup
+
   private:
     const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
     const detail::Queue& transfer_queue() const noexcept { return _render_state.queues[1]; }
+
+    enum class SwapchainReacquireAfterSuboptimal
+    {
+        Always_,
+        Never_
+    };
+
+    void handle_swapchain_suboptimal_out_of_date(const SwapchainReacquireAfterSuboptimal reacquire);
 
     detail::InstanceState _instance_state;
     detail::RenderState _render_state;
@@ -316,6 +419,7 @@ class VulkanRenderer
     WorkPackageState _work_queue;
     BindlessSystem _bindless;
     std::vector<std::filesystem::path> _shader_include_directories;
+    std::vector<BindlessResourceHandle_Image> _ownership_transfers;
 };
 
 template<typename VkObjectType>

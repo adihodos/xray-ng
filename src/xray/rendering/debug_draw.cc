@@ -113,13 +113,14 @@ struct DebugDrawSystem::RenderStateVulkan
 tl::expected<DebugDrawSystem::RenderStateVulkan, VulkanError>
 DebugDrawSystem::RenderStateVulkan::create(const DebugDrawSystem::InitContext& init)
 {
-    auto vertexBuffer =
-        VulkanBuffer::create(*init.renderer,
-                             VulkanBufferCreateInfo{ .name_tag = "Debug draw vertex buffer",
-                                                     .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                                     .memory_properties = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                                     .bytes = 8192 * sizeof(vertex_pc),
-                                                     .frames = init.renderer->buffering_setup().buffers });
+    auto vertexBuffer = VulkanBuffer::create(*init.renderer,
+                                             VulkanBufferCreateInfo{
+                                                 .name_tag = "Debug draw vertex buffer",
+                                                 .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                                 .memory_properties = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                                 .bytes = 8192 * sizeof(vertex_pc),
+                                                 .frames = init.renderer->buffering_setup().buffers,
+                                             });
 
     XR_VK_PROPAGATE_ERROR(vertexBuffer);
 
@@ -161,9 +162,15 @@ DebugDrawSystem::RenderStateVulkan::create(const DebugDrawSystem::InitContext& i
     }
     )#";
 
-    auto graphicsPipeline = GraphicsPipelineBuilder{}
-                                .add_shader(ShaderStage::Vertex, kDebugVertexShader)
-                                .add_shader(ShaderStage::Fragment, kDebugFragmentShaderCode)
+    auto graphicsPipeline = GraphicsPipelineBuilder{init.arena_perm, init.arena_temp}
+                                .add_shader(ShaderStage::Vertex,
+                                            ShaderBuildOptions{
+                                                .code_or_file_path = kDebugVertexShader,
+                                            })
+                                .add_shader(ShaderStage::Fragment,
+                                            ShaderBuildOptions{
+                                                .code_or_file_path = kDebugFragmentShaderCode,
+                                            })
                                 .input_assembly_state(InputAssemblyState{ .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST })
                                 .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
                                 .create_bindless(*init.renderer);
@@ -180,11 +187,13 @@ DebugDrawSystem::RenderStateVulkan::create(const DebugDrawSystem::InitContext& i
         vertexMemoryMappings.push_back((vertex_pc*)((uint8_t*)ptr_mem + idx * vertexBuffer->aligned_size));
     }
 
-    return tl::expected<RenderStateVulkan, VulkanError>{ tl::in_place,
-                                                         std::move(*vertexBuffer),
-                                                         std::move(*graphicsPipeline),
-                                                         std::move(vertexMemoryMappings),
-                                                         init.renderer->device() };
+    return tl::expected<RenderStateVulkan, VulkanError>{
+        tl::in_place,
+        std::move(*vertexBuffer),
+        std::move(*graphicsPipeline),
+        std::move(vertexMemoryMappings),
+        init.renderer->device(),
+    };
 }
 
 }
@@ -211,7 +220,8 @@ DebugDrawSystem::RenderStateDeleter::operator()(DebugDrawSystem::RenderState* r)
     delete r;
 }
 
-DebugDrawSystem::DebugDrawSystem(PrivateConstructionToken, std::unique_ptr<RenderState, RenderStateDeleter>&& render_state)
+DebugDrawSystem::DebugDrawSystem(PrivateConstructionToken,
+                                 std::unique_ptr<RenderState, RenderStateDeleter>&& render_state)
     : mRenderState{ std::move(render_state) }
 {
 }
@@ -241,16 +251,17 @@ void
 DebugDrawSystem::draw_frustrum(const math::MatrixWithInvertedMatrixPair4f& mtx, const rgb_color& color)
 {
     // NDC coords near + far
-    constexpr const math::vec3f planes_points[] = { // near plane
-                                                    { -1.0f, -1.0f, -1.0f },
-                                                    { 1.0f, -1.0f, -1.0f },
-                                                    { 1.0f, 1.0f, -1.0f },
-                                                    { -1.0f, 1.0f, -1.0f },
-                                                    // far plane
-                                                    { -1.0f, -1.0f, 1.0f },
-                                                    { 1.0f, -1.0f, 1.0f },
-                                                    { 1.0f, 1.0f, 1.0f },
-                                                    { -1.0f, 1.0f, 1.0f }
+    constexpr const math::vec3f planes_points[] = {
+        // near plane
+        { -1.0f, -1.0f, -1.0f },
+        { 1.0f, -1.0f, -1.0f },
+        { 1.0f, 1.0f, -1.0f },
+        { -1.0f, 1.0f, -1.0f },
+        // far plane
+        { -1.0f, -1.0f, 1.0f },
+        { 1.0f, -1.0f, 1.0f },
+        { 1.0f, 1.0f, 1.0f },
+        { -1.0f, 1.0f, 1.0f },
     };
 
     // NDC -> view space
@@ -281,11 +292,13 @@ DebugDrawSystem::draw_oriented_box(const math::vec3f& org,
     const float ev{ lu * 0.5f };
     const float ew{ ld * 0.5f };
 
-    const math::vec3f kVertices[] = { org + u * eu - v * ev - w * ew, org + u * eu + v * ev - w * ew,
-                                      org - u * eu + v * ev - w * ew, org - u * eu - v * ev - w * ew,
+    const math::vec3f kVertices[] = {
+        org + u * eu - v * ev - w * ew, org + u * eu + v * ev - w * ew,
+        org - u * eu + v * ev - w * ew, org - u * eu - v * ev - w * ew,
 
-                                      org + u * eu - v * ev + w * ew, org + u * eu + v * ev + w * ew,
-                                      org - u * eu + v * ev + w * ew, org - u * eu - v * ev + w * ew };
+        org + u * eu - v * ev + w * ew, org + u * eu + v * ev + w * ew,
+        org - u * eu + v * ev + w * ew, org - u * eu - v * ev + w * ew,
+    };
 
     const uint32_t kIndices[] = { 0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7 };
 
@@ -390,12 +403,13 @@ DebugDrawSystem::draw_arrow(const math::vec3f& from, const math::vec3f& to, cons
 
     const auto [u, v, w] = math::make_frame_vectors(dvec);
     const float capLen{ (arrowLen - adjustedLen) * 0.5f };
-    const math::vec3f kVertices[] = { // tip
-                                      to,
-                                      from + u * adjustedLen + v * capLen + w * capLen,
-                                      from + u * adjustedLen - v * capLen + w * capLen,
-                                      from + u * adjustedLen - v * capLen - w * capLen,
-                                      from + u * adjustedLen + v * capLen - w * capLen
+    const math::vec3f kVertices[] = {
+        // tip
+        to,
+        from + u * adjustedLen + v * capLen + w * capLen,
+        from + u * adjustedLen - v * capLen + w * capLen,
+        from + u * adjustedLen - v * capLen - w * capLen,
+        from + u * adjustedLen + v * capLen - w * capLen,
     };
 
     for (const uint32_t idx : { 1, 2, 2, 3, 3, 4, 4, 1, 0, 1, 0, 2, 0, 3, 0, 4, 2, 4, 1, 3 }) {

@@ -26,27 +26,27 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
-#include <cstddef>
+#include <type_traits>
 #include <cstdint>
 #include <random>
 
 namespace xray {
 namespace base {
 
+///
+/// \brief Simple wrapper around stdlib random number generator.
 class random_number_generator
 {
   public:
     random_number_generator() = default;
 
     float next_float(const float rmin, const float rmax) noexcept { return next(rmin, rmax); }
-
     uint32_t next_uint(const uint32_t rmin, const uint32_t rmax) noexcept { return next(rmin, rmax); }
-
     int32_t next_int(const int32_t rmin, const int32_t rmax) noexcept { return next(rmin, rmax); }
 
     template<typename T>
     T next(const T rmin, const T rmax) noexcept
+        requires std::is_arithmetic_v<T>
     {
         return static_cast<T>(rmin + (rmax - rmin) * _distribution(_engine));
     }

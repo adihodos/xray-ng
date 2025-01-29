@@ -6,10 +6,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include <oneapi/tbb/blocked_range.h>
-#include <oneapi/tbb/parallel_for.h>
-#include <oneapi/tbb/parallel_for_each.h>
-#include <oneapi/tbb/parallel_reduce.h>
+// #include <oneapi/tbb/blocked_range.h>
+// #include <oneapi/tbb/parallel_for.h>
+// #include <oneapi/tbb/parallel_for_each.h>
+// #include <oneapi/tbb/parallel_reduce.h>
 
 #include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
@@ -59,13 +59,13 @@ xray::rendering::basic_mesh::basic_mesh(const std::filesystem::path& path, const
     if (const vec3f origin = _aabb.center(); !is_zero_length(origin)) {
         //
         // correct off-center model
-        namespace mt = oneapi::tbb;
-        mt::parallel_for(mt::blocked_range<vertex_pnt*>{ _vertices.data(), _vertices.data() + _vertices.size() },
-                         [origin](mt::blocked_range<vertex_pnt*> r) {
-                             for (vertex_pnt* v = r.begin(); v != r.end(); ++v) {
-                                 v->position -= origin;
-                             }
-                         });
+        // namespace mt = oneapi::tbb;
+        // mt::parallel_for(mt::blocked_range<vertex_pnt*>{ _vertices.data(), _vertices.data() + _vertices.size() },
+        //                  [origin](mt::blocked_range<vertex_pnt*> r) {
+        //                      for (vertex_pnt* v = r.begin(); v != r.end(); ++v) {
+        //                          v->position -= origin;
+        //                      }
+        //                  });
 
         _aabb.min -= origin;
         _aabb.max -= origin;
@@ -111,26 +111,28 @@ xray::rendering::basic_mesh::compute_bounding()
 
     static constexpr size_t PARALLEL_REDUCE_MIN_VERTEX_COUNT = 120'000'000u;
 
-    namespace mt = oneapi::tbb;
+    // namespace mt = oneapi::tbb;
 
-    if (_vertices.size() >= PARALLEL_REDUCE_MIN_VERTEX_COUNT) {
-        scoped_timing_object<timer_highp> sto{ &op_tm };
+    // if (_vertices.size() >= PARALLEL_REDUCE_MIN_VERTEX_COUNT) {
+    //     scoped_timing_object<timer_highp> sto{ &op_tm };
+    //
+    //     _aabb = mt::parallel_reduce(
+    //         mt::blocked_range{ static_cast<const vertex_pnt*>(_vertices.data()),
+    //                            static_cast<const vertex_pnt*>(_vertices.data()) + _vertices.size() },
+    //         aabb3f::stdc::identity,
+    //         [](const tbb::blocked_range<const vertex_pnt*>& rng, const aabb3f& initial_bbox) {
+    //             aabb3f box{ initial_bbox };
+    //             for (const vertex_pnt* b = rng.begin(); b != rng.end(); ++b) {
+    //                 box.max = max(box.max, b->position);
+    //                 box.min = min(box.min, b->position);
+    //             }
+    //
+    //             return box;
+    //         },
+    //         [](const aabb3f& a, const aabb3f& b) { return math::merge(a, b); });
+    // } else
 
-        _aabb = mt::parallel_reduce(
-            mt::blocked_range{ static_cast<const vertex_pnt*>(_vertices.data()),
-                               static_cast<const vertex_pnt*>(_vertices.data()) + _vertices.size() },
-            aabb3f::stdc::identity,
-            [](const tbb::blocked_range<const vertex_pnt*>& rng, const aabb3f& initial_bbox) {
-                aabb3f box{ initial_bbox };
-                for (const vertex_pnt* b = rng.begin(); b != rng.end(); ++b) {
-                    box.max = max(box.max, b->position);
-                    box.min = min(box.min, b->position);
-                }
-
-                return box;
-            },
-            [](const aabb3f& a, const aabb3f& b) { return math::merge(a, b); });
-    } else {
+    {
         scoped_timing_object<timer_highp> sto{ &op_tm };
 
         for_each(begin(_vertices), end(_vertices), [this](const vertex_pnt& v) {
@@ -142,12 +144,12 @@ xray::rendering::basic_mesh::compute_bounding()
     if (const vec3f origin = _aabb.center(); !is_zero_length(origin)) {
         //
         // correct off-center model
-        mt::parallel_for(mt::blocked_range<vertex_pnt*>{ _vertices.data(), _vertices.data() + _vertices.size() },
-                         [origin](mt::blocked_range<vertex_pnt*> r) {
-                             for (vertex_pnt* v = r.begin(); v != r.end(); ++v) {
-                                 v->position -= origin;
-                             }
-                         });
+        // mt::parallel_for(mt::blocked_range<vertex_pnt*>{ _vertices.data(), _vertices.data() + _vertices.size() },
+        //                  [origin](mt::blocked_range<vertex_pnt*> r) {
+        //                      for (vertex_pnt* v = r.begin(); v != r.end(); ++v) {
+        //                          v->position -= origin;
+        //                      }
+        //                  });
 
         _aabb = math::transform(R4::translate(-origin), _aabb);
     }

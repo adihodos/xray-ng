@@ -28,7 +28,7 @@
             # editors
             nvimpager
 
-            gcc
+            gcc14
             gdb
             seer
             libgit2
@@ -38,6 +38,8 @@
             ninja
             gef
             gf
+            glogg
+            lnav
             renderdoc
             cmake
             cmakeCurses

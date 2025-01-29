@@ -13,6 +13,7 @@
 #include <cassert>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace FNV {
 // default values recommended by http://isthe.com/chongo/tech/comp/fnv/
@@ -21,7 +22,7 @@ const uint32_t Seed = 0x811C9DC5;  // 2166136261
 
 /// hash a single byte
 inline uint32_t
-fnv1a(unsigned char oneByte, uint32_t hash = Seed)
+fnv1a(unsigned char oneByte, uint32_t hash = Seed) noexcept
 {
     return (oneByte ^ hash) * Prime;
     // FNV1: return (oneByte * Prime) ^ hash;
@@ -29,7 +30,7 @@ fnv1a(unsigned char oneByte, uint32_t hash = Seed)
 
 /// hash a short (two bytes)
 inline uint32_t
-fnv1a(unsigned short twoBytes, uint32_t hash = Seed)
+fnv1a(unsigned short twoBytes, uint32_t hash = Seed) noexcept
 {
     const unsigned char* ptr = (const unsigned char*)&twoBytes;
     hash = fnv1a(*ptr++, hash);
@@ -38,7 +39,7 @@ fnv1a(unsigned short twoBytes, uint32_t hash = Seed)
 
 /// hash a 32 bit integer (four bytes)
 inline uint32_t
-fnv1a(uint32_t fourBytes, uint32_t hash = Seed)
+fnv1a(uint32_t fourBytes, uint32_t hash = Seed) noexcept
 {
     const unsigned char* ptr = (const unsigned char*)&fourBytes;
     hash = fnv1a(*ptr++, hash);
@@ -49,7 +50,7 @@ fnv1a(uint32_t fourBytes, uint32_t hash = Seed)
 
 /// hash a block of memory
 inline uint32_t
-fnv1a(const void* data, size_t numBytes, uint32_t hash = Seed)
+fnv1a(const void* data, size_t numBytes, uint32_t hash = Seed) noexcept
 {
     assert(data);
     const unsigned char* ptr = (const unsigned char*)data;
@@ -61,7 +62,7 @@ fnv1a(const void* data, size_t numBytes, uint32_t hash = Seed)
 
 /// hash a C-style string
 inline uint32_t
-fnv1a(const char* text, uint32_t hash = Seed)
+fnv1a(const char* text, uint32_t hash = Seed) noexcept
 {
     assert(text);
     const unsigned char* ptr = (const unsigned char*)text;
@@ -73,22 +74,29 @@ fnv1a(const char* text, uint32_t hash = Seed)
 
 /// hash an std::string
 inline uint32_t
-fnv1a(const std::string& text, uint32_t hash = Seed)
+fnv1a(const std::string& text, uint32_t hash = Seed) noexcept
 {
     return fnv1a(text.c_str(), text.length(), hash);
     // or: fnv1a(text.c_str(), hash);
 }
 
+/// hash a std::string_view
+inline uint32_t
+fnv1a(const std::string_view sv, uint32_t hash = Seed) noexcept
+{
+    return fnv1a(sv.data(), sv.length(), hash);
+}
+
 /// hash a float
 inline uint32_t
-fnv1a(float number, uint32_t hash = Seed)
+fnv1a(float number, uint32_t hash = Seed) noexcept
 {
     return fnv1a(&number, sizeof(number), hash);
 }
 
 /// hash a double
 inline uint32_t
-fnv1a(double number, uint32_t hash = Seed)
+fnv1a(double number, uint32_t hash = Seed) noexcept
 {
     return fnv1a(&number, sizeof(number), hash);
 }
@@ -96,7 +104,7 @@ fnv1a(double number, uint32_t hash = Seed)
 /// hash a block of memory
 template<unsigned int Unroll>
 uint32_t
-fnv1a_unrolled(const void* data, size_t numBytes, uint32_t hash = Seed)
+fnv1a_unrolled(const void* data, size_t numBytes, uint32_t hash = Seed) noexcept
 {
 #ifndef NDEBUG
     // unrolling isn't performed when optimizations are disabled
@@ -117,14 +125,14 @@ fnv1a_unrolled(const void* data, size_t numBytes, uint32_t hash = Seed)
 /// catch invalid Unroll value
 template<>
 inline uint32_t
-fnv1a_unrolled<0>(const void* data, size_t numBytes, uint32_t hash /*= Seed*/)
+fnv1a_unrolled<0>(const void* data, size_t numBytes, uint32_t hash /*= Seed*/) noexcept
 {
     return fnv1a(data, numBytes, hash);
 }
 /// not unrolled at all
 template<>
 inline uint32_t
-fnv1a_unrolled<1>(const void* data, size_t numBytes, uint32_t hash /*= Seed*/)
+fnv1a_unrolled<1>(const void* data, size_t numBytes, uint32_t hash /*= Seed*/) noexcept
 {
     return fnv1a(data, numBytes, hash);
 }

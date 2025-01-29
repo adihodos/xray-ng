@@ -10,6 +10,10 @@
 #include "xray/math/scalar4x4.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 
+namespace xray::base {
+struct MemoryArena;
+}
+
 namespace xray::rendering {
 
 #if defined(XRAY_GRAPHICS_API_VULKAN)
@@ -34,6 +38,8 @@ class DebugDrawSystem
     struct InitContext
     {
         VulkanRenderer* renderer;
+        base::MemoryArena* arena_perm;
+        base::MemoryArena* arena_temp;
     };
 
     struct RenderContext

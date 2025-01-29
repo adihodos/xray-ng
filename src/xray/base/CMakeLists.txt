@@ -18,6 +18,7 @@ set(project_headers
     ${proj_inc_dir}/pod_zero.hpp
     ${proj_inc_dir}/scoped_guard.hpp
     ${proj_inc_dir}/scoped_handle.hpp
+    ${proj_inc_dir}/variant.helpers.hpp
     ${proj_inc_dir}/syscall_wrapper.hpp
     ${proj_inc_dir}/unique_handle.hpp
     ${proj_inc_dir}/logger.hpp
@@ -26,12 +27,21 @@ set(project_headers
     ${proj_inc_dir}/perf_stats_collector.hpp
     ${proj_inc_dir}/windows/com_ptr.hpp
     ${proj_inc_dir}/windows/handle_traits.hpp
-    ${proj_inc_dir}/file_system_watcher.hpp)
+    ${proj_inc_dir}/file_system_watcher.hpp
+    ${proj_inc_dir}/concurrency/spin.mutex.hpp
+    ${proj_inc_dir}/serialization/rfl.libconfig/config.load.hpp
+    ${proj_inc_dir}/serialization/rfl.libconfig/config.parser.hpp
+    ${proj_inc_dir}/serialization/rfl.libconfig/config.reader.hpp
+    ${proj_inc_dir}/serialization/rfl.libconfig/config.save.hpp
+    ${proj_inc_dir}/serialization/rfl.libconfig/config.writer.hpp)
 
 set(project_sources
-    ${proj_src_dir}/app_config.cc ${proj_src_dir}/config_settings.cc
-    ${proj_src_dir}/logger.cc ${proj_src_dir}/perf_stats_collector.cc
-    ${proj_src_dir}/file_system_watcher.cc)
+    ${proj_src_dir}/app_config.cc
+    ${proj_src_dir}/config_settings.cc
+    ${proj_src_dir}/logger.cc
+    ${proj_src_dir}/perf_stats_collector.cc
+    ${proj_src_dir}/file_system_watcher.cc
+    ${proj_src_dir}/serialization/rfl.libconfig/config.writer.cc)
 
 add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_headers})
 
@@ -51,4 +61,5 @@ target_compile_definitions(
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC fmt::fmt spdlog::spdlog $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
+         reflectcpp swl-variant
   PRIVATE itlib::itlib joboccara::pipes)

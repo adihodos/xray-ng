@@ -9,14 +9,14 @@ include(cmake/CPM.cmake)
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-cpmaddpackage("gh:uxlfoundation/oneTBB@2022.0.0")
-# cpmaddpackage("gh:oneapi-src/oneTBB@2022.0.0")
+cpmaddpackage("gh:adihodos/concurrencpp#fix-compile-error")
 cpmaddpackage("gh:fmtlib/fmt#10.2.1")
 cpmaddpackage("gh:TartanLlama/optional@1.1.0")
 cpmaddpackage("gh:TartanLlama/expected@1.1.0")
 cpmaddpackage("gh:vimpunk/mio#master")
 cpmaddpackage("gh:iboB/itlib#master")
 cpmaddpackage("gh:getml/reflect-cpp#main")
+cpmaddpackage("gh:max0x7ba/atomic_queue#master")
 
 cpmaddpackage(
   NAME
@@ -200,6 +200,6 @@ add_subdirectory(third_party/imgui-docking/src)
 # add_subdirectory(third_party/ktx/lib)
 #
 # include_directories(third_party/libnoise/include)
-# add_subdirectory(third_party/libnoise)
+add_subdirectory(third_party/libnoise)
 #
 add_subdirectory(src)

@@ -30,16 +30,11 @@
 
 /// \file   scalar4.hpp
 
-#include "xray/xray.hpp"
-
-#include <cassert>
 #include <cstdint>
 #include <type_traits>
 
 #include "xray/math/scalar3.hpp"
 #include "xray/math/swizzle.hpp"
-#include "xray/base/algorithms/copy_pod_range.hpp"
-#include "xray/math/math_std.hpp"
 
 namespace xray {
 namespace math {
@@ -57,6 +52,7 @@ namespace math {
 ///             homogeneous
 ///             point has a w component with a value different than 1.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 class scalar4 : public SwizzleBase<T, 4>
 {
     static_assert(std::is_arithmetic_v<T>, "Template parameter needs to be an arythmetic type!");
@@ -117,12 +113,11 @@ class scalar4 : public SwizzleBase<T, 4>
     {
     }
 
-    constexpr scalar4(const Swizzle4<T> s) noexcept
-        : x{ s.x }
-        , y{ s.y }
-        , z{ s.z }
-        , w{ s.w }
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit constexpr scalar4(const U val) noexcept
     {
+        x = y = z = w = static_cast<T>(val);
     }
 
     constexpr scalar4(const T x_val, const T y_val, const T z_val, const T w_val = T(1)) noexcept
@@ -133,34 +128,67 @@ class scalar4 : public SwizzleBase<T, 4>
     {
     }
 
-    constexpr scalar4(const scalar3<T>& val, const T w_val = T(1)) noexcept
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    constexpr scalar4(const U x_val, const U y_val, const U z_val, const U w_val = U(1)) noexcept
+        : x{ static_cast<T>(x_val) }
+        , y{ static_cast<T>(y_val) }
+        , z{ static_cast<T>(z_val) }
+        , w{ static_cast<T>(w_val) }
+    {
+    }
+
+    explicit constexpr scalar4(const std::array<T, 4>& arr) noexcept
+    {
+        memcpy(this->components, arr.data(), sizeof(this->components));
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit scalar4(const std::array<U, 4>& arr) noexcept
+    {
+        x = static_cast<T>(arr[0]);
+        y = static_cast<T>(arr[1]);
+        z = static_cast<T>(arr[2]);
+        w = static_cast<T>(arr[3]);
+    }
+
+    explicit constexpr scalar4(const T (&arr)[4]) noexcept
+        : scalar4{ arr[0], arr[1], arr[2], arr[3] }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    explicit scalar4(const U (&arr)[4]) noexcept
+    {
+        x = static_cast<T>(arr[0]);
+        y = static_cast<T>(arr[1]);
+        z = static_cast<T>(arr[2]);
+        z = static_cast<T>(arr[4]);
+    }
+
+    constexpr explicit scalar4(const Swizzle4<T> s) noexcept
+        : scalar4{ s.x, s.y, s.z, s.w }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    constexpr explicit scalar4(const Swizzle4<U> s) noexcept
+        : scalar4{ s.x, s.y, s.z, s.w }
+    {
+    }
+
+    constexpr explicit scalar4(const scalar3<T>& val, const T w_val = T(1)) noexcept
         : scalar4{ val.x, val.y, val.z, w_val }
     {
     }
 
     template<typename U>
-    scalar4(const U* input, size_t count) noexcept
-        requires std::is_trivial_v<U> && std::is_standard_layout_v<U>
-    {
-        if constexpr (sizeof(U) == sizeof(T)) {
-            base::copy_pod_range(input, math::min<size_t>(count, 4), this->components);
-        } else {
-            for (size_t i = 0; i < math::min<size_t>(count, 4); ++i) {
-                this->components[i] = static_cast<T>(input[i]);
-            }
-        }
-    }
-
-    constexpr scalar4(const T* inputs) noexcept
-        : x{ inputs[0] }
-        , y{ inputs[1] }
-        , z{ inputs[2] }
-        , w{ inputs[3] }
-    {
-    }
-
-    constexpr scalar4(const T (&arr_ref)[4]) noexcept
-        : scalar4{ &arr_ref[0] }
+        requires std::is_convertible_v<U, T>
+    constexpr explicit scalar4(const scalar3<U>& val, const U w_val = T(1)) noexcept
+        : scalar4{ val.x, val.y, val.z, w_val }
     {
     }
 
@@ -235,6 +263,7 @@ class scalar4 : public SwizzleBase<T, 4>
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar4<T>::stdc
 {
     static constexpr const scalar4<T> unit_x{ T(1.0), T(0.0), T(0.0), T(0.0) };
@@ -246,21 +275,27 @@ struct scalar4<T>::stdc
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::unit_x;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::unit_y;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::unit_z;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::unit_w;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::zero;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar4<T> scalar4<T>::stdc::one;
 
 using vec4f = scalar4<float>;

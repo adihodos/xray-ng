@@ -32,6 +32,7 @@
 #include <string_view>
 #include <imgui/imgui.h>
 
+#include "vulkan.renderer/vulkan.queue.submit.token.hpp"
 #include "xray/ui/user.interface.backend.hpp"
 #include "xray/ui/user_interface_render_context.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
@@ -107,35 +108,32 @@ UserInterfaceRenderBackend_Vulkan::UserInterfaceRenderBackend_Vulkan(
 
 tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>
 UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
-                                          const UserInterfaceBackendCreateInfo& backend_create_info)
+                                          const UserInterfaceBackendCreateInfo& backend_create_info,
+                                          base::MemoryArena* arena_perm,
+                                          base::MemoryArena* arena_temp)
 {
     using namespace rendering;
 
     const RenderBufferingSetup rbs{ renderer.buffering_setup() };
-    auto work_pkg = renderer.create_work_package();
-    XR_VK_PROPAGATE_ERROR(work_pkg);
 
-    auto vertex_buffer =
-        VulkanBuffer::create(renderer,
-                             VulkanBufferCreateInfo{ .name_tag = "UI vertex buffer",
-                                                     .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                                     .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                                     .bytes = MAX_VERTICES * sizeof(ImDrawVert),
-                                                     .frames = rbs.buffers
-
-                             });
-
+    auto vertex_buffer = VulkanBuffer::create(renderer,
+                                              VulkanBufferCreateInfo{
+                                                  .name_tag = "UI vertex buffer",
+                                                  .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                                  .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                                  .bytes = MAX_VERTICES * sizeof(ImDrawVert),
+                                                  .frames = rbs.buffers,
+                                              });
     XR_VK_PROPAGATE_ERROR(vertex_buffer);
 
-    auto index_buffer =
-        VulkanBuffer::create(renderer,
-                             VulkanBufferCreateInfo{ .name_tag = "UI Index buffer",
-                                                     .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                                                     .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                                     .bytes = MAX_INDICES * sizeof(ImDrawIdx),
-                                                     .frames = rbs.buffers
-
-                             });
+    auto index_buffer = VulkanBuffer::create(renderer,
+                                             VulkanBufferCreateInfo{
+                                                 .name_tag = "UI Index buffer",
+                                                 .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                                 .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                                 .bytes = MAX_INDICES * sizeof(ImDrawIdx),
+                                                 .frames = rbs.buffers,
+                                             });
     XR_VK_PROPAGATE_ERROR(index_buffer);
 
     const VkPipelineColorBlendAttachmentState enable_blending{
@@ -151,32 +149,45 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
     };
 
     auto graphics_pipeline =
-        GraphicsPipelineBuilder{}
-            .add_shader(ShaderStage::Vertex, UI_VERTEX_SHADER)
-            .add_shader(ShaderStage::Fragment, UI_FRAGMENT_SHADER)
+        GraphicsPipelineBuilder{ arena_perm, arena_temp }
+            .add_shader(ShaderStage::Vertex,
+                        ShaderBuildOptions{
+                            .code_or_file_path = UI_VERTEX_SHADER,
+                        })
+            .add_shader(ShaderStage::Fragment,
+                        ShaderBuildOptions{
+                            .code_or_file_path = UI_FRAGMENT_SHADER,
+                        })
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
-            .rasterization_state(RasterizationState{ .poly_mode = VK_POLYGON_MODE_FILL,
-                                                     .cull_mode = VK_CULL_MODE_NONE,
-                                                     .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-                                                     .line_width = 1.0f })
+            .rasterization_state(RasterizationState{
+                .poly_mode = VK_POLYGON_MODE_FILL,
+                .cull_mode = VK_CULL_MODE_NONE,
+                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .line_width = 1.0f,
+            })
             .depth_stencil_state(DepthStencilState{ .depth_test_enable = false, .depth_write_enable = false })
             .color_blend(enable_blending)
             .create_bindless(renderer);
     XR_VK_PROPAGATE_ERROR(graphics_pipeline);
 
-    auto font_atlas = VulkanImage::from_memory(
-        renderer,
-        VulkanImageCreateInfo{ .tag_name = "UI font atlas",
-                               .wpkg = work_pkg->pkg,
-                               .type = VK_IMAGE_TYPE_2D,
-                               .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                               .format = VK_FORMAT_R8G8B8A8_UNORM,
-                               .width = backend_create_info.atlas_width,
-                               .height = backend_create_info.atlas_height,
-                               .pixels = std::span{ &backend_create_info.font_atlas_pixels, 1 } });
+    auto resources_job = renderer.create_job(QueueType::Transfer);
+    XR_VK_PROPAGATE_ERROR(resources_job);
+
+    auto font_atlas =
+        VulkanImage::from_memory(renderer,
+                                 VulkanImageCreateInfo{
+                                     .tag_name = "UI font atlas",
+                                     .wpkg = *resources_job,
+                                     .type = VK_IMAGE_TYPE_2D,
+                                     .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                     .format = VK_FORMAT_R8G8B8A8_UNORM,
+                                     .width = backend_create_info.atlas_width,
+                                     .height = backend_create_info.atlas_height,
+                                     .pixels = { backend_create_info.font_atlas_pixels },
+                                 });
     XR_VK_PROPAGATE_ERROR(font_atlas);
 
-    renderer.submit_work_package(work_pkg->pkg);
+    auto wait_token = renderer.submit_job(*resources_job, QueueType::Transfer);
 
     auto sampler = renderer.bindless_sys().get_sampler(
         VkSamplerCreateInfo{
@@ -203,19 +214,22 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
     XR_VK_PROPAGATE_ERROR(sampler);
 
     const BindlessImageResourceHandleEntryPair bindless_img =
-        renderer.bindless_sys().add_image(std::move(*font_atlas), *sampler);
+        renderer.bindless_sys().add_image(std::move(*font_atlas), *sampler, tl::nullopt);
 
     if (backend_create_info.upload_callback) {
-        (backend_create_info.upload_callback)(bindless_img.first.value_of(), backend_create_info.upload_cb_context);
+        (backend_create_info.upload_callback)(destructure_bindless_resource_handle(bindless_img.first).first,
+                                              backend_create_info.upload_cb_context);
     }
 
-    return tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>{ tl::in_place,
-                                                                                    PrivateConstructionToken{},
-                                                                                    std::move(*vertex_buffer),
-                                                                                    std::move(*index_buffer),
-                                                                                    std::move(*graphics_pipeline),
-                                                                                    bindless_img,
-                                                                                    *sampler };
+    return tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError>{
+        tl::in_place,
+        PrivateConstructionToken{},
+        std::move(*vertex_buffer),
+        std::move(*index_buffer),
+        std::move(*graphics_pipeline),
+        bindless_img,
+        *sampler,
+    };
 }
 
 void

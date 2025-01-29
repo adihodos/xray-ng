@@ -1,14 +1,30 @@
 #pragma once
 
 #include "demo_base.hpp"
+
+#include <bitset>
+#include <vector>
+
+#include <tl/expected.hpp>
+#include <concurrencpp/forward_declarations.h>
+
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera.controller.arcball.hpp"
 
+#include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
+#include "xray/rendering/geometry.importer.gltf.hpp"
+#include "xray/rendering/geometry.hpp"
+
 namespace xray::ui {
 class user_interface;
+};
+
+namespace xray::rendering {
+struct GeometryWithRenderData;
+struct GeneratedGeometryWithRenderData;
 };
 
 namespace dvk {
@@ -27,26 +43,18 @@ class TriangleDemo : public app::DemoBase
 
     static std::string_view short_desc() noexcept { return "Vulkan triangle."; }
     static std::string_view detailed_desc() noexcept { return "Rendering a simple triangle using Vulkan."; }
-    static xray::base::unique_pointer<app::DemoBase> create(const app::init_context_t& initContext);
+
+    static xray::base::unique_pointer<app::DemoBase> create(const app::init_context_t& init_ctx);
 
   private:
     void user_interface(xray::ui::user_interface* ui);
-
-    struct RenderState
-    {
-        xray::rendering::VulkanBuffer g_vertexbuffer;
-        xray::rendering::VulkanBuffer g_indexbuffer;
-        xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer;
-        xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials_buffer;
-        xray::rendering::GraphicsPipeline pipeline;
-        xray::rendering::BindlessImageResourceHandleEntryPair g_texture;
-    } _renderstate;
 
     struct SimState
     {
         float angle{};
         xray::scene::camera camera{};
         xray::scene::ArcballCamera arcball_cam{};
+        std::bitset<8> lights_sync{0};
 
         SimState() = default;
         SimState(const app::init_context_t& init_context);
@@ -60,22 +68,12 @@ class TriangleDemo : public app::DemoBase
         bool draw_sphere{ false };
         bool draw_nodes_spheres{ false };
         bool draw_nodes_bbox{ false };
+        bool draw_ship{ true };
+        std::bitset<32> shapes_draw{ 0x0 };
     } _uistate{};
 
-    struct WorldState;
-    xray::base::unique_pointer<WorldState> _world;
-
   public:
-    TriangleDemo(PrivateConstructionToken,
-                 const app::init_context_t& init_context,
-                 xray::rendering::VulkanBuffer&& g_vertexbuffer,
-                 xray::rendering::VulkanBuffer&& g_indexbuffer,
-                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_instancebuffer,
-                 xray::rendering::BindlessStorageBufferResourceHandleEntryPair g_materials,
-                 xray::rendering::GraphicsPipeline pipeline,
-                 xray::rendering::BindlessImageResourceHandleEntryPair g_texture,
-                 xray::base::unique_pointer<WorldState> _world);
-
+    TriangleDemo(PrivateConstructionToken, const app::init_context_t& init_context);
     ~TriangleDemo();
 };
 

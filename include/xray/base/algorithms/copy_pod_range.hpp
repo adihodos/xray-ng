@@ -82,13 +82,15 @@ struct copy_type<false>
 
 /// Copy PODs from an input range to an output range.
 template<typename T, typename U>
-void
+inline void
 copy_pod_range(const U* input, const size_t count, T* output) noexcept
+    requires(std::is_trivially_copyable_v<T> && std::is_trivially_copyable_v<U>)
 {
-    static_assert(std_is_pod<T>, "Only POD types supported!");
-    static_assert(std_is_pod<U>, "Only POD types supported!");
-
-    copy_pod_range_impl(input, count, output, detail::copy_type<sizeof(T) == sizeof(U)>::tag());
+    if constexpr (sizeof(T) == sizeof(U)) {
+        detail::copy_pod_range_impl(input, count, output, detail::tag_pod_copy_memcpy{});
+    } else {
+        detail::copy_pod_range_impl(input, count, output, detail::tag_pod_copy_assign{});
+    }
 }
 
 /// @}

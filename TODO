@@ -1,9 +1,9 @@
 - demo_base class seems kinda useless ??!!
-- add frustrum debug draw
+- add frustrum debug draw 
 - VulkanRenderer: handle swapchain suboptimal and out of date - done
 - Shader include support - done
 - VK_EXT_descriptor_buffer support: https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_EXT_descriptor_buffer.html
-- GLTF support - partly done, need to add material support
+- GLTF support - partly done, need to add material support <<< done
 - shader printf support would be nice
 
 Lighting
@@ -12,10 +12,17 @@ Lighting
  - spot
  - PBR 
 
-Vk Demo:
- - switch to multi draw indirect, this way we can hide/show nodes
+- make the UI work for Vulkan <<< done
+- revitalize the geometry generating functions <<< done
+- add function to generate a debug texture (XOR texture - https://lodev.org/cgtutor/xortexture.html) <<< done
 
-- make the UI work for Vulkan
-- revitalize the geometry generating functions
-- add function to generate a debug texture (XOR texture - https://lodev.org/cgtutor/xortexture.html)
-- fix the project directory structure (move includes to src and use BUILD_INTERFACE/INSTALL_INTERFACE from cmake to set up includes)
+Scene:
+ - SceneDefinition/SceneResources interact in weird ways, need to refactor a bit
+ - support for GLTF/PBR materials << done
+
+- graphs: can use this https://github.com/bobluppes/graaf
+- ECS: https://github.com/SanderMertens/flecs
+
+Allocators:
+- https://www.gingerbill.org/series/memory-allocation-strategies/
+- https://github.com/PixelRifts/c-codebase/blob/master/source/base/mem.c

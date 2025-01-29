@@ -28,9 +28,8 @@
 
 #pragma once
 
-/// \file   scoped_guard.hpp
-
 #include "xray/xray.hpp"
+#include <type_traits>
 #include <utility>
 
 namespace xray {
@@ -43,68 +42,69 @@ namespace base {
 /// Allow conditional execution of code when going out of a scope.
 /// Largely based on the implementation presented here :
 /// http://channel9.msdn.com/Shows/Going+Deep/C-and-Beyond-2012-Andrei-Alexandrescu-Systematic-Error-Handling-in-C
-template<typename fun_type>
-class scoped_guard
+template<typename Callback>
+    requires std::is_nothrow_invocable_v<Callback>
+class [[nodiscard]] ScopedGuard final
 {
   public:
-    typedef scoped_guard<fun_type> class_type;
-
-  public:
-    explicit scoped_guard(fun_type action) noexcept
-        : action_{ std::move(action) }
+    explicit ScopedGuard(Callback&& cb) noexcept(std::is_nothrow_constructible_v<Callback>)
+        : _cb{ std::forward<Callback>(cb) }
+        , _active{ true }
     {
     }
 
-    scoped_guard(class_type&& rhs) noexcept
-        : action_{ std::move(rhs.action_) }
-        , active_{ rhs.active_ }
+    ScopedGuard(ScopedGuard&& rhs) noexcept(std::is_nothrow_move_constructible_v<Callback>)
+        : _cb{ std::move(rhs._cb) }
+        , _active{ rhs._active }
     {
-        rhs.dismiss();
+        rhs._active = false;
     }
 
-    ~scoped_guard() noexcept
+    ScopedGuard() = delete;
+    ScopedGuard(const ScopedGuard&) = delete;
+    ScopedGuard& operator=(const ScopedGuard&) = delete;
+    ScopedGuard& operator=(ScopedGuard&&) = delete;
+
+    ~ScopedGuard() noexcept
     {
-        if (active_)
-            action_();
+        if (_active)
+            _cb();
     }
 
-    void dismiss() noexcept { active_ = false; }
+    void dismiss() noexcept { _active = false; }
 
   private:
-    fun_type action_;
-    bool active_{ true };
-
-  private:
-    scoped_guard() = delete;
-    scoped_guard(const class_type&) = delete;
-    class_type& operator=(const class_type&) = delete;
-    class_type& operator=(class_type&&) = delete;
+    Callback _cb;
+    bool _active{ false };
 };
 
-template<typename fun_type>
-scoped_guard<fun_type>
-make_scope_guard(fun_type action) noexcept
+template<typename Callback>
+    requires std::is_nothrow_invocable_v<Callback>
+[[nodiscard]] inline ScopedGuard<Callback>
+make_scoped_guard(Callback&& cb) noexcept
 {
-    return scoped_guard<fun_type>(std::move(action));
-}
-
-namespace detail {
-enum class scoped_guard_helper
-{
-};
-
-template<typename fun_type>
-scoped_guard<fun_type>
-operator+(scoped_guard_helper, fun_type&& fn) noexcept
-{
-    return make_scope_guard<fun_type>(std::forward<fun_type>(fn));
-}
+    return ScopedGuard<Callback>{ std::forward<Callback>(cb) };
 }
 
 /// @}
+
+namespace detail {
+enum class ScopedGuardHelper
+{
+};
+
+template<typename Callback>
+    requires std::is_nothrow_invocable_v<Callback>
+ScopedGuard<Callback>
+operator+(ScopedGuardHelper, Callback&& cb) noexcept
+{
+    return make_scoped_guard<Callback>(std::forward<Callback>(cb));
+}
+
+}
 
 } // namespace base
 } // namespace xray
 
 #define XRAY_SCOPE_EXIT                                                                                                \
-    auto XRAY_ANONYMOUS_VARIABLE(XRAY_SCOPE_EXIT_STATE) = ::xray::base::detail::scoped_guard_helper{} + [&]()
+    auto XRAY_ANONYMOUS_VARIABLE(XRAY_SCOPE_EXIT_STATE) = ::xray::base::detail::ScopedGuardHelper{} + [&]()
