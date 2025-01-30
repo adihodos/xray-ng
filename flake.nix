@@ -56,6 +56,7 @@
             vulkan-caps-viewer
             vulkan-validation-layers
             ktx-tools
+            tracy-x11
 
             shaderc
             shaderc.bin
@@ -101,6 +102,7 @@
             xorg.xcbutilkeysyms.dev
             xorg.libXdmcp.dev
             libGL
+            libGL.dev
           ];
 
           APPEND_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
@@ -116,6 +118,7 @@
             pkgs.shaderc.dev
             pkgs.shaderc.static
             pkgs.glslang
+            pkgs.libGL
           ];
 
           shellHook = ''

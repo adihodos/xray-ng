@@ -1993,7 +1993,6 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 int
 main(int argc, char** argv)
 {
-
     app::GameMain::create()
         .map([](app::GameMain runner) {
             runner.run();
