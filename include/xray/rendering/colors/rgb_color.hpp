@@ -110,8 +110,12 @@ struct rgb_color
     /// \name   Conversions
     /// @{
     explicit operator math::vec3f() const noexcept { return math::vec3f{ this->r, this->g, this->b }; }
-
     explicit operator math::vec4f() const noexcept { return math::vec4f{ this->r, this->g, this->b, this->a }; }
+    explicit operator uint32_t() const noexcept
+    {
+        return static_cast<uint32_t>(a * 255.0f) << 24 | static_cast<uint32_t>(b * 255.0f) << 16 |
+               static_cast<uint32_t>(g * 255.0f) << 8 | static_cast<uint32_t>(r * 255.0f);
+    }
 
   public:
     /// \name   Self assign operators

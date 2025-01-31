@@ -16,6 +16,8 @@
 #include <mio/mmap.hpp>
 #include <Lz/Lz.hpp>
 
+#include <tracy/Tracy.hpp>
+
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_to_string.hpp>
@@ -1040,9 +1042,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig&
                 if (surface_caps.maxImageCount == 0) {
                     //
                     // no limit for the maximum number of images
-                    return surface_caps.minImageCount + 4;
+                    return surface_caps.minImageCount + 1;
                 }
-                return min(surface_caps.minImageCount + 4, surface_caps.maxImageCount);
+                return min(surface_caps.minImageCount + 1, surface_caps.maxImageCount);
             }();
 
             const VkExtent3D swapchain_dimensions = swl::visit(
@@ -1294,32 +1296,41 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
 FrameRenderData
 VulkanRenderer::begin_rendering()
 {
+    ZoneScopedN("BeginRendering");
+
     //
     // wait for previously submitted work to finish
-    const VkFence fences[] = { raw_ptr(
-        _presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index]) };
-    const VkResult wait_fence_result{ WRAP_VULKAN_FUNC(
-        vkWaitForFences, raw_ptr(_render_state.dev_logical), 1, fences, true, numeric_limits<uint64_t>::max()) };
+    {
+        ZoneScopedN("WaitForFences");
+        const VkFence fences[] = { raw_ptr(
+            _presentation_state.swapchain_state.sync.fences[_presentation_state.frame_index]) };
+        const VkResult wait_fence_result{ WRAP_VULKAN_FUNC(
+            vkWaitForFences, raw_ptr(_render_state.dev_logical), 1, fences, true, numeric_limits<uint64_t>::max()) };
 
-    if (wait_fence_result != VK_SUCCESS) {
-        XR_LOG_CRITICAL("Failed to wait on fence!");
+        if (wait_fence_result != VK_SUCCESS) {
+            XR_LOG_CRITICAL("Failed to wait on fence!");
+        }
+
+        WRAP_VULKAN_FUNC(vkResetFences, raw_ptr(_render_state.dev_logical), 1, fences);
     }
 
-    WRAP_VULKAN_FUNC(vkResetFences, raw_ptr(_render_state.dev_logical), 1, fences);
+    {
+        ZoneScopedN("AcquireImage");
+        const VkResult acquire_image_result{
+            WRAP_VULKAN_FUNC(
+                vkAcquireNextImageKHR,
+                raw_ptr(_render_state.dev_logical),
+                raw_ptr(_presentation_state.swapchain_state.swapchain),
+                numeric_limits<uint64_t>::max(),
+                raw_ptr(_presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
+                nullptr,
+                &_presentation_state.acquired_image),
+        };
 
-    const VkResult acquire_image_result{
-        WRAP_VULKAN_FUNC(vkAcquireNextImageKHR,
-                         raw_ptr(_render_state.dev_logical),
-                         raw_ptr(_presentation_state.swapchain_state.swapchain),
-                         numeric_limits<uint64_t>::max(),
-                         raw_ptr(_presentation_state.swapchain_state.sync.present_sem[_presentation_state.frame_index]),
-                         nullptr,
-                         &_presentation_state.acquired_image),
-    };
-
-    if (acquire_image_result == VK_SUBOPTIMAL_KHR || acquire_image_result == VK_ERROR_OUT_OF_DATE_KHR ||
-        _presentation_state.state_bits & detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL) {
-        handle_swapchain_suboptimal_out_of_date(SwapchainReacquireAfterSuboptimal::Always_);
+        if (acquire_image_result == VK_SUBOPTIMAL_KHR || acquire_image_result == VK_ERROR_OUT_OF_DATE_KHR ||
+            _presentation_state.state_bits & detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL) {
+            handle_swapchain_suboptimal_out_of_date(SwapchainReacquireAfterSuboptimal::Always_);
+        }
     }
 
     const uint32_t acquired_image{ _presentation_state.acquired_image };
@@ -1503,6 +1514,7 @@ VulkanRenderer::begin_rendering()
 void
 VulkanRenderer::end_rendering()
 {
+    ZoneScopedN("EndRendering");
     vkCmdEndRendering(_presentation_state.command_buffers[_presentation_state.frame_index]);
 
     //
@@ -1815,7 +1827,9 @@ create_swapchain_state(const SwapchainStateCreationInfo& create_info)
         VkResourceDeleter_VkSwapchainKHR{ create_info.device },
     };
 
-    XR_LOG_INFO("Swapchain created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(swapchain)));
+    XR_LOG_INFO("Swapchain created: {:#x}, image count {}",
+                reinterpret_cast<uintptr_t>(raw_ptr(swapchain)),
+                create_info.image_count);
 
     //
     // acquire images

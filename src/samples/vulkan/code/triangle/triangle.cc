@@ -7,11 +7,12 @@
 #include <Lz/Lz.hpp>
 #include <imgui/imgui.h>
 
+#include <tracy/Tracy.hpp>
+
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/xray.fmt.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
-#include "xray/base/containers/arena.string.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
@@ -91,6 +92,8 @@ dvk::TriangleDemo::event_handler(const xray::ui::window_event& evt)
 void
 dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::RenderEvent& re)
 {
+    ZoneScopedNCS("UI", tracy::Color::GreenYellow, 16);
+
     char scratch_buff[1024];
 
     if (ImGui::Begin("Demo options")) {
@@ -111,7 +114,8 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::Rende
                 ImGui::Text("%s", names[i]);
                 ImGui::SameLine();
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
-                ImGui::GetWindowDrawList()->AddRectFilled(cursor, ImVec2{ cursor.x + sz, cursor.y + sz }, 0xFF00FF00);
+                ImGui::GetWindowDrawList()->AddRectFilled(
+                    cursor, ImVec2{ cursor.x + sz, cursor.y + sz }, static_cast<uint32_t>(rgb_color{ colors[i] }));
                 ImGui::Dummy(ImVec2{ sz, sz });
                 if (i < 2)
                     ImGui::SameLine();
@@ -213,6 +217,8 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::Rende
 void
 dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 {
+    ZoneScopedNCS("scene loop", tracy::Color::Orange, 32);
+
     user_interface(render_event.ui, render_event);
     _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
     _simstate.arcball_cam.update_camera(_simstate.camera);
@@ -275,6 +281,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     const SceneResources* sres = render_event.sres;
 
     {
+        ZoneScopedNC("Lights setup", tracy::Color::GreenYellow);
+
         render_event.renderer->dbg_marker_begin(
             render_event.frame_data->cmd_buf, "Update UBO/SBO", color_palette::web::orange_red);
 
@@ -289,59 +297,47 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
             _uistate.toggle_point_lights[start] = false;
         }
 
-        auto copy_lights_to_gpu_fn = [&]<typename LightType>(std::span<const LightType> lights,
-                                                             std::bitset<UIState::MAX_LIGHTS>& toggle_bits,
-                                                             BindlessStorageBufferResourceHandleEntryPair sbo_gpu) {
-            auto buffer_mem = sbo_gpu.second.memory;
-            auto chunk_size = sbo_gpu.second.aligned_chunk_size;
+        auto copy_lights_to_gpu_fn =
+            [&]<typename LightType, typename LightFN>(std::span<const LightType> lights,
+                                                      std::bitset<UIState::MAX_LIGHTS>& toggle_bits,
+                                                      BindlessStorageBufferResourceHandleEntryPair sbo_gpu,
+                                                      LightFN light_fn) {
+                auto buffer_mem = sbo_gpu.second.memory;
+                auto chunk_size = sbo_gpu.second.aligned_chunk_size;
 
-            UniqueMemoryMapping::map_memory(
-                render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
-                .map([&](UniqueMemoryMapping gpu_map) {
-                    LightType* gpu_ptr = gpu_map.as<LightType>();
-                    for (size_t idx = 0; idx < toggle_bits.size(); ++idx) {
-                        if (!toggle_bits[idx])
-                            continue;
+                UniqueMemoryMapping::map_memory(
+                    render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
+                    .map([&](UniqueMemoryMapping gpu_map) {
+                        LightType* gpu_ptr = gpu_map.as<LightType>();
+                        for (size_t idx = 0; idx < toggle_bits.size(); ++idx) {
+                            if (!toggle_bits[idx])
+                                continue;
 
-                        *gpu_ptr++ = lights[idx];
-                    }
-                });
-        };
+                            *gpu_ptr++ = light_fn(lights[idx]);
+                        }
+                    });
+            };
 
         if (_uistate.toggle_directional_lights.any()) {
             copy_lights_to_gpu_fn(std::span{ sdef->directional_lights },
                                   _uistate.toggle_directional_lights,
-                                  sres->sbo_directional_lights);
-            // auto buffer_mem = sres->sbo_directional_lights.second.memory;
-            // auto chunk_size = sres->sbo_directional_lights.second.aligned_chunk_size;
-            // UniqueMemoryMapping::map_memory(
-            //     render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
-            //     .map([&](UniqueMemoryMapping gpu_map) {
-            //         for (size_t idx = 0; idx < _uistate.toggle_directional_lights.size(); ++idx) {
-            //             if (!_uistate.toggle_directional_lights[idx])
-            //                 continue;
-            //
-            //             gpu_map.as<DirectionalLight>()[idx] = sdef->directional_lights[idx];
-            //         }
-            //     });
+                                  sres->sbo_directional_lights,
+                                  [c = &_simstate.camera](const DirectionalLight& dl) {
+                                      DirectionalLight result{ dl };
+                                      result.direction = normalize(mul_vec(c->view(), dl.direction));
+                                      return result;
+                                  });
         }
 
         if (_uistate.toggle_point_lights.any()) {
-            copy_lights_to_gpu_fn(
-                std::span{ sdef->point_lights }, _uistate.toggle_point_lights, sres->sbo_point_lights);
-
-            // auto buffer_mem = sres->sbo_point_lights.second.memory;
-            // auto chunk_size = sres->sbo_point_lights.second.aligned_chunk_size;
-            // UniqueMemoryMapping::map_memory(
-            //     render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
-            //     .map([&](UniqueMemoryMapping gpu_map) {
-            //         for (size_t idx = 0; idx < _uistate.toggle_point_lights.size(); ++idx) {
-            //             if (!_uistate.toggle_point_lights[idx])
-            //                 continue;
-            //
-            //             gpu_map.as<PointLight>()[idx] = sdef->point_lights[idx];
-            //         }
-            //     });
+            copy_lights_to_gpu_fn(std::span{ sdef->point_lights },
+                                  _uistate.toggle_point_lights,
+                                  sres->sbo_point_lights,
+                                  [c = &_simstate.camera](const PointLight& pl) {
+                                      PointLight result{ pl };
+                                      result.position = mul_point(c->view(), pl.position);
+                                      return result;
+                                  });
         }
 
         app::FrameGlobalData* fgd = render_event.g_ubo_data;
@@ -350,6 +346,9 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         fgd->view = s->camera.view();
         fgd->eye_pos = s->camera.origin();
         fgd->projection = s->camera.projection();
+
+        //
+        // lights setup
         fgd->lights = app::LightingSetup{
             .sbo_directional_lights = destructure_bindless_resource_handle(
                                           bindless_subresource_handle_from_bindless_resource_handle(
@@ -441,6 +440,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                                [](const EntityDrawableComponent* edc) { return !edc->material_id; });
 
     {
+        ZoneScopedNC("Render GLTF models", tracy::Color::Red);
+
         render_event.renderer->dbg_marker_insert(
             render_event.frame_data->cmd_buf, "Rendering GLTF models", color_palette::web::sea_green);
 
@@ -498,6 +499,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     });
 
     {
+        ZoneScopedNC("Render procedural geometry", tracy::Color::Yellow);
+
         render_event.renderer->dbg_marker_insert(
             render_event.frame_data->cmd_buf, "Rendering procedural models", color_palette::web::sea_green);
 
@@ -568,7 +571,6 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
             render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_color.handle());
 
         draw_entities_fn(span{ ranges::begin(procedural_entities), ranges::begin(r0) });
-        // TODO: support for textured materials
 
         vkCmdBindPipeline(
             render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_textured.handle());
@@ -589,63 +591,5 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
             continue;
 
         render_event.dbg_draw->draw_point_light(point_light.position, 1.0f, rgb_color{ point_light.diffuse });
-    }
-
-    if (_uistate.draw_ship) {
-        // vkCmdBindPipeline(
-        //     render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderstate.pipeline.handle());
-        //
-        // const uint32_t push_const{ bindless_subresource_handle_from_bindless_resource_handle(
-        //                                _renderstate.g_instancebuffer.first, render_event.frame_data->id)
-        //                                    .value_of()
-        //                                << 16 |
-        //                            render_event.frame_data->id };
-        // vkCmdPushConstants(render_event.frame_data->cmd_buf,
-        //                    _renderstate.pipeline.layout(),
-        //                    VK_SHADER_STAGE_ALL,
-        //                    0,
-        //                    static_cast<uint32_t>(sizeof(render_event.frame_data->id)),
-        //                    &push_const);
-        //
-        // const VkDeviceSize vtx_offsets[] = { 0 };
-        // const VkBuffer vertex_buffers[] = { _renderstate.g_vertexbuffer.buffer_handle() };
-        // vkCmdBindVertexBuffers(render_event.frame_data->cmd_buf, 0, 1, vertex_buffers, vtx_offsets);
-        // vkCmdBindIndexBuffer(
-        //     render_event.frame_data->cmd_buf, _renderstate.g_indexbuffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
-        //
-        // vkCmdDrawIndexed(render_event.frame_data->cmd_buf, _world->geometry.vertex_index_counts.y, 1, 0, 0, 0);
-    }
-
-    //
-    // geometry objects
-    if (_uistate.shapes_draw.count() != 0) {
-        //     const RenderState::GeometricShapes* g = &_renderstate._shapes;
-        //     vkCmdBindPipeline(render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        //     g->pipeline.handle());
-        //
-        //     const VkBuffer vtx_buffers[] = { g->vertexbuffer.buffer_handle() };
-        //     const VkDeviceSize vtx_offsets[] = { 0 };
-        //     vkCmdBindVertexBuffers(render_event.frame_data->cmd_buf, 0, 1, vtx_buffers, vtx_offsets);
-        //     vkCmdBindIndexBuffer(render_event.frame_data->cmd_buf, g->indexbuffer.buffer_handle(), 0,
-        //     VK_INDEX_TYPE_UINT32);
-        //
-        //     const uint32_t push_const{ render_event.frame_data->id };
-        //
-        //     vkCmdPushConstants(render_event.frame_data->cmd_buf,
-        //                        g->pipeline.layout(),
-        //                        VK_SHADER_STAGE_ALL,
-        //                        0,
-        //                        static_cast<uint32_t>(sizeof(render_event.frame_data->id)),
-        //                        &push_const);
-        //
-        //     for (size_t idx = 0, count = std::min(_uistate.shapes_draw.size(), g->objects.size()); idx < count;
-        //     ++idx) {
-        //         if (!_uistate.shapes_draw[idx]) {
-        //             continue;
-        //         }
-        //         const ObjectDrawData& dd = g->objects[idx];
-        //         vkCmdDrawIndexed(render_event.frame_data->cmd_buf, dd.indices, 1, dd.index_offset, dd.vertex_offset,
-        //         0);
-        //     }
     }
 }

@@ -33,7 +33,6 @@
 
 #if defined(XRAY_OS_IS_POSIX_FAMILY)
 #include <sys/mman.h>
-#include "xray/base/syscall_wrapper.hpp"
 #else
 #endif
 
@@ -79,7 +78,6 @@
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
 #include "xray/rendering/geometry.importer.gltf.hpp"
-#include "xray/rendering/geometry/heightmap.generator.hpp"
 #include "xray/rendering/procedural.hpp"
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
