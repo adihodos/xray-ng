@@ -36,7 +36,9 @@
 namespace xray::base {
 template<typename C>
 concept ContainerLikeObject = requires(C&& c) {
-    { c.size() } -> std::convertible_to<size_t>;
+    {
+        c.size()
+    } -> std::convertible_to<size_t>;
     c[0];
     std::is_pointer_v<decltype(c.data())>;
 };
@@ -62,6 +64,13 @@ align(const T value, const T alignment) noexcept
 {
     assert(alignment != 0);
     return (alignment - 1 + value) / alignment * alignment;
+}
+
+template<typename T>
+[[nodiscard]] constexpr inline std::span<const T>
+to_cspan(const T& value) noexcept
+{
+    return std::span<const T>{ &value, 1 };
 }
 
 }

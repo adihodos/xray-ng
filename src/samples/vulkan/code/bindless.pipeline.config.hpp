@@ -41,6 +41,8 @@ struct FrameGlobalData
 struct alignas(16) InstanceRenderInfo
 {
     xray::math::mat4f model;
+    xray::math::mat4f model_view;
+    xray::math::mat4f normals_view;
     uint32_t vtx_buff;
     uint32_t idx_buff;
     uint32_t mtl_buffer_elem;

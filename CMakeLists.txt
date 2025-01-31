@@ -54,6 +54,17 @@ cpmaddpackage(
 
 cpmaddpackage("gh:ryanhaining/cppitertools#master")
 cpmaddpackage("gh:rollbear/strong_type@15")
+# cpmaddpackage("gh:wolfpld/tracy#master")
+
+cpmaddpackage(
+  NAME
+  tracy-profiler
+  GITHUB_REPOSITORY
+  wolfpld/tracy
+  GIT_TAG
+  master
+  OPTIONS
+  "TRACY_ENABLE ON")
 
 cpmaddpackage(
   NAME
@@ -109,12 +120,13 @@ if(TARGET Linux)
     xray-set-compile-options-lib
     INTERFACE
       # $<$<CONFIG:Debug>:-O0>
-      $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables>
+      $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables;-fsanitize=address>
       $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
   )
 
-  set(cxx_stdlib_dbg_flags
-      $<$<AND:$<CONFIG:Debug>,${cxx_is_gcc}>:_GLIBCXX_ASSERTIONS>)
+  target_link_options(
+    xray-set-compile-options-lib PUBLIC
+    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>-fsanitize=address>)
 
   target_compile_definitions(xray-set-compile-options-lib
                              INTERFACE "${cxx_stdlib_dbg_flags}")

@@ -8,7 +8,10 @@
 #include <imgui/imgui.h>
 
 #include "xray/base/xray.misc.hpp"
-#include "xray/base/small.vector.hpp"
+#include "xray/base/xray.fmt.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/containers/arena.vector.hpp"
+#include "xray/base/containers/arena.string.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
@@ -86,9 +89,9 @@ dvk::TriangleDemo::event_handler(const xray::ui::window_event& evt)
 }
 
 void
-dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui)
+dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::RenderEvent& re)
 {
-    char txt_scratch_buff[1024];
+    char scratch_buff[1024];
 
     if (ImGui::Begin("Demo options")) {
 
@@ -98,6 +101,83 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui)
         ImGui::Checkbox("Draw individual nodes bounding boxes", &_uistate.draw_nodes_bbox);
         ImGui::Checkbox("Draw bounding sphere", &_uistate.draw_sphere);
         ImGui::Checkbox("Draw individual nodes bounding sphere", &_uistate.draw_nodes_spheres);
+
+        auto draw_light_colors_fn = [](const vec4f& ka, const vec4f& kd, const vec4f& ks) {
+            const vec4f colors[] = { ka, kd, ks };
+            const char* names[] = { "Ka", "Kd", "Ks" };
+
+            for (size_t i = 0; i < 3; ++i) {
+                const float sz = ImGui::GetTextLineHeight();
+                ImGui::Text("%s", names[i]);
+                ImGui::SameLine();
+                const ImVec2 cursor = ImGui::GetCursorScreenPos();
+                ImGui::GetWindowDrawList()->AddRectFilled(cursor, ImVec2{ cursor.x + sz, cursor.y + sz }, 0xFF00FF00);
+                ImGui::Dummy(ImVec2{ sz, sz });
+                if (i < 2)
+                    ImGui::SameLine();
+            }
+        };
+
+        auto display_lights_fn =
+            [&]<typename LightType, typename LightStatsFN>(std::span<const LightType> lights,
+                                                           std::string_view tag,
+                                                           std::bitset<UIState::MAX_LIGHTS>& dbg_state,
+                                                           std::bitset<UIState::MAX_LIGHTS>& toggle_state,
+                                                           LightStatsFN display_light_stats_fn) {
+                char scratch_buff[1024];
+
+                for (size_t idx = 0, count = std::min(lights.size(), dbg_state.size()); idx < count; ++idx) {
+                    const LightType* l = &lights[idx];
+
+                    format_to_n(scratch_buff, "Light [{}] #{:2}", tag, idx);
+
+                    if (ImGui::TreeNode(scratch_buff)) {
+
+                        format_to_n(scratch_buff, "{}light##{}", tag, idx);
+                        ImGui::PushID(scratch_buff);
+
+                        bool dbg_draw = dbg_state[idx];
+                        ImGui::Checkbox("draw", &dbg_draw);
+                        ImGui::SameLine();
+                        dbg_state[idx] = dbg_draw;
+
+                        bool toggle = toggle_state[idx];
+                        ImGui::Checkbox("enabled", &toggle);
+                        toggle_state[idx] = toggle;
+
+                        display_light_stats_fn(*l);
+
+                        ImGui::PopID();
+
+                        ImGui::TreePop();
+                        ImGui::Spacing();
+                    }
+                }
+            };
+
+        auto display_directional_light_fn = [&](const DirectionalLight& dl) {
+            ImGui::Text("Dir: [%3.3f, %3.3f, %3.3f]", dl.direction.x, dl.direction.y, dl.direction.z);
+            draw_light_colors_fn(dl.ambient, dl.diffuse, dl.specular);
+        };
+
+        ImGui::SeparatorText("Directional lights");
+        display_lights_fn(std::span<const DirectionalLight>{ re.sdef->directional_lights },
+                          "D",
+                          _uistate.dbg_directional_lights,
+                          _uistate.toggle_directional_lights,
+                          display_directional_light_fn);
+
+        auto display_point_light_fn = [&](const PointLight& pl) {
+            ImGui::Text("Pos: [%3.3f, %3.3f, %3.3f]", pl.position.x, pl.position.y, pl.position.z);
+            draw_light_colors_fn(pl.ambient, pl.diffuse, pl.specular);
+        };
+
+        ImGui::SeparatorText("Point lights");
+        display_lights_fn(std::span<const PointLight>{ re.sdef->point_lights },
+                          "P",
+                          _uistate.dbg_point_lights,
+                          _uistate.toggle_point_lights,
+                          display_point_light_fn);
 
         // ImGui::SeparatorText("Geometric shapes");
         // for (size_t i = 0, count = std::min(_renderstate._shapes.objects.size(), _uistate.shapes_draw.size());
@@ -133,7 +213,7 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui)
 void
 dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 {
-    user_interface(render_event.ui);
+    user_interface(render_event.ui, render_event);
     _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
     _simstate.arcball_cam.update_camera(_simstate.camera);
 
@@ -148,6 +228,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
             _simstate.angle -= xray::math::two_pi<float>;
         _timer.update_and_reset();
     }
+
+    ScratchPadArena scratch_pad{ render_event.arena_temp };
 
     if (_uistate.draw_world_axis) {
         render_event.dbg_draw->draw_coord_sys(vec3f::stdc::zero,
@@ -196,6 +278,72 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         render_event.renderer->dbg_marker_begin(
             render_event.frame_data->cmd_buf, "Update UBO/SBO", color_palette::web::orange_red);
 
+        for (size_t start = sdef->directional_lights.size(), max = _uistate.toggle_directional_lights.size();
+             start < max;
+             ++start) {
+            _uistate.toggle_directional_lights[start] = false;
+        }
+
+        for (size_t start = sdef->point_lights.size(), max = _uistate.toggle_point_lights.size(); start < max;
+             ++start) {
+            _uistate.toggle_point_lights[start] = false;
+        }
+
+        auto copy_lights_to_gpu_fn = [&]<typename LightType>(std::span<const LightType> lights,
+                                                             std::bitset<UIState::MAX_LIGHTS>& toggle_bits,
+                                                             BindlessStorageBufferResourceHandleEntryPair sbo_gpu) {
+            auto buffer_mem = sbo_gpu.second.memory;
+            auto chunk_size = sbo_gpu.second.aligned_chunk_size;
+
+            UniqueMemoryMapping::map_memory(
+                render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
+                .map([&](UniqueMemoryMapping gpu_map) {
+                    LightType* gpu_ptr = gpu_map.as<LightType>();
+                    for (size_t idx = 0; idx < toggle_bits.size(); ++idx) {
+                        if (!toggle_bits[idx])
+                            continue;
+
+                        *gpu_ptr++ = lights[idx];
+                    }
+                });
+        };
+
+        if (_uistate.toggle_directional_lights.any()) {
+            copy_lights_to_gpu_fn(std::span{ sdef->directional_lights },
+                                  _uistate.toggle_directional_lights,
+                                  sres->sbo_directional_lights);
+            // auto buffer_mem = sres->sbo_directional_lights.second.memory;
+            // auto chunk_size = sres->sbo_directional_lights.second.aligned_chunk_size;
+            // UniqueMemoryMapping::map_memory(
+            //     render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
+            //     .map([&](UniqueMemoryMapping gpu_map) {
+            //         for (size_t idx = 0; idx < _uistate.toggle_directional_lights.size(); ++idx) {
+            //             if (!_uistate.toggle_directional_lights[idx])
+            //                 continue;
+            //
+            //             gpu_map.as<DirectionalLight>()[idx] = sdef->directional_lights[idx];
+            //         }
+            //     });
+        }
+
+        if (_uistate.toggle_point_lights.any()) {
+            copy_lights_to_gpu_fn(
+                std::span{ sdef->point_lights }, _uistate.toggle_point_lights, sres->sbo_point_lights);
+
+            // auto buffer_mem = sres->sbo_point_lights.second.memory;
+            // auto chunk_size = sres->sbo_point_lights.second.aligned_chunk_size;
+            // UniqueMemoryMapping::map_memory(
+            //     render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
+            //     .map([&](UniqueMemoryMapping gpu_map) {
+            //         for (size_t idx = 0; idx < _uistate.toggle_point_lights.size(); ++idx) {
+            //             if (!_uistate.toggle_point_lights[idx])
+            //                 continue;
+            //
+            //             gpu_map.as<PointLight>()[idx] = sdef->point_lights[idx];
+            //         }
+            //     });
+        }
+
         app::FrameGlobalData* fgd = render_event.g_ubo_data;
         SimState* s = &_simstate;
         fgd->world_view_proj = s->camera.projection_view(); // identity for model -> world
@@ -207,49 +355,21 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                                           bindless_subresource_handle_from_bindless_resource_handle(
                                               sres->sbo_directional_lights.first, render_event.frame_data->id))
                                           .first,
-            .directional_lights_count = static_cast<uint32_t>(sdef->directional_lights.size()),
+            .directional_lights_count = static_cast<uint32_t>(_uistate.toggle_directional_lights.count()),
             .sbo_point_ligths =
                 destructure_bindless_resource_handle(bindless_subresource_handle_from_bindless_resource_handle(
                                                          sres->sbo_point_lights.first, render_event.frame_data->id))
                     .first,
-            .point_lights_count = static_cast<uint32_t>(sdef->point_lights.size()),
+            .point_lights_count = static_cast<uint32_t>(_uistate.toggle_point_lights.count()),
             .sbo_spot_ligths =
                 destructure_bindless_resource_handle(bindless_subresource_handle_from_bindless_resource_handle(
                                                          sres->sbo_spot_lights.first, render_event.frame_data->id))
                     .first,
             .spot_lights_count = static_cast<uint32_t>(sdef->spot_lights.size()),
         };
+
         const uint32_t color_tex_handle = destructure_bindless_resource_handle(sres->color_tex.first).first;
         fgd->global_color_texture = color_tex_handle;
-
-        const std::tuple<VkDeviceMemory, VkDeviceSize, std::span<const uint8_t>> light_sbos_data[] = {
-            {
-                sres->sbo_directional_lights.second.memory,
-                sres->sbo_directional_lights.second.aligned_chunk_size,
-                to_bytes_span(sdef->directional_lights),
-            },
-            {
-                sres->sbo_point_lights.second.memory,
-                sres->sbo_point_lights.second.aligned_chunk_size,
-                to_bytes_span(sdef->point_lights),
-            },
-            {
-                sres->sbo_spot_lights.second.memory,
-                sres->sbo_spot_lights.second.aligned_chunk_size,
-                to_bytes_span(sdef->spot_lights),
-            },
-        };
-
-        for (const auto [buffer_mem, chunk_size, cpu_data] : light_sbos_data) {
-            if (cpu_data.empty())
-                continue;
-
-            UniqueMemoryMapping::map_memory(
-                render_event.renderer->device(), buffer_mem, render_event.frame_data->id * chunk_size, chunk_size)
-                .map([=](UniqueMemoryMapping gpu_map) {
-                    memcpy(gpu_map._mapped_memory, cpu_data.data(), cpu_data.size_bytes());
-                });
-        }
 
         render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
@@ -308,13 +428,12 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     //
     // partition into gltf/nongltf
 
-    using SmallVecType = SmallVec<const EntityDrawableComponent*, sizeof(void*) * 128>;
-    SmallVecType::allocator_type::arena_type arena{};
-    SmallVecType entities{ arena };
+    containers::vector<const EntityDrawableComponent*> entities{ scratch_pad };
     lz::chain(sdef->entities).map([](const EntityDrawableComponent& e) { return &e; }).copyTo(back_inserter(entities));
 
-    SmallVecType gltf_entities{ arena };
-    SmallVecType procedural_entities{ arena };
+    containers::vector<const EntityDrawableComponent*> gltf_entities{ scratch_pad };
+    containers::vector<const EntityDrawableComponent*> procedural_entities{ scratch_pad };
+
     auto [last, out0, out1] =
         ranges::partition_copy(entities,
                                back_inserter(gltf_entities),
@@ -344,6 +463,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
             iri->model = R4::translate(edc.orientation.origin) * rotation_matrix(edc.orientation.rotation) *
                          R4::scaling(edc.orientation.scale);
+            iri->model_view = _simstate.camera.view() * iri->model;
+            iri->normals_view = iri->model_view; // we only have rotations and translations, no scaling
             iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_pbr_materials.first).first;
 
             const DrawDataPushConst push_const = DrawDataPushConst{
@@ -386,6 +507,8 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
                 iri->model = R4::translate(edc.orientation.origin) * rotation_matrix(edc.orientation.rotation) *
                              R4::scaling(edc.orientation.scale);
+                iri->model_view = _simstate.camera.view() * iri->model;
+                iri->normals_view = iri->model_view; // we only have rotations and translations, no scaling
 
                 if (swl::holds_alternative<TexturedMaterialType>(*e->material_id)) {
                     const TexturedMaterialType tex_mtl = swl::get<TexturedMaterialType>(*e->material_id);
@@ -452,6 +575,20 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         draw_entities_fn(span{ r0 });
 
         render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
+    }
+
+    for (const auto& [idx, dir_light] : lz::enumerate(render_event.sdef->directional_lights)) {
+        if (!_uistate.dbg_directional_lights[idx])
+            continue;
+
+        render_event.dbg_draw->draw_directional_light(dir_light.direction, 8.0f, rgb_color{ dir_light.diffuse });
+    }
+
+    for (const auto& [idx, point_light] : lz::enumerate(render_event.sdef->point_lights)) {
+        if (!_uistate.dbg_point_lights[idx])
+            continue;
+
+        render_event.dbg_draw->draw_point_light(point_light.position, 1.0f, rgb_color{ point_light.diffuse });
     }
 
     if (_uistate.draw_ship) {

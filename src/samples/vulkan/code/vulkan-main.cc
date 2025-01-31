@@ -41,6 +41,8 @@
 #include <filesystem>
 #include <vector>
 
+#include <tracy/Tracy.hpp>
+
 #include <fmt/core.h>
 #include <fmt/std.h>
 #include <fmt/ranges.h>
@@ -64,10 +66,15 @@
 #include "xray/base/unique_pointer.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/memory.arena.hpp"
+#include "xray/base/containers/arena.vector.hpp"
+#include "xray/base/containers/arena.string.hpp"
+#include "xray/base/containers/arena.unorderered_map.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/rendering/colors/rgb_variants.hpp"
+#include "xray/rendering/colors/color_cast_rgb_variants.hpp"
 #include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
@@ -239,13 +246,8 @@ class GlobalMemorySystem
 
   private:
     atomic_queue::AtomicQueue<void*, 16> free_small;
-    // atomic_queue::AtomicQueue<void*, 16> used_small;
-
     atomic_queue::AtomicQueue<void*, 16> free_medium;
-    // atomic_queue::AtomicQueue<void*, 16> used_medium;
-
     atomic_queue::AtomicQueue<void*, 16> free_large;
-    // atomic_queue::AtomicQueue<void*, 16> used_large;
 
     GlobalMemorySystem(const GlobalMemorySystem&) = delete;
     GlobalMemorySystem& operator=(const GlobalMemorySystem&) = delete;
@@ -399,18 +401,22 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
 
     //
     // graphics pipelines
+    const std::pair<containers::string, containers::string> std_shader_defs[] = {
+        { containers::string{ "__VERT_SHADER__", temp.arena }, containers::string{ temp.arena } },
+        { containers::string{ "__FRAG_SHADER__", temp.arena }, containers::string{ temp.arena } },
+    };
     tl::expected<GraphicsPipeline, VulkanError> p_ads_color{
         GraphicsPipelineBuilder{ &perm.arena, &temp.arena }
             .add_shader(ShaderStage::Vertex,
                         ShaderBuildOptions{
                             .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
-                            .defines = { { "__VERT_SHADER__", "" } },
+                            .defines = to_cspan(std_shader_defs[0]),
                             .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo,
                         })
             .add_shader(ShaderStage::Fragment,
                         ShaderBuildOptions{
                             .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
-                            .defines = { { "__FRAG_SHADER__", "" } },
+                            .defines = to_cspan(std_shader_defs[1]),
                             .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo,
                         })
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
@@ -424,19 +430,30 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     };
     XR_VK_COR_PROPAGATE_ERROR(p_ads_color);
 
+    const std::pair<containers::string, containers::string> textured_defs_vs[] = {
+        { containers::string{ "__VERT_SHADER__", temp.arena }, containers::string{ temp.arena } },
+        { containers::string{ "__ADS_TEXTURED__", temp.arena }, containers::string{ temp.arena } },
+    };
+
+    const std::pair<containers::string, containers::string> textured_defs_fs[] = {
+        { containers::string{ "__FRAG_SHADER__", temp.arena }, containers::string{ temp.arena } },
+        { containers::string{ "__ADS_TEXTURED__", temp.arena }, containers::string{ temp.arena } },
+    };
     tl::expected<GraphicsPipeline, VulkanError> p_ads_textured{
         GraphicsPipelineBuilder{ &perm.arena, &temp.arena }
             .add_shader(ShaderStage::Vertex,
                         ShaderBuildOptions{
                             .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
-                            .defines = { { "__VERT_SHADER__", "" }, { "__ADS_TEXTURED__", "" } },
-                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo,
+                            .defines = textured_defs_vs,
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
+                                               ShaderBuildOptions::Compile_DumpShaderCode,
                         })
             .add_shader(ShaderStage::Fragment,
                         ShaderBuildOptions{
                             .code_or_file_path = xr_app_config->shader_path("triangle/ads.basic.glsl"),
-                            .defines = { { "__FRAG_SHADER__", "" }, { "__ADS_TEXTURED__", "" } },
-                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo,
+                            .defines = textured_defs_fs,
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
+                                               ShaderBuildOptions::Compile_DumpShaderCode,
                         })
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
             .rasterization_state({
@@ -454,16 +471,24 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
             .add_shader(ShaderStage::Vertex,
                         ShaderBuildOptions{
                             .code_or_file_path = xr_app_config->shader_path("triangle/tri.vert"),
+                            .defines = to_cspan(std_shader_defs[0]),
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
+                                               ShaderBuildOptions::Compile_DumpShaderCode,
                         })
             .add_shader(ShaderStage::Fragment,
                         ShaderBuildOptions{
-                            .code_or_file_path = xr_app_config->shader_path("triangle/tri.frag"),
+                            .code_or_file_path = xr_app_config->shader_path("triangle/tri.vert"),
+                            .defines = to_cspan(std_shader_defs[1]),
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
+                                               ShaderBuildOptions::Compile_DumpShaderCode,
                         })
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
-            .rasterization_state({ .poly_mode = VK_POLYGON_MODE_FILL,
-                                   .cull_mode = VK_CULL_MODE_BACK_BIT,
-                                   .front_face = VK_FRONT_FACE_CLOCKWISE,
-                                   .line_width = 1.0f })
+            .rasterization_state({
+                .poly_mode = VK_POLYGON_MODE_FILL,
+                .cull_mode = VK_CULL_MODE_BACK_BIT,
+                .front_face = VK_FRONT_FACE_CLOCKWISE,
+                .line_width = 1.0f,
+            })
             .create_bindless(*renderer),
     };
     XR_VK_COR_PROPAGATE_ERROR(p_pbr_color);
@@ -967,7 +992,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         ScratchPadArena scratch_pad{ &task_mem_arena.arena };
 
         ScratchPadVector<uint8_t> null_texture_pixels{ size_t{ 256 * 256 * 4 }, uint8_t{}, scratch_pad };
-        xor_fill(256, 256, XorPatternType ::Colored, std::span{ null_texture_pixels });
+        xor_fill(256, 256, XorPatternType::Colored, std::span{ null_texture_pixels });
 
         const VulkanImageCreateInfo tex_data[] = {
             VulkanImageCreateInfo{
@@ -1076,6 +1101,12 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
 
     exec_timer.end();
     XR_LOG_INFO("[[TASK]] - non gltf materials done , {}", exec_timer.elapsed_millis());
+
+    XR_LOG_INFO("[[TASK]] - non gltf arena stats: allocations {}, largest block {}, high water {}, total bytes {}",
+                task_mem_arena.arena.stats.allocations,
+                task_mem_arena.arena.stats.largest_alloc,
+                task_mem_arena.arena.stats.high_water,
+                task_mem_arena.arena.stats.allocated);
 
     co_return tl::expected<NonGltfMaterialsData, ProgramError>{
         tl::in_place,
@@ -1377,7 +1408,9 @@ class GameMain
              xray::base::unique_pointer<xray::rendering::DebugDrawSystem> debug_draw,
              xray::rendering::BindlessUniformBufferResourceHandleEntryPair global_ubo,
              xray::base::unique_pointer<SceneDefinition> scenedef,
-             xray::base::unique_pointer<SceneResources> sceneres)
+             xray::base::unique_pointer<SceneResources> sceneres,
+             MemoryArena* arena_perm,
+             MemoryArena* arena_temp)
         : _co_runtime{ std::move(co_runtime) }
         , _window{ std::move(window) }
         , _vkrenderer{ std::move(vkrenderer) }
@@ -1387,6 +1420,8 @@ class GameMain
         , _global_ubo{ global_ubo }
         , _scenedef{ std::move(scenedef) }
         , _sceneres{ std::move(sceneres) }
+        , _arena_perm{ arena_perm }
+        , _arena_temp{ arena_temp }
     {
         hookup_event_delegates();
 
@@ -1407,7 +1442,7 @@ class GameMain
     GameMain(GameMain&& rhs) = default;
     ~GameMain();
 
-    static tl::expected<GameMain, ProgramError> create();
+    static tl::expected<GameMain, ProgramError> create(MemoryArena* arena_perm, MemoryArena* arena_temp);
     void run();
 
   private:
@@ -1447,26 +1482,18 @@ class GameMain
     xray::base::unique_pointer<SceneDefinition> _scenedef;
     xray::base::unique_pointer<SceneResources> _sceneres;
     xray::rendering::BindlessUniformBufferResourceHandleEntryPair _global_ubo;
+    MemoryArena* _arena_perm{};
+    MemoryArena* _arena_temp{};
     XRAY_NO_COPY(GameMain);
 };
 
 GameMain::~GameMain() {}
 
 tl::expected<GameMain, ProgramError>
-GameMain::create()
+GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
 {
     using namespace xray::ui;
     using namespace xray::base;
-
-    xray::base::setup_logging(LogLevel::Debug);
-    auto gmem = GlobalMemorySystem::instance();
-
-    XR_LOG_INFO("Xray source commit: {}, built on {}, user {}, machine {}, working directory {}",
-                xray::build::config::commit_hash_str,
-                xray::build::config::build_date_time,
-                xray::build::config::user_info,
-                xray::build::config::machine_info,
-                std::filesystem::current_path().generic_string());
 
     unique_pointer<concurrencpp::runtime> cor_runtime{ base::make_unique<concurrencpp::runtime>() };
 
@@ -1531,13 +1558,13 @@ GameMain::create()
     // resume anyone waiting for the renderer
     renderer_promise.set_result(raw_ptr(renderer));
 
-    ScopedMediumArenaType arena_perm = GlobalMemorySystem::instance()->grab_medium_arena();
-    ScopedSmallArenaType arena_temp = GlobalMemorySystem::instance()->grab_small_arena();
+    ScopedMediumArenaType arena_perm0 = GlobalMemorySystem::instance()->grab_medium_arena();
+    ScopedSmallArenaType arena_temp0 = GlobalMemorySystem::instance()->grab_small_arena();
 
     auto debug_draw = DebugDrawSystem::create(DebugDrawSystem::InitContext{
         .renderer = &*renderer,
-        .arena_perm = &arena_perm.arena,
-        .arena_temp = &arena_temp.arena,
+        .arena_perm = &arena_perm0.arena,
+        .arena_temp = &arena_temp0.arena,
     });
     XR_PROPAGATE_ERROR(debug_draw);
 
@@ -1585,7 +1612,7 @@ GameMain::create()
 
     tl::expected<UserInterfaceRenderBackend_Vulkan, VulkanError> vk_backend{
         UserInterfaceRenderBackend_Vulkan::create(
-            *renderer, ui->render_backend_create_info(), &arena_perm.arena, &arena_temp.arena),
+            *renderer, ui->render_backend_create_info(), &arena_perm0.arena, &arena_temp0.arena),
     };
     XR_PROPAGATE_ERROR(vk_backend);
 
@@ -1610,7 +1637,9 @@ GameMain::create()
         xray::base::make_unique<DebugDrawSystem>(std::move(*debug_draw)),
         g_ubo_handles,
         xray::base::make_unique<SceneDefinition>(std::move(*scene_result)),
-        xray::base::make_unique<SceneResources>(std::move(scene_resources)));
+        xray::base::make_unique<SceneResources>(std::move(scene_resources)),
+        arena_perm,
+        arena_temp);
 }
 
 void
@@ -1670,6 +1699,9 @@ GameMain::event_handler(const xray::ui::window_event& wnd_evt)
 void
 GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 {
+    ZoneScopedNCS("LoopEvent", 0xFF0000FF, 32);
+    _arena_temp->free_all();
+
     static bool doing_ur_mom{ false };
     if (!doing_ur_mom && !_demo) {
         _demo = dvk::TriangleDemo::create(app::init_context_t{
@@ -1713,6 +1745,8 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
             .sdef = raw_ptr(_scenedef),
             .sres = raw_ptr(_sceneres),
             .delta = delta,
+            .arena_perm = _arena_perm,
+            .arena_temp = _arena_temp,
         });
     } else {
         //
@@ -1779,10 +1813,12 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
             return ui_render_ctx;
         })
         .map([this, frd](UserInterfaceRenderContext ui_render_ctx) {
+            ZoneScopedNCS("UI Draw", tracy::Color::OrangeRed, 32);
             _ui_backend->render(ui_render_ctx, *_vkrenderer, frd);
         });
 
     _vkrenderer->end_rendering();
+    FrameMark;
 }
 
 //
@@ -1990,12 +2026,102 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 //
 }
 
+struct ShaderComposer
+{
+
+    ShaderComposer& add_code(std::string_view code)
+    {
+        _src_code.append(code);
+        return *this;
+    }
+
+    ShaderComposer& add_file(const std::filesystem::path& p)
+    {
+        fmt::format_to(back_inserter(_src_code), "#include {}", p);
+        return *this;
+    }
+
+    ShaderComposer& add_define(std::string_view name, std::string_view value)
+    {
+        _defines.emplace_back(base::containers::string{ name, *_temp }, base::containers::string{ value, *_temp });
+        return *this;
+    }
+
+    ShaderComposer& set_entry_point(std::string_view entrypoint)
+    {
+        _entrypoint = entrypoint;
+        return *this;
+    }
+
+    ShaderComposer& set_compile_flags(const uint32_t flags)
+    {
+        _compile_options = flags;
+        return *this;
+    }
+
+    explicit ShaderComposer(MemoryArena* a)
+        : _src_code{ *a }
+        , _defines{ *a }
+        , _entrypoint{ *a }
+    {
+    }
+
+    xray::rendering::ShaderBuildOptions to_sbo() const
+    {
+        return ShaderBuildOptions{
+            .code_or_file_path = std::string_view{ _src_code },
+            .entry_point = _entrypoint,
+            .defines = std::span{ _defines },
+            .compile_options = _compile_options,
+        };
+    }
+
+    xray::base::containers::string _src_code;
+    xray::base::containers::vector<std::pair<xray::base::containers::string, xray::base::containers::string>> _defines;
+    xray::base::containers::string _entrypoint;
+    MemoryArena* _temp;
+    uint32_t _compile_options{ ShaderBuildOptions::Compile_GenerateDebugInfo };
+};
+
 int
 main(int argc, char** argv)
 {
-    app::GameMain::create()
-        .map([](app::GameMain runner) {
+    TracySetProgramName("XrayNG");
+
+    xray::base::setup_logging(LogLevel::Debug);
+
+    XR_LOG_INFO("Xray source commit: {}, built on {}, user {}, machine {}, working directory {}",
+                xray::build::config::commit_hash_str,
+                xray::build::config::build_date_time,
+                xray::build::config::user_info,
+                xray::build::config::machine_info,
+                std::filesystem::current_path().generic_string());
+
+    XR_LOG_INFO("Alignof {}", alignof(vec4f));
+
+    auto arena_large_perm = GlobalMemorySystem::instance()->grab_large_arena();
+    auto arena_temp = GlobalMemorySystem::instance()->grab_medium_arena();
+
+    {
+        // ScratchPadArena sa{ &arena_temp.arena };
+        // XR_LOG_INFO("Gen shader: {}",
+        //             ShaderComposer{ &arena_temp.arena }
+        //                 .add_code(
+        //                     R"#(
+        //         #version 460 core
+        //
+        //         #include "core/bindless.core.glsl"
+        //         )#")
+        //                 .add_file("monka/phong.glsl")
+        //                 ._src_code);
+    }
+
+    app::GameMain::create(&arena_large_perm.arena, &arena_temp.arena)
+        .map([&](app::GameMain runner) {
             runner.run();
+            XR_LOG_INFO("Temp arena stats: high water {}, largest block {}",
+                        arena_temp.arena.stats.high_water,
+                        arena_temp.arena.stats.largest_alloc);
             XR_LOG_INFO("Shutting down ...");
         })
         .map_error([](app::ProgramError&& f) {

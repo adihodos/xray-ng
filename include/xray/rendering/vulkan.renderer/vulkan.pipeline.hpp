@@ -13,6 +13,7 @@
 #include <tl/optional.hpp>
 #include <tl/expected.hpp>
 
+#include "xray/base/containers/arena.string.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
@@ -109,10 +110,11 @@ struct ShaderBuildOptions
     static constexpr const uint32_t Compile_GenerateDebugInfo = 1 << 1;
     static constexpr const uint32_t Compile_WarningsToErrors = 1 << 2;
     static constexpr const uint32_t Compile_SuppressWarnings = 1 << 2;
+    static constexpr const uint32_t Compile_DumpShaderCode = 1 << 20;
 
     swl::variant<std::string_view, std::filesystem::path> code_or_file_path;
     std::string_view entry_point{};
-    std::initializer_list<std::pair<std::string_view, std::string_view>> defines{};
+    std::span<const std::pair<base::containers::string, base::containers::string>> defines{};
     uint32_t compile_options{ Compile_GenerateDebugInfo };
 };
 
@@ -187,7 +189,6 @@ class GraphicsPipelineBuilder
 
     base::MemoryArena* _arena_perm;
     base::MemoryArena* _arena_temp;
-    // using ShaderModuleSource = swl::variant<std::string_view, std::filesystem::path>;
     std::unordered_map<uint32_t, ShaderBuildOptions> _stage_modules;
     bool _optimize_shaders{ false };
     InputAssemblyState _input_assembly{};

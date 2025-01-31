@@ -278,12 +278,11 @@ create_shader_module_from_string(const ShaderModuleCreateParams& params)
         compile_opts.SetSuppressWarnings();
     }
 
-    for (const auto [macro_name, macro_val] : params.build_options->defines) {
-        if (!macro_val.empty()) {
-            compile_opts.AddMacroDefinition(macro_name.data(), macro_name.size(), macro_val.data(), macro_val.size());
-        } else {
-            compile_opts.AddMacroDefinition(std::string{ macro_name });
-        }
+    for (const auto& [macro_name, macro_val] : params.build_options->defines) {
+        compile_opts.AddMacroDefinition(macro_name.data(),
+                                        macro_name.size(),
+                                        macro_val.empty() ? nullptr : macro_val.data(),
+                                        macro_val.empty() ? 0 : macro_val.size());
     }
 
     shaderc::Compiler compiler{};
@@ -299,6 +298,10 @@ create_shader_module_from_string(const ShaderModuleCreateParams& params)
                         preprocessed_result.GetErrorMessage(),
                         params.source_code.data());
         return tl::nullopt;
+    }
+
+    if (params.build_options->compile_options & ShaderBuildOptions::Compile_DumpShaderCode) {
+        XR_LOG_DEBUG("Shader code:\n{}", std::string_view{preprocessed_result.cbegin(), preprocessed_result.cend()});
     }
 
     const shaderc::SpvCompilationResult compilation_result{

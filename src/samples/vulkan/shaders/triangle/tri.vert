@@ -1,8 +1,9 @@
 #version 460 core
 
 #include "core/bindless.core.glsl"
-#include "defs.glsl"
+#include "core/std.interface.glsl"
 
+#if defined(__VERT_SHADER__)
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec4 color;
@@ -13,31 +14,52 @@ layout (location = 5) in uint pbr;
 out gl_PerVertex {
     vec4 gl_Position;
 };
+#endif
 
-out VS_OUT_FS_IN {
-    layout (location = 0) vec2 uv;
-    layout (location = 1) flat uint mtl_buffer_elem;
-    layout (location = 2) flat uint mtl_buffer;
-} vs_out;
+INTERFACE_BLOCK VS_OUT_FS_IN {
+    layout (location = 0) vec3 P; // surface pos in View/Eye space
+    layout (location = 1) vec3 N; // normal in View/Eye space
+    layout (location = 2) vec3 V; // View vector (-P) in View/Eye space
+    layout (location = 3) vec2 uv;
+    layout (location = 4) flat uvec3 fii; // frame id, instance buffer index, instance index
+    layout (location = 5) flat uint mtl_buffer_elem;
+    layout (location = 6) flat uint mtl_buffer;
+} BLOCKVAR;
 
+#if defined(__VERT_SHADER__)
 void main() {
 
-    const uint frame_idx = (g_GlobalPushConst.data) & 0xFF;
-    const uint inst_buffer_idx = (g_GlobalPushConst.data & 0xFFFF0000) >> 16;
-    const uint instance_index = (g_GlobalPushConst.data & 0x0000FF00) >> 8;
+#include "core/unpack.frame.glsl"
+#include "core/phong.setup.glsl"
 
-    const FrameGlobalData_t fgd = g_FrameGlobal[frame_idx].data[0];
-    const InstanceRenderInfo_t inst = g_InstanceGlobal[inst_buffer_idx].data[instance_index];
-    // const uint vertex_index = g_IndexBufferGlobal[inst.idx_buff].data[gl_VertexIndex];
-    // const VertexPBR vtx = g_VertexBufferPBRGlobal[inst.vtx_buff].data[vertex_index];
-
-    // gl_Position = fgd.world_view_proj * inst.model * vec4(vtx.pos, 1.0);
-    // vs_out.uv = vtx.uv;
-
-    gl_Position = fgd.world_view_proj * inst.model * vec4(pos, 1.0);
     vs_out.uv = uv;
     vs_out.mtl_buffer_elem = pbr;
     vs_out.mtl_buffer = inst.mtl_buffer;
-    // vs_out.mtl = inst.mtl_id;
 }
 
+#endif
+
+#if defined(__FRAG_SHADER__)
+layout (location = 0) out vec4 FinalFragColor;
+
+#include "core/lighting.phong.glsl"
+
+void main() {
+#include "core/unpack.lights.glsl"
+
+    const PBRMaterial mtl = g_PBRMaterialGlobal[fs_in.mtl_buffer].data[fs_in.mtl_buffer_elem];
+    const vec4 diffuse = texture(g_Textures2DGlobal[mtl.base_color], fs_in.uv) * mtl.base_color_factor;
+    const vec4 specular = texture(g_Textures2DGlobal[mtl.metallic], fs_in.uv) * mtl.metallic_factor;
+
+    FinalFragColor = light_phong(
+        fs_in.P, 
+        fs_in.V, 
+        fs_in.N, 
+        vec4(0.0, 0.0, 0.0, 1.0), 
+        diffuse, 
+        specular, 
+        dls,
+        pls);
+}
+
+#endif

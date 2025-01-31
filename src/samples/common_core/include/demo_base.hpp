@@ -40,6 +40,10 @@
 #include <tuple>
 
 namespace xray {
+namespace base {
+class MemoryArena;
+}
+
 namespace scene {
 class camera_controller;
 struct SceneResources;
@@ -75,6 +79,8 @@ struct RenderEvent
     xray::scene::SceneDefinition* sdef;
     xray::scene::SceneResources* sres;
     float delta;
+    xray::base::MemoryArena* arena_perm;
+    xray::base::MemoryArena* arena_temp;
 };
 
 class DemoBase

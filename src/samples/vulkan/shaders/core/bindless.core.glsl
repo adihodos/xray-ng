@@ -14,7 +14,7 @@ struct UIData {
 struct LightingSetup {
     uint sbo_directional_lights;
     uint directional_lights_count;
-    uint sbo_point_ligths;
+    uint sbo_point_lights;
     uint point_lights_count;
     uint sbo_spot_ligths;
     uint spot_lights_count;
@@ -39,6 +39,8 @@ layout (std140, set = 0, binding  = 0, row_major) uniform FrameGlobal {
 
 struct InstanceRenderInfo_t {
     mat4 model;
+    mat4 model_view;
+    mat4 normals_view;
     uint vtx_buff;
     uint idx_buff;
     uint mtl_buffer_elem;
@@ -113,15 +115,15 @@ layout (set = 1, binding = 0) readonly buffer MaterialADSTexturedGlobal {
 
 layout (set = 1, binding = 0) readonly buffer DirectionalLightsGlobal {
     DirectionalLight lights[];
-} g_DirectionalLightsGlobal[];
+} g_DirectionalLights[];
 
 layout (set = 1, binding = 0) readonly buffer PointLightsGlobal {
     PointLight lights[];
-} g_PointLightsGlobal[];
+} g_PointLights[];
 
 layout (set = 1, binding = 0) readonly buffer SpotLightsGlobal {
     SpotLight lights[];
-} g_SpotLightsGlobal[];
+} g_SpotLights[];
 
 layout (set = 2, binding = 0) uniform sampler1D g_Textures1DGlobal[];
 layout (set = 2, binding = 0) uniform sampler2D g_Textures2DGlobal[];

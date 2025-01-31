@@ -124,6 +124,8 @@ DebugDrawSystem::RenderStateVulkan::create(const DebugDrawSystem::InitContext& i
 
     XR_VK_PROPAGATE_ERROR(vertexBuffer);
 
+    //
+    // TODO: move this to the pipeline creation task
     constexpr const std::string_view kDebugVertexShader = R"#(
     #version 460 core
     #include "core/bindless.core.glsl"
@@ -162,7 +164,7 @@ DebugDrawSystem::RenderStateVulkan::create(const DebugDrawSystem::InitContext& i
     }
     )#";
 
-    auto graphicsPipeline = GraphicsPipelineBuilder{init.arena_perm, init.arena_temp}
+    auto graphicsPipeline = GraphicsPipelineBuilder{ init.arena_perm, init.arena_temp }
                                 .add_shader(ShaderStage::Vertex,
                                             ShaderBuildOptions{
                                                 .code_or_file_path = kDebugVertexShader,

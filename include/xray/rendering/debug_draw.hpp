@@ -111,6 +111,9 @@ class DebugDrawSystem
     /// @brief Draws a directional light
     void draw_directional_light(const math::vec3f& dir, const float origin_dist, const rgb_color& c);
 
+    /// @brief Draws a point light at pos with the specified color.
+    void draw_point_light(const math::vec3f& pos, const float len, const rgb_color& c) { draw_sphere(pos, len, c); }
+
     /// @brief Draws a plane
     void draw_plane(const math::vec3f& origin, const math::vec3f& normal, const float scale, const rgb_color& c);
 

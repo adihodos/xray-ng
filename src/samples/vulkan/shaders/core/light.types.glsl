@@ -3,20 +3,20 @@
 
 struct DirectionalLight
 {
-    vec3 direction;
-    vec4 ambient;
-    vec4 diffuse;
-    vec4 specular;
+    vec3 L;
+    vec4 Ka;
+    vec4 Kd;
+    vec4 Ks;
 };
 
 struct PointLight
 {
-    vec3 position;
+    vec3 P;
     float range;
     vec3 attenuation;
-    vec4 ambient;
-    vec4 diffuse;
-    vec4 specular;
+    vec4 Ka;
+    vec4 Kd;
+    vec4 Ks;
 };
 
 struct SpotLight
