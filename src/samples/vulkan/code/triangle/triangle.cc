@@ -6,6 +6,7 @@
 #include <concurrencpp/concurrencpp.h>
 #include <Lz/Lz.hpp>
 #include <imgui/imgui.h>
+#include <imgui/IconsFontAwesome.h>
 
 #include <tracy/Tracy.hpp>
 
@@ -128,17 +129,15 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::Rende
                                                            std::bitset<UIState::MAX_LIGHTS>& dbg_state,
                                                            std::bitset<UIState::MAX_LIGHTS>& toggle_state,
                                                            LightStatsFN display_light_stats_fn) {
-                char scratch_buff[1024];
+                char scratch_buff[512];
 
                 for (size_t idx = 0, count = std::min(lights.size(), dbg_state.size()); idx < count; ++idx) {
                     const LightType* l = &lights[idx];
 
+                    ImGui::PushID(static_cast<const void*>(l));
                     format_to_n(scratch_buff, "Light [{}] #{:2}", tag, idx);
 
                     if (ImGui::TreeNode(scratch_buff)) {
-
-                        format_to_n(scratch_buff, "{}light##{}", tag, idx);
-                        ImGui::PushID(scratch_buff);
 
                         bool dbg_draw = dbg_state[idx];
                         ImGui::Checkbox("draw", &dbg_draw);
@@ -151,11 +150,11 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::Rende
 
                         display_light_stats_fn(*l);
 
-                        ImGui::PopID();
-
                         ImGui::TreePop();
                         ImGui::Spacing();
                     }
+
+                    ImGui::PopID();
                 }
             };
 
@@ -164,9 +163,10 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::Rende
             draw_light_colors_fn(dl.ambient, dl.diffuse, dl.specular);
         };
 
-        ImGui::SeparatorText("Directional lights");
+        format_to_n(scratch_buff, "Directional {}", fonts::awesome::ICON_FA_LIGHTBULB_O);
+        ImGui::SeparatorText(scratch_buff);
         display_lights_fn(std::span<const DirectionalLight>{ re.sdef->directional_lights },
-                          "D",
+                          fonts::awesome::ICON_FA_ARROW_RIGHT,
                           _uistate.dbg_directional_lights,
                           _uistate.toggle_directional_lights,
                           display_directional_light_fn);
@@ -176,40 +176,13 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::Rende
             draw_light_colors_fn(pl.ambient, pl.diffuse, pl.specular);
         };
 
-        ImGui::SeparatorText("Point lights");
+        format_to_n(scratch_buff, "Point {}", fonts::awesome::ICON_FA_LIGHTBULB_O);
+        ImGui::SeparatorText(scratch_buff);
         display_lights_fn(std::span<const PointLight>{ re.sdef->point_lights },
-                          "P",
+                          fonts::awesome::ICON_FA_ARROW_RIGHT,
                           _uistate.dbg_point_lights,
                           _uistate.toggle_point_lights,
                           display_point_light_fn);
-
-        // ImGui::SeparatorText("Geometric shapes");
-        // for (size_t i = 0, count = std::min(_renderstate._shapes.objects.size(), _uistate.shapes_draw.size());
-        //      i < count;
-        //      ++i) {
-        //     bool value = _uistate.shapes_draw[i];
-        //
-        //     auto out = fmt::format_to_n(txt_scratch_buff, size(txt_scratch_buff) - 1, "Object #{}", i);
-        //     *out.out = 0;
-        //
-        //     ImGui::Checkbox(txt_scratch_buff, &value);
-        //     _uistate.shapes_draw[i] = value;
-        // }
-        //
-        // ImGui::SeparatorText("Geometry");
-        // if (ImGui::CollapsingHeader("Nodes")) {
-        //
-        //     for (const GeometryNode& node : _world->geometry.nodes) {
-        //         auto result = fmt::format_to_n(txt_scratch_buff,
-        //                                        size(txt_scratch_buff),
-        //                                        "{} ({} vertices, {} indices)",
-        //                                        node.name,
-        //                                        node.vertex_count,
-        //                                        node.index_count);
-        //         *result.out = 0;
-        //         ImGui::Text("%s", txt_scratch_buff);
-        //     }
-        // }
     }
     ImGui::End();
 }

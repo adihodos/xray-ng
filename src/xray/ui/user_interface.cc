@@ -272,37 +272,45 @@ xray::ui::user_interface::user_interface(concurrencpp::result<FontsLoadBundle> f
         0xe0a3,
         0xe0b0,
         0xe0d4,
+
         /*font_awesome :*/
         0xf000,
         0xf0b2,
         0xf0c0,
         0xf2e0,
-        /*font_awesome_extensions :*/ 0xe200,
+
+        /*font_awesome_extensions :*/
+        0xe200,
         0xe2a9,
-        /*material_design_icons :*/ 0xe700,
-        0xe7c5,
+
+        /*material_design_icons :*/ 
+        // 0xe700,
+        // 0xe7c5,
+
         /*weather_icons :*/
         0xe300,
         0xe3e3,
         0xfa8f,
         0xfa9d,
-        /*devicons :*/ 0xe700,
-        0xe7c5,
+
         /*octicons :*/
         0xf400,
         0xf4a9,
         0xf67c,
         0xf67c,
-        /*font_logos :*/ 0xf300,
+
+        /*font_logos :*/ 
+        0xf300,
         0xf313,
-        /*pomicons :*/ 0xe000,
-        0xe00a,
+
         /*iec_power :*/
         0x23fb,
         0x23fe,
         0x2b58,
         0x2b58,
-        /*seti_ui :*/ 0xe5fa,
+
+        /*seti_ui :*/ 
+        0xe5fa,
         0xe62e,
     };
 
@@ -631,7 +639,7 @@ xray::ui::user_interface::load_fonts(const std::span<const font_info> font_list)
 
     ImFontConfig config;
     config.MergeMode = true;
-    static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+    static const ImWchar icon_ranges[] = { fonts::awesome::ICON_MIN_FA, fonts::awesome::ICON_MAX_FA, 0 };
 
     auto font_awesome = io.Fonts->AddFontFromFileTTF(
         ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").generic_string().c_str(),
