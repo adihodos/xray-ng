@@ -307,7 +307,8 @@ task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
 
     FontsLoadBundle font_pkgs;
 
-    for (const fs::directory_entry& dir_entry : fs::recursive_directory_iterator(xr_app_config->font_root())) {
+    const fs::path font_dir = xr_app_config->font_root() / "nerd-fonts";
+    for (const fs::directory_entry& dir_entry : fs::recursive_directory_iterator(font_dir)) {
         if (!dir_entry.is_regular_file() || !dir_entry.path().has_extension())
             continue;
 
@@ -1614,7 +1615,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
     };
     XR_PROPAGATE_ERROR(vk_backend);
 
-    ui->set_global_font("TerminessNerdFontMono-Regular");
+    // ui->set_global_font("TerminessNerdFontMono-Regular");
 
     const BindlessUniformBufferResourceHandleEntryPair g_ubo_handles =
         renderer->bindless_sys().add_chunked_uniform_buffer(std::move(*g_ubo), renderer->buffering_setup().buffers);
