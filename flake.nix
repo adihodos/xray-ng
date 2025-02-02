@@ -27,6 +27,7 @@
           packages = with pkgs; [
             # editors
             nvimpager
+            helix
 
             gcc14
             gdb

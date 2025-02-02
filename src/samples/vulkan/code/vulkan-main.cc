@@ -514,12 +514,14 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     timer_highp exec_timer{};
     exec_timer.start();
 
+    auto scratchpad = GlobalMemorySystem::instance()->grab_medium_arena();
+
     vector<GltfGeometryEntry> gltf_geometries;
     vector<VkDrawIndexedIndirectCommand> indirect_draw_templates;
-    vector<LoadedGeometry> loaded_gltfs;
+    containers::vector<LoadedGeometry> loaded_gltfs{scratchpad.arena};
     vec2ui32 global_vertex_index_count{ vec2ui32::stdc::zero };
-    vector<vec2ui32> per_obj_vertex_index_counts;
-    vector<ExtractedMaterialsWithImageSourcesBundle> mtls_data;
+    containers::vector<vec2ui32> per_obj_vertex_index_counts{scratchpad.arena};
+    containers::vector<ExtractedMaterialsWithImageSourcesBundle> mtls_data{scratchpad.arena};
 
     for (const GltfGeometryDescription& gltf : gltf_geometry_defs) {
         XR_LOG_INFO("Loading model {}", xr_app_config->model_path(gltf.path));
@@ -560,6 +562,7 @@ task_create_gltf_resources(concurrencpp::executor_tag,
                                  .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                  .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                  .bytes = buffer_bytes.x,
+                                 .frames = 1,
                              });
     XR_VK_COR_PROPAGATE_ERROR(vertex_buffer);
 
@@ -570,21 +573,22 @@ task_create_gltf_resources(concurrencpp::executor_tag,
                                  .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                  .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                  .bytes = buffer_bytes.y,
+                                 .frames = 1,
                              });
     XR_VK_COR_PROPAGATE_ERROR(index_buffer);
 
     const uintptr_t copy_offset = renderer->reserve_staging_buffer_memory(buffer_bytes.x + buffer_bytes.y);
     uintptr_t staging_buffer_ptr = renderer->staging_buffer_memory() + copy_offset;
 
-    SmallVec<VkBufferCopy> copy_regions_vertex;
-    SmallVec<VkBufferCopy> copy_regions_index;
+    containers::vector<VkBufferCopy> copy_regions_vertex{scratchpad.arena};
+    containers::vector<VkBufferCopy> copy_regions_index{scratchpad.arena};
     vec2ui32 dst_offsets{ vec2ui32::stdc::zero };
     for (size_t idx = 0, count = loaded_gltfs.size(); idx < count; ++idx) {
         LoadedGeometry* g = &loaded_gltfs[idx];
         const vec2ui32* obj_cnt = &per_obj_vertex_index_counts[idx];
 
         g->extract_data(
-            (void*)(staging_buffer_ptr), (void*)(staging_buffer_ptr + obj_cnt->x * sizeof(VertexPBR)), { 0, 0 }, 0);
+            reinterpret_cast<void*>(staging_buffer_ptr), reinterpret_cast<void*>(staging_buffer_ptr + obj_cnt->x * sizeof(VertexPBR)), { 0, 0 }, 0);
 
         const vec2ui32 bytes_consumed =
             (*obj_cnt) * vec2ui32{ (uint32_t)sizeof(VertexPBR), (uint32_t)sizeof(uint32_t) };
@@ -611,12 +615,12 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     vkCmdCopyBuffer(*cmd_buffer,
                     renderer->staging_buffer(),
                     vertex_buffer->buffer_handle(),
-                    (uint32_t)copy_regions_vertex.size(),
+                    static_cast<uint32_t>(copy_regions_vertex.size()),
                     copy_regions_vertex.data());
     vkCmdCopyBuffer(*cmd_buffer,
                     renderer->staging_buffer(),
                     index_buffer->buffer_handle(),
-                    (uint32_t)copy_regions_index.size(),
+                    static_cast<uint32_t>(copy_regions_index.size()),
                     copy_regions_index.data());
 
     auto buffers_submit = renderer->submit_job(*cmd_buffer, QueueType::Transfer);
@@ -625,8 +629,8 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     //
     // materials (images + material definitions)
     vector<VulkanImage> images;
-    vector<QueueSubmitWaitToken> img_wait_tokens;
-    vector<PBRMaterialDefinition> pbr_materials;
+    containers::vector<QueueSubmitWaitToken> img_wait_tokens{scratchpad.arena};
+    containers::vector<PBRMaterialDefinition> pbr_materials{scratchpad.arena};
     char scratch_buffer[1024];
     uint32_t total_image_count{};
 
@@ -787,6 +791,7 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
                                  .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                  .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                  .bytes = vertex_bytes,
+                                 .frames = 1,
                              });
 
     XR_COR_PROPAGATE_ERROR(vertexbuffer);
@@ -802,6 +807,7 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
                                  .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                  .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                  .bytes = index_bytes,
+                                 .frames = 1,
                              });
 
     XR_COR_PROPAGATE_ERROR(indexbuffer);

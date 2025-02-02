@@ -20,8 +20,8 @@ struct VulkanBufferCreateInfo
     tl::optional<VkCommandBuffer> job_cmd_buf{};
     VkBufferUsageFlags usage;
     VkMemoryPropertyFlags memory_properties;
-    size_t bytes{ 1024 };
-    size_t frames{ 1 };
+    size_t bytes{};
+    size_t frames{};
     std::initializer_list<std::span<const uint8_t>> initial_data{};
 };
 
