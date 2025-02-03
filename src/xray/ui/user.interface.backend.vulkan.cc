@@ -32,7 +32,7 @@
 #include <string_view>
 #include <imgui/imgui.h>
 
-#include "vulkan.renderer/vulkan.queue.submit.token.hpp"
+#include "xray/base/scoped_guard.hpp"
 #include "xray/ui/user.interface.backend.hpp"
 #include "xray/ui/user_interface_render_context.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
@@ -177,7 +177,7 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
         VulkanImage::from_memory(renderer,
                                  VulkanImageCreateInfo{
                                      .tag_name = "UI font atlas",
-                                     .wpkg = *resources_job,
+                                     .wpkg = resources_job->buffer,
                                      .type = VK_IMAGE_TYPE_2D,
                                      .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                      .format = VK_FORMAT_R8G8B8A8_UNORM,
@@ -187,7 +187,10 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
                                  });
     XR_VK_PROPAGATE_ERROR(font_atlas);
 
-    auto wait_token = renderer.submit_job(*resources_job, QueueType::Transfer);
+    auto wait_token = renderer.submit_job(std::move(*resources_job));
+    XRAY_SCOPE_EXIT_NOEXCEPT {
+        renderer.consume_wait_token(std::move(*wait_token));
+    };
 
     auto sampler = renderer.bindless_sys().get_sampler(
         VkSamplerCreateInfo{

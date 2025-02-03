@@ -26,6 +26,10 @@ template<typename... Ts>
 class variant;
 }
 
+namespace xray::base {
+struct MemoryArena;
+}
+
 namespace xray::rendering {
 
 #if defined(XRAY_OS_IS_WINDOWS)
@@ -245,8 +249,64 @@ enum class QueueType : uint8_t
     Transfer,
 };
 
-struct QueueSubmitWaitToken;
 struct RendererConfig;
+
+struct QueuedJob
+{
+    VkCommandBuffer buffer;
+    QueueType queue_type;
+};
+
+class VulkanRenderer;
+
+struct QueueSubmitWaitToken
+{
+  public:
+    QueueSubmitWaitToken(VulkanRenderer* r, VkCommandBuffer cmd_buf, xrUniqueVkFence&& fence, QueueType qtype) noexcept
+        : _r{ r }
+        , _cmdbuf{ cmd_buf }
+        , _fence{ xray::base::unique_pointer_release(fence) }
+        , _queue_type{ qtype }
+    {
+    }
+
+    QueueSubmitWaitToken(QueueSubmitWaitToken&& rhs) noexcept
+        : _r{ rhs._r }
+        , _cmdbuf{ std::exchange(rhs._cmdbuf, VK_NULL_HANDLE) }
+        , _fence{ std::exchange(rhs._fence, VK_NULL_HANDLE) }
+        , _queue_type{ rhs._queue_type }
+        , _waited_on{ std::exchange(rhs._waited_on, true) }
+    {
+    }
+
+    QueueSubmitWaitToken(const QueueSubmitWaitToken&) = delete;
+    QueueSubmitWaitToken& operator=(const QueueSubmitWaitToken&&) = delete;
+
+    QueueSubmitWaitToken& operator=(QueueSubmitWaitToken&& rhs) noexcept
+    {
+        _queue_type = rhs._queue_type;
+        _r = rhs._r;
+        rhs._cmdbuf = std::exchange(_cmdbuf, rhs._cmdbuf);
+        rhs._fence = std::exchange(_fence, rhs._fence);
+        rhs._waited_on = std::exchange(_waited_on, rhs._waited_on);
+        return *this;
+    }
+
+    ~QueueSubmitWaitToken();
+
+    VkCommandBuffer command_buffer() const noexcept { return _cmdbuf; }
+    VkFence fence() const noexcept { return _fence; }
+    QueueType queue() const noexcept { return _queue_type; }
+
+  private:
+    friend class VulkanRenderer;
+
+    VulkanRenderer* _r;
+    VkCommandBuffer _cmdbuf;
+    VkFence _fence;
+    QueueType _queue_type;
+    bool _waited_on{false};
+};
 
 class VulkanRenderer
 {
@@ -350,6 +410,7 @@ class VulkanRenderer
     }
     // @endgroup
 
+    /// @group Queue functions
     std::tuple<VkQueue, uint32_t, VkCommandPool> queue_data(const uint32_t idx) const noexcept
     {
         return { _render_state.queues[idx].handle,
@@ -393,11 +454,10 @@ class VulkanRenderer
 
     void queue_image_ownership_transfer(const BindlessResourceHandle_Image img) { _ownership_transfers.push_back(img); }
 
-    /// @group async tasks
-
-    tl::expected<VkCommandBuffer, VulkanError> create_job(const QueueType qtype) noexcept;
-    tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(VkCommandBuffer cmd_buffer,
-                                                               const QueueType qtype) noexcept;
+    tl::expected<QueuedJob, VulkanError> create_job(const QueueType qtype) noexcept;
+    tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(QueuedJob queued_job) noexcept;
+    void consume_wait_token(QueueSubmitWaitToken wait_token) noexcept;
+    void consume_many_wait_tokens(xray::base::MemoryArena& arena, std::span<QueueSubmitWaitToken> tokens);
     /// @endgroup
 
   private:

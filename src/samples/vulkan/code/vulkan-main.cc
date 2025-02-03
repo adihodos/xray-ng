@@ -82,7 +82,6 @@
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
@@ -518,10 +517,10 @@ task_create_gltf_resources(concurrencpp::executor_tag,
 
     vector<GltfGeometryEntry> gltf_geometries;
     vector<VkDrawIndexedIndirectCommand> indirect_draw_templates;
-    containers::vector<LoadedGeometry> loaded_gltfs{scratchpad.arena};
+    containers::vector<LoadedGeometry> loaded_gltfs{ scratchpad.arena };
     vec2ui32 global_vertex_index_count{ vec2ui32::stdc::zero };
-    containers::vector<vec2ui32> per_obj_vertex_index_counts{scratchpad.arena};
-    containers::vector<ExtractedMaterialsWithImageSourcesBundle> mtls_data{scratchpad.arena};
+    containers::vector<vec2ui32> per_obj_vertex_index_counts{ scratchpad.arena };
+    containers::vector<ExtractedMaterialsWithImageSourcesBundle> mtls_data{ scratchpad.arena };
 
     for (const GltfGeometryDescription& gltf : gltf_geometry_defs) {
         XR_LOG_INFO("Loading model {}", xr_app_config->model_path(gltf.path));
@@ -580,15 +579,17 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     const uintptr_t copy_offset = renderer->reserve_staging_buffer_memory(buffer_bytes.x + buffer_bytes.y);
     uintptr_t staging_buffer_ptr = renderer->staging_buffer_memory() + copy_offset;
 
-    containers::vector<VkBufferCopy> copy_regions_vertex{scratchpad.arena};
-    containers::vector<VkBufferCopy> copy_regions_index{scratchpad.arena};
+    containers::vector<VkBufferCopy> copy_regions_vertex{ scratchpad.arena };
+    containers::vector<VkBufferCopy> copy_regions_index{ scratchpad.arena };
     vec2ui32 dst_offsets{ vec2ui32::stdc::zero };
     for (size_t idx = 0, count = loaded_gltfs.size(); idx < count; ++idx) {
         LoadedGeometry* g = &loaded_gltfs[idx];
         const vec2ui32* obj_cnt = &per_obj_vertex_index_counts[idx];
 
-        g->extract_data(
-            reinterpret_cast<void*>(staging_buffer_ptr), reinterpret_cast<void*>(staging_buffer_ptr + obj_cnt->x * sizeof(VertexPBR)), { 0, 0 }, 0);
+        g->extract_data(reinterpret_cast<void*>(staging_buffer_ptr),
+                        reinterpret_cast<void*>(staging_buffer_ptr + obj_cnt->x * sizeof(VertexPBR)),
+                        { 0, 0 },
+                        0);
 
         const vec2ui32 bytes_consumed =
             (*obj_cnt) * vec2ui32{ (uint32_t)sizeof(VertexPBR), (uint32_t)sizeof(uint32_t) };
@@ -612,25 +613,30 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     auto cmd_buffer = renderer->create_job(QueueType::Transfer);
     XR_VK_COR_PROPAGATE_ERROR(cmd_buffer);
 
-    vkCmdCopyBuffer(*cmd_buffer,
+    vkCmdCopyBuffer(cmd_buffer->buffer,
                     renderer->staging_buffer(),
                     vertex_buffer->buffer_handle(),
                     static_cast<uint32_t>(copy_regions_vertex.size()),
                     copy_regions_vertex.data());
-    vkCmdCopyBuffer(*cmd_buffer,
+    vkCmdCopyBuffer(cmd_buffer->buffer,
                     renderer->staging_buffer(),
                     index_buffer->buffer_handle(),
                     static_cast<uint32_t>(copy_regions_index.size()),
                     copy_regions_index.data());
 
-    auto buffers_submit = renderer->submit_job(*cmd_buffer, QueueType::Transfer);
+    auto buffers_submit = renderer->submit_job(std::move(*cmd_buffer));
     XR_VK_COR_PROPAGATE_ERROR(buffers_submit);
 
     //
     // materials (images + material definitions)
     vector<VulkanImage> images;
-    containers::vector<QueueSubmitWaitToken> img_wait_tokens{scratchpad.arena};
-    containers::vector<PBRMaterialDefinition> pbr_materials{scratchpad.arena};
+    containers::vector<QueueSubmitWaitToken> img_wait_tokens{ scratchpad.arena };
+    XRAY_SCOPE_EXIT_NOEXCEPT
+    {
+        renderer->consume_many_wait_tokens(scratchpad.arena, std::span{ img_wait_tokens });
+    };
+
+    containers::vector<PBRMaterialDefinition> pbr_materials{ scratchpad.arena };
     char scratch_buffer[1024];
     uint32_t total_image_count{};
 
@@ -671,7 +677,7 @@ task_create_gltf_resources(concurrencpp::executor_tag,
             auto img = VulkanImage::from_memory(*renderer,
                                                 VulkanImageCreateInfo{
                                                     .tag_name = scratch_buffer,
-                                                    .wpkg = *transfer_job,
+                                                    .wpkg = transfer_job->buffer,
                                                     .type = VK_IMAGE_TYPE_2D,
                                                     .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
                                                     .memory_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -684,7 +690,7 @@ task_create_gltf_resources(concurrencpp::executor_tag,
             XR_VK_COR_PROPAGATE_ERROR(img);
             images.push_back(std::move(*img));
 
-            auto wait_token = renderer->submit_job(*transfer_job, QueueType ::Transfer);
+            auto wait_token = renderer->submit_job(std::move(*transfer_job));
             XR_VK_COR_PROPAGATE_ERROR(wait_token);
             img_wait_tokens.push_back(std::move(*wait_token));
         }
@@ -728,7 +734,7 @@ task_create_gltf_resources(concurrencpp::executor_tag,
         VulkanBuffer::create(*renderer,
                              VulkanBufferCreateInfo{
                                  .name_tag = "[[gltf]] PBR materials SBO",
-                                 .job_cmd_buf = *sbo_transfer_job,
+                                 .job_cmd_buf = sbo_transfer_job->buffer,
                                  .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                  .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                  .bytes = container_bytes_size(pbr_materials),
@@ -736,7 +742,7 @@ task_create_gltf_resources(concurrencpp::executor_tag,
                                  .initial_data = { to_bytes_span(pbr_materials) },
                              });
     XR_VK_COR_PROPAGATE_ERROR(pbr_material_sbo);
-    auto sbo_wait_token = renderer->submit_job(*sbo_transfer_job, QueueType::Transfer);
+    auto sbo_wait_token = renderer->submit_job(std::move(*sbo_transfer_job));
     XR_VK_COR_PROPAGATE_ERROR(sbo_wait_token);
 
     exec_timer.end();
@@ -850,18 +856,18 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
     auto cmd_buf = renderer->create_job(QueueType::Transfer);
     XR_COR_PROPAGATE_ERROR(cmd_buf);
 
-    vkCmdCopyBuffer(*cmd_buf,
+    vkCmdCopyBuffer(cmd_buf->buffer,
                     renderer->staging_buffer(),
                     vertexbuffer->buffer_handle(),
-                    (uint32_t)index_copy_rgn,
+                    static_cast<uint32_t>(index_copy_rgn),
                     cpy_regions_vtx.data());
-    vkCmdCopyBuffer(*cmd_buf,
+    vkCmdCopyBuffer(cmd_buf->buffer,
                     renderer->staging_buffer(),
                     indexbuffer->buffer_handle(),
-                    (uint32_t)cpy_regions_vtx.size() - index_copy_rgn,
+                    static_cast<uint32_t>(cpy_regions_vtx.size() - index_copy_rgn),
                     &cpy_regions_vtx[index_copy_rgn]);
 
-    auto wait_token = renderer->submit_job(*cmd_buf, QueueType::Transfer);
+    auto wait_token = renderer->submit_job(*cmd_buf);
     XR_COR_PROPAGATE_ERROR(wait_token);
 
     exec_timer.end();
@@ -945,15 +951,9 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
 
     VulkanRenderer* renderer = co_await renderer_result;
     ScratchPadVector<QueueSubmitWaitToken> pending_jobs{ task_mem_arena.arena };
-
-    XRAY_SCOPE_EXIT noexcept
+    XRAY_SCOPE_EXIT_NOEXCEPT
     {
-        ScratchPadVector<VkFence> fences{ task_mem_arena.arena };
-        lz::chain(pending_jobs).transformTo(back_inserter(fences), [](const QueueSubmitWaitToken& token) {
-            return token.fence();
-        });
-        WRAP_VULKAN_FUNC(
-            vkWaitForFences, renderer->device(), static_cast<uint32_t>(fences.size()), fences.data(), true, 0xffffffff);
+        renderer->consume_many_wait_tokens(task_mem_arena.arena, std::span{ pending_jobs });
     };
 
     vector<VulkanImage> loaded_textures;
@@ -972,7 +972,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
             VulkanImage::from_file(*renderer,
                                    VulkanImageLoadInfo{
                                        .tag_name = scratch_buffer,
-                                       .cmd_buf = *transfer_job,
+                                       .cmd_buf = transfer_job->buffer,
                                        .path = xr_app_config->texture_path(p),
                                        .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                        .final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -982,7 +982,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
 
         loaded_textures.push_back(std::move(*tex));
 
-        auto wait_token = renderer->submit_job(*transfer_job, QueueType ::Transfer);
+        auto wait_token = renderer->submit_job(*transfer_job);
         XR_COR_PROPAGATE_ERROR(wait_token);
         pending_jobs.emplace_back(std::move(*wait_token));
     }
@@ -1002,7 +1002,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         const VulkanImageCreateInfo tex_data[] = {
             VulkanImageCreateInfo{
                 .tag_name = "null_texture",
-                .wpkg = *transfer_job,
+                .wpkg = transfer_job->buffer,
                 .type = VK_IMAGE_TYPE_2D,
                 .format = VK_FORMAT_R8G8B8A8_UNORM,
                 .width = 256,
@@ -1011,7 +1011,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
             },
             VulkanImageCreateInfo{
                 .tag_name = "color_texture",
-                .wpkg = *transfer_job,
+                .wpkg = transfer_job->buffer,
                 .type = VK_IMAGE_TYPE_1D,
                 .format = VK_FORMAT_R32G32B32A32_SFLOAT,
                 .width = 1024,
@@ -1027,7 +1027,7 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
             imgs.push_back(std::move(*tex));
         }
 
-        auto wait_token = renderer->submit_job(*transfer_job, QueueType ::Transfer);
+        auto wait_token = renderer->submit_job(*transfer_job);
         XR_VK_PROPAGATE_ERROR(wait_token);
 
         pending_jobs.emplace_back(std::move(*wait_token));
@@ -1096,8 +1096,8 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
             .size = sbo_data.size_bytes(),
         };
 
-        vkCmdCopyBuffer(*job, renderer->staging_buffer(), sbo->buffer_handle(), 1, &copy_region);
-        auto wait_token = renderer->submit_job(*job, QueueType ::Transfer);
+        vkCmdCopyBuffer(job->buffer, renderer->staging_buffer(), sbo->buffer_handle(), 1, &copy_region);
+        auto wait_token = renderer->submit_job(*job);
         XR_VK_COR_PROPAGATE_ERROR(wait_token);
 
         pending_jobs.push_back(std::move(*wait_token));

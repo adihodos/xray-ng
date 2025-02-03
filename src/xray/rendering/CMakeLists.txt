@@ -78,8 +78,8 @@ set(vk-project-sources
     ${vk-proj-src-dir}/vulkan.error.cc
     ${vk-proj-inc-dir}/vulkan.buffer.hpp
     ${vk-proj-src-dir}/vulkan.buffer.cc
-    ${vk-proj-inc-dir}/vulkan.queue.submit.token.hpp
-    ${vk-proj-src-dir}/vulkan.queue.submit.token.cc
+    # ${vk-proj-inc-dir}/vulkan.queue.submit.token.hpp
+    # ${vk-proj-src-dir}/vulkan.queue.submit.token.cc
     ${vk-proj-inc-dir}/vulkan.bindless.hpp
     ${vk-proj-src-dir}/vulkan.bindless.cc
     ${vk-proj-inc-dir}/vulkan.renderer.config.hpp

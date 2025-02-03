@@ -16,7 +16,6 @@
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
 #include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/scene/scene.definition.hpp"

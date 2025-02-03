@@ -30,12 +30,13 @@
 #include "xray/base/variant.helpers.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/rangeless/fn.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatch.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pretty.print.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.queue.submit.token.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 
 using namespace xray::base;
@@ -2341,7 +2342,7 @@ VulkanRenderer::dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, con
     vkfn::CmdDebugMarkerInsertEXT(cmd_buf, &debug_marker);
 }
 
-tl::expected<VkCommandBuffer, xray::rendering::VulkanError>
+tl::expected<QueuedJob, xray::rendering::VulkanError>
 xray::rendering::VulkanRenderer::create_job(const QueueType qtype) noexcept
 {
     QueueData qdata{ queue_data(qtype) };
@@ -2370,13 +2371,13 @@ xray::rendering::VulkanRenderer::create_job(const QueueType qtype) noexcept
     };
     vkBeginCommandBuffer(cmd_buffer, &cmd_buf_begin_info);
 
-    return tl::expected<VkCommandBuffer, VulkanError>{ cmd_buffer };
+    return tl::expected<QueuedJob, VulkanError>{ QueuedJob{ .buffer = cmd_buffer, .queue_type = qtype } };
 }
 
 tl::expected<xray::rendering::QueueSubmitWaitToken, xray::rendering::VulkanError>
-xray::rendering::VulkanRenderer::submit_job(VkCommandBuffer cmd_buffer, const QueueType qtype) noexcept
+xray::rendering::VulkanRenderer::submit_job(QueuedJob queued_job) noexcept
 {
-    vkEndCommandBuffer(cmd_buffer);
+    vkEndCommandBuffer(queued_job.buffer);
 
     using namespace xray::base;
 
@@ -2397,20 +2398,83 @@ xray::rendering::VulkanRenderer::submit_job(VkCommandBuffer cmd_buffer, const Qu
         .pWaitSemaphores = nullptr,
         .pWaitDstStageMask = nullptr,
         .commandBufferCount = 1,
-        .pCommandBuffers = &cmd_buffer,
+        .pCommandBuffers = &queued_job.buffer,
         .signalSemaphoreCount = 0,
         .pSignalSemaphores = nullptr,
     };
 
     {
-        QueueData qdata{ queue_data(qtype) };
+        QueueData qdata{ queue_data(queued_job.queue_type) };
         std::unique_lock<xray::base::concurrency::spin_mutex> submit_lock{ qdata.submit_lock };
         const VkResult submit_result =
             WRAP_VULKAN_FUNC(vkQueueSubmit, qdata.handle, 1, &submit_info, raw_ptr(wait_fence));
         XR_VK_CHECK_RESULT(submit_result);
     }
 
-    return QueueSubmitWaitToken{ cmd_buffer, std::move(wait_fence), this };
+    return QueueSubmitWaitToken{ this, queued_job.buffer, std::move(wait_fence), queued_job.queue_type };
+}
+
+xray::rendering::QueueSubmitWaitToken::~QueueSubmitWaitToken() {
+    if (!_waited_on) {
+        _r->consume_wait_token(std::move(*this));
+    }
+}
+
+void
+xray::rendering::VulkanRenderer::consume_wait_token(QueueSubmitWaitToken wait_token) noexcept
+{
+    const VkFence fences[] = { wait_token.fence() };
+    WRAP_VULKAN_FUNC(vkWaitForFences,
+                     device(),
+                     static_cast<uint32_t>(std::size(fences)),
+                     fences,
+                     true,
+                     std::numeric_limits<uint64_t>::max());
+    vkDestroyFence(device(), fences[0], nullptr);
+    QueueData qdata = queue_data(wait_token.queue());
+    std::unique_lock<xray::base::concurrency::spin_mutex> pool_lock{ qdata.cmdpool_lock };
+
+    const VkCommandBuffer cmd_buffs[] = { wait_token.command_buffer() };
+    vkFreeCommandBuffers(device(), qdata.cmdpool, static_cast<uint32_t>(std::size(cmd_buffs)), cmd_buffs);
+    wait_token._waited_on = true;
+}
+
+void
+xray::rendering::VulkanRenderer::consume_many_wait_tokens(xray::base::MemoryArena& arena,
+                                                          std::span<QueueSubmitWaitToken> tokens)
+{
+    if (tokens.empty())
+        return;
+
+    ScratchPadArena scratch_pad{ &arena };
+    const containers::vector<VkFence> wait_fences =
+        lz::chain(tokens)
+            .map([](QueueSubmitWaitToken& token) {
+                token._waited_on = true;
+                return token.fence();
+            })
+            .toVector(MemoryArenaAllocator<VkFence>{ arena }, std::execution::seq);
+
+    WRAP_VULKAN_FUNC(vkWaitForFences,
+                     device(),
+                     static_cast<uint32_t>(wait_fences.size()),
+                     wait_fences.data(),
+                     true,
+                     std::numeric_limits<uint64_t>::max());
+
+    for (VkFence f : wait_fences) {
+        vkDestroyFence(device(), f, None);
+    }
+
+    const QueueData qdata = queue_data(tokens[0].queue());
+
+    const containers::vector<VkCommandBuffer> cmd_buffers =
+        lz::chain(tokens)
+            .map([](const QueueSubmitWaitToken& token) { return token.command_buffer(); })
+            .toVector(MemoryArenaAllocator<VkCommandBuffer>{ arena }, std::execution::seq);
+
+    std::unique_lock<xray::base::concurrency::spin_mutex> pool_lock{ qdata.cmdpool_lock };
+    vkFreeCommandBuffers(device(), qdata.cmdpool, static_cast<uint32_t>(std::size(cmd_buffers)), cmd_buffers.data());
 }
 
 uint32_t

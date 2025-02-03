@@ -108,3 +108,6 @@ operator+(ScopedGuardHelper, Callback&& cb) noexcept
 
 #define XRAY_SCOPE_EXIT                                                                                                \
     auto XRAY_ANONYMOUS_VARIABLE(XRAY_SCOPE_EXIT_STATE) = ::xray::base::detail::ScopedGuardHelper{} + [&]()
+
+#define XRAY_SCOPE_EXIT_NOEXCEPT                                                                                       \
+    auto XRAY_ANONYMOUS_VARIABLE(XRAY_SCOPE_EXIT_STATE) = ::xray::base::detail::ScopedGuardHelper{} + [&]() noexcept
