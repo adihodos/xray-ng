@@ -4,6 +4,7 @@ project(
   VERSION 0.5.0.0
   LANGUAGES C CXX)
 
+include(FetchContent)
 include(cmake/CPM.cmake)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
@@ -30,12 +31,33 @@ cpmaddpackage(
 
 cpmaddpackage(
   NAME
+  JoltPhysics
+  GITHUB_REPOSITORY
+  jrouwe/JoltPhysics
+  GIT_TAG
+  v5.2.0
+  DOWNLOAD_ONLY True
+  OPTIONS
+  "DOUBLE_PRECISION OFF"
+  "GENERATE_DEBUG_SYMBOLS ON"
+  "OVERRIDE_CXX_FLAGS ON"
+  "CROSS_PLATFORM_DETERMINISTIC OFF"
+  "INTERPROCEDURAL_OPTIMIZATION ON"
+  "FLOATING_POINT_EXCEPTIONS_ENABLED OFF"
+  "CPP_EXCEPTIONS_ENABLED OFF"
+  "CPP_RTTI_ENABLED OFF"
+  "OBJECT_LAYER_BITS 16")
+
+if (JoltPhysics_ADDED)
+  add_subdirectory(${JoltPhysics_SOURCE_DIR}/Build ${JoltPhysics_SOURCE_DIR}/Build/out)  
+endif()
+
+cpmaddpackage(
+  NAME
   cpp-lazy
   GITHUB_REPOSITORY
-  # adihodos/cpp-lazy
   Kaaserne/cpp-lazy
   GIT_TAG
-  # fix-include-path
   master
   OPTIONS
   "CPP-LAZY_USE_STANDALONE ON")

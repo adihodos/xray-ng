@@ -12,6 +12,8 @@ set(project_sources
     ${proj_src_dir}/fps_camera_controller.cc
     ${proj_inc_dir}/camera.controller.arcball.hpp
     ${proj_src_dir}/camera.controller.arcball.cc
+    ${proj_inc_dir}/camera.controller.flight.hpp
+    ${proj_src_dir}/camera.controller.flight.cc
     ${proj_inc_dir}/point_light.hpp
     ${proj_inc_dir}/light.types.hpp
     ${proj_inc_dir}/scene.description.hpp

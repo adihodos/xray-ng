@@ -26,6 +26,7 @@
 #include "xray/math/projection.hpp"
 
 #include "bindless.pipeline.config.hpp"
+#include "events.hpp"
 
 using namespace std;
 using namespace xray::rendering;
@@ -34,46 +35,34 @@ using namespace xray::ui;
 using namespace xray::math;
 using namespace xray::scene;
 
-dvk::TriangleDemo::SimState::SimState(const app::init_context_t& init_context)
+B5::TriangleDemo::SimState::SimState(const InitContext& init_context)
     : arcball_cam{ xray::math::vec3f::stdc::zero, 1.0f, { init_context.surface_width, init_context.surface_height } }
 {
-    //
-    // projection
     const auto perspective_projection = perspective_symmetric(
         (float)init_context.surface_width / (float)init_context.surface_height, radians(65.0f), 0.1f, 1000.0f);
 
-    // TODO: check perspective function, doesnt seem to be correct
-    // xray::math::perspective(0.0f,
-    //                         static_cast<float>(init_context.surface_width),
-    //                         static_cast<float>(init_context.surface_height),
-    //                         0.0f,
-    //                         0.1f,
-    //                         1000.0f);
-    // camera.set_view_matrix(xm::look_at({ 0.0f, 10.0f, -10.0f }, vec3f::stdc::zero, vec3f::stdc::unit_y));
     camera.set_projection(perspective_projection);
 }
 
-dvk::TriangleDemo::TriangleDemo(PrivateConstructionToken, const app::init_context_t& init_context)
-    : app::DemoBase{ init_context }
-    , _simstate{ init_context }
+B5::TriangleDemo::TriangleDemo(PrivateConstructionToken, const InitContext& init_context)
+    : _simstate{ init_context }
 {
     _timer.start();
 }
 
-dvk::TriangleDemo::~TriangleDemo() {}
+B5::TriangleDemo::~TriangleDemo() {}
 
-xray::base::unique_pointer<app::DemoBase>
-dvk::TriangleDemo::create(const app::init_context_t& init_ctx)
+xray::base::unique_pointer<B5::TriangleDemo>
+B5::TriangleDemo::create(const InitContext& init_ctx)
 {
     return xray::base::make_unique<TriangleDemo>(PrivateConstructionToken{}, init_ctx);
 }
 
 void
-dvk::TriangleDemo::event_handler(const xray::ui::window_event& evt)
+B5::TriangleDemo::event_handler(const xray::ui::window_event& evt)
 {
     if (is_input_event(evt)) {
         if (evt.event.key.keycode == KeySymbol::escape) {
-            _quit_receiver();
             return;
         }
     }
@@ -81,8 +70,9 @@ dvk::TriangleDemo::event_handler(const xray::ui::window_event& evt)
     if (evt.type == xray::ui::event_type::configure) {
         const xray::ui::window_configure_event* wce = &evt.event.configure;
         if (wce->width != 0 && wce->height != 0) {
-            _simstate.camera.set_projection(xray::math::perspective(
-                0.0f, static_cast<float>(wce->width), 0.0f, static_cast<float>(wce->height), 0.1f, 1000.0f));
+            const auto perspective_projection = perspective_symmetric(
+                static_cast<float>(wce->width) / static_cast<float>(wce->height), radians(65.0f), 0.1f, 1000.0f);
+            _simstate.camera.set_projection(perspective_projection);
         }
     }
 
@@ -90,7 +80,7 @@ dvk::TriangleDemo::event_handler(const xray::ui::window_event& evt)
 }
 
 void
-dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::RenderEvent& re)
+B5::TriangleDemo::user_interface(xray::ui::user_interface* ui, const RenderEvent& re)
 {
     ZoneScopedNCS("UI", tracy::Color::GreenYellow, 16);
 
@@ -187,7 +177,7 @@ dvk::TriangleDemo::user_interface(xray::ui::user_interface* ui, const app::Rende
 }
 
 void
-dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
+B5::TriangleDemo::loop_event(const RenderEvent& render_event)
 {
     ZoneScopedNCS("scene loop", tracy::Color::Orange, 32);
 
@@ -312,7 +302,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                                   });
         }
 
-        app::FrameGlobalData* fgd = render_event.g_ubo_data;
+        FrameGlobalData* fgd = render_event.g_ubo_data;
         SimState* s = &_simstate;
         fgd->world_view_proj = s->camera.projection_view(); // identity for model -> world
         fgd->view = s->camera.view();
@@ -321,7 +311,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
 
         //
         // lights setup
-        fgd->lights = app::LightingSetup{
+        fgd->lights = LightingSetup{
             .sbo_directional_lights = destructure_bindless_resource_handle(
                                           bindless_subresource_handle_from_bindless_resource_handle(
                                               sres->sbo_directional_lights.first, render_event.frame_data->id))
@@ -345,6 +335,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
         render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
 
+    // render_event.renderer->clear_attachments(render_event.frame_data->cmd_buf, 0.0f, 0.0f, 0.0f);
     const VkViewport viewport{
         .x = 0.0f,
         .y = static_cast<float>(render_event.frame_data->fbsize.height),
@@ -362,7 +353,6 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
     };
 
     vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
-    render_event.renderer->clear_attachments(render_event.frame_data->cmd_buf, 0.0f, 0.0f, 0.0f);
 
     struct DrawDataPushConst
     {
@@ -393,7 +383,7 @@ dvk::TriangleDemo::loop_event(const app::RenderEvent& render_event)
                                         sres->sbo_instances.second.aligned_chunk_size * render_event.frame_data->id,
                                         sres->sbo_instances.second.aligned_chunk_size);
 
-    app::InstanceRenderInfo* iri = instances_buffer->as<app::InstanceRenderInfo>();
+    InstanceRenderInfo* iri = instances_buffer->as<InstanceRenderInfo>();
     uint32_t instance{};
 
     //

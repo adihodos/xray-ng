@@ -277,6 +277,18 @@ UserInterfaceRenderBackend_Vulkan::render(const UserInterfaceRenderContext& ctx,
         assert(op_result && "Failed to upload UI draw data to GPU!");
 
         vkCmdBindPipeline(rd.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline.handle());
+
+        const VkViewport viewport {
+            .x = 0,
+                .y = 0,
+                .width = static_cast<float>(rd.fbsize.width),
+                .height = static_cast<float>(rd.fbsize.height),
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f,
+        };
+
+        vkCmdSetViewportWithCount(rd.cmd_buf, 1, &viewport);
+
         const VkBuffer vertex_buffers[] = { _vertexbuffer.buffer_handle() };
         const VkDeviceSize vertex_offsets[] = { 0 };
         vkCmdBindVertexBuffers(rd.cmd_buf, 0, 1, vertex_buffers, vertex_offsets);

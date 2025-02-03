@@ -7,7 +7,12 @@ set(proj_src_dir "${PROJECT_SOURCE_DIR}/code")
 set(project_sources
     ${proj_src_dir}/vulkan-main.cc ${proj_inc_dir}/triangle/triangle.hpp
     ${proj_src_dir}/bindless.pipeline.config.hpp
-    ${proj_src_dir}/triangle/triangle.cc)
+    ${proj_src_dir}/triangle/triangle.cc
+    ${proj_src_dir}/system.memory.hpp
+    ${proj_src_dir}/system.memory.cc
+    ${proj_src_dir}/system.physics.hpp
+    ${proj_src_dir}/system.physics.cc
+   )
 
 set(shader_src_dir "${PROJECT_SOURCE_DIR}/shaders")
 set(shader_files ${shader_src_dir}/triangle/tri.vert
@@ -97,7 +102,7 @@ target_link_libraries(
           $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
           noise
           atomic_queue
-          )
+          Jolt)
 
 get_target_property(target_output_directory ${PROJECT_NAME}
                     RUNTIME_OUTPUT_DIRECTORY)

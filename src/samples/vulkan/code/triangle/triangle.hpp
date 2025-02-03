@@ -1,22 +1,14 @@
 #pragma once
 
-#include "demo_base.hpp"
-
 #include <bitset>
-#include <vector>
 
 #include <tl/expected.hpp>
 #include <concurrencpp/forward_declarations.h>
 
 #include "xray/base/unique_pointer.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
+#include "xray/base/basic_timer.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera.controller.arcball.hpp"
-
-#include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
-#include "xray/rendering/geometry.importer.gltf.hpp"
-#include "xray/rendering/geometry.hpp"
 
 namespace xray::ui {
 class user_interface;
@@ -27,9 +19,12 @@ struct GeometryWithRenderData;
 struct GeneratedGeometryWithRenderData;
 };
 
-namespace dvk {
+namespace B5 {
 
-class TriangleDemo : public app::DemoBase
+struct RenderEvent;
+struct InitContext;
+
+class TriangleDemo
 {
   private:
     struct PrivateConstructionToken
@@ -38,16 +33,13 @@ class TriangleDemo : public app::DemoBase
     };
 
   public:
-    virtual void event_handler(const xray::ui::window_event& evt) override;
-    virtual void loop_event(const app::RenderEvent&) override;
+    void event_handler(const xray::ui::window_event& evt);
+    void loop_event(const RenderEvent&);
 
-    static std::string_view short_desc() noexcept { return "Vulkan triangle."; }
-    static std::string_view detailed_desc() noexcept { return "Rendering a simple triangle using Vulkan."; }
-
-    static xray::base::unique_pointer<app::DemoBase> create(const app::init_context_t& init_ctx);
+    static xray::base::unique_pointer<TriangleDemo> create(const InitContext& init_ctx);
 
   private:
-    void user_interface(xray::ui::user_interface* ui, const app::RenderEvent& re);
+    void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
 
     struct SimState
     {
@@ -57,7 +49,7 @@ class TriangleDemo : public app::DemoBase
         std::bitset<8> lights_sync{ 0 };
 
         SimState() = default;
-        SimState(const app::init_context_t& init_context);
+        SimState(const InitContext& init_context);
 
     } _simstate{};
 
@@ -77,8 +69,10 @@ class TriangleDemo : public app::DemoBase
         std::bitset<MAX_LIGHTS> toggle_point_lights{ std::bitset<MAX_LIGHTS>{}.set() };
     } _uistate{};
 
+    xray::base::timer_highp _timer{};
+
   public:
-    TriangleDemo(PrivateConstructionToken, const app::init_context_t& init_context);
+    TriangleDemo(PrivateConstructionToken, const InitContext& init_context);
     ~TriangleDemo();
 };
 

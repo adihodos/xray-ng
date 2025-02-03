@@ -6,7 +6,7 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4.hpp"
 
-namespace app {
+namespace B5 {
 
 struct UIData
 {

@@ -47,9 +47,7 @@ template<typename T>
 MatrixWithInvertedMatrixPair<T>
 perspective(const T rmin, const T rmax, const T umin, const T umax, const T dmin, const T dmax)
 {
-
     return MatrixWithInvertedMatrixPair<T>{
-
         .transform =
             scalar4x4<T>{ // 1st row
                           T{ 2 } * dmin / (rmax - rmin),

@@ -52,7 +52,6 @@
 #include <rfl/json.hpp>
 #include <rfl.hpp>
 #include <itlib/small_vector.hpp>
-#include <atomic_queue/atomic_queue.h>
 
 #include <noise/noise.h>
 #include <noise/noiseutils.h>
@@ -95,10 +94,10 @@
 #include "xray/scene/scene.description.hpp"
 #include "xray/scene/scene.definition.hpp"
 
-#include "demo_base.hpp"
-#include "init_context.hpp"
 #include "triangle/triangle.hpp"
 #include "bindless.pipeline.config.hpp"
+#include "system.memory.hpp"
+#include "events.hpp"
 
 using namespace xray;
 using namespace xray::base;
@@ -111,186 +110,7 @@ using namespace std;
 
 xray::base::ConfigSystem* xr_app_config{ nullptr };
 
-struct GlobalMemoryConfig
-{
-    uint32_t medium_arenas{ 8 };
-    uint32_t large_arenas{ 4 };
-    uint32_t small_arenas{ 16 };
-    uint32_t large_arena_size{ 64 };
-    uint32_t medium_arena_size{ 32 };
-    uint32_t small_arena_size{ 16 };
-};
-
-namespace GlobalMemoryBuffers {
-uint8_t SmallArenas[16][16 * 1024 * 1024];
-uint8_t MediumArenas[8][32 * 1024 * 1024];
-uint8_t LargeArenas[4][64 * 1024 * 1024];
-};
-
-struct LargeArenaTag
-{};
-struct MediumArenaTag
-{};
-struct SmallArenaTag
-{};
-
-template<typename TagType>
-struct ScopedMemoryArena
-{
-    explicit ScopedMemoryArena(std::span<uint8_t> s) noexcept
-        : arena{ s }
-    {
-    }
-
-    ScopedMemoryArena(uint8_t* backing_buffer, size_t backing_buffer_length) noexcept
-        : arena{ backing_buffer, backing_buffer_length }
-    {
-    }
-
-    ~ScopedMemoryArena();
-
-    MemoryArena arena;
-};
-
-using ScopedSmallArenaType = ScopedMemoryArena<SmallArenaTag>;
-using ScopedMediumArenaType = ScopedMemoryArena<MediumArenaTag>;
-using ScopedLargeArenaType = ScopedMemoryArena<LargeArenaTag>;
-
-class GlobalMemorySystem
-{
-  private:
-    GlobalMemorySystem()
-    {
-        for (size_t idx = 0; idx < std::size(GlobalMemoryBuffers::SmallArenas); ++idx) {
-            free_small.push(reinterpret_cast<void*>(&GlobalMemoryBuffers::SmallArenas[idx]));
-        }
-
-        for (size_t idx = 0; idx < std::size(GlobalMemoryBuffers::MediumArenas); ++idx) {
-            free_medium.push(reinterpret_cast<void*>(&GlobalMemoryBuffers::MediumArenas[idx]));
-        }
-
-        for (size_t idx = 0; idx < std::size(GlobalMemoryBuffers::LargeArenas); ++idx) {
-            free_large.push(reinterpret_cast<void*>(&GlobalMemoryBuffers::LargeArenas[idx]));
-        }
-    }
-
-  public:
-    static GlobalMemorySystem* instance() noexcept
-    {
-        static GlobalMemorySystem the_one_and_only{};
-        return &the_one_and_only;
-    }
-
-    template<typename TagType>
-    ScopedMemoryArena<TagType> grab_arena()
-    {
-        if constexpr (std::is_same_v<TagType, LargeArenaTag>) {
-            void* mem_ptr{};
-            if (!this->free_large.try_pop(mem_ptr)) {
-                // TODO: handle memory exhausted
-            }
-
-            return ScopedMemoryArena<TagType>{
-                static_cast<uint8_t*>(mem_ptr),
-                std::size(GlobalMemoryBuffers::LargeArenas[0]),
-            };
-        } else if constexpr (std::is_same_v<TagType, MediumArenaTag>) {
-            void* mem_ptr{};
-            if (!free_medium.try_pop(mem_ptr)) {
-                // TODO: handle memory exhausted
-            }
-            return ScopedMemoryArena<TagType>{
-                static_cast<uint8_t*>(mem_ptr),
-                std::size(GlobalMemoryBuffers::MediumArenas[0]),
-            };
-        } else if constexpr (std::is_same_v<TagType, SmallArenaTag>) {
-            void* mem_ptr{};
-            if (!free_small.try_pop(mem_ptr)) {
-                // TODO: handle memory exhausted
-            }
-            return ScopedMemoryArena<TagType>{
-                static_cast<uint8_t*>(mem_ptr),
-                std::size(GlobalMemoryBuffers::SmallArenas[0]),
-            };
-        } else {
-            static_assert(false, "Unhandled arena type");
-        }
-    }
-
-    template<typename TagType>
-    void release_arena(MemoryArena& arena)
-    {
-        if constexpr (std::is_same_v<TagType, LargeArenaTag>) {
-            free_large.push(arena.buf);
-        } else if constexpr (std::is_same_v<TagType, MediumArenaTag>) {
-            free_medium.push(arena.buf);
-        } else if constexpr (std::is_same_v<TagType, SmallArenaTag>) {
-            free_small.push(arena.buf);
-        } else {
-            static_assert(false, "Unhandled arena type");
-        }
-    }
-
-    auto grab_large_arena() noexcept { return grab_arena<LargeArenaTag>(); }
-    auto grab_medium_arena() noexcept { return grab_arena<MediumArenaTag>(); }
-    auto grab_small_arena() noexcept { return grab_arena<SmallArenaTag>(); }
-
-    ~GlobalMemorySystem()
-    {
-        // for (size_t i = 0; i < std::size(_reserved_blocks); ++i)
-        //     munmap(_reserved_blocks[i], 64 * 1024 * 1024);
-    }
-
-  private:
-    atomic_queue::AtomicQueue<void*, 16> free_small;
-    atomic_queue::AtomicQueue<void*, 16> free_medium;
-    atomic_queue::AtomicQueue<void*, 16> free_large;
-
-    GlobalMemorySystem(const GlobalMemorySystem&) = delete;
-    GlobalMemorySystem& operator=(const GlobalMemorySystem&) = delete;
-};
-
-template<typename TagType>
-ScopedMemoryArena<TagType>::~ScopedMemoryArena()
-{
-    GlobalMemorySystem::instance()->release_arena<TagType>(this->arena);
-}
-
-namespace app {
-
-struct RegisteredDemo
-{
-    std::string_view short_desc;
-    std::string_view detailed_desc;
-    cpp::delegate<unique_pointer<DemoBase>(const init_context_t&)> create_demo_fn;
-};
-
-template<typename... Ts>
-std::vector<RegisteredDemo>
-register_demos()
-{
-    std::vector<RegisteredDemo> demos;
-    demos.resize(sizeof...(Ts));
-    ((demos.push_back(RegisteredDemo{ Ts::short_desc(), Ts::detailed_desc(), cpp::bind<&Ts::create>() })), ...);
-
-    return demos;
-}
-
-enum class demo_type : int32_t
-{
-    none,
-    colored_circle,
-    fractal,
-    texture_array,
-    mesh,
-    bufferless_draw,
-    lighting_directional,
-    lighting_point,
-    procedural_city,
-    instanced_drawing,
-    geometric_shapes,
-    // terrain_basic
-};
+namespace B5 {
 
 template<typename T, size_t N = 4>
 using SmallVec = itlib::small_vector<T, N>;
@@ -1415,7 +1235,8 @@ class GameMain
              xray::base::unique_pointer<SceneDefinition> scenedef,
              xray::base::unique_pointer<SceneResources> sceneres,
              MemoryArena* arena_perm,
-             MemoryArena* arena_temp)
+             MemoryArena* arena_temp,
+             xray::base::unique_pointer<TriangleDemo> game_sim)
         : _co_runtime{ std::move(co_runtime) }
         , _window{ std::move(window) }
         , _vkrenderer{ std::move(vkrenderer) }
@@ -1427,20 +1248,9 @@ class GameMain
         , _sceneres{ std::move(sceneres) }
         , _arena_perm{ arena_perm }
         , _arena_temp{ arena_temp }
+        , _game_sim{ std::move(game_sim) }
     {
         hookup_event_delegates();
-
-        lz::chain(_registered_demos).forEach([](const RegisteredDemo& rd) {
-            XR_LOG_INFO("Registered demo: {} - {}", rd.short_desc, rd.detailed_desc);
-        });
-
-        constexpr const char* combo_items[] = { "just", "some", "dummy", "items", "for the", "combo" };
-        for (const char* e : combo_items) {
-            _combo_items.insert(_combo_items.end(), e, e + strlen(e));
-            _combo_items.push_back(0);
-        }
-        _combo_items.push_back(0);
-
         _timer.start();
     }
 
@@ -1451,16 +1261,7 @@ class GameMain
     void run();
 
   private:
-    bool demo_running() const noexcept { return _demo != nullptr; }
-    void run_demo(const demo_type type);
     void hookup_event_delegates();
-    void demo_quit();
-
-    const RegisteredDemo& get_demo_info(const size_t idx) const
-    {
-        assert(idx < _registered_demos.size());
-        return _registered_demos[idx];
-    }
 
     /// \group Event handlers
     /// @{
@@ -1479,16 +1280,14 @@ class GameMain
     xray::base::unique_pointer<xray::ui::user_interface> _ui{};
     xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> _ui_backend{};
     xray::base::unique_pointer<xray::rendering::DebugDrawSystem> _debug_draw{};
-    xray::base::unique_pointer<DemoBase> _demo{};
     xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::deeppurple900 };
     xray::base::timer_highp _timer{};
-    vector<RegisteredDemo> _registered_demos;
-    vector<char> _combo_items{};
     xray::base::unique_pointer<SceneDefinition> _scenedef;
     xray::base::unique_pointer<SceneResources> _sceneres;
     xray::rendering::BindlessUniformBufferResourceHandleEntryPair _global_ubo;
     MemoryArena* _arena_perm{};
     MemoryArena* _arena_temp{};
+    xray::base::unique_pointer<TriangleDemo> _game_sim;
     XRAY_NO_COPY(GameMain);
 };
 
@@ -1594,24 +1393,6 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
                              });
     XR_PROPAGATE_ERROR(g_ubo);
 
-    //
-    //     RegisteredDemosList<FractalDemo, DirectionalLightDemo, procedural_city_demo,
-    //     InstancedDrawingDemo>::registerDemo(
-    //         _registeredDemos);
-    //
-    //     const string_view first_entry{ "Main page" };
-    //     copy(cbegin(first_entry), cend(first_entry), back_inserter(_combo_items));
-    //     _combo_items.push_back(0);
-    //
-    //     _registeredDemos >>= pipes::for_each([this](const DemoInfo& demo) {
-    //         XR_LOG_DEBUG("Demo: {}\n{}", demo.shortDesc, demo.detailedDesc);
-    //         const string_view demo_desc{ demo.shortDesc };
-    //         copy(cbegin(demo_desc), cend(demo_desc), back_inserter(_combo_items));
-    //         _combo_items.push_back(0);
-    //     });
-    //     _combo_items.push_back(0);
-    //
-
     xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(
         std::move(font_pkg_load_result)) };
 
@@ -1630,6 +1411,14 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
     XR_PROPAGATE_ERROR(scene_result);
 
     SceneResources scene_resources{ SceneResources::from_scene(&*scene_result, raw_ptr(renderer)) };
+    auto game_sim = TriangleDemo::create(InitContext{
+        .surface_width = main_window.width(),
+        .surface_height = main_window.height(),
+        .perm = arena_perm,
+        .temp = arena_temp,
+        .renderer = raw_ptr(renderer),
+        .config_sys = xr_app_config,
+    });
 
     return tl::expected<GameMain, ProgramError>(
         tl::in_place,
@@ -1644,7 +1433,8 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
         xray::base::make_unique<SceneDefinition>(std::move(*scene_result)),
         xray::base::make_unique<SceneResources>(std::move(scene_resources)),
         arena_perm,
-        arena_temp);
+        arena_temp,
+        std::move(game_sim));
 }
 
 void
@@ -1653,14 +1443,6 @@ GameMain::run()
     hookup_event_delegates();
     _window.message_loop();
     _vkrenderer->wait_device_idle();
-}
-
-void
-GameMain::demo_quit()
-{
-    assert(demo_running());
-    _vkrenderer->wait_device_idle();
-    _demo = nullptr;
 }
 
 void
@@ -1685,12 +1467,6 @@ GameMain::hookup_event_delegates()
 void
 GameMain::event_handler(const xray::ui::window_event& wnd_evt)
 {
-    _ui->input_event(wnd_evt);
-
-    if (demo_running() && !_ui->wants_input()) {
-        _demo->event_handler(wnd_evt);
-        return;
-    }
 
     if (is_input_event(wnd_evt)) {
         if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
@@ -1699,6 +1475,13 @@ GameMain::event_handler(const xray::ui::window_event& wnd_evt)
             return;
         }
     }
+
+    _ui->input_event(wnd_evt);
+
+    if (!_ui->wants_input()) {
+        _game_sim->event_handler(wnd_evt);
+        return;
+    }
 }
 
 void
@@ -1706,19 +1489,6 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 {
     ZoneScopedNCS("LoopEvent", 0xFF0000FF, 32);
     _arena_temp->free_all();
-
-    static bool doing_ur_mom{ false };
-    if (!doing_ur_mom && !_demo) {
-        _demo = dvk::TriangleDemo::create(app::init_context_t{
-            .surface_width = _window.width(),
-            .surface_height = _window.height(),
-            .cfg = xr_app_config,
-            .ui = raw_ptr(_ui),
-            .renderer = raw_ptr(_vkrenderer),
-            .quit_receiver = cpp::bind<&GameMain::demo_quit>(this),
-        });
-        doing_ur_mom = true;
-    }
 
     _timer.update_and_reset();
     const float delta = _timer.elapsed_millis();
@@ -1734,74 +1504,28 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
     _vkrenderer->bindless_sys().flush_descriptors(*_vkrenderer);
     _vkrenderer->bindless_sys().bind_descriptors(*_vkrenderer, frd.cmd_buf);
 
+    _vkrenderer->clear_attachments(frd.cmd_buf, 0.0f, 0.0f, 0.0f);
+
     auto g_ubo_mapping = UniqueMemoryMapping::map_memory(_vkrenderer->device(),
                                                          _global_ubo.second.memory,
                                                          frd.id * _global_ubo.second.aligned_chunk_size,
                                                          _global_ubo.second.aligned_chunk_size);
 
-    if (_demo) {
-        _demo->loop_event(RenderEvent{
-            .loop_event = loop_event,
-            .frame_data = &frd,
-            .renderer = raw_ptr(_vkrenderer),
-            .ui = xray::base::raw_ptr(_ui),
-            .g_ubo_data = g_ubo_mapping->as<FrameGlobalData>(),
-            .dbg_draw = raw_ptr(_debug_draw),
-            .sdef = raw_ptr(_scenedef),
-            .sres = raw_ptr(_sceneres),
-            .delta = delta,
-            .arena_perm = _arena_perm,
-            .arena_temp = _arena_temp,
-        });
-    } else {
-        //
-        // do main page UI
-        if (ImGui::Begin("Run a demo", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse)) {
-            int32_t selectedItem{};
-            const bool wasClicked = ImGui::Combo("Available demos", &selectedItem, _combo_items.data());
-            //
-            if (wasClicked && selectedItem >= 1) {
-                //                 const init_context_t initContext{ _window->width(),
-                //                                                   _window->height(),
-                //                                                   xr_app_config,
-                //                                                   xray::base::raw_ptr(_ui),
-                //                                                   make_delegate(*this, &main_app::demo_quit) };
-                //
-                //                 _registeredDemos[static_cast<size_t>(selectedItem - 1)]
-                //                     .createFn(initContext)
-                //                     .map([this](demo_bundle_t bundle) {
-                //                         auto [demoObj, winEvtHandler, pollEvtHandler] = move(bundle);
-                //                         this->_demo = std::move(demoObj);
-                //                         this->_window->events.window = winEvtHandler;
-                //                         this->_window->events.loop = pollEvtHandler;
-                //                     });
-            }
-        }
-        ImGui::End();
-
-        _vkrenderer->clear_attachments(frd.cmd_buf, 1.0f, 0.0f, 1.0f);
-    }
+    _game_sim->loop_event(RenderEvent{
+        .loop_event = loop_event,
+        .frame_data = &frd,
+        .renderer = raw_ptr(_vkrenderer),
+        .ui = xray::base::raw_ptr(_ui),
+        .g_ubo_data = g_ubo_mapping->as<FrameGlobalData>(),
+        .dbg_draw = raw_ptr(_debug_draw),
+        .sdef = raw_ptr(_scenedef),
+        .sres = raw_ptr(_sceneres),
+        .delta = delta,
+        .arena_perm = _arena_perm,
+        .arena_temp = _arena_temp,
+    });
 
     _debug_draw->render(DebugDrawSystem::RenderContext{ .renderer = raw_ptr(_vkrenderer), .frd = &frd });
-
-    const VkViewport viewport{
-        .x = 0.0f,
-        .y = 0.0f,
-        .width = static_cast<float>(loop_event.wnd_width),
-        .height = static_cast<float>(loop_event.wnd_height),
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f,
-    };
-
-    vkCmdSetViewport(frd.cmd_buf, 0, 1, &viewport);
-
-    const VkRect2D scissor{
-        .offset = VkOffset2D{ 0, 0 },
-        .extent =
-            VkExtent2D{ static_cast<uint32_t>(loop_event.wnd_width), static_cast<uint32_t>(loop_event.wnd_height) },
-    };
-
-    vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
 
     //
     // move the UBO mapping into the lambda so that the data is flushed before the rendering starts
@@ -1826,209 +1550,6 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
     FrameMark;
 }
 
-//
-// void
-// main_app::run_demo(const demo_type type)
-// {
-//     // auto make_demo_fn =
-//     //   [this, w = _window](const demo_type dtype) -> unique_pointer<demo_base> {
-//     //   const init_context_t init_context{
-//     //     w->width(),
-//     //     w->height(),
-//     //     xr_app_config,
-//     //     xray::base::raw_ptr(_ui),
-//     //     make_delegate(*this, &main_app::demo_quit)};
-//     //
-//     //   switch (dtype) {
-//     //
-//     //     //    case demo_type::colored_circle:
-//     //     //      return xray::base::make_unique<colored_circle_demo>();
-//     //     //      break;
-//     //
-//     //   case demo_type::fractal:
-//     //     return xray::base::make_unique<fractal_demo>(init_context);
-//     //     break;
-//     //
-//     //   case demo_type::texture_array:
-//     //     return xray::base::make_unique<texture_array_demo>(init_context);
-//     //     break;
-//     //
-//     //   case demo_type::mesh:
-//     //     return xray::base::make_unique<mesh_demo>(init_context);
-//     //     break;
-//     //
-//     //     //    case demo_type::bufferless_draw:
-//     //     //      return xray::base::make_unique<bufferless_draw_demo>();
-//     //     //      break;
-//     //
-//     //   case demo_type::lighting_directional:
-//     //     return xray::base::make_unique<directional_light_demo>(init_context);
-//     //     break;
-//     //
-//     //     //    case demo_type::procedural_city:
-//     //     //      return
-//     //     //      xray::base::make_unique<procedural_city_demo>(init_context);
-//     //     //      break;
-//     //
-//     //   case demo_type::instanced_drawing:
-//     //     return xray::base::make_unique<instanced_drawing_demo>(init_context);
-//     //     break;
-//     //
-//     //     //    case demo_type::geometric_shapes:
-//     //     //      return
-//     //     //      xray::base::make_unique<geometric_shapes_demo>(init_context);
-//     //     //      break;
-//     //
-//     //     //    case demo_type::lighting_point:
-//     //     //      return
-//     //     xray::base::make_unique<point_light_demo>(&init_context);
-//     //     //      break;
-//     //
-//     //     // case demo_type::terrain_basic:
-//     //     //   return xray::base::make_unique<terrain_demo>(init_context);
-//     //     //   break;
-//     //
-//     //   default:
-//     //     break;
-//     //   }
-//     //
-//     //   return nullptr;
-//     // };
-//     //
-//     // _demo = make_demo_fn(type);
-//     // if (!_demo) {
-//     //   return;
-//     // }
-//     //
-//     // _window->events.loop       = make_delegate(*_demo, &demo_base::loop_event);
-//     // _window->events.poll_start = make_delegate(*_demo, &demo_base::poll_start);
-//     // _window->events.poll_end   = make_delegate(*_demo, &demo_base::poll_end);
-//     // _window->events.window     = make_delegate(*_demo,
-//     // &demo_base::event_handler);
-// }
-//
-// void
-// debug_proc(GLenum source,
-//            GLenum type,
-//            GLuint id,
-//            GLenum severity,
-//            GLsizei /*length*/,
-//            const GLchar* message,
-//            const void* /*userParam*/)
-// {
-//
-//     auto msg_source = [source]() {
-//         switch (source) {
-//             case gl::DEBUG_SOURCE_API:
-//                 return "API";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_APPLICATION:
-//                 return "APPLICATION";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_OTHER:
-//                 return "OTHER";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_SHADER_COMPILER:
-//                 return "SHADER COMPILER";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_THIRD_PARTY:
-//                 return "THIRD PARTY";
-//                 break;
-//
-//             case gl::DEBUG_SOURCE_WINDOW_SYSTEM:
-//                 return "WINDOW SYSTEM";
-//                 break;
-//
-//             default:
-//                 return "UNKNOWN";
-//                 break;
-//         }
-//     }();
-//
-//     const auto msg_type = [type]() {
-//         switch (type) {
-//             case gl::DEBUG_TYPE_ERROR:
-//                 return "ERROR";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-//                 return "DEPRECATED BEHAVIOUR";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_MARKER:
-//                 return "MARKER";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_OTHER:
-//                 return "OTHER";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_PERFORMANCE:
-//                 return "PERFORMANCE";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_POP_GROUP:
-//                 return "POP GROUP";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_PORTABILITY:
-//                 return "PORTABILITY";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_PUSH_GROUP:
-//                 return "PUSH GROUP";
-//                 break;
-//
-//             case gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-//                 return "UNDEFINED BEHAVIOUR";
-//                 break;
-//
-//             default:
-//                 return "UNKNOWN";
-//                 break;
-//         }
-//     }();
-//
-//     auto msg_severity = [severity]() {
-//         switch (severity) {
-//             case gl::DEBUG_SEVERITY_HIGH:
-//                 return "HIGH";
-//                 break;
-//
-//             case gl::DEBUG_SEVERITY_LOW:
-//                 return "LOW";
-//                 break;
-//
-//             case gl::DEBUG_SEVERITY_MEDIUM:
-//                 return "MEDIUM";
-//                 break;
-//
-//             case gl::DEBUG_SEVERITY_NOTIFICATION:
-//                 return "NOTIFICATION";
-//                 break;
-//
-//             default:
-//                 return "UNKNOWN";
-//                 break;
-//         }
-//     }();
-//
-//     XR_LOG_DEBUG("OpenGL debug message\n[MESSAGE] : {}\n[SOURCE] : {}\n[TYPE] : "
-//                  "{}\n[SEVERITY] "
-//                  ": {}\n[ID] : {}",
-//                  message,
-//                  msg_source,
-//                  msg_type,
-//                  msg_severity,
-//                  id);
-// }
-//
-// } // namespace app
-//
 }
 
 struct ShaderComposer
@@ -2104,8 +1625,8 @@ main(int argc, char** argv)
 
     XR_LOG_INFO("Alignof {}", alignof(vec4f));
 
-    auto arena_large_perm = GlobalMemorySystem::instance()->grab_large_arena();
-    auto arena_temp = GlobalMemorySystem::instance()->grab_medium_arena();
+    auto arena_large_perm = B5::GlobalMemorySystem::instance()->grab_large_arena();
+    auto arena_temp = B5::GlobalMemorySystem::instance()->grab_medium_arena();
 
     {
         // ScratchPadArena sa{ &arena_temp.arena };
@@ -2121,15 +1642,15 @@ main(int argc, char** argv)
         //                 ._src_code);
     }
 
-    app::GameMain::create(&arena_large_perm.arena, &arena_temp.arena)
-        .map([&](app::GameMain runner) {
+    B5::GameMain::create(&arena_large_perm.arena, &arena_temp.arena)
+        .map([&](B5::GameMain runner) {
             runner.run();
             XR_LOG_INFO("Temp arena stats: high water {}, largest block {}",
                         arena_temp.arena.stats.high_water,
                         arena_temp.arena.stats.largest_alloc);
             XR_LOG_INFO("Shutting down ...");
         })
-        .map_error([](app::ProgramError&& f) {
+        .map_error([](B5::ProgramError&& f) {
             XR_LOG_CRITICAL(
                 "{} ...",
                 swl::visit(xray::base::VariantVisitor{
@@ -2141,7 +1662,7 @@ main(int argc, char** argv)
                                                       vkerr.err_code);
                                },
                                [](const xray::scene::SceneError& serr) { return serr.err; },
-                               [](const app::MiscError& msc) { return msc.what; },
+                               [](const B5::MiscError& msc) { return msc.what; },
                                [](const GeometryImportError& ge) { return std::string{ "geometry error" }; } },
                            f));
         });
