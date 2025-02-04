@@ -32,6 +32,7 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/math/projection.hpp"
+#include "xray/math/math.units.hpp"
 
 namespace xray {
 namespace ui {
@@ -61,24 +62,24 @@ struct FlightCamera
     FlightCameraParams params;
     math::vec3f position;
     math::mat4f view_matrix;
-    math::mat4f inverse_view;
+    math::mat4f inverse_of_view_matrix;
     float near;
     float far;
     float aspect;
-    float fovy;
+    math::RadiansF32 fovy;
     math::mat4f projection_matrix;
-    math::mat4f inverse_projection;
+    math::mat4f inverse_of_projection_matrix;
 
-    FlightCamera(const float fovy, const float aspect, const float near, const float far) noexcept
+    FlightCamera(const math::RadiansF32 fovy, const float aspect, const float near, const float far) noexcept
     {
         const auto [projection, inverse_projection] = math::perspective_symmetric(aspect, fovy, near, far);
 
         this->projection_matrix = projection;
-        this->inverse_projection = inverse_projection;
+        this->inverse_of_projection_matrix = inverse_projection;
         this->near = near;
         this->far = far;
         this->aspect = aspect;
-        this->fovy = math::radians(fovy);
+        this->fovy = fovy;
         this->position = math::vec3f::stdc::zero;
     }
 

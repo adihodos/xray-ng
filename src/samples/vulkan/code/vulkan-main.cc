@@ -94,7 +94,7 @@
 #include "xray/scene/scene.description.hpp"
 #include "xray/scene/scene.definition.hpp"
 
-#include "triangle/triangle.hpp"
+#include "game/game.sim.hpp"
 #include "bindless.pipeline.config.hpp"
 #include "system.memory.hpp"
 #include "events.hpp"
@@ -1236,7 +1236,7 @@ class GameMain
              xray::base::unique_pointer<SceneResources> sceneres,
              MemoryArena* arena_perm,
              MemoryArena* arena_temp,
-             xray::base::unique_pointer<TriangleDemo> game_sim)
+             xray::base::unique_pointer<GameSimulation> game_sim)
         : _co_runtime{ std::move(co_runtime) }
         , _window{ std::move(window) }
         , _vkrenderer{ std::move(vkrenderer) }
@@ -1287,7 +1287,7 @@ class GameMain
     xray::rendering::BindlessUniformBufferResourceHandleEntryPair _global_ubo;
     MemoryArena* _arena_perm{};
     MemoryArena* _arena_temp{};
-    xray::base::unique_pointer<TriangleDemo> _game_sim;
+    xray::base::unique_pointer<GameSimulation> _game_sim;
     XRAY_NO_COPY(GameMain);
 };
 
@@ -1411,7 +1411,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
     XR_PROPAGATE_ERROR(scene_result);
 
     SceneResources scene_resources{ SceneResources::from_scene(&*scene_result, raw_ptr(renderer)) };
-    auto game_sim = TriangleDemo::create(InitContext{
+    auto game_sim = GameSimulation::create(InitContext{
         .surface_width = main_window.width(),
         .surface_height = main_window.height(),
         .perm = arena_perm,

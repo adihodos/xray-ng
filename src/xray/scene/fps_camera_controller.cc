@@ -129,8 +129,8 @@ xray::scene::fps_camera_controller::roll_right() noexcept
 void
 xray::scene::fps_camera_controller::zoom_in() noexcept
 {
-    static constexpr auto MIN_FOV = radians(5.0f);
-    _lensparams.fov -= LENS_SPEED;
+    static constexpr auto MIN_FOV = RadiansF32(radians(5.0f));
+    _lensparams.fov -= RadiansF32{LENS_SPEED}; // intentionally use the speed as radians
     if (_lensparams.fov < MIN_FOV) {
         _lensparams.fov = MIN_FOV;
     }
@@ -140,8 +140,8 @@ xray::scene::fps_camera_controller::zoom_in() noexcept
 void
 xray::scene::fps_camera_controller::zoom_out() noexcept
 {
-    static constexpr auto MAX_FOV = radians(185.0f);
-    _lensparams.fov += LENS_SPEED;
+    static constexpr auto MAX_FOV = RadiansF32{radians(185.0f)};
+    _lensparams.fov += RadiansF32{LENS_SPEED};
     if (_lensparams.fov > MAX_FOV) {
         _lensparams.fov = MAX_FOV;
     }

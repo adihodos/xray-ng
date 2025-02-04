@@ -5,9 +5,10 @@ set(proj_inc_dir "${PROJECT_SOURCE_DIR}/code")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}/code")
 
 set(project_sources
-    ${proj_src_dir}/vulkan-main.cc ${proj_inc_dir}/triangle/triangle.hpp
+    ${proj_src_dir}/vulkan-main.cc 
     ${proj_src_dir}/bindless.pipeline.config.hpp
-    ${proj_src_dir}/triangle/triangle.cc
+    ${proj_inc_dir}/game/game.sim.hpp
+    ${proj_src_dir}/game/game.sim.cc
     ${proj_src_dir}/system.memory.hpp
     ${proj_src_dir}/system.memory.cc
     ${proj_src_dir}/system.physics.hpp

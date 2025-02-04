@@ -9,6 +9,7 @@
 #include "xray/base/basic_timer.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera.controller.arcball.hpp"
+#include "xray/scene/camera.controller.flight.hpp"
 
 namespace xray::ui {
 class user_interface;
@@ -24,7 +25,7 @@ namespace B5 {
 struct RenderEvent;
 struct InitContext;
 
-class TriangleDemo
+class GameSimulation
 {
   private:
     struct PrivateConstructionToken
@@ -36,7 +37,7 @@ class TriangleDemo
     void event_handler(const xray::ui::window_event& evt);
     void loop_event(const RenderEvent&);
 
-    static xray::base::unique_pointer<TriangleDemo> create(const InitContext& init_ctx);
+    static xray::base::unique_pointer<GameSimulation> create(const InitContext& init_ctx);
 
   private:
     void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
@@ -46,6 +47,12 @@ class TriangleDemo
         float angle{};
         xray::scene::camera camera{};
         xray::scene::ArcballCamera arcball_cam{};
+        xray::scene::FlightCamera flight_cam{
+            xray::math::RadiansF32{ xray::math::radians(65.0f) },
+            4.0f / 3.0f,
+            0.1f,
+            1000.0f,
+        };
         std::bitset<8> lights_sync{ 0 };
 
         SimState() = default;
@@ -56,6 +63,7 @@ class TriangleDemo
     struct UIState
     {
         static constexpr const size_t MAX_LIGHTS = 64;
+        bool use_arcball_cam{false};
         bool draw_bbox{ false };
         bool draw_world_axis{ true };
         bool draw_sphere{ false };
@@ -72,8 +80,8 @@ class TriangleDemo
     xray::base::timer_highp _timer{};
 
   public:
-    TriangleDemo(PrivateConstructionToken, const InitContext& init_context);
-    ~TriangleDemo();
+    GameSimulation(PrivateConstructionToken, const InitContext& init_context);
+    ~GameSimulation();
 };
 
 }

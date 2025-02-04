@@ -46,7 +46,7 @@ FlightCamera::update(const math::mat4f& rotation, const math::vec3f& translation
 
     const auto [view_matrix, inverse_view] = math::look_at(position, look_at, up_vec);
     this->view_matrix = view_matrix;
-    this->inverse_view = inverse_view;
+    this->inverse_of_view_matrix = inverse_view;
 }
 
 }

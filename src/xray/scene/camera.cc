@@ -27,14 +27,14 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/scene/camera.hpp"
-#include "xray/math/handedness.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 
 void
-xray::scene::camera::set_view_matrix(const math::MatrixWithInvertedMatrixPair4f& view)
+xray::scene::camera::set_view_matrix(const math::mat4f& view, const math::mat4f& inverse_of_view) noexcept
 {
-    view_ = view;
+    view_.transform = view;
+    view_.inverted = inverse_of_view;
 
     right_.x = view_.transform.a00;
     right_.y = view_.transform.a10;
@@ -102,13 +102,6 @@ xray::scene::camera::update() const noexcept
     projection_view_.transform = projection_.transform * view_.transform;
     projection_view_.inverted = view_.inverted * projection_.inverted;
     updated_ = true;
-}
-
-void
-xray::scene::camera::set_projection(const math::MatrixWithInvertedMatrixPair4f& projection) noexcept
-{
-    projection_ = projection;
-    invalidate();
 }
 
 void

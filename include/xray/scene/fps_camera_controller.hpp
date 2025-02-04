@@ -32,6 +32,7 @@
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/math/math.units.hpp"
 
 #include <cstdint>
 #include <bitset>
@@ -51,7 +52,7 @@ class camera;
 
 struct camera_lens_parameters
 {
-    float fov{ math::radians(65.0f) };
+    math::RadiansF32 fov{ math::radians(65.0f) };
     float nearplane{ 0.1f };
     float farplane{ 500.0f };
     float aspect_ratio{ 4.0f / 3.0f };

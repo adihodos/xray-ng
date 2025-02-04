@@ -59,6 +59,7 @@ target_include_directories(
   ${PROJECT_NAME} INTERFACE $<INSTALL_INTERFACE:include>
                             $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
 target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)
-target_link_libraries(${PROJECT_NAME} INTERFACE reflectcpp)
+target_link_libraries(${PROJECT_NAME} INTERFACE reflectcpp
+                                                strong_type::strong_type)
 
 source_group(math FILES ${project_sources})

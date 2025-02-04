@@ -52,8 +52,21 @@ class camera
 
     const math::vec3f& up() const noexcept { return up_; }
 
-    void set_view_matrix(const math::MatrixWithInvertedMatrixPair4f& view);
-    void set_projection(const math::MatrixWithInvertedMatrixPair4f& projection) noexcept;
+    void set_view_matrix(const math::MatrixWithInvertedMatrixPair4f& view_transform_with_inverse) noexcept
+    {
+        set_view_matrix(view_transform_with_inverse.transform, view_transform_with_inverse.inverted);
+    }
+    void set_view_matrix(const math::mat4f& view, const math::mat4f& inverse_of_view) noexcept;
+
+    void set_projection(const math::MatrixWithInvertedMatrixPair4f& projection_with_inverse) noexcept
+    {
+        set_projection_matrix(projection_with_inverse.transform, projection_with_inverse.inverted);
+    }
+    void set_projection_matrix(const math::mat4f& projection, const math::mat4f& inverse_of_projection) noexcept
+    {
+        projection_.transform = projection;
+        projection_.inverted = inverse_of_projection;
+    }
 
     const math::mat4f& view() const noexcept;
     const math::mat4f& projection() const noexcept;

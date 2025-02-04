@@ -1,4 +1,4 @@
-#include "triangle.hpp"
+#include "game.sim.hpp"
 
 #include <array>
 #include <algorithm>
@@ -24,6 +24,7 @@
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
+#include "xray/math/math.units.hpp"
 
 #include "bindless.pipeline.config.hpp"
 #include "events.hpp"
@@ -35,31 +36,36 @@ using namespace xray::ui;
 using namespace xray::math;
 using namespace xray::scene;
 
-B5::TriangleDemo::SimState::SimState(const InitContext& init_context)
+B5::GameSimulation::SimState::SimState(const InitContext& init_context)
     : arcball_cam{ xray::math::vec3f::stdc::zero, 1.0f, { init_context.surface_width, init_context.surface_height } }
 {
-    const auto perspective_projection = perspective_symmetric(
-        (float)init_context.surface_width / (float)init_context.surface_height, radians(65.0f), 0.1f, 1000.0f);
+    const auto rads = RadiansF32{ 0.123f };
+    const auto rads2 = rads + RadiansF32{ 1.2f };
+    const auto perspective_projection = perspective_symmetric(static_cast<float>(init_context.surface_width) /
+                                                                  static_cast<float>(init_context.surface_height),
+                                                              static_cast<RadiansF32>(DegreesF32{ 65.0f }),
+                                                              0.1f,
+                                                              1000.0f);
 
     camera.set_projection(perspective_projection);
 }
 
-B5::TriangleDemo::TriangleDemo(PrivateConstructionToken, const InitContext& init_context)
+B5::GameSimulation::GameSimulation(PrivateConstructionToken, const InitContext& init_context)
     : _simstate{ init_context }
 {
     _timer.start();
 }
 
-B5::TriangleDemo::~TriangleDemo() {}
+B5::GameSimulation::~GameSimulation() {}
 
-xray::base::unique_pointer<B5::TriangleDemo>
-B5::TriangleDemo::create(const InitContext& init_ctx)
+xray::base::unique_pointer<B5::GameSimulation>
+B5::GameSimulation::create(const InitContext& init_ctx)
 {
-    return xray::base::make_unique<TriangleDemo>(PrivateConstructionToken{}, init_ctx);
+    return xray::base::make_unique<GameSimulation>(PrivateConstructionToken{}, init_ctx);
 }
 
 void
-B5::TriangleDemo::event_handler(const xray::ui::window_event& evt)
+B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
 {
     if (is_input_event(evt)) {
         if (evt.event.key.keycode == KeySymbol::escape) {
@@ -70,17 +76,23 @@ B5::TriangleDemo::event_handler(const xray::ui::window_event& evt)
     if (evt.type == xray::ui::event_type::configure) {
         const xray::ui::window_configure_event* wce = &evt.event.configure;
         if (wce->width != 0 && wce->height != 0) {
-            const auto perspective_projection = perspective_symmetric(
-                static_cast<float>(wce->width) / static_cast<float>(wce->height), radians(65.0f), 0.1f, 1000.0f);
+            const auto perspective_projection =
+                perspective_symmetric(static_cast<float>(wce->width) / static_cast<float>(wce->height),
+                                      RadiansF32(radians(65.0f)),
+                                      0.1f,
+                                      1000.0f);
             _simstate.camera.set_projection(perspective_projection);
         }
     }
 
-    _simstate.arcball_cam.input_event(evt);
+    if (_uistate.use_arcball_cam) {
+        _simstate.arcball_cam.input_event(evt);
+    } else {
+    }
 }
 
 void
-B5::TriangleDemo::user_interface(xray::ui::user_interface* ui, const RenderEvent& re)
+B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEvent& re)
 {
     ZoneScopedNCS("UI", tracy::Color::GreenYellow, 16);
 
@@ -89,7 +101,8 @@ B5::TriangleDemo::user_interface(xray::ui::user_interface* ui, const RenderEvent
     if (ImGui::Begin("Demo options")) {
 
         ImGui::Checkbox("Draw world coordinate axis", &_uistate.draw_world_axis);
-        ImGui::Checkbox("Draw ship", &_uistate.draw_ship);
+        format_to_n(scratch_buff, "Use arcball {}", fonts::awesome::ICON_FA_CAMERA);
+        ImGui::Checkbox(scratch_buff, &_uistate.use_arcball_cam);
         ImGui::Checkbox("Draw bounding box", &_uistate.draw_bbox);
         ImGui::Checkbox("Draw individual nodes bounding boxes", &_uistate.draw_nodes_bbox);
         ImGui::Checkbox("Draw bounding sphere", &_uistate.draw_sphere);
@@ -177,13 +190,19 @@ B5::TriangleDemo::user_interface(xray::ui::user_interface* ui, const RenderEvent
 }
 
 void
-B5::TriangleDemo::loop_event(const RenderEvent& render_event)
+B5::GameSimulation::loop_event(const RenderEvent& render_event)
 {
     ZoneScopedNCS("scene loop", tracy::Color::Orange, 32);
 
     user_interface(render_event.ui, render_event);
-    _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
-    _simstate.arcball_cam.update_camera(_simstate.camera);
+
+    if (_uistate.use_arcball_cam) {
+        _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
+        _simstate.arcball_cam.update_camera(_simstate.camera);
+    } else {
+        _simstate.flight_cam.update(mat4f::stdc::identity, vec3f::stdc::zero);
+        _simstate.camera.set_view_matrix(_simstate.flight_cam.view_matrix, _simstate.flight_cam.inverse_of_view_matrix);
+    }
 
     static constexpr const auto sixty_herz = std::chrono::duration<float, std::milli>{ 1000.0f / 60.0f };
 

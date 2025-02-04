@@ -28,14 +28,16 @@
 
 #pragma once
 
+#include <cassert>
+#include <cmath>
+
 #include "xray/math/handedness.hpp"
 #include "xray/math/math_base.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/math/math.units.hpp"
 #include "xray/xray.hpp"
-#include <cassert>
-#include <cmath>
 
 namespace xray {
 namespace math {
@@ -96,9 +98,9 @@ perspective(const T rmin, const T rmax, const T umin, const T umax, const T dmin
 
 template<typename T>
 MatrixWithInvertedMatrixPair<T>
-perspective_symmetric(const T aspect_ratio, const T fov, const T near_plane, const T far_plane) noexcept
+perspective_symmetric(const T aspect_ratio, const Radians<T> fov, const T near_plane, const T far_plane) noexcept
 {
-    const auto d = T(1.0) / std::tan(fov * T(0.5));
+    const auto d = T(1.0) / std::tan(fov.value_of() * T(0.5));
     const auto dmin{ near_plane };
     const auto dmax{ far_plane };
 
