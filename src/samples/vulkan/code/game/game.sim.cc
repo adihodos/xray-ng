@@ -10,7 +10,19 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <Jolt/Jolt.h>
+#include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Body/BodyInterface.h>
+#include <Jolt/Physics/Body/Body.h>
+#include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include <Jolt/Physics/Body/MotionType.h>
+#include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
+#include <Jolt/Math/Vec3.h>
+#include <Jolt/Math/Real.h>
+
 #include "xray/base/xray.misc.hpp"
+#include "xray/base/fnv_hash.hpp"
 #include "xray/base/xray.fmt.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
@@ -22,12 +34,17 @@
 #include "xray/ui/events.hpp"
 #include "init_context.hpp"
 #include "xray/math/scalar4x4.hpp"
+#include "xray/math/scalar4x4_math.hpp"
 #include "xray/math/constants.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/math.units.hpp"
+#include "xray/math/quaternion.hpp"
+#include "xray/math/quaternion_math.hpp"
+#include "xray/math/scalar3_string_cast.hpp"
 
 #include "bindless.pipeline.config.hpp"
 #include "events.hpp"
+#include "system.physics.hpp"
 
 using namespace std;
 using namespace xray::rendering;
@@ -50,10 +67,58 @@ B5::GameSimulation::SimState::SimState(const InitContext& init_context)
     camera.set_projection(perspective_projection);
 }
 
-B5::GameSimulation::GameSimulation(PrivateConstructionToken, const InitContext& init_context)
+B5::GameSimulation::GameSimulation(PrivateConstructionToken,
+                                   const InitContext& init_context,
+                                   xray::base::unique_pointer<PhysicsSystem> physics)
     : _simstate{ init_context }
+    , _physics{ std::move(physics) }
 {
     _timer.start();
+
+    auto sa23geom = ranges::find_if(
+        init_context.scene_def->gltf.entries,
+        [id = GeometryHandleType{ FNV::fnv1a("sa23") }](const GltfGeometryEntry& g) { return g.hashed_name == id; });
+    assert(sa23geom != ranges::cend(init_context.scene_def->gltf.entries));
+    _starfury.geometry = ranges::distance(ranges::cbegin(init_context.scene_def->gltf.entries), sa23geom);
+
+    auto sa23ent =
+        ranges::find_if(init_context.scene_def->entities,
+                        [id = FNV::fnv1a("main_ship")](EntityDrawableComponent& e) { return e.hashed_name == id; });
+    _starfury.entity = ranges::distance(ranges::cbegin(init_context.scene_def->entities), sa23ent);
+    assert(sa23ent != ranges::cend(init_context.scene_def->entities));
+    const vec3f half_exts = sa23geom->bounding_box.extents();
+
+    XR_LOG_INFO("Half extents {}", half_exts);
+
+    using namespace JPH::literals;
+    using namespace JPH;
+
+    auto phys = _physics->physics();
+    JPH::BodyInterface* body_ifc = &phys->GetBodyInterface();
+
+    BoxShapeSettings box_shape{ Vec3{ half_exts.x, half_exts.y, half_exts.z } };
+    box_shape.SetEmbedded();
+
+    BodyCreationSettings body_settings{
+        &box_shape,
+        RVec3{ sa23ent->orientation.origin.x, sa23ent->orientation.origin.y, sa23ent->orientation.origin.z },
+        Quat{
+            sa23ent->orientation.rotation.x,
+            sa23ent->orientation.rotation.y,
+            sa23ent->orientation.rotation.z,
+            sa23ent->orientation.rotation.w,
+        }
+            .Normalized(),
+        EMotionType::Dynamic,
+        B5::PhysicsSystem::ObjectLayers::MOVING
+    };
+    body_settings.mOverrideMassProperties = EOverrideMassProperties::CalculateInertia;
+    body_settings.mMassPropertiesOverride.mMass = 48000.0f;
+
+    JPH::Body* body = body_ifc->CreateBody(body_settings);
+    assert(body != nullptr);
+    _starfury.phys_body_id = body->GetID();
+    body_ifc->AddBody(_starfury.phys_body_id, EActivation::Activate);
 }
 
 B5::GameSimulation::~GameSimulation() {}
@@ -61,7 +126,12 @@ B5::GameSimulation::~GameSimulation() {}
 xray::base::unique_pointer<B5::GameSimulation>
 B5::GameSimulation::create(const InitContext& init_ctx)
 {
-    return xray::base::make_unique<GameSimulation>(PrivateConstructionToken{}, init_ctx);
+    auto physics_system = PhysicsSystem::create();
+    if (!physics_system)
+        return nullptr;
+
+    return xray::base::make_unique<GameSimulation>(
+        PrivateConstructionToken{}, init_ctx, xray::base::make_unique<PhysicsSystem>(std::move(*physics_system)));
 }
 
 void
@@ -196,11 +266,22 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 
     user_interface(render_event.ui, render_event);
 
+    _physics->update();
+
+    JPH::BodyInterface* bdi = &_physics->physics()->GetBodyInterface();
+    const JPH::RVec3 pos =
+        // JPH::Vec3::sZero();
+        bdi->GetCenterOfMassPosition(_starfury.phys_body_id);
+    const JPH::Quat rot =
+        // JPH::Quat::sIdentity();
+        bdi->GetRotation(_starfury.phys_body_id);
+
     if (_uistate.use_arcball_cam) {
         _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
         _simstate.arcball_cam.update_camera(_simstate.camera);
     } else {
-        _simstate.flight_cam.update(mat4f::stdc::identity, vec3f::stdc::zero);
+        _simstate.flight_cam.update(rotation_matrix(quatf{ rot.GetW(), rot.GetX(), rot.GetY(), rot.GetZ() }),
+                                    vec3f{ pos.GetY(), pos.GetY(), pos.GetZ() });
         _simstate.camera.set_view_matrix(_simstate.flight_cam.view_matrix, _simstate.flight_cam.inverse_of_view_matrix);
     }
 

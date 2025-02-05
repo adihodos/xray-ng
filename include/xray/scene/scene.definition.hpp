@@ -43,6 +43,8 @@
 
 #include "xray/math/scalar2.hpp"
 #include "xray/math/orientation.hpp"
+#include "xray/math/objects/aabb3.hpp"
+#include "xray/math/objects/sphere.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
@@ -86,6 +88,8 @@ struct GltfGeometryEntry
 {
     std::string name;
     GeometryHandleType hashed_name;
+    xray::math::aabb3f bounding_box;
+    xray::math::sphere3f bounding_sphere;
     xray::math::vec2ui32 vertex_index_count;
     xray::math::vec2ui32 buffer_offsets;
     xray::math::vec2ui32 materials_buffer; // x - offset, y - number of materials

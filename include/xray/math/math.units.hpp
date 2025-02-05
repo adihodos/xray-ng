@@ -74,3 +74,30 @@ using RadiansF32 = Radians<float>;
 using RadiansF64 = Radians<double>;
 
 }
+
+inline namespace literals {
+constexpr xray::math::RadiansF32
+operator""_RADF32(long double rads)
+{
+    return xray::math::RadiansF32{ static_cast<float>(rads) };
+}
+
+constexpr xray::math::DegreesF32
+operator""_DEGF32(long double degrees)
+{
+    return xray::math::DegreesF32{ static_cast<float>(degrees) };
+}
+
+constexpr xray::math::RadiansF32
+operator""_DEG2RADF32(long double deg)
+{
+    return xray::math::RadiansF32{ xray::math::radians(static_cast<float>(deg)) };
+}
+
+constexpr xray::math::DegreesF32
+operator""_RAD2DEGF32(long double rad)
+{
+    return xray::math::DegreesF32{ xray::math::degrees(static_cast<float>(rad)) };
+}
+
+}

@@ -85,6 +85,8 @@ struct InitContext
     xray::base::MemoryArena* temp;
     xray::rendering::VulkanRenderer* renderer;
     xray::base::ConfigSystem* config_sys;
+    xray::scene::SceneDefinition* scene_def;
+    xray::scene::SceneResources* scene_res;
 };
 
 }

@@ -359,6 +359,8 @@ task_create_gltf_resources(concurrencpp::executor_tag,
         gltf_geometries.push_back(GltfGeometryEntry{
             .name = gltf.name,
             .hashed_name = GeometryHandleType{ FNV::fnv1a(gltf.name) },
+            // .bounding_box = gltf_geometry->bounding_box,
+            // .bounding_sphere = gltf_geometry->bounding_sphere,
             .vertex_index_count = obj_vtx_idx_count,
             .buffer_offsets = global_vertex_index_count,
         });
@@ -404,12 +406,16 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     vec2ui32 dst_offsets{ vec2ui32::stdc::zero };
     for (size_t idx = 0, count = loaded_gltfs.size(); idx < count; ++idx) {
         LoadedGeometry* g = &loaded_gltfs[idx];
+        GltfGeometryEntry* e = &gltf_geometries[idx];
         const vec2ui32* obj_cnt = &per_obj_vertex_index_counts[idx];
 
         g->extract_data(reinterpret_cast<void*>(staging_buffer_ptr),
                         reinterpret_cast<void*>(staging_buffer_ptr + obj_cnt->x * sizeof(VertexPBR)),
                         { 0, 0 },
                         0);
+
+        e->bounding_box = g->bounding_box;
+        e->bounding_sphere = g->bounding_sphere;
 
         const vec2ui32 bytes_consumed =
             (*obj_cnt) * vec2ui32{ (uint32_t)sizeof(VertexPBR), (uint32_t)sizeof(uint32_t) };
@@ -1418,6 +1424,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
         .temp = arena_temp,
         .renderer = raw_ptr(renderer),
         .config_sys = xr_app_config,
+        .scene_def = &*scene_result,
     });
 
     return tl::expected<GameMain, ProgramError>(
