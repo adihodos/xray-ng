@@ -3,9 +3,9 @@
 namespace B5 {
 
 namespace GlobalMemoryBuffers {
-uint8_t SmallArenas[16][GlobalMemoryConfig::SMALL_ARENA_SIZE];
-uint8_t MediumArenas[8][GlobalMemoryConfig::MEDIUM_ARENA_SIZE];
-uint8_t LargeArenas[4][GlobalMemoryConfig::LARGE_ARENA_SIZE];
+std::byte SmallArenas[16][GlobalMemoryConfig::SMALL_ARENA_SIZE];
+std::byte MediumArenas[8][GlobalMemoryConfig::MEDIUM_ARENA_SIZE];
+std::byte LargeArenas[4][GlobalMemoryConfig::LARGE_ARENA_SIZE];
 };
 
 GlobalMemorySystem::GlobalMemorySystem() noexcept

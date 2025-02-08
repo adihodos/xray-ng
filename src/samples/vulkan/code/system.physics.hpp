@@ -2,21 +2,31 @@
 
 #include <cstdint>
 #include <tl/expected.hpp>
+#include <swl/variant.hpp>
 
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
+#include <Jolt/Physics/Body/BodyManager.h>
 
 #include <xray/base/unique_pointer.hpp>
+#include <xray/rendering/vulkan.renderer/vulkan.error.hpp>
+
+#include "system.physics.debug.renderer.hpp"
 
 namespace JPH {
-    class PhysicsSystem;
+class PhysicsSystem;
 }
 
 namespace B5 {
 
-struct PhysicsSystemError
+struct InitContext;
+struct RenderEvent;
+
+struct PhysicsError
 {};
+
+using PhysicsSystemError = swl::variant<PhysicsError, xray::rendering::VulkanError>;
 
 class PhysicsSystem
 {
@@ -28,7 +38,14 @@ class PhysicsSystem
   public:
     struct PhysicsSystemState;
 
-    PhysicsSystem(PrivateConstructionToken, xray::base::unique_pointer<PhysicsSystemState> phys_state) noexcept;
+    PhysicsSystem(PrivateConstructionToken,
+                  xray::base::unique_pointer<PhysicsSystemState> phys_state
+#if defined(JPH_DEBUG_RENDERER)
+                  ,
+                  xray::base::unique_pointer<PhysicsEngineDebugRenderer> dbg_renderer
+#endif
+                  ) noexcept;
+
     PhysicsSystem(PhysicsSystem&&) noexcept;
     ~PhysicsSystem();
 
@@ -67,15 +84,23 @@ class PhysicsSystem
     // We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
     static constexpr const float cDeltaTime = 1.0f / 60.0f;
 
-    static tl::expected<PhysicsSystem, PhysicsSystemError> create();
+    static tl::expected<PhysicsSystem, PhysicsSystemError> create(const InitContext& ctx);
 
     void update();
-
     JPH::PhysicsSystem* physics() noexcept;
-
     static void test_something();
+
+#if defined(JPH_DEBUG_RENDERER)
+    void dbg_draw_render(const RenderEvent& e,
+                         const JPH::RVec3 cam_pos,
+                         const JPH::BodyManager::DrawSettings& draw_settings) noexcept;
+#endif
 
   private:
     xray::base::unique_pointer<PhysicsSystemState> _phys_state;
+#if defined(JPH_DEBUG_RENDERER)
+    xray::base::unique_pointer<PhysicsEngineDebugRenderer> _debug_renderer;
+#endif
 };
+
 }

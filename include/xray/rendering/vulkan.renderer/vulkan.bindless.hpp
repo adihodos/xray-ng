@@ -10,7 +10,7 @@
 #include <type_traits>
 #include <unordered_map>
 
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 #include <tl/expected.hpp>
 #include <tl/optional.hpp>
 

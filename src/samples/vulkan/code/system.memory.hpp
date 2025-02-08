@@ -32,12 +32,12 @@ struct SmallArenaTag
 template<typename TagType>
 struct ScopedMemoryArena
 {
-    explicit ScopedMemoryArena(std::span<uint8_t> s) noexcept
+    explicit ScopedMemoryArena(std::span<std::byte> s) noexcept
         : arena{ s }
     {
     }
 
-    ScopedMemoryArena(uint8_t* backing_buffer, size_t backing_buffer_length) noexcept
+    ScopedMemoryArena(std::byte* backing_buffer, size_t backing_buffer_length) noexcept
         : arena{ backing_buffer, backing_buffer_length }
     {
     }
@@ -72,19 +72,20 @@ class GlobalMemorySystem
                 // TODO: handle memory exhausted
             }
 
-            return ScopedMemoryArena<TagType>{ static_cast<uint8_t*>(mem_ptr), GlobalMemoryConfig::LARGE_ARENA_SIZE };
+            return ScopedMemoryArena<TagType>{ static_cast<std::byte*>(mem_ptr), GlobalMemoryConfig::LARGE_ARENA_SIZE };
         } else if constexpr (std::is_same_v<TagType, MediumArenaTag>) {
             void* mem_ptr{};
             if (!free_medium.try_pop(mem_ptr)) {
                 // TODO: handle memory exhausted
             }
-            return ScopedMemoryArena<TagType>{ static_cast<uint8_t*>(mem_ptr), GlobalMemoryConfig::MEDIUM_ARENA_SIZE };
+            return ScopedMemoryArena<TagType>{ static_cast<std::byte*>(mem_ptr),
+                                               GlobalMemoryConfig::MEDIUM_ARENA_SIZE };
         } else if constexpr (std::is_same_v<TagType, SmallArenaTag>) {
             void* mem_ptr{};
             if (!free_small.try_pop(mem_ptr)) {
                 // TODO: handle memory exhausted
             }
-            return ScopedMemoryArena<TagType>{ static_cast<uint8_t*>(mem_ptr), GlobalMemoryConfig::SMALL_ARENA_SIZE };
+            return ScopedMemoryArena<TagType>{ static_cast<std::byte*>(mem_ptr), GlobalMemoryConfig::SMALL_ARENA_SIZE };
         } else {
             static_assert(false, "Unhandled arena type");
         }

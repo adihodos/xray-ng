@@ -1010,6 +1010,18 @@ xray::ui::window::~window()
 #endif
 }
 
+xray::rendering::WindowPlatformDataXlib
+xray::ui::window::platform_data() const noexcept
+{
+    return xray::rendering::WindowPlatformDataXlib{
+        .display = reinterpret_cast<uintptr_t>(raw_ptr(_display)),
+        .window = static_cast<uintptr_t>(raw_ptr(_window)),
+        .visual = static_cast<uintptr_t>(_visualid),
+        .width = static_cast<uint32_t>(_wnd_width),
+        .height = static_cast<uint32_t>(_wnd_height),
+    };
+}
+
 void
 xray::ui::window::swap_buffers() noexcept
 {

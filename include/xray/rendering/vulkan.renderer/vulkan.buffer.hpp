@@ -5,7 +5,7 @@
 
 #include <tl/expected.hpp>
 #include <tl/optional.hpp>
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"

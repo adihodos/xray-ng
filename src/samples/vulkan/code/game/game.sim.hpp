@@ -8,6 +8,7 @@
 
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Body/BodyID.h>
+#include <Jolt/Physics/Body/BodyManager.h>
 
 #include "xray/base/unique_pointer.hpp"
 #include "xray/base/basic_timer.hpp"
@@ -88,6 +89,7 @@ class GameSimulation
     {
         static constexpr const size_t MAX_LIGHTS = 64;
         bool use_arcball_cam{ false };
+        JPH::BodyManager::DrawSettings phys_draw{};
         bool draw_bbox{ false };
         bool draw_world_axis{ true };
         bool draw_sphere{ false };

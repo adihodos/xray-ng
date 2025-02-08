@@ -9,7 +9,6 @@
 
 #include <tl/optional.hpp>
 
-#include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
 #include "xray/base/xray.misc.hpp"

@@ -10,6 +10,8 @@
 
 #include <tracy/Tracy.hpp>
 
+#pragma push_macro("Convex")
+#undef Convex
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
@@ -20,6 +22,7 @@
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Math/Vec3.h>
 #include <Jolt/Math/Real.h>
+#pragma pop_macro("Convex")
 
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/fnv_hash.hpp"
@@ -126,7 +129,7 @@ B5::GameSimulation::~GameSimulation() {}
 xray::base::unique_pointer<B5::GameSimulation>
 B5::GameSimulation::create(const InitContext& init_ctx)
 {
-    auto physics_system = PhysicsSystem::create();
+    auto physics_system = PhysicsSystem::create(init_ctx);
     if (!physics_system)
         return nullptr;
 
@@ -174,9 +177,19 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
         format_to_n(scratch_buff, "Use arcball {}", fonts::awesome::ICON_FA_CAMERA);
         ImGui::Checkbox(scratch_buff, &_uistate.use_arcball_cam);
         ImGui::Checkbox("Draw bounding box", &_uistate.draw_bbox);
-        ImGui::Checkbox("Draw individual nodes bounding boxes", &_uistate.draw_nodes_bbox);
-        ImGui::Checkbox("Draw bounding sphere", &_uistate.draw_sphere);
-        ImGui::Checkbox("Draw individual nodes bounding sphere", &_uistate.draw_nodes_spheres);
+
+        if (ImGui::CollapsingHeader("::: Physics engine debug draw :::")) {
+            ImGui::Checkbox("Draw the shapes of all bodies", &_uistate.phys_draw.mDrawShape);
+            ImGui::Checkbox("bounding boxes", &_uistate.phys_draw.mDrawBoundingBox);
+            ImGui::Checkbox("center of mass transform", &_uistate.phys_draw.mDrawCenterOfMassTransform);
+            ImGui::Checkbox("draw world transform", &_uistate.phys_draw.mDrawWorldTransform);
+            ImGui::Checkbox("draw mass & inertia", &_uistate.phys_draw.mDrawMassAndInertia);
+            ImGui::Checkbox("draw shapes as wireframe", &_uistate.phys_draw.mDrawShapeWireframe);
+        }
+
+        // ImGui::Checkbox("Draw individual nodes bounding boxes", &_uistate.draw_nodes_bbox);
+        // ImGui::Checkbox("Draw bounding sphere", &_uistate.draw_sphere);
+        // ImGui::Checkbox("Draw individual nodes bounding sphere", &_uistate.draw_nodes_spheres);
 
         auto draw_light_colors_fn = [](const vec4f& ka, const vec4f& kd, const vec4f& ks) {
             const vec4f colors[] = { ka, kd, ks };
@@ -269,12 +282,8 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     _physics->update();
 
     JPH::BodyInterface* bdi = &_physics->physics()->GetBodyInterface();
-    const JPH::RVec3 pos =
-        // JPH::Vec3::sZero();
-        bdi->GetCenterOfMassPosition(_starfury.phys_body_id);
-    const JPH::Quat rot =
-        // JPH::Quat::sIdentity();
-        bdi->GetRotation(_starfury.phys_body_id);
+    const JPH::RVec3 pos = bdi->GetCenterOfMassPosition(_starfury.phys_body_id);
+    const JPH::Quat rot = bdi->GetRotation(_starfury.phys_body_id);
 
     if (_uistate.use_arcball_cam) {
         _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
@@ -445,13 +454,11 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         .maxDepth = 1.0f,
     };
 
-    vkCmdSetViewport(render_event.frame_data->cmd_buf, 0, 1, &viewport);
-
     const VkRect2D scissor{
         .offset = VkOffset2D{ 0, 0 },
         .extent = render_event.frame_data->fbsize,
     };
-
+    vkCmdSetViewport(render_event.frame_data->cmd_buf, 0, 1, &viewport);
     vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
 
     struct DrawDataPushConst
@@ -654,4 +661,12 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 
         render_event.dbg_draw->draw_point_light(point_light.position, 1.0f, rgb_color{ point_light.diffuse });
     }
+
+#if defined(JPH_DEBUG_RENDERER)
+    const vec3f eye = _simstate.camera.origin();
+    _physics->dbg_draw_render(render_event, JPH::RVec3{ eye.x, eye.y, eye.z }, _uistate.phys_draw);
+    // _physics->debug_renderer()->set_camera(_simstate.camera.origin());
+    // _physics->debug_renderer()->draw(render_event);
+    // _physics->debug_renderer()->NextFrame();
+#endif
 }

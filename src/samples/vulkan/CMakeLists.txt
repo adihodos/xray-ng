@@ -5,7 +5,7 @@ set(proj_inc_dir "${PROJECT_SOURCE_DIR}/code")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}/code")
 
 set(project_sources
-    ${proj_src_dir}/vulkan-main.cc 
+    ${proj_src_dir}/vulkan-main.cc
     ${proj_src_dir}/bindless.pipeline.config.hpp
     ${proj_inc_dir}/game/game.sim.hpp
     ${proj_src_dir}/game/game.sim.cc
@@ -13,7 +13,8 @@ set(project_sources
     ${proj_src_dir}/system.memory.cc
     ${proj_src_dir}/system.physics.hpp
     ${proj_src_dir}/system.physics.cc
-   )
+    ${proj_src_dir}/system.physics.debug.renderer.hpp
+    ${proj_src_dir}/system.physics.debug.renderer.cc)
 
 set(shader_src_dir "${PROJECT_SOURCE_DIR}/shaders")
 set(shader_files ${shader_src_dir}/triangle/tri.vert

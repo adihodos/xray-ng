@@ -31,6 +31,8 @@ set(project_sources
     ${proj_inc_dir}/vertex_format/vertex.format.pbr.hpp
     ${proj_inc_dir}/render_stage.hpp
     ${proj_src_dir}/render_stage.cc
+    ${proj_inc_dir}/shader.code.builder.hpp
+    ${proj_src_dir}/shader.code.builder.cc
     ${proj_inc_dir}/debug_draw.hpp
     ${proj_src_dir}/debug_draw.cc
     ${proj_inc_dir}/mesh_loader.hpp

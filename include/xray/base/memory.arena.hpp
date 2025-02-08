@@ -91,19 +91,19 @@ struct MemoryStats
 struct MemoryArena
 {
     static constexpr const size_t DEFAULT_ALIGNMENT = (2 * sizeof(void*));
-    uint8_t* buf{};
+    std::byte* buf{};
     size_t buf_len{};
     size_t prev_offset{};
     size_t curr_offset{};
     MemoryStats stats{};
 
-    MemoryArena(std::span<uint8_t> s) noexcept
+    MemoryArena(std::span<std::byte> s) noexcept
         : MemoryArena{ s.data(), s.size_bytes() }
     {
         details::poison_memory_region(this->buf, this->buf_len);
     }
 
-    MemoryArena(uint8_t* backing_buffer, size_t backing_buffer_length) noexcept
+    MemoryArena(std::byte* backing_buffer, size_t backing_buffer_length) noexcept
         : buf{ backing_buffer }
         , buf_len{ backing_buffer_length }
     {
@@ -112,7 +112,7 @@ struct MemoryArena
 
     ~MemoryArena() { details::unpoison_memory_region(this->buf, this->buf_len); }
 
-    void* alloc_align(size_t size, size_t align) noexcept
+    [[nodiscard]] void* alloc_align(size_t size, size_t align) noexcept
     {
         // Align 'curr_offset' forward to the specified alignment
         uintptr_t curr_ptr = (uintptr_t)this->buf + (uintptr_t)this->curr_offset;
@@ -143,9 +143,9 @@ struct MemoryArena
 
     void free(void* ptr, std::size_t n) noexcept { details::unpoison_memory_region(ptr, n); }
 
-    void* resize_align(void* old_memory, size_t old_size, size_t new_size, size_t align) noexcept
+    [[nodiscard]] void* resize_align(void* old_memory, size_t old_size, size_t new_size, size_t align) noexcept
     {
-        unsigned char* old_mem = static_cast<unsigned char*>(old_memory);
+        std::byte* old_mem = static_cast<std::byte*>(old_memory);
 
         assert(is_power_of_two(align));
 

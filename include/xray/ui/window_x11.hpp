@@ -30,12 +30,13 @@
 
 #pragma once
 
+#include "xray/xray.hpp"
 #include "xray/base/resource_holder.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/window_params.hpp"
 #include "xray/ui/window.common.core.hpp"
-#include "xray/xray.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 
 #include <X11/Xlib.h>
 #include <atomic>
@@ -47,6 +48,8 @@
 #if !defined(XRAY_GRAPHICS_API_VULKAN)
 #include <GL/glx.h>
 #endif
+
+// TODO: needs refactoring so that platform specific things don't leak everywhere this file is included
 
 namespace xray {
 namespace ui {
@@ -139,6 +142,7 @@ class window
 
     /// @}
 
+    xray::rendering::WindowPlatformDataXlib platform_data() const noexcept;
     handle_type native_window() const noexcept { return base::raw_ptr(_window); }
     native_display_handle native_display() const noexcept { return base::raw_ptr(_display); }
     VisualID native_visual() const noexcept { return _visualid; }

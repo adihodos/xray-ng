@@ -13,7 +13,7 @@
 #include <tl/optional.hpp>
 #include <tl/expected.hpp>
 
-#include "xray/base/containers/arena.string.hpp"
+#include "xray/rendering/shader.code.builder.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vertex_format/vertex_format.hpp"
@@ -104,20 +104,6 @@ struct GraphicsPipelineCreateData
     uint16_t image_descriptors{ 1 };
 };
 
-struct ShaderBuildOptions
-{
-    static constexpr const uint32_t Compile_EnabledOptimizations = 1 << 0;
-    static constexpr const uint32_t Compile_GenerateDebugInfo = 1 << 1;
-    static constexpr const uint32_t Compile_WarningsToErrors = 1 << 2;
-    static constexpr const uint32_t Compile_SuppressWarnings = 1 << 2;
-    static constexpr const uint32_t Compile_DumpShaderCode = 1 << 20;
-
-    swl::variant<std::string_view, std::filesystem::path> code_or_file_path;
-    std::string_view entry_point{};
-    std::span<const std::pair<base::containers::string, base::containers::string>> defines{};
-    uint32_t compile_options{ Compile_GenerateDebugInfo };
-};
-
 class GraphicsPipelineBuilder
 {
   public:
@@ -171,7 +157,7 @@ class GraphicsPipelineBuilder
         return create_impl(renderer, PipelineType::Owned, pcd);
     }
 
-    tl::expected<GraphicsPipeline, VulkanError> create_bindless(const VulkanRenderer& renderer)
+    [[nodiscard]] tl::expected<GraphicsPipeline, VulkanError> create_bindless(const VulkanRenderer& renderer)
     {
         return create_impl(renderer, PipelineType::Bindless, GraphicsPipelineCreateData{});
     }

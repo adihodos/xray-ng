@@ -18,13 +18,20 @@
 
 #include <tracy/Tracy.hpp>
 
+#if defined(XRAY_OS_IS_WINDOWS)
+#include <vulkan/vulkan_win32.h>
+#elif defined(XRAY_OS_IS_POSIX_FAMILY)
+#include <X11/Xlib.h>
+#include <vulkan/vulkan_xlib.h>
+#include <xcb/xcb.h>
+#include <vulkan/vulkan_xcb.h>
+#else
+#error "Unsupported OS"
+#endif
+
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_to_string.hpp>
-
-#if defined(XRAY_OS_IS_WINDOWS)
-#include <vulkan/vulkan_win32.h>
-#endif
 
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/variant.helpers.hpp"
@@ -492,8 +499,8 @@ create_xcb_surface(const WindowPlatformDataXcb& win_platform_data, VkInstance in
         .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
         .pNext = nullptr,
         .flags = 0,
-        .connection = win_platform_data.connection,
-        .window = win_platform_data.window,
+        .connection = reinterpret_cast<xcb_connection_t*>(win_platform_data.connection),
+        .window = static_cast<xcb_window_t>(win_platform_data.window),
     };
 
     xrUniqueVkSurfaceKHR surface_khr{
@@ -519,7 +526,7 @@ create_xlib_surface(const WindowPlatformDataXlib& win_platform_data, VkInstance 
         .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
         .pNext = nullptr,
         .flags = 0,
-        .dpy = win_platform_data.display,
+        .dpy = reinterpret_cast<Display*>(win_platform_data.display),
         .window = win_platform_data.window,
     };
 
@@ -720,7 +727,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig&
 
             assert(get_physical_device_xlib_presentation_support_khr != nullptr);
             return get_physical_device_xlib_presentation_support_khr(
-                       device, queue_index, xlib->display, xlib->visual) == VK_TRUE;
+                       device, queue_index, reinterpret_cast<Display*>(xlib->display), xlib->visual) == VK_TRUE;
         }
 
         if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
@@ -730,7 +737,8 @@ VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig&
 
             assert(get_physical_device_xcb_presentation_support_khr != nullptr);
             return get_physical_device_xcb_presentation_support_khr(
-                       device, queue_index, xcb->connection, xcb->visual) == VK_TRUE;
+                       device, queue_index, reinterpret_cast<xcb_connection_t*>(xcb->connection), xcb->visual) ==
+                   VK_TRUE;
         }
 #endif
     };
@@ -2414,7 +2422,8 @@ xray::rendering::VulkanRenderer::submit_job(QueuedJob queued_job) noexcept
     return QueueSubmitWaitToken{ this, queued_job.buffer, std::move(wait_fence), queued_job.queue_type };
 }
 
-xray::rendering::QueueSubmitWaitToken::~QueueSubmitWaitToken() {
+xray::rendering::QueueSubmitWaitToken::~QueueSubmitWaitToken()
+{
     if (!_waited_on) {
         _r->consume_wait_token(std::move(*this));
     }

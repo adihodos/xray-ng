@@ -40,6 +40,7 @@ class ConfigSystem;
 
 namespace scene {
 class camera_controller;
+class camera;
 struct SceneResources;
 struct SceneDefinition;
 } // namespace scene

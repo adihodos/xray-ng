@@ -2,6 +2,8 @@
 
 #include <tracy/Tracy.hpp>
 
+#pragma push_macro("Convex")
+#undef Convex
 #include <Jolt/RegisterTypes.h>
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
@@ -12,8 +14,11 @@
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
+#pragma pop_macro("Convex")
 
-#include "xray/base/logger.hpp"
+#include <xray/base/logger.hpp>
+#include <xray/scene/camera.hpp>
+#include "events.hpp"
 
 namespace B5 {
 
@@ -262,23 +267,44 @@ struct PhysicsSystem::PhysicsSystemState
 };
 
 PhysicsSystem::PhysicsSystem(PhysicsSystem::PrivateConstructionToken,
-                             xray::base::unique_pointer<PhysicsSystemState> phys_state) noexcept
+                             xray::base::unique_pointer<PhysicsSystemState> phys_state
+#if defined(JPH_DEBUG_RENDERER)
+                             ,
+                             xray::base::unique_pointer<PhysicsEngineDebugRenderer> dbg_renderer
+#endif
+                             ) noexcept
     : _phys_state{ std::move(phys_state) }
+#if defined(JPH_DEBUG_RENDERER)
+    , _debug_renderer{ std::move(dbg_renderer) }
+#endif
 {
+    // _debug_renderer->sInstance = xray::base::raw_ptr(_debug_renderer);
 }
 
 PhysicsSystem::PhysicsSystem(PhysicsSystem&& rhs) noexcept
     : _phys_state{ std::move(rhs._phys_state) }
+#if defined(JPH_DEBUG_RENDERER)
+    , _debug_renderer{ std::move(rhs._debug_renderer) }
+#endif
 {
 }
 
 tl::expected<PhysicsSystem, PhysicsSystemError>
-PhysicsSystem::create()
+PhysicsSystem::create(const InitContext& ctx)
 {
-    return tl::expected<PhysicsSystem, PhysicsSystemError>{
-        tl::in_place,
-        PhysicsSystem::PrivateConstructionToken{},
-        xray::base::make_unique<PhysicsSystemState>(),
+    auto phys_sys_state = xray::base::make_unique<PhysicsSystemState>();
+#if defined(JPH_RENAME_CLASS)
+    auto debug_renderer = PhysicsEngineDebugRenderer::create(ctx);
+    if (!debug_renderer)
+        return tl::make_unexpected(PhysicsError{});
+
+#endif
+    return tl::expected<PhysicsSystem, PhysicsSystemError>
+    {
+        tl::in_place, PhysicsSystem::PrivateConstructionToken{}, std::move(phys_sys_state),
+#if defined(JPH_DEBUG_RENDERER)
+            std::move(debug_renderer)
+#endif
     };
 }
 
@@ -294,5 +320,18 @@ PhysicsSystem::physics() noexcept
 {
     return &_phys_state->physics;
 }
+
+#if defined(JPH_DEBUG_RENDERER)
+void
+PhysicsSystem::dbg_draw_render(const RenderEvent& e,
+                               const JPH::RVec3 cam_pos,
+                               const JPH::BodyManager::DrawSettings& draw_settings) noexcept
+{
+    _debug_renderer->_cam_pos = cam_pos;
+    _phys_state->physics.DrawBodies(draw_settings, xray::base::raw_ptr(_debug_renderer));
+    _debug_renderer->draw(e);
+    _debug_renderer->NextFrame();
+}
+#endif
 
 }

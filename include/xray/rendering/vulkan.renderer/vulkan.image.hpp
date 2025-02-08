@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <span>
 
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 #include <tl/expected.hpp>
 
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"

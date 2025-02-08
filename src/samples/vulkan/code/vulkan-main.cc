@@ -88,7 +88,6 @@
 #include "xray/ui/user.interface.backend.hpp"
 #include "xray/ui/user.interface.backend.vulkan.hpp"
 #include "xray/ui/user_interface_render_context.hpp"
-#include "xray/ui/window.hpp"
 
 #include "xray/math/orientation.hpp"
 #include "xray/scene/scene.description.hpp"
@@ -98,6 +97,8 @@
 #include "bindless.pipeline.config.hpp"
 #include "system.memory.hpp"
 #include "events.hpp"
+
+#include "xray/ui/window.hpp"
 
 using namespace xray;
 using namespace xray::base;
@@ -1343,13 +1344,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
                 .height = static_cast<uint32_t>(main_window.height()),
             }
 #else
-            WindowPlatformDataXlib{
-                .display = main_window.native_display(),
-                .window = main_window.native_window(),
-                .visual = main_window.native_visual(),
-                .width = static_cast<uint32_t>(main_window.width()),
-                .height = static_cast<uint32_t>(main_window.height()),
-            }
+            main_window.platform_data()
 #endif
             ,
             rcfg)
@@ -1559,40 +1554,39 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 
 }
 
-struct ShaderComposer
+struct ShaderCodeBuilder
 {
-
-    ShaderComposer& add_code(std::string_view code)
+    ShaderCodeBuilder& add_code(std::string_view code)
     {
         _src_code.append(code);
         return *this;
     }
 
-    ShaderComposer& add_file(const std::filesystem::path& p)
+    ShaderCodeBuilder& add_file(const std::filesystem::path& p)
     {
         fmt::format_to(back_inserter(_src_code), "#include {}", p);
         return *this;
     }
 
-    ShaderComposer& add_define(std::string_view name, std::string_view value)
+    ShaderCodeBuilder& add_define(std::string_view name, std::string_view value)
     {
         _defines.emplace_back(base::containers::string{ name, *_temp }, base::containers::string{ value, *_temp });
         return *this;
     }
 
-    ShaderComposer& set_entry_point(std::string_view entrypoint)
+    ShaderCodeBuilder& set_entry_point(std::string_view entrypoint)
     {
         _entrypoint = entrypoint;
         return *this;
     }
 
-    ShaderComposer& set_compile_flags(const uint32_t flags)
+    ShaderCodeBuilder& set_compile_flags(const uint32_t flags)
     {
         _compile_options = flags;
         return *this;
     }
 
-    explicit ShaderComposer(MemoryArena* a)
+    explicit ShaderCodeBuilder(MemoryArena* a)
         : _src_code{ *a }
         , _defines{ *a }
         , _entrypoint{ *a }

@@ -188,7 +188,8 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
     XR_VK_PROPAGATE_ERROR(font_atlas);
 
     auto wait_token = renderer.submit_job(std::move(*resources_job));
-    XRAY_SCOPE_EXIT_NOEXCEPT {
+    XRAY_SCOPE_EXIT_NOEXCEPT
+    {
         renderer.consume_wait_token(std::move(*wait_token));
     };
 
@@ -278,16 +279,16 @@ UserInterfaceRenderBackend_Vulkan::render(const UserInterfaceRenderContext& ctx,
 
         vkCmdBindPipeline(rd.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline.handle());
 
-        const VkViewport viewport {
+        const VkViewport viewport{
             .x = 0,
-                .y = 0,
-                .width = static_cast<float>(rd.fbsize.width),
-                .height = static_cast<float>(rd.fbsize.height),
-                .minDepth = 0.0f,
-                .maxDepth = 1.0f,
+            .y = 0,
+            .width = static_cast<float>(rd.fbsize.width),
+            .height = static_cast<float>(rd.fbsize.height),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
         };
 
-        vkCmdSetViewportWithCount(rd.cmd_buf, 1, &viewport);
+        vkCmdSetViewport(rd.cmd_buf, 0, 1, &viewport);
 
         const VkBuffer vertex_buffers[] = { _vertexbuffer.buffer_handle() };
         const VkDeviceSize vertex_offsets[] = { 0 };

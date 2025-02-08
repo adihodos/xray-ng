@@ -1,7 +1,7 @@
 #pragma once
 
 #include "xray/xray.hpp"
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 namespace xray::rendering {
 

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <fmt/format.h>
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 template<>
 struct fmt::formatter<VkExtent2D> : fmt::nested_formatter<uint32_t>

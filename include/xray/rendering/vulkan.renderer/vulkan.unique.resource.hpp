@@ -7,7 +7,7 @@
 
 #include <tl/optional.hpp>
 #include <tl/expected.hpp>
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"

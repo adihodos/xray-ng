@@ -59,6 +59,7 @@ if(JoltPhysics_ADDED)
   set(CPP_EXCEPTIONS_ENABLED "OFF")
   set(CPP_RTTI_ENABLED "OFF")
   set(OBJECT_LAYER_BITS "16")
+  set(CPP_RTTI_ENABLED "ON")
   add_subdirectory(${JoltPhysics_SOURCE_DIR}/Build
                    ${JoltPhysics_SOURCE_DIR}/Build/out)
 endif()
