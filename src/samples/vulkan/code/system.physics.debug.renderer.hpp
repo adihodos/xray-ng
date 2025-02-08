@@ -94,14 +94,6 @@ class PhysicsEngineDebugRenderer : public JPH::DebugRenderer
         std::atomic<uint32_t> mRefCount{};
     };
 
-    struct Line
-    {
-        JPH::Float3 from;
-        JPH::Color from_color;
-        JPH::Float3 to;
-        JPH::Color to_color;
-    };
-
     struct PhysDebugRenderResourcesBundle
     {
         std::span<std::byte> arena_mem;
@@ -124,9 +116,25 @@ class PhysicsEngineDebugRenderer : public JPH::DebugRenderer
     xray::rendering::GraphicsPipeline _yftris_pp;
     size_t _yftriangles{};
 
+    std::mutex _fill_tris_lock;
+    xray::base::MemoryArena _filled_tris_arena;
+    xray::rendering::VulkanBuffer _gpu_filled_tris;
+    xray::rendering::GraphicsPipeline _filled_tris_pp;
+    size_t _filled_tris{};
+
   public:
+    struct Line
+    {
+        JPH::Float3 from;
+        JPH::Color from_color;
+        JPH::Float3 to;
+        JPH::Color to_color;
+    };
+
     JPH::RVec3 _cam_pos;
-    PhysicsEngineDebugRenderer(PhysDebugRenderResourcesBundle res_lines, PhysDebugRenderResourcesBundle res_yftris);
+    PhysicsEngineDebugRenderer(PhysDebugRenderResourcesBundle res_lines,
+                               PhysDebugRenderResourcesBundle res_yftris,
+                               PhysDebugRenderResourcesBundle res_filled_tris);
 };
 
 }

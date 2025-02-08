@@ -73,16 +73,11 @@ struct axis_aligned_bounding_box3
     }
 
     point_type center() const noexcept { return (max + min) / real_type{ 2 }; }
-
     real_type width() const noexcept { return std::abs(max.x - min.x); }
-
     real_type height() const noexcept { return std::abs(max.y - min.y); }
-
     real_type depth() const noexcept { return std::abs(max.z - min.z); }
-
     real_type max_dimension() const noexcept { return math::max(width(), math::max(height(), depth())); }
-
-    point_type extents() const noexcept { return max - center(); }
+    point_type extents() const noexcept { return math::abs((max - min) * 0.5f); }
 
     struct stdc;
 };

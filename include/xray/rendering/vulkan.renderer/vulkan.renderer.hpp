@@ -1,10 +1,11 @@
 #pragma once
 
+#include <filesystem>
+#include <initializer_list>
 #include <span>
 #include <tuple>
 #include <vector>
-#include <filesystem>
-#include <initializer_list>
+#include <utility>
 #include <unordered_map>
 
 #include <tl/optional.hpp>
@@ -212,30 +213,6 @@ struct WorkPackageTrackingInfo
     CommandBufferHandle cmd_buf;
 };
 
-struct WorkPackageState
-{
-    VkDevice device{};
-    VkQueue queue{};
-    VkCommandPool cmd_pool{};
-
-    std::vector<VkCommandBuffer> command_buffers;
-    std::vector<VkBuffer> staging_buffers;
-    std::vector<VkDeviceMemory> staging_memory;
-    std::vector<VkFence> fences;
-
-    std::unordered_map<WorkPackageHandle, WorkPackageTrackingInfo> packages;
-
-    static tl::expected<WorkPackageState, VulkanError> create(VkDevice device,
-                                                              VkQueue queue,
-                                                              const uint32_t queue_family_idx);
-
-    WorkPackageState(VkDevice device, VkQueue queue, VkCommandPool cmd_pool);
-    ~WorkPackageState();
-    WorkPackageState(const WorkPackageState&) = delete;
-    WorkPackageState& operator=(const WorkPackageState&) = delete;
-    WorkPackageState(WorkPackageState&& rhs) noexcept;
-};
-
 struct StagingBuffer
 {
     VkBuffer buf;
@@ -250,7 +227,7 @@ enum class QueueType : uint8_t
 
 struct RendererConfig;
 
-struct QueuedJob
+struct [[nodiscard]] QueuedJob
 {
     VkCommandBuffer buffer;
     QueueType queue_type;
@@ -258,7 +235,7 @@ struct QueuedJob
 
 class VulkanRenderer;
 
-struct QueueSubmitWaitToken
+struct [[nodiscard]] QueueSubmitWaitToken
 {
   public:
     QueueSubmitWaitToken(VulkanRenderer* r, VkCommandBuffer cmd_buf, xrUniqueVkFence&& fence, QueueType qtype) noexcept
@@ -304,7 +281,33 @@ struct QueueSubmitWaitToken
     VkCommandBuffer _cmdbuf;
     VkFence _fence;
     QueueType _queue_type;
-    bool _waited_on{false};
+    bool _waited_on{ false };
+};
+
+struct [[nodiscard]] DebugMarkerEndScoped
+{
+  public:
+    explicit DebugMarkerEndScoped(VkCommandBuffer cmd_buf) noexcept
+        : cmdbuf{ cmd_buf }
+    {
+    }
+
+    DebugMarkerEndScoped(const DebugMarkerEndScoped&) = delete;
+    DebugMarkerEndScoped& operator=(const DebugMarkerEndScoped&) = delete;
+    DebugMarkerEndScoped(DebugMarkerEndScoped&& other) noexcept
+        : cmdbuf{ std::exchange(other.cmdbuf, nullptr) }
+    {
+    }
+
+    ~DebugMarkerEndScoped()
+    {
+        if (cmdbuf) {
+            vkfn::CmdDebugMarkerEndEXT(cmdbuf);
+        }
+    }
+
+  private:
+    VkCommandBuffer cmdbuf{};
 };
 
 class VulkanRenderer
@@ -323,7 +326,6 @@ class VulkanRenderer
                    detail::RenderState render_state,
                    detail::PresentationState presentation_state,
                    detail::DescriptorPoolState pool_state,
-                   WorkPackageState wpkg_state,
                    BindlessSystem bindless);
 
     FrameRenderData begin_rendering();
@@ -365,21 +367,6 @@ class VulkanRenderer
     uint32_t find_allocation_memory_type(const uint32_t memory_requirements,
                                          const VkMemoryPropertyFlags required_flags) const noexcept;
 
-    void release_staging_resources();
-
-    void wait_on_packages(std::initializer_list<WorkPackageHandle> pkgs) const noexcept;
-
-    tl::expected<WorkPackageSetup, VulkanError> create_work_package();
-
-    void submit_work_package(const WorkPackageHandle pkg_handle);
-
-    tl::expected<StagingBuffer, VulkanError> create_staging_buffer(WorkPackageHandle pkg, const size_t bytes_size);
-
-    VkCommandBuffer get_cmd_buf_for_work_package(const WorkPackageHandle pkg)
-    {
-        return _work_queue.command_buffers[_work_queue.packages.find(pkg)->second.cmd_buf.value_of()];
-    }
-
     // @group Bindless resource handling
     const BindlessSystem& bindless_sys() const noexcept { return _bindless; }
     BindlessSystem& bindless_sys() noexcept { return _bindless; }
@@ -392,7 +379,9 @@ class VulkanRenderer
     void dbg_set_object_name(const uint64_t object,
                              const VkDebugReportObjectTypeEXT obj_type,
                              const char* name) const noexcept;
-    void dbg_marker_begin(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept;
+    [[nodiscard]] DebugMarkerEndScoped dbg_marker_begin(VkCommandBuffer cmd_buf,
+                                                        const char* name,
+                                                        const rgb_color color) noexcept;
     void dbg_marker_end(VkCommandBuffer cmd_buf) noexcept;
     void dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept;
     // @endgroup
@@ -453,8 +442,8 @@ class VulkanRenderer
 
     void queue_image_ownership_transfer(const BindlessResourceHandle_Image img) { _ownership_transfers.push_back(img); }
 
-    tl::expected<QueuedJob, VulkanError> create_job(const QueueType qtype) noexcept;
-    tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(QueuedJob queued_job) noexcept;
+    [[nodiscard]] tl::expected<QueuedJob, VulkanError> create_job(const QueueType qtype) noexcept;
+    [[nodiscard]] tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(QueuedJob queued_job) noexcept;
     void consume_wait_token(QueueSubmitWaitToken wait_token) noexcept;
     void consume_many_wait_tokens(xray::base::MemoryArena& arena, std::span<QueueSubmitWaitToken> tokens);
     /// @endgroup
@@ -475,7 +464,6 @@ class VulkanRenderer
     detail::RenderState _render_state;
     detail::PresentationState _presentation_state;
     detail::DescriptorPoolState _dpool_state;
-    WorkPackageState _work_queue;
     BindlessSystem _bindless;
     std::vector<std::filesystem::path> _shader_include_directories;
     std::vector<BindlessResourceHandle_Image> _ownership_transfers;

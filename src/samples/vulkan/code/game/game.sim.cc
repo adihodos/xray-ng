@@ -10,8 +10,6 @@
 
 #include <tracy/Tracy.hpp>
 
-#pragma push_macro("Convex")
-#undef Convex
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
@@ -22,7 +20,6 @@
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Math/Vec3.h>
 #include <Jolt/Math/Real.h>
-#pragma pop_macro("Convex")
 
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/fnv_hash.hpp"
@@ -44,10 +41,14 @@
 #include "xray/math/quaternion.hpp"
 #include "xray/math/quaternion_math.hpp"
 #include "xray/math/scalar3_string_cast.hpp"
+#include "xray/math/transforms_r3.hpp"
+#include "xray/math/transforms_r4.hpp"
+#include "xray/math/objects/aabb3_math.hpp"
 
 #include "bindless.pipeline.config.hpp"
 #include "events.hpp"
 #include "system.physics.hpp"
+#include "push.constant.packer.hpp"
 
 using namespace std;
 using namespace xray::rendering;
@@ -89,7 +90,9 @@ B5::GameSimulation::GameSimulation(PrivateConstructionToken,
                         [id = FNV::fnv1a("main_ship")](EntityDrawableComponent& e) { return e.hashed_name == id; });
     _starfury.entity = ranges::distance(ranges::cbegin(init_context.scene_def->entities), sa23ent);
     assert(sa23ent != ranges::cend(init_context.scene_def->entities));
-    const vec3f half_exts = sa23geom->bounding_box.extents();
+
+    const aabb3f box = xray::math::transform(R4::scaling(sa23ent->orientation.scale), sa23geom->bounding_box);
+    const vec3f half_exts = box.extents();
 
     XR_LOG_INFO("Half extents {}", half_exts);
 
@@ -319,42 +322,13 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
                                               color_palette::material::blue);
     }
 
-    if (_uistate.draw_sphere) {
-        // render_event.dbg_draw->draw_sphere(_world->geometry.bounding_sphere.center,
-        //                                    _world->geometry.bounding_sphere.radius,
-        //                                    color_palette::material::orange);
-    }
-
-    if (_uistate.draw_nodes_spheres) {
-        // for (const GeometryNode& node : _world->geometry.nodes) {
-        //     if (node.index_count != 0) {
-        //         render_event.dbg_draw->draw_sphere(
-        //             node.bounding_sphere.center, node.bounding_sphere.radius, color_palette::material::orange);
-        //     }
-        // }
-    }
-
-    if (_uistate.draw_bbox) {
-        // render_event.dbg_draw->draw_axis_aligned_box(
-        //     _world->geometry.boundingbox.min, _world->geometry.boundingbox.max, color_palette::material::yellow50);
-    }
-
-    if (_uistate.draw_nodes_bbox) {
-        // for (const GeometryNode& node : _world->geometry.nodes) {
-        //     if (node.index_count != 0) {
-        //         render_event.dbg_draw->draw_axis_aligned_box(
-        //             node.boundingbox.min, node.boundingbox.max, color_palette::material::yellow900);
-        //     }
-        // }
-    }
-
     const SceneDefinition* sdef = render_event.sdef;
     const SceneResources* sres = render_event.sres;
 
     {
         ZoneScopedNC("Lights setup", tracy::Color::GreenYellow);
 
-        render_event.renderer->dbg_marker_begin(
+        const auto vkmarker = render_event.renderer->dbg_marker_begin(
             render_event.frame_data->cmd_buf, "Update UBO/SBO", color_palette::web::orange_red);
 
         for (size_t start = sdef->directional_lights.size(), max = _uistate.toggle_directional_lights.size();
@@ -461,29 +435,6 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     vkCmdSetViewport(render_event.frame_data->cmd_buf, 0, 1, &viewport);
     vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
 
-    struct DrawDataPushConst
-    {
-        union
-        {
-            uint32_t value;
-            struct
-            {
-                uint32_t frame_id : 8;
-                uint32_t instance_entry : 8;
-                uint32_t instance_buffer_id : 16;
-            };
-        };
-
-        DrawDataPushConst(const BindlessResourceHandle_StorageBuffer sbo,
-                          const uint32_t instance_entry,
-                          const uint32_t frame) noexcept
-        {
-            this->instance_buffer_id = destructure_bindless_resource_handle(sbo).first;
-            this->instance_entry = instance_entry;
-            this->frame_id = frame;
-        }
-    };
-
     auto instances_buffer =
         UniqueMemoryMapping::map_memory(render_event.renderer->device(),
                                         sres->sbo_instances.second.memory,
@@ -511,7 +462,7 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     {
         ZoneScopedNC("Render GLTF models", tracy::Color::Red);
 
-        render_event.renderer->dbg_marker_insert(
+        const auto vkmarker = render_event.renderer->dbg_marker_begin(
             render_event.frame_data->cmd_buf, "Rendering GLTF models", color_palette::web::sea_green);
 
         vkCmdBindPipeline(
@@ -537,7 +488,7 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
             iri->normals_view = iri->model_view; // we only have rotations and translations, no scaling
             iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_pbr_materials.first).first;
 
-            const DrawDataPushConst push_const = DrawDataPushConst{
+            const PackedU32PushConstant push_const = PackedU32PushConstant{
                 bindless_subresource_handle_from_bindless_resource_handle(sres->sbo_instances.first,
                                                                           render_event.frame_data->id),
                 instance,
@@ -548,8 +499,8 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
                                sdef->pipelines.p_pbr_color.layout(),
                                VK_SHADER_STAGE_ALL,
                                0,
-                               static_cast<uint32_t>(sizeof(push_const.value)),
-                               &push_const.value);
+                               push_const.as_bytes().size(),
+                               push_const.as_bytes().data());
             vkCmdDrawIndexed(render_event.frame_data->cmd_buf,
                              itr_geom->vertex_index_count.y,
                              1,
@@ -570,7 +521,7 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     {
         ZoneScopedNC("Render procedural geometry", tracy::Color::Yellow);
 
-        render_event.renderer->dbg_marker_insert(
+        const auto vkmarker = render_event.renderer->dbg_marker_begin(
             render_event.frame_data->cmd_buf, "Rendering procedural models", color_palette::web::sea_green);
 
         auto draw_entities_fn = [&](const span<const EntityDrawableComponent*> ents) {
@@ -603,7 +554,7 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
                     [gid = edc.geometry_id](const ProceduralGeometryEntry& pge) { return pge.hashed_name == gid; });
                 assert(itr_geometry != cend(sdef->procedural.procedural_geometries));
 
-                const DrawDataPushConst push_const = DrawDataPushConst{
+                const PackedU32PushConstant push_const = PackedU32PushConstant{
                     bindless_subresource_handle_from_bindless_resource_handle(sres->sbo_instances.first,
                                                                               render_event.frame_data->id),
                     instance,
@@ -614,8 +565,8 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
                                    sres->pipelines.p_ads_color.layout(),
                                    VK_SHADER_STAGE_ALL,
                                    0,
-                                   sizeof(push_const).value,
-                                   &push_const.value);
+                                   push_const.as_bytes().size(),
+                                   push_const.as_bytes().data());
 
                 vkCmdDrawIndexed(render_event.frame_data->cmd_buf,
                                  itr_geometry->vertex_index_count.y,
@@ -651,22 +602,25 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     for (const auto& [idx, dir_light] : lz::enumerate(render_event.sdef->directional_lights)) {
         if (!_uistate.dbg_directional_lights[idx])
             continue;
-
         render_event.dbg_draw->draw_directional_light(dir_light.direction, 8.0f, rgb_color{ dir_light.diffuse });
     }
 
     for (const auto& [idx, point_light] : lz::enumerate(render_event.sdef->point_lights)) {
         if (!_uistate.dbg_point_lights[idx])
             continue;
-
         render_event.dbg_draw->draw_point_light(point_light.position, 1.0f, rgb_color{ point_light.diffuse });
+    }
+
+    if (_uistate.draw_bbox) {
+        const OrientationF32& orientation = sdef->entities[_starfury.entity].orientation;
+        const mat4f xf =
+            R4::translate(orientation.origin) * rotation_matrix(orientation.rotation) * R4::scaling(orientation.scale);
+        const aabb3f bbox = xray::math::transform(xf, sdef->gltf.entries[_starfury.geometry].bounding_box);
+        render_event.dbg_draw->draw_axis_aligned_box(bbox.min, bbox.max, color_palette::material::cyan500);
     }
 
 #if defined(JPH_DEBUG_RENDERER)
     const vec3f eye = _simstate.camera.origin();
     _physics->dbg_draw_render(render_event, JPH::RVec3{ eye.x, eye.y, eye.z }, _uistate.phys_draw);
-    // _physics->debug_renderer()->set_camera(_simstate.camera.origin());
-    // _physics->debug_renderer()->draw(render_event);
-    // _physics->debug_renderer()->NextFrame();
 #endif
 }
