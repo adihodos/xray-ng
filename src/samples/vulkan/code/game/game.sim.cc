@@ -41,7 +41,6 @@
 #include "xray/math/quaternion.hpp"
 #include "xray/math/quaternion_math.hpp"
 #include "xray/math/scalar3_string_cast.hpp"
-#include "xray/math/transforms_r3.hpp"
 #include "xray/math/transforms_r4.hpp"
 #include "xray/math/objects/aabb3_math.hpp"
 
@@ -73,23 +72,32 @@ B5::GameSimulation::SimState::SimState(const InitContext& init_context)
 
 B5::GameSimulation::GameSimulation(PrivateConstructionToken,
                                    const InitContext& init_context,
-                                   xray::base::unique_pointer<PhysicsSystem> physics)
+                                   xray::base::unique_pointer<PhysicsSystem> physics,
+                                   std::span<std::byte> arena_perm,
+                                   std::span<std::byte> arena_temp)
     : _simstate{ init_context }
     , _physics{ std::move(physics) }
+    , _arena_perm{ arena_perm }
+    , _arena_temp{ arena_temp }
+    , _world{ _arena_perm }
 {
     _timer.start();
+
+    ranges::copy_if(init_context.scene_def->entities,
+                    back_inserter(_world.ent_gltf),
+                    [](const EntityDrawableComponent& e) { return !e.material_id; });
+    ranges::copy_if(init_context.scene_def->entities,
+                    back_inserter(_world.ent_basic),
+                    [](const EntityDrawableComponent& e) { return e.material_id.has_value(); });
 
     auto sa23geom = ranges::find_if(
         init_context.scene_def->gltf.entries,
         [id = GeometryHandleType{ FNV::fnv1a("sa23") }](const GltfGeometryEntry& g) { return g.hashed_name == id; });
     assert(sa23geom != ranges::cend(init_context.scene_def->gltf.entries));
-    _starfury.geometry = ranges::distance(ranges::cbegin(init_context.scene_def->gltf.entries), sa23geom);
+    _world.ent_player.geometry = ranges::distance(ranges::cbegin(init_context.scene_def->gltf.entries), sa23geom);
 
-    auto sa23ent =
-        ranges::find_if(init_context.scene_def->entities,
-                        [id = FNV::fnv1a("main_ship")](EntityDrawableComponent& e) { return e.hashed_name == id; });
-    _starfury.entity = ranges::distance(ranges::cbegin(init_context.scene_def->entities), sa23ent);
-    assert(sa23ent != ranges::cend(init_context.scene_def->entities));
+    _world.ent_player.entity = 0;
+    auto sa23ent = &_world.ent_gltf[0];
 
     const aabb3f box = xray::math::transform(R4::scaling(sa23ent->orientation.scale), sa23geom->bounding_box);
     const vec3f half_exts = box.extents();
@@ -123,8 +131,8 @@ B5::GameSimulation::GameSimulation(PrivateConstructionToken,
 
     JPH::Body* body = body_ifc->CreateBody(body_settings);
     assert(body != nullptr);
-    _starfury.phys_body_id = body->GetID();
-    body_ifc->AddBody(_starfury.phys_body_id, EActivation::Activate);
+    _world.ent_player.phys_body_id = body->GetID();
+    body_ifc->AddBody(_world.ent_player.phys_body_id, EActivation::Activate);
 }
 
 B5::GameSimulation::~GameSimulation() {}
@@ -136,8 +144,18 @@ B5::GameSimulation::create(const InitContext& init_ctx)
     if (!physics_system)
         return nullptr;
 
-    return xray::base::make_unique<GameSimulation>(
-        PrivateConstructionToken{}, init_ctx, xray::base::make_unique<PhysicsSystem>(std::move(*physics_system)));
+    std::span<std::byte> arena_perm = os_virtual_alloc(64 * 1024 * 1024);
+    if (arena_perm.empty())
+        return nullptr;
+    std::span<std::byte> arena_temp = os_virtual_alloc(32 * 1024 * 1024);
+    if (arena_temp.empty())
+        return nullptr;
+
+    return xray::base::make_unique<GameSimulation>(PrivateConstructionToken{},
+                                                   init_ctx,
+                                                   xray::base::make_unique<PhysicsSystem>(std::move(*physics_system)),
+                                                   arena_perm,
+                                                   arena_temp);
 }
 
 void
@@ -146,6 +164,81 @@ B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
     if (is_input_event(evt)) {
         if (evt.event.key.keycode == KeySymbol::escape) {
             return;
+        }
+
+        if (evt.type == event_type::key) {
+            const key_event* ke = &evt.event.key;
+            using xray::ui::KeySymbol;
+            using namespace xray::math;
+
+            float force{};
+            RadiansF32 roll{};
+            RadiansF32 yaw{};
+            switch (ke->keycode) {
+                case KeySymbol::key_w:
+                    force = +1.0f;
+                    break;
+
+                case KeySymbol::key_s:
+                    force = -1.0f;
+                    break;
+
+                case KeySymbol::key_q:
+                    roll += 15.0_DEG2RADF32;
+                    break;
+
+                case KeySymbol::key_e:
+                    roll -= 15.0_DEG2RADF32;
+                    break;
+
+                case KeySymbol::left:
+                    yaw -= 15.0_DEG2RADF32;
+                    break;
+
+                case KeySymbol::right:
+                    yaw += 15.0_DEG2RADF32;
+                    break;
+
+                case KeySymbol::backspace: {
+                    JPH::BodyInterface* ifc = &_physics->physics()->GetBodyInterface();
+                    ifc->SetPositionRotationAndVelocity(_world.ent_player.phys_body_id,
+                                                        JPH::Vec3::sZero(),
+                                                        JPH::Quat::sIdentity(),
+                                                        JPH::Vec3::sZero(),
+                                                        JPH::Vec3::sZero());
+                } break;
+
+                default:
+                    break;
+            }
+
+            constexpr float thruster_force{ 4500.0f };
+            if (!is_zero(force)) {
+                JPH::BodyInterface* ifc = &_physics->physics()->GetBodyInterface();
+                JPH::RVec3 pos;
+                JPH::Quat rot;
+                ifc->GetPositionAndRotation(_world.ent_player.phys_body_id, pos, rot);
+                const JPH::Vec3 applied_force = rot * (JPH::Vec3::sAxisZ() * force * thruster_force);
+                ifc->AddForce(_world.ent_player.phys_body_id, applied_force);
+                // XR_LOG_INFO("Applying force ({},{},{})", applied_force.GetX(), applied_force.GetY(),
+                // applied_force.GetZ());
+            }
+
+            if (!is_zero(roll.value_of())) {
+                JPH::BodyInterface* ifc = &_physics->physics()->GetBodyInterface();
+
+                const JPH::Vec3 torque =
+                    JPH::Quat::sRotation(JPH::Vec3::sAxisZ(), roll.value_of()) * JPH::Vec3::sAxisZ() * thruster_force;
+                ifc->AddTorque(_world.ent_player.phys_body_id, torque);
+            }
+
+            if (!is_zero(yaw.value_of())) {
+                JPH::BodyInterface* ifc = &_physics->physics()->GetBodyInterface();
+
+                const JPH::Vec3 torque =
+                    JPH::Quat::sRotation(JPH::Vec3::sAxisY(), roll.value_of()) * JPH::Vec3::sAxisY() * thruster_force;
+                ifc->AddTorque(_world.ent_player.phys_body_id, torque);
+            }
         }
     }
 
@@ -183,11 +276,12 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
 
         if (ImGui::CollapsingHeader("::: Physics engine debug draw :::")) {
             ImGui::Checkbox("Draw the shapes of all bodies", &_uistate.phys_draw.mDrawShape);
-            ImGui::Checkbox("bounding boxes", &_uistate.phys_draw.mDrawBoundingBox);
-            ImGui::Checkbox("center of mass transform", &_uistate.phys_draw.mDrawCenterOfMassTransform);
-            ImGui::Checkbox("draw world transform", &_uistate.phys_draw.mDrawWorldTransform);
-            ImGui::Checkbox("draw mass & inertia", &_uistate.phys_draw.mDrawMassAndInertia);
-            ImGui::Checkbox("draw shapes as wireframe", &_uistate.phys_draw.mDrawShapeWireframe);
+            ImGui::Checkbox("Draw a bounding box per body", &_uistate.phys_draw.mDrawBoundingBox);
+            ImGui::Checkbox("Draw the center of mass for each body", &_uistate.phys_draw.mDrawCenterOfMassTransform);
+            ImGui::Checkbox("Draw the world transform for each body", &_uistate.phys_draw.mDrawWorldTransform);
+            ImGui::Checkbox("Draw the mass and inertia (as the box equivalent) for each body",
+                            &_uistate.phys_draw.mDrawMassAndInertia);
+            ImGui::Checkbox("Draw shapes in wireframe instead of solid", &_uistate.phys_draw.mDrawShapeWireframe);
         }
 
         // ImGui::Checkbox("Draw individual nodes bounding boxes", &_uistate.draw_nodes_bbox);
@@ -281,12 +375,13 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     ZoneScopedNCS("scene loop", tracy::Color::Orange, 32);
 
     user_interface(render_event.ui, render_event);
-
     _physics->update();
 
+    ScratchPadArena scratch_pad{ &_arena_temp };
+
     JPH::BodyInterface* bdi = &_physics->physics()->GetBodyInterface();
-    const JPH::RVec3 pos = bdi->GetCenterOfMassPosition(_starfury.phys_body_id);
-    const JPH::Quat rot = bdi->GetRotation(_starfury.phys_body_id);
+    const JPH::RVec3 pos = bdi->GetCenterOfMassPosition(_world.ent_player.phys_body_id);
+    const JPH::Quat rot = bdi->GetRotation(_world.ent_player.phys_body_id);
 
     if (_uistate.use_arcball_cam) {
         _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
@@ -308,8 +403,6 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
             _simstate.angle -= xray::math::two_pi<float>;
         _timer.update_and_reset();
     }
-
-    ScratchPadArena scratch_pad{ render_event.arena_temp };
 
     if (_uistate.draw_world_axis) {
         render_event.dbg_draw->draw_coord_sys(vec3f::stdc::zero,
@@ -444,22 +537,7 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     InstanceRenderInfo* iri = instances_buffer->as<InstanceRenderInfo>();
     uint32_t instance{};
 
-    //
-    // partition into gltf/nongltf
-
-    containers::vector<const EntityDrawableComponent*> entities{ scratch_pad };
-    lz::chain(sdef->entities).map([](const EntityDrawableComponent& e) { return &e; }).copyTo(back_inserter(entities));
-
-    containers::vector<const EntityDrawableComponent*> gltf_entities{ scratch_pad };
-    containers::vector<const EntityDrawableComponent*> procedural_entities{ scratch_pad };
-
-    auto [last, out0, out1] =
-        ranges::partition_copy(entities,
-                               back_inserter(gltf_entities),
-                               back_inserter(procedural_entities),
-                               [](const EntityDrawableComponent* edc) { return !edc->material_id; });
-
-    {
+    if (!_world.ent_gltf.empty()) {
         ZoneScopedNC("Render GLTF models", tracy::Color::Red);
 
         const auto vkmarker = render_event.renderer->dbg_marker_begin(
@@ -474,16 +552,21 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         vkCmdBindIndexBuffer(
             render_event.frame_data->cmd_buf, sdef->gltf.index_buffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
 
-        for (const EntityDrawableComponent* itr : gltf_entities) {
-            const EntityDrawableComponent& edc = *itr;
+        for (const EntityDrawableComponent& edc : _world.ent_gltf) {
             const auto itr_geom =
                 ranges::find_if(sdef->gltf.entries,
                                 [id = edc.geometry_id](const GltfGeometryEntry& ge) { return ge.hashed_name == id; });
 
             assert(itr_geom != cend(sdef->gltf.entries));
 
-            iri->model = R4::translate(edc.orientation.origin) * rotation_matrix(edc.orientation.rotation) *
-                         R4::scaling(edc.orientation.scale);
+            //
+            // TODO: need to sync with the physics
+            _physics->physics()
+                ->GetBodyInterface()
+                .GetCenterOfMassTransform(_world.ent_player.phys_body_id)
+                .Transposed()
+                .StoreFloat4x4(reinterpret_cast<JPH::Float4*>(&iri->model.components));
+
             iri->model_view = _simstate.camera.view() * iri->model;
             iri->normals_view = iri->model_view; // we only have rotations and translations, no scaling
             iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_pbr_materials.first).first;
@@ -514,9 +597,21 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
 
-    auto r0 = ranges::partition(procedural_entities, [](const EntityDrawableComponent* edc) {
-        return swl::holds_alternative<ColorMaterialType>(*edc->material_id);
-    });
+    containers::vector<const EntityDrawableComponent*> ents_color_mtl{ scratch_pad };
+    lz::chain(_world.ent_basic)
+        .filterMap(
+            [](const EntityDrawableComponent& e) { return swl::holds_alternative<ColorMaterialType>(*e.material_id); },
+            [](const EntityDrawableComponent& e) { return &e; })
+        .copyTo(back_inserter(ents_color_mtl));
+
+    containers::vector<const EntityDrawableComponent*> ents_textured_mtl{ scratch_pad };
+    lz::chain(_world.ent_basic)
+        .filterMap(
+            [](const EntityDrawableComponent& e) {
+                return swl::holds_alternative<TexturedMaterialType>(*e.material_id);
+            },
+            [](const EntityDrawableComponent& e) { return &e; })
+        .copyTo(back_inserter(ents_textured_mtl));
 
     {
         ZoneScopedNC("Render procedural geometry", tracy::Color::Yellow);
@@ -590,13 +685,11 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         vkCmdBindPipeline(
             render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_color.handle());
 
-        draw_entities_fn(span{ ranges::begin(procedural_entities), ranges::begin(r0) });
+        draw_entities_fn(ents_color_mtl);
 
         vkCmdBindPipeline(
             render_event.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, sres->pipelines.p_ads_textured.handle());
-        draw_entities_fn(span{ r0 });
-
-        render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
+        draw_entities_fn(ents_textured_mtl);
     }
 
     for (const auto& [idx, dir_light] : lz::enumerate(render_event.sdef->directional_lights)) {
@@ -612,10 +705,10 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     }
 
     if (_uistate.draw_bbox) {
-        const OrientationF32& orientation = sdef->entities[_starfury.entity].orientation;
+        const OrientationF32& orientation = _world.ent_gltf[_world.ent_player.entity].orientation;
         const mat4f xf =
             R4::translate(orientation.origin) * rotation_matrix(orientation.rotation) * R4::scaling(orientation.scale);
-        const aabb3f bbox = xray::math::transform(xf, sdef->gltf.entries[_starfury.geometry].bounding_box);
+        const aabb3f bbox = xray::math::transform(xf, sdef->gltf.entries[_world.ent_player.geometry].bounding_box);
         render_event.dbg_draw->draw_axis_aligned_box(bbox.min, bbox.max, color_palette::material::cyan500);
     }
 

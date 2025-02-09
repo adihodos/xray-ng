@@ -234,10 +234,12 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
 
         const math::mat4f rotation = [n]() {
             return n->rotation.empty() ? math::mat4f::stdc::identity
-                                       : math::rotation_matrix(math::quatf{ static_cast<float>(n->rotation[3]),
-                                                                            static_cast<float>(n->rotation[0]),
-                                                                            static_cast<float>(n->rotation[1]),
-                                                                            static_cast<float>(n->rotation[2]) });
+                                       : math::rotation_matrix(math::quatf{
+                                             static_cast<float>(n->rotation[3]),
+                                             static_cast<float>(n->rotation[0]),
+                                             static_cast<float>(n->rotation[1]),
+                                             static_cast<float>(n->rotation[2]),
+                                         });
         }();
 
         const math::mat4f translate = [n]() {

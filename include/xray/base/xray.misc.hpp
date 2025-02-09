@@ -29,6 +29,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <type_traits>
 #include <span>
@@ -72,5 +73,11 @@ to_cspan(const T& value) noexcept
 {
     return std::span<const T>{ &value, 1 };
 }
+
+std::span<std::byte>
+os_virtual_alloc(const size_t block_size) noexcept;
+
+void
+os_virtual_free(std::span<std::byte> block) noexcept;
 
 }

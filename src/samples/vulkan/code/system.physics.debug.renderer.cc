@@ -1,4 +1,6 @@
 #include "system.physics.debug.renderer.hpp"
+#include "vulkan.renderer/vulkan.unique.resource.hpp"
+#include <type_traits>
 
 #if defined(JPH_DEBUG_RENDERER)
 
@@ -41,6 +43,7 @@ PhysicsEngineDebugRenderer::PhysicsEngineDebugRenderer(PhysDebugRenderResourcesB
 void
 PhysicsEngineDebugRenderer::DrawLine(JPH::RVec3Arg inFrom, JPH::RVec3Arg inTo, JPH::ColorArg inColor)
 {
+    XR_LOG_INFO("Draw line");
     std::unique_lock lock{ _lines_lock };
     if (_lines_count + 2 >= MAX_LINES)
         return;
@@ -361,36 +364,53 @@ PhysicsEngineDebugRenderer::create(const InitContext& ctx)
         });
 }
 
-struct TriangleSolid
-{};
-struct TriangleWireframe
-{};
-struct LineTag
-{};
-
-template<typename PrimitiveTagType>
-struct PrimitiveTraits;
-
-template<>
-struct PrimitiveTraits<TriangleSolid>
+template<typename PrimitiveType>
+void
+draw_primitives(const RenderEvent& e,
+                std::mutex& primitive_lock,
+                size_t& primitive_count,
+                const xray::rendering::VulkanBuffer& gpu_buffer,
+                xray::base::MemoryArena& arena,
+                const xray::rendering::GraphicsPipeline& effect)
 {
-    using PrimitiveType = xray::rendering::vertex_pc;
-    static constexpr const size_t VertexMultiplier = 3;
-};
+    auto [primitive_align, primitive_size] = []() constexpr -> std::pair<size_t, size_t> {
+        if constexpr (std::is_same_v<PrimitiveType, PhysicsEngineDebugRenderer::Line>) {
+            return std::pair<size_t, size_t>{ alignof(PhysicsEngineDebugRenderer::Line),
+                                              sizeof(PhysicsEngineDebugRenderer::Line) };
+        } else if constexpr (std::is_same_v<PrimitiveType, xray::rendering::vertex_pc>) {
+            return std::pair<size_t, size_t>{ alignof(xray::rendering::vertex_pc), sizeof(xray::rendering::vertex_pc) };
+        } else {
+            static_assert(false, "unsupported type");
+        }
+    }();
 
-template<>
-struct PrimitiveTraits<TriangleWireframe>
-{
-    using PrimitiveType = xray::rendering::vertex_pc;
-    static constexpr const size_t VertexMultiplier = 3;
-};
+    uint32_t draw_count{};
+    {
+        std::unique_lock lock{ primitive_lock };
+        if (primitive_count != 0) {
+            gpu_buffer.mmap(e.renderer->device(), e.frame_data->id)
+                .map([buf = arena.buf, primitive_count, primitive_align, primitive_size](
+                         xray::rendering::UniqueMemoryMapping mapped_buffer) {
+                    std::memcpy(mapped_buffer._mapped_memory,
+                                reinterpret_cast<const void*>(
+                                    xray::base::align_forward(reinterpret_cast<uintptr_t>(buf), primitive_align)),
+                                primitive_count * primitive_size);
+                });
 
-template<>
-struct PrimitiveTraits<LineTag>
-{
-    using PrimitiveType = PhysicsEngineDebugRenderer::Line;
-    static constexpr const size_t VertexMultiplier = 2;
-};
+            draw_count = primitive_count;
+            primitive_count = 0;
+            arena.free_all();
+        }
+    }
+
+    if (draw_count != 0) {
+        const VkBuffer yftriangle_buffer = gpu_buffer.buffer_handle();
+        const VkDeviceSize offsets{};
+        vkCmdBindVertexBuffers(e.frame_data->cmd_buf, 0, 1, &yftriangle_buffer, &offsets);
+        vkCmdBindPipeline(e.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, effect.handle());
+        vkCmdDraw(e.frame_data->cmd_buf, draw_count, 1, 0, 0);
+    }
+}
 
 void
 PhysicsEngineDebugRenderer::draw(const RenderEvent& e)
@@ -401,48 +421,9 @@ PhysicsEngineDebugRenderer::draw(const RenderEvent& e)
         e.renderer->dbg_marker_begin(e.frame_data->cmd_buf, "Physics debug draw", rgb_color{ 0.0f, 1.0f, 0.0f });
     const PackedU32PushConstant push_const{ e.frame_data->id };
 
-    auto draw_primitives_fn = [&e](auto primitive_tag,
-                                   std::mutex& primitive_lock,
-                                   size_t& primitive_count,
-                                   const VulkanBuffer& gpu_buffer,
-                                   xray::base::MemoryArena& arena,
-                                   const GraphicsPipeline& effect) {
-        using PrimitiveTagType = std::remove_cvref_t<decltype(primitive_tag)>;
-        using PrimitiveType = typename PrimitiveTraits<PrimitiveTagType>::PrimitiveType;
-        constexpr const size_t VertexMultiplier = 1;
-        // PrimitiveTraits<PrimitiveTagType>::VertexMultiplier;
-
-        uint32_t draw_count{};
-        {
-            std::unique_lock lock{ primitive_lock };
-            if (primitive_count != 0) {
-                gpu_buffer.mmap(e.renderer->device(), e.frame_data->id)
-                    .map([buf = arena.buf, primitive_count](UniqueMemoryMapping mapped_buffer) {
-                        std::memcpy(mapped_buffer._mapped_memory,
-                                    reinterpret_cast<const void*>(xray::base::align_forward(
-                                        reinterpret_cast<uintptr_t>(buf), alignof(PrimitiveType))),
-                                    primitive_count * VertexMultiplier * sizeof(PrimitiveType));
-                    });
-
-                draw_count = primitive_count * VertexMultiplier;
-                primitive_count = 0;
-                arena.free_all();
-            }
-        }
-
-        if (draw_count != 0) {
-            const VkBuffer yftriangle_buffer = gpu_buffer.buffer_handle();
-            const VkDeviceSize offsets{};
-            vkCmdBindVertexBuffers(e.frame_data->cmd_buf, 0, 1, &yftriangle_buffer, &offsets);
-            vkCmdBindPipeline(e.frame_data->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, effect.handle());
-            vkCmdDraw(e.frame_data->cmd_buf, draw_count, 1, 0, 0);
-        }
-    };
-
-    draw_primitives_fn(LineTag{}, _lines_lock, _lines_count, _gpu_lines, _line_arena, _lines_pp);
-    draw_primitives_fn(TriangleWireframe{}, _yftris_lock, _yftriangles, _gpu_yftris, _yftris_arena, _yftris_pp);
-    draw_primitives_fn(
-        TriangleSolid{}, _fill_tris_lock, _filled_tris, _gpu_filled_tris, _filled_tris_arena, _filled_tris_pp);
+    draw_primitives<Line>(e, _lines_lock, _lines_count, _gpu_lines, _line_arena, _lines_pp);
+    draw_primitives<vertex_pc>(e, _yftris_lock, _yftriangles, _gpu_yftris, _yftris_arena, _yftris_pp);
+    draw_primitives<vertex_pc>(e, _fill_tris_lock, _filled_tris, _gpu_filled_tris, _filled_tris_arena, _filled_tris_pp);
 }
 
 }

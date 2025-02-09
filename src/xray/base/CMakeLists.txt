@@ -6,6 +6,7 @@ set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 set(project_headers
     ${proj_inc_dir}/base_fwd.hpp
     ${proj_inc_dir}/xray.misc.hpp
+    ${proj_src_dir}/xray.misc.cc
     ${proj_inc_dir}/array_dimension.hpp
     ${proj_inc_dir}/app_config.hpp
     ${proj_inc_dir}/basic_timer.hpp

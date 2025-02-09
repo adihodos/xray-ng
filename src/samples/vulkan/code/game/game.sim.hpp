@@ -2,6 +2,7 @@
 
 #include <bitset>
 #include <cstdint>
+#include <cstddef>
 
 #include <tl/expected.hpp>
 #include <concurrencpp/forward_declarations.h>
@@ -11,6 +12,8 @@
 #include <Jolt/Physics/Body/BodyManager.h>
 
 #include "xray/base/unique_pointer.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/math/math.units.hpp"
 #include "xray/scene/camera.hpp"
@@ -44,6 +47,21 @@ struct Starfury
     uint32_t entity{};
     uint32_t geometry{};
     JPH::BodyID phys_body_id{};
+};
+
+struct GameWorldState
+{
+    explicit GameWorldState(xray::base::MemoryArena& arena)
+        : ent_gltf{ arena }
+        , ent_basic{ arena }
+        , ent_physics_bodies{ arena }
+    {
+    }
+
+    xray::base::containers::vector<xray::scene::EntityDrawableComponent> ent_gltf;
+    xray::base::containers::vector<xray::scene::EntityDrawableComponent> ent_basic;
+    xray::base::containers::vector<JPH::BodyID> ent_physics_bodies;
+    Starfury ent_player;
 };
 
 }
@@ -83,7 +101,6 @@ class GameSimulation
     } _simstate{};
 
     xray::base::unique_pointer<PhysicsSystem> _physics;
-    simulation_details::Starfury _starfury;
 
     struct UIState
     {
@@ -103,12 +120,18 @@ class GameSimulation
         std::bitset<MAX_LIGHTS> toggle_point_lights{ std::bitset<MAX_LIGHTS>{}.set() };
     } _uistate{};
 
+    xray::base::MemoryArena _arena_perm;
+    xray::base::MemoryArena _arena_temp;
+    simulation_details::GameWorldState _world;
+
     xray::base::timer_highp _timer{};
 
   public:
     GameSimulation(PrivateConstructionToken,
                    const InitContext& init_context,
-                   xray::base::unique_pointer<PhysicsSystem> phys);
+                   xray::base::unique_pointer<PhysicsSystem> phys,
+                   std::span<std::byte> arena_perm,
+                   std::span<std::byte> arena_temp);
     ~GameSimulation();
 };
 
