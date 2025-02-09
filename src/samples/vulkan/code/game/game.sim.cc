@@ -32,6 +32,7 @@
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/scene/scene.definition.hpp"
 #include "xray/ui/events.hpp"
+#include "xray/ui/user_interface.hpp"
 #include "init_context.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
@@ -59,11 +60,9 @@ using namespace xray::scene;
 B5::GameSimulation::SimState::SimState(const InitContext& init_context)
     : arcball_cam{ xray::math::vec3f::stdc::zero, 1.0f, { init_context.surface_width, init_context.surface_height } }
 {
-    const auto rads = RadiansF32{ 0.123f };
-    const auto rads2 = rads + RadiansF32{ 1.2f };
     const auto perspective_projection = perspective_symmetric(static_cast<float>(init_context.surface_width) /
                                                                   static_cast<float>(init_context.surface_height),
-                                                              static_cast<RadiansF32>(DegreesF32{ 65.0f }),
+                                                              65.0_DEG2RADF32,
                                                               0.1f,
                                                               1000.0f);
 
@@ -80,6 +79,7 @@ B5::GameSimulation::GameSimulation(PrivateConstructionToken,
     , _arena_perm{ arena_perm }
     , _arena_temp{ arena_temp }
     , _world{ _arena_perm }
+    , _ui{ init_context.ui }
 {
     _timer.start();
 
@@ -107,7 +107,7 @@ B5::GameSimulation::GameSimulation(PrivateConstructionToken,
     using namespace JPH::literals;
     using namespace JPH;
 
-    auto phys = _physics->physics();
+    auto phys = _physics->sim();
     JPH::BodyInterface* body_ifc = &phys->GetBodyInterface();
 
     BoxShapeSettings box_shape{ Vec3{ half_exts.x, half_exts.y, half_exts.z } };
@@ -162,45 +162,69 @@ void
 B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
 {
     if (is_input_event(evt)) {
-        if (evt.event.key.keycode == KeySymbol::escape) {
+        if (_uistate.ui_opened) {
+            _ui->input_event(evt);
+        }
+
+        const bool is_key_press_event = evt.type == event_type::key && evt.event.key.type == event_action_type::press;
+        if (is_key_press_event && evt.event.key.keycode == KeySymbol::f10) {
+            _uistate.ui_opened = !_uistate.ui_opened;
             return;
         }
 
-        if (evt.type == event_type::key) {
+        if (!_ui->wants_input() && is_key_press_event) {
             const key_event* ke = &evt.event.key;
             using xray::ui::KeySymbol;
             using namespace xray::math;
 
-            float force{};
-            RadiansF32 roll{};
-            RadiansF32 yaw{};
+            float force_axis_z{};
+            float force_axis_x{};
+            float roll{};
+            float yaw{};
+            float pitch{};
             switch (ke->keycode) {
                 case KeySymbol::key_w:
-                    force = +1.0f;
+                    force_axis_z = +1.0f;
                     break;
 
                 case KeySymbol::key_s:
-                    force = -1.0f;
+                    force_axis_z = -1.0f;
+                    break;
+
+                case KeySymbol::key_a:
+                    force_axis_x = -1.0f;
+                    break;
+
+                case KeySymbol::key_d:
+                    force_axis_x = 1.0f;
                     break;
 
                 case KeySymbol::key_q:
-                    roll += 15.0_DEG2RADF32;
+                    roll = +1.0f;
                     break;
 
                 case KeySymbol::key_e:
-                    roll -= 15.0_DEG2RADF32;
+                    roll = -1.0f;
                     break;
 
                 case KeySymbol::left:
-                    yaw -= 15.0_DEG2RADF32;
+                    yaw = -1.0f;
                     break;
 
                 case KeySymbol::right:
-                    yaw += 15.0_DEG2RADF32;
+                    yaw = 1.0f;
+                    break;
+
+                case KeySymbol::up:
+                    pitch = 1.0f;
+                    break;
+
+                case KeySymbol::down:
+                    pitch = -1.0f;
                     break;
 
                 case KeySymbol::backspace: {
-                    JPH::BodyInterface* ifc = &_physics->physics()->GetBodyInterface();
+                    JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
                     ifc->SetPositionRotationAndVelocity(_world.ent_player.phys_body_id,
                                                         JPH::Vec3::sZero(),
                                                         JPH::Quat::sIdentity(),
@@ -212,58 +236,73 @@ B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
                     break;
             }
 
-            constexpr float thruster_force{ 4500.0f };
-            if (!is_zero(force)) {
-                JPH::BodyInterface* ifc = &_physics->physics()->GetBodyInterface();
-                JPH::RVec3 pos;
-                JPH::Quat rot;
-                ifc->GetPositionAndRotation(_world.ent_player.phys_body_id, pos, rot);
-                const JPH::Vec3 applied_force = rot * (JPH::Vec3::sAxisZ() * force * thruster_force);
-                ifc->AddForce(_world.ent_player.phys_body_id, applied_force);
-                // XR_LOG_INFO("Applying force ({},{},{})", applied_force.GetX(), applied_force.GetY(),
-                // applied_force.GetZ());
+            constexpr float thruster_force{ 19500.0f };
+            constexpr float small_thruster_force{ 9500.0f };
+
+            auto apply_force_fn = [ifc = &_physics->sim()->GetBodyInterface()](const JPH::BodyID body,
+                                                                                   const JPH::Vec3 axis,
+                                                                                   const float modifier,
+                                                                                   const float force) {
+                JPH::RMat44 rot = ifc->GetCenterOfMassTransform(body).GetRotation();
+                const JPH::Vec3 applied_force = rot * axis * modifier * force;
+                ifc->AddForce(body, applied_force);
+            };
+
+            if (!is_zero(force_axis_z)) {
+                apply_force_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisZ(), force_axis_z, thruster_force);
             }
 
-            if (!is_zero(roll.value_of())) {
-                JPH::BodyInterface* ifc = &_physics->physics()->GetBodyInterface();
-
-                const JPH::Vec3 torque =
-                    JPH::Quat::sRotation(JPH::Vec3::sAxisZ(), roll.value_of()) * JPH::Vec3::sAxisZ() * thruster_force;
-                ifc->AddTorque(_world.ent_player.phys_body_id, torque);
+            if (!is_zero(force_axis_x)) {
+                apply_force_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisX(), force_axis_x, thruster_force);
             }
 
-            if (!is_zero(yaw.value_of())) {
-                JPH::BodyInterface* ifc = &_physics->physics()->GetBodyInterface();
+            auto apply_torque_fn = [ifc = &_physics->sim()->GetBodyInterface()](const JPH::BodyID body,
+                                                                                    const JPH::Vec3 axis,
+                                                                                    const float modifier,
+                                                                                    const float force) {
+                JPH::RMat44 rot = ifc->GetCenterOfMassTransform(body).GetRotation();
+                const JPH::Vec3 torque = rot * axis * force * modifier;
+                ifc->AddTorque(body, torque);
+            };
 
-                const JPH::Vec3 torque =
-                    JPH::Quat::sRotation(JPH::Vec3::sAxisY(), roll.value_of()) * JPH::Vec3::sAxisY() * thruster_force;
-                ifc->AddTorque(_world.ent_player.phys_body_id, torque);
+            if (!is_zero(roll)) {
+                apply_torque_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisZ(), roll, small_thruster_force);
+            }
+
+            if (!is_zero(yaw)) {
+                apply_torque_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisY(), yaw, small_thruster_force);
+            }
+
+            if (!is_zero(pitch)) {
+                apply_torque_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisX(), pitch, small_thruster_force);
             }
         }
+
+        if (_uistate.use_arcball_cam) {
+            _simstate.arcball_cam.input_event(evt);
+        }
+
+        return;
     }
 
     if (evt.type == xray::ui::event_type::configure) {
         const xray::ui::window_configure_event* wce = &evt.event.configure;
         if (wce->width != 0 && wce->height != 0) {
-            const auto perspective_projection =
-                perspective_symmetric(static_cast<float>(wce->width) / static_cast<float>(wce->height),
-                                      RadiansF32(radians(65.0f)),
-                                      0.1f,
-                                      1000.0f);
+            const auto perspective_projection = perspective_symmetric(
+                static_cast<float>(wce->width) / static_cast<float>(wce->height), 65.0_DEG2RADF32, 0.1f, 1000.0f);
             _simstate.camera.set_projection(perspective_projection);
         }
     }
 
-    if (_uistate.use_arcball_cam) {
-        _simstate.arcball_cam.input_event(evt);
-    } else {
-    }
+    _ui->input_event(evt);
 }
 
 void
 B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEvent& re)
 {
     ZoneScopedNCS("UI", tracy::Color::GreenYellow, 16);
+    if (!_uistate.ui_opened)
+        return;
 
     char scratch_buff[1024];
 
@@ -379,16 +418,18 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 
     ScratchPadArena scratch_pad{ &_arena_temp };
 
-    JPH::BodyInterface* bdi = &_physics->physics()->GetBodyInterface();
-    const JPH::RVec3 pos = bdi->GetCenterOfMassPosition(_world.ent_player.phys_body_id);
-    const JPH::Quat rot = bdi->GetRotation(_world.ent_player.phys_body_id);
+    JPH::BodyInterface* bdi = &_physics->sim()->GetBodyInterface();
+    const JPH::Mat44 player_tf = bdi->GetCenterOfMassTransform(_world.ent_player.phys_body_id);
 
     if (_uistate.use_arcball_cam) {
         _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
         _simstate.arcball_cam.update_camera(_simstate.camera);
     } else {
-        _simstate.flight_cam.update(rotation_matrix(quatf{ rot.GetW(), rot.GetX(), rot.GetY(), rot.GetZ() }),
-                                    vec3f{ pos.GetY(), pos.GetY(), pos.GetZ() });
+        mat4f rotation;
+        player_tf.GetRotation().Transposed().StoreFloat4x4(reinterpret_cast<JPH::Float4*>(&rotation.components));
+        vec3f translation;
+        player_tf.GetTranslation().StoreFloat3(reinterpret_cast<JPH::Float3*>(&translation.components));
+        _simstate.flight_cam.update(rotation, translation);
         _simstate.camera.set_view_matrix(_simstate.flight_cam.view_matrix, _simstate.flight_cam.inverse_of_view_matrix);
     }
 
@@ -561,14 +602,14 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 
             //
             // TODO: need to sync with the physics
-            _physics->physics()
+            _physics->sim()
                 ->GetBodyInterface()
                 .GetCenterOfMassTransform(_world.ent_player.phys_body_id)
                 .Transposed()
                 .StoreFloat4x4(reinterpret_cast<JPH::Float4*>(&iri->model.components));
 
             iri->model_view = _simstate.camera.view() * iri->model;
-            iri->normals_view = iri->model_view; // we only have rotations and translations, no scaling
+            iri->normals_view = iri->model_view;
             iri->mtl_buffer = destructure_bindless_resource_handle(sres->sbo_pbr_materials.first).first;
 
             const PackedU32PushConstant push_const = PackedU32PushConstant{

@@ -104,9 +104,12 @@ class GameSimulation
 
     struct UIState
     {
+        bool ui_opened{ false };
         static constexpr const size_t MAX_LIGHTS = 64;
         bool use_arcball_cam{ false };
-        JPH::BodyManager::DrawSettings phys_draw{};
+        JPH::BodyManager::DrawSettings phys_draw{
+            .mDrawShape = false,
+        };
         bool draw_bbox{ false };
         bool draw_world_axis{ true };
         bool draw_sphere{ false };
@@ -125,6 +128,7 @@ class GameSimulation
     simulation_details::GameWorldState _world;
 
     xray::base::timer_highp _timer{};
+    xray::ui::user_interface* _ui{};
 
   public:
     GameSimulation(PrivateConstructionToken,

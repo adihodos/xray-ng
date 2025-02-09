@@ -88,6 +88,7 @@ struct InitContext
     xray::base::ConfigSystem* config_sys;
     xray::scene::SceneDefinition* scene_def;
     xray::scene::SceneResources* scene_res;
+    xray::ui::user_interface* ui;
 };
 
 }

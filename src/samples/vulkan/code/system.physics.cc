@@ -278,7 +278,6 @@ PhysicsSystem::PhysicsSystem(PhysicsSystem::PrivateConstructionToken,
     , _debug_renderer{ std::move(dbg_renderer) }
 #endif
 {
-    // _debug_renderer->sInstance = xray::base::raw_ptr(_debug_renderer);
 }
 
 PhysicsSystem::PhysicsSystem(PhysicsSystem&& rhs) noexcept
@@ -316,7 +315,7 @@ PhysicsSystem::update()
 }
 
 JPH::PhysicsSystem*
-PhysicsSystem::physics() noexcept
+PhysicsSystem::sim() noexcept
 {
     return &_phys_state->physics;
 }

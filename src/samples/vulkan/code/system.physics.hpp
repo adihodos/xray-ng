@@ -87,7 +87,7 @@ class PhysicsSystem
     static tl::expected<PhysicsSystem, PhysicsSystemError> create(const InitContext& ctx);
 
     void update();
-    JPH::PhysicsSystem* physics() noexcept;
+    JPH::PhysicsSystem* sim() noexcept;
     static void test_something();
 
 #if defined(JPH_DEBUG_RENDERER)

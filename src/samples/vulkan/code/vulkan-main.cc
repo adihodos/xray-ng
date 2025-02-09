@@ -1420,6 +1420,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
         .renderer = raw_ptr(renderer),
         .config_sys = xr_app_config,
         .scene_def = &*scene_result,
+        .ui = raw_ptr(ui),
     });
 
     return tl::expected<GameMain, ProgramError>(
@@ -1469,21 +1470,15 @@ GameMain::hookup_event_delegates()
 void
 GameMain::event_handler(const xray::ui::window_event& wnd_evt)
 {
-
     if (is_input_event(wnd_evt)) {
         if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
-            wnd_evt.event.key.type == event_action_type::press && !_ui->wants_input()) {
+            wnd_evt.event.key.type == event_action_type::press) {
             _window.quit();
             return;
         }
     }
 
-    _ui->input_event(wnd_evt);
-
-    if (!_ui->wants_input()) {
-        _game_sim->event_handler(wnd_evt);
-        return;
-    }
+    _game_sim->event_handler(wnd_evt);
 }
 
 void
@@ -1554,62 +1549,6 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 
 }
 
-struct ShaderCodeBuilder
-{
-    ShaderCodeBuilder& add_code(std::string_view code)
-    {
-        _src_code.append(code);
-        return *this;
-    }
-
-    ShaderCodeBuilder& add_file(const std::filesystem::path& p)
-    {
-        fmt::format_to(back_inserter(_src_code), "#include {}", p);
-        return *this;
-    }
-
-    ShaderCodeBuilder& add_define(std::string_view name, std::string_view value)
-    {
-        _defines.emplace_back(base::containers::string{ name, *_temp }, base::containers::string{ value, *_temp });
-        return *this;
-    }
-
-    ShaderCodeBuilder& set_entry_point(std::string_view entrypoint)
-    {
-        _entrypoint = entrypoint;
-        return *this;
-    }
-
-    ShaderCodeBuilder& set_compile_flags(const uint32_t flags)
-    {
-        _compile_options = flags;
-        return *this;
-    }
-
-    explicit ShaderCodeBuilder(MemoryArena* a)
-        : _src_code{ *a }
-        , _defines{ *a }
-        , _entrypoint{ *a }
-    {
-    }
-
-    xray::rendering::ShaderBuildOptions to_sbo() const
-    {
-        return ShaderBuildOptions{
-            .code_or_file_path = std::string_view{ _src_code },
-            .entry_point = _entrypoint,
-            .defines = std::span{ _defines },
-            .compile_options = _compile_options,
-        };
-    }
-
-    xray::base::containers::string _src_code;
-    xray::base::containers::vector<std::pair<xray::base::containers::string, xray::base::containers::string>> _defines;
-    xray::base::containers::string _entrypoint;
-    MemoryArena* _temp;
-    uint32_t _compile_options{ ShaderBuildOptions::Compile_GenerateDebugInfo };
-};
-
 int
 main(int argc, char** argv)
 {
@@ -1628,20 +1567,6 @@ main(int argc, char** argv)
 
     auto arena_large_perm = B5::GlobalMemorySystem::instance()->grab_large_arena();
     auto arena_temp = B5::GlobalMemorySystem::instance()->grab_medium_arena();
-
-    {
-        // ScratchPadArena sa{ &arena_temp.arena };
-        // XR_LOG_INFO("Gen shader: {}",
-        //             ShaderComposer{ &arena_temp.arena }
-        //                 .add_code(
-        //                     R"#(
-        //         #version 460 core
-        //
-        //         #include "core/bindless.core.glsl"
-        //         )#")
-        //                 .add_file("monka/phong.glsl")
-        //                 ._src_code);
-    }
 
     B5::GameMain::create(&arena_large_perm.arena, &arena_temp.arena)
         .map([&](B5::GameMain runner) {
