@@ -22,6 +22,8 @@
 
 namespace xray::ui {
 class user_interface;
+struct GamepadAxisEvent;
+struct GamepadButtonEvent;
 };
 
 namespace xray::scene {
@@ -82,6 +84,8 @@ class GameSimulation
 
   private:
     void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
+    void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
+    void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
 
     struct SimState
     {

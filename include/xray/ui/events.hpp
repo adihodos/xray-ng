@@ -49,7 +49,9 @@ enum class event_type
     mouse_motion,
     mouse_crossing,
     mouse_wheel,
-    configure
+    configure,
+    gamepad_axis,
+    gamepad_button,
 };
 
 enum class event_action_type
@@ -219,6 +221,37 @@ struct window_loop_event
     window* wnd;
 };
 
+enum class GamepadAxis : uint8_t
+{
+    LeftX,
+    LeftY,
+    RightX,
+    RightY,
+};
+
+enum class GamepadButton : uint8_t
+{
+    Left,
+    Left2,
+    Right,
+    Right2,
+};
+
+struct GamepadAxisEvent
+{
+    GamepadAxis axis;
+    int32_t i32;
+    float f32;
+    uint64_t timestamp;
+};
+
+struct GamepadButtonEvent
+{
+    GamepadButton button;
+    int32_t i32;
+    uint64_t timestamp;
+};
+
 struct window_event
 {
     event_type type;
@@ -230,6 +263,8 @@ struct window_event
         key_event key;
         char_input_event char_input;
         window_configure_event configure;
+        GamepadAxisEvent gamepad_axis;
+        GamepadButtonEvent gamepad_button;
     } event;
 
     static window_event configure_event(const int32_t width, const int32_t height, window* wnd) noexcept
@@ -249,7 +284,8 @@ is_input_event(const window_event& we) noexcept
 {
     return we.type == event_type::key || we.type == event_type::mouse_button || we.type == event_type::mouse_motion ||
            we.type == event_type::mouse_crossing || we.type == event_type::mouse_wheel ||
-           we.type == event_type::char_input;
+           we.type == event_type::char_input || we.type == event_type::gamepad_button ||
+           we.type == event_type::gamepad_axis;
 }
 
 struct poll_start_event

@@ -47,6 +47,8 @@
             cmake-format
             pkg-config
             libsForQt5.qmake
+            evtest
+            evtest-qt
 
             vulkan-tools
             vulkan-headers
@@ -86,6 +88,7 @@
 
             # libs
             zlib
+            libevdev
             xorg.libX11
             xorg.libX11.dev
             xorg.libXi

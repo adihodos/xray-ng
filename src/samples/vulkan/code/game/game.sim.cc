@@ -24,6 +24,7 @@
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/xray.fmt.hpp"
+#include "xray/base/variant.helpers.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
@@ -158,9 +159,96 @@ B5::GameSimulation::create(const InitContext& init_ctx)
                                                    arena_temp);
 }
 
+struct FlightModel
+{
+    float thruster_large{ 48000.0f };
+    float thruster_small{ 24000.0f };
+};
+
+void
+B5::GameSimulation::handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e)
+{
+    ZoneScopedNC("GamepadAxisEvent", tracy::Color::Aqua);
+
+    const FlightModel fm{};
+    const JPH::BodyID ship_body = _world.ent_player.phys_body_id;
+
+    tl::optional<tuple<int32_t, JPH::Vec3>> applied_force;
+    tl::optional<tuple<int32_t, JPH::Vec3>> applied_torque;
+
+    if (e.i32 == 0)
+        return;
+
+    XR_LOG_INFO("GamepadAxisEvent {} {}", (uint32_t)e.axis, e.i32);
+    using namespace xray::ui;
+
+    switch (e.axis) {
+        case GamepadAxis::LeftX:
+            applied_force = tuple{ e.i32, JPH::Vec3::sAxisX() };
+            break;
+
+        case GamepadAxis::LeftY:
+            applied_force = tuple{ -e.i32, JPH::Vec3::sAxisZ() };
+            break;
+
+        case GamepadAxis::RightX:
+            //
+            // pitch
+            applied_torque = tuple{ e.i32, JPH::Vec3::sAxisZ() };
+            break;
+
+        case GamepadAxis::RightY:
+            //
+            // roll
+            applied_torque = tuple{ e.i32, JPH::Vec3::sAxisX() };
+            break;
+
+        default:
+            break;
+    }
+
+    applied_force.map([&, this](const tuple<int, JPH::Vec3> force_with_axis) {
+        const auto [force, force_axis] = force_with_axis;
+        const float force_amount = static_cast<float>(force) / static_cast<float>(std::numeric_limits<int16_t>::max());
+
+        JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
+        const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
+        const JPH::Vec3 applied_force = ship_rotation * force_axis * force_amount * fm.thruster_large;
+        XR_LOG_INFO("Applying force ({},{},{})", applied_force.GetX(), applied_force.GetY(), applied_force.GetZ());
+        ifc->AddForce(ship_body, applied_force);
+    });
+
+    applied_torque.map([&, this](const tuple<int, JPH::Vec3> force_with_axis) {
+        const auto [torque, torque_axis] = force_with_axis;
+        const float torque_amount =
+            static_cast<float>(-torque) / static_cast<float>(std::numeric_limits<int16_t>::max());
+
+        JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
+        const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
+        const JPH::Vec3 applied_torque = ship_rotation * torque_axis * torque_amount * fm.thruster_small;
+        XR_LOG_INFO("Applying torque ({},{},{})", applied_torque.GetX(), applied_torque.GetY(), applied_torque.GetZ());
+        ifc->AddTorque(ship_body, applied_torque);
+    });
+}
+
+void
+B5::GameSimulation::handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e)
+{
+}
+
 void
 B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
 {
+    if (evt.type == event_type::gamepad_axis) {
+        handle_gamepad_axis_event(evt.event.gamepad_axis);
+        return;
+    }
+
+    if (evt.type == event_type::gamepad_button) {
+        handle_gamepad_button_event(evt.event.gamepad_button);
+        return;
+    }
+
     if (is_input_event(evt)) {
         if (_uistate.ui_opened) {
             _ui->input_event(evt);
@@ -236,13 +324,13 @@ B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
                     break;
             }
 
-            constexpr float thruster_force{ 19500.0f };
-            constexpr float small_thruster_force{ 9500.0f };
+            constexpr float thruster_force{ 48000.0f };
+            constexpr float small_thruster_force{ 24000.0f };
 
             auto apply_force_fn = [ifc = &_physics->sim()->GetBodyInterface()](const JPH::BodyID body,
-                                                                                   const JPH::Vec3 axis,
-                                                                                   const float modifier,
-                                                                                   const float force) {
+                                                                               const JPH::Vec3 axis,
+                                                                               const float modifier,
+                                                                               const float force) {
                 JPH::RMat44 rot = ifc->GetCenterOfMassTransform(body).GetRotation();
                 const JPH::Vec3 applied_force = rot * axis * modifier * force;
                 ifc->AddForce(body, applied_force);
@@ -257,9 +345,9 @@ B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
             }
 
             auto apply_torque_fn = [ifc = &_physics->sim()->GetBodyInterface()](const JPH::BodyID body,
-                                                                                    const JPH::Vec3 axis,
-                                                                                    const float modifier,
-                                                                                    const float force) {
+                                                                                const JPH::Vec3 axis,
+                                                                                const float modifier,
+                                                                                const float force) {
                 JPH::RMat44 rot = ifc->GetCenterOfMassTransform(body).GetRotation();
                 const JPH::Vec3 torque = rot * axis * force * modifier;
                 ifc->AddTorque(body, torque);
@@ -294,7 +382,7 @@ B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
         }
     }
 
-    _ui->input_event(evt);
+    // _ui->input_event(evt);
 }
 
 void

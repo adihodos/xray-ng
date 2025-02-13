@@ -216,6 +216,9 @@ class window
     } _input_helper{};
 
   private:
+    struct PlatformImpl;
+    xray::base::unique_pointer<PlatformImpl> _platform;
+
     XRAY_NO_COPY(window);
 };
 
