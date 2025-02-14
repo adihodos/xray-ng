@@ -1421,6 +1421,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
         .config_sys = xr_app_config,
         .scene_def = &*scene_result,
         .ui = raw_ptr(ui),
+        .win = &main_window,
     });
 
     return tl::expected<GameMain, ProgramError>(

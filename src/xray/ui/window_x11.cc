@@ -1,6 +1,7 @@
 #include "opengl/opengl.hpp"
 
 #include "xray/base/array_dimension.hpp"
+#include "xray/base/syscall_wrapper.hpp"
 #include "xray/base/containers/fixed_vector.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/maybe.hpp"
@@ -9,9 +10,11 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/window_x11.hpp"
+#include "xray/base/fnv_hash.hpp"
+
 #include <X11/XKBlib.h>
 #include <X11/Xatom.h>
-#include <X11/Xlib-xcb.h> /* for XGetXCBConnection, link with libX11-xcb */
+#include <X11/Xlib-xcb.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/Xinerama.h>
@@ -21,8 +24,21 @@
 #include <xkbcommon/xkbcommon-x11.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/epoll.h>
+#include <linux/input.h>
+
 #include <algorithm>
 #include <span>
+#include <filesystem>
+#include <ranges>
+#include <system_error>
+
+#include <tl/expected.hpp>
+#include <Lz/Lz.hpp>
+#include <fmt/format.h>
+#include <fmt/std.h>
 
 using namespace xray::base;
 using namespace xray::ui;
@@ -601,6 +617,184 @@ map_x11_key_symbol(const xkb_keysym_t key_sym) noexcept
     }
 }
 
+struct GamepadAxisMapping
+{
+    int32_t native;
+    GamepadAxis translated;
+};
+
+struct GamepadButtonMapping
+{
+    int32_t native;
+    GamepadButton translated;
+};
+
+struct PlatformGamepad
+{
+    static constexpr const GamepadAxisMapping AXIS_MAPPING[] = {
+        { ABS_X, GamepadAxis::LeftX },
+        { ABS_Y, GamepadAxis::LeftY },
+        { ABS_RX, GamepadAxis::RightX },
+        { ABS_RY, GamepadAxis::RightY },
+    };
+
+    static constexpr const GamepadButtonMapping BUTTON_MAPPING[] = {
+        { BTN_TL, GamepadButton::Left },
+        { BTN_TL2, GamepadButton::Left2 },
+        { BTN_TR, GamepadButton::Right },
+        { BTN_TR2, GamepadButton::Right2 },
+    };
+
+    std::pair<bool, window_event> make_window_event(const input_event& evt) noexcept;
+
+    uint32_t _device_id;
+    std::filesystem::path _device_path;
+    int32_t _fd;
+    std::vector<xray::ui::GamepadAxisInfo> _axis_info;
+};
+
+std::pair<bool, xray::ui::window_event>
+PlatformGamepad::make_window_event(const input_event& evt) noexcept
+{
+    if (evt.type == EV_ABS) {
+        auto itr_translated =
+            ranges::find_if(PlatformGamepad::AXIS_MAPPING, [axis = evt.code](const GamepadAxisMapping& axismapping) {
+                return axismapping.native == axis;
+            });
+
+        if (itr_translated != ranges::cend(PlatformGamepad::AXIS_MAPPING)
+            // &&
+            //           std::abs(evt.value) > _axis_info[static_cast<size_t>(itr_translated->translated)].deadzone
+        ) {
+            window_event win_event;
+            win_event.type = event_type::gamepad_axis;
+            win_event.event.gamepad_axis = GamepadAxisEvent{
+                .axis = itr_translated->translated,
+                .i32 = evt.value,
+                .f32 = static_cast<float>(evt.value) /
+                       static_cast<float>(_axis_info[static_cast<size_t>(itr_translated->translated)].max_val),
+                .timestamp = (evt.time.tv_sec * 1000000ULL + evt.time.tv_usec) * 1000,
+            };
+
+            return std::pair{ true, win_event };
+        }
+    } else if (evt.type == EV_KEY) {
+        auto itr_translated = ranges::find_if(
+            PlatformGamepad::BUTTON_MAPPING,
+            [button = evt.code](const GamepadButtonMapping& axismapping) { return axismapping.native == button; });
+
+        if (itr_translated != ranges::end(PlatformGamepad::BUTTON_MAPPING)) {
+            window_event win_event;
+            win_event.type = event_type::gamepad_button;
+            win_event.event.gamepad_button = GamepadButtonEvent{
+                .button = itr_translated->translated,
+                .i32 = evt.value,
+                .timestamp = (evt.time.tv_sec * 1000000ULL + evt.time.tv_usec) * 1000,
+            };
+
+            return std::pair{ true, win_event };
+        }
+    } else {
+        // XR_LOG_INFO("unhandled: {} - {} - {}", evt.type, evt.code, evt.value);
+    }
+
+    return std::pair{ false, window_event{} };
+}
+
+struct xray::ui::window::PlatformImpl
+{
+    int32_t _epoll_fd;
+    int32_t _x11_display_fd;
+    std::vector<PlatformGamepad> _gamepads;
+
+    static tl::expected<PlatformImpl, std::error_condition> create(Display* dpy);
+};
+
+tl::expected<xray::ui::window::PlatformImpl, std::error_condition>
+xray::ui::window::PlatformImpl::create(Display* dpy)
+{
+    int32_t x11_fd = XConnectionNumber(dpy);
+    if (x11_fd == -1) {
+        return tl::make_unexpected(std::error_code{ errno, std::system_category() }.default_error_condition());
+    }
+
+    int32_t epoll_fd = epoll_create(32);
+    if (epoll_fd == -1) {
+        return tl::make_unexpected(std::error_code{ errno, std::system_category() }.default_error_condition());
+    }
+
+    epoll_event e{ .events = EPOLLIN | EPOLLERR, .data = { .fd = x11_fd } };
+    if (const int32_t add_fd_result = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, x11_fd, &e); add_fd_result != 0) {
+        return tl::make_unexpected(std::error_code{ errno, std::system_category() }.default_error_condition());
+    }
+
+    namespace fs = std::filesystem;
+
+    vector<PlatformGamepad> gamepads;
+
+    auto gamepads_range =
+        fs::directory_iterator{ fs::path{ "/dev/input/by-id" } } |
+        std::views::filter([](const fs::directory_entry& de) {
+            return de.is_character_file() && de.path().generic_string().find("event-joystick") != std::string::npos;
+        }) |
+        std::views::transform([epoll_fd](const fs::directory_entry& de)
+                                  -> tl::expected<PlatformGamepad, std::error_condition> {
+            XR_LOG_INFO("gamepad device {}", de.path());
+            int32_t gamepad_fd = open(de.path().generic_string().c_str(), O_RDONLY | O_NONBLOCK);
+            if (gamepad_fd == -1) {
+                return tl::make_unexpected(std::error_code{ errno, std::system_category() }.default_error_condition());
+            }
+
+            vector<GamepadAxisInfo> axis_info;
+            for (const GamepadAxisMapping axis_mapping : PlatformGamepad::AXIS_MAPPING) {
+                input_absinfo abs_info{};
+                const int32_t res = syscall_wrapper(ioctl, gamepad_fd, EVIOCGABS(axis_mapping.native), &abs_info);
+                if (res == -1) {
+                    return tl::make_unexpected(
+                        std::error_code{ errno, std::system_category() }.default_error_condition());
+                }
+                axis_info.push_back(GamepadAxisInfo{
+                    .min_val = abs_info.minimum,
+                    .max_val = abs_info.maximum,
+                    .deadzone = abs_info.flat,
+                });
+
+                XR_LOG_INFO("axis: {}, min {}, max {}, deadzone {}",
+                            axis_mapping.native,
+                            abs_info.minimum,
+                            abs_info.maximum,
+                            abs_info.flat);
+            }
+
+            epoll_event e = { .events = EPOLLIN | EPOLLERR | EPOLLET,
+                              .data = {
+                                  .fd = gamepad_fd,
+                              }, };
+
+            const int32_t add_res = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, gamepad_fd, &e);
+            if (add_res == -1) {
+                return tl::make_unexpected(std::error_code{ errno, std::system_category() }.default_error_condition());
+            }
+
+            return tl::expected<PlatformGamepad, std::error_condition>{
+                tl::in_place, FNV::fnv1a(de.path().generic_string()), de.path(), gamepad_fd, axis_info
+            };
+        }) |
+        std::views::filter([](tl::expected<PlatformGamepad, std::error_condition> gp) { return gp.has_value(); });
+
+    for (auto gp : gamepads_range) {
+        XR_LOG_INFO("Gamepad {} -> {}", gp->_device_path.generic_string(), gp->_device_id);
+        gamepads.push_back(std::move(*gp));
+    }
+
+    return tl::expected<PlatformImpl, std::error_condition>{
+        tl::in_place,
+        epoll_fd,
+        x11_fd,
+        std::move(gamepads),
+    };
+}
+
 xray::ui::window::window(const window_params_t& wparam)
 {
     int32_t ver_major{ XkbMajorVersion };
@@ -750,19 +944,23 @@ xray::ui::window::window(const window_params_t& wparam)
 
     const auto msi = main_screen_info.value();
 
-    _window = x11_unique_window{ XCreateWindow(raw_ptr(_display),
-                                               root_window,
-                                               msi.x_org,
-                                               msi.y_org,
-                                               static_cast<unsigned int>(msi.width),
-                                               static_cast<unsigned int>(msi.height),
-                                               0,
-                                               visual_info->depth,
-                                               InputOutput,
-                                               visual_info->visual,
-                                               CWEventMask | CWColormap | CWBackPixel | CWOverrideRedirect,
-                                               &window_attribs),
-                                 x11_window_deleter{ raw_ptr(_display) } };
+    _window = x11_unique_window{
+        XCreateWindow(raw_ptr(_display),
+                      root_window,
+                      msi.x_org,
+                      msi.y_org,
+                      static_cast<unsigned int>(msi.width),
+                      static_cast<unsigned int>(msi.height),
+                      0,
+                      visual_info->depth,
+                      InputOutput,
+                      visual_info->visual,
+                      CWEventMask | CWColormap | CWBackPixel | CWOverrideRedirect,
+                      &window_attribs),
+        x11_window_deleter{
+            raw_ptr(_display),
+        },
+    };
 
     if (!_window) {
         XR_LOG_ERR("Failed to create window !");
@@ -855,18 +1053,19 @@ xray::ui::window::window(const window_params_t& wparam)
             return;
         }
 
-        const int32_t opengl_context_attribs[] = { GLX_CONTEXT_MAJOR_VERSION_ARB,
-                                                   wparam.ver_major,
-                                                   GLX_CONTEXT_MINOR_VERSION_ARB,
-                                                   wparam.ver_minor,
-                                                   GLX_CONTEXT_FLAGS_ARB,
-                                                   GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB |
-                                                       (wparam.debug_output_level == 0 ? 0 : GLX_CONTEXT_DEBUG_BIT_ARB),
-                                                   GLX_CONTEXT_PROFILE_MASK_ARB,
-                                                   GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
-                                                   GLX_RENDER_TYPE,
-                                                   GLX_RGBA_TYPE,
-                                                   None };
+        const int32_t opengl_context_attribs[] = {
+            GLX_CONTEXT_MAJOR_VERSION_ARB,
+            wparam.ver_major,
+            GLX_CONTEXT_MINOR_VERSION_ARB,
+            wparam.ver_minor,
+            GLX_CONTEXT_FLAGS_ARB,
+            GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB | (wparam.debug_output_level == 0 ? 0 : GLX_CONTEXT_DEBUG_BIT_ARB),
+            GLX_CONTEXT_PROFILE_MASK_ARB,
+            GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+            GLX_RENDER_TYPE,
+            GLX_RGBA_TYPE,
+            None,
+        };
 
         _glx_context = glx_unique_context{
             glXCreateContextAttribsARB(
@@ -970,6 +1169,11 @@ xray::ui::window::window(const window_params_t& wparam)
                 depth,
                 x_location,
                 y_location);
+
+    auto platform_state = PlatformImpl::create(raw_ptr(_display));
+    if (platform_state) {
+        _platform = xray::base::make_unique<PlatformImpl>(std::move(*platform_state));
+    }
 }
 
 xray::ui::window::window(window&& rhs)
@@ -989,7 +1193,7 @@ xray::ui::window::window(window&& rhs)
     , _kb_grabbed{ rhs._kb_grabbed }
     , _pointer_grabbed{ rhs._pointer_grabbed }
     , _input_helper{ std::move(rhs._input_helper) }
-
+    , _platform{ std::move(rhs._platform) }
 {
     rhs._kb_grabbed = false;
     rhs._pointer_grabbed = false;
@@ -1037,87 +1241,144 @@ xray::ui::window::message_loop()
     assert(valid());
 
     while (_quit_flag == 0) {
-
         core.events.poll_start(poll_start_event{});
 
-        while ((_quit_flag == 0) && XEventsQueued(raw_ptr(_display), QueuedAfterFlush)) {
+        epoll_event queued_events[32];
+        const int32_t events_count = syscall_wrapper(epoll_wait, _platform->_epoll_fd, queued_events, 32, 0);
 
-            XEvent window_event;
-            XNextEvent(raw_ptr(_display), &window_event);
+        if (events_count == -1) {
+            XR_LOG_CRITICAL("epoll_wait error {}", errno);
+        } else {
+            for (int32_t event = 0; event < events_count; ++event) {
+                const epoll_event& e = queued_events[event];
 
-            if (window_event.type == _input_helper.xkb_event_base) {
-                const XkbEvent* xkb_evt = reinterpret_cast<const XkbEvent*>(&window_event);
-                if (xkb_evt->any.xkb_type == XkbStateNotify) {
+                //
+                // handle X11 event
+                if (e.data.fd == _platform->_x11_display_fd) {
+                    while ((_quit_flag == 0) && XEventsQueued(raw_ptr(_display), QueuedAfterFlush)) {
+                        XEvent window_event;
+                        XNextEvent(raw_ptr(_display), &window_event);
 
-                    // XR_LOG_INFO("XkbStateNotify: mods {:0x} base mods: {:0x} latched mods {:0x} locked mods {:0x}",
-                    //             xkb_evt->state.mods,
-                    //             xkb_evt->state.base_mods,
-                    //             xkb_evt->state.latched_mods,
-                    //             xkb_evt->state.locked_mods);
+                        if (window_event.type == _input_helper.xkb_event_base) {
+                            const XkbEvent* xkb_evt = reinterpret_cast<const XkbEvent*>(&window_event);
+                            if (xkb_evt->any.xkb_type == XkbStateNotify) {
 
-                    auto get_xkb_mod_mask_fn = [xi = &_input_helper](const uint32_t in) {
-                        uint32_t ret = 0;
-                        if ((in & ShiftMask) && xi->mod_index.shift_mod != XKB_MOD_INVALID)
-                            ret |= (1 << xi->mod_index.shift_mod);
-                        if ((in & LockMask) && xi->mod_index.caps_mod != XKB_MOD_INVALID)
-                            ret |= (1 << xi->mod_index.caps_mod);
-                        if ((in & ControlMask) && xi->mod_index.ctrl_mod != XKB_MOD_INVALID)
-                            ret |= (1 << xi->mod_index.ctrl_mod);
-                        if ((in & Mod1Mask) && xi->mod_index.alt_mod != XKB_MOD_INVALID)
-                            ret |= (1 << xi->mod_index.alt_mod);
-                        if ((in & Mod2Mask) && xi->mod_index.num_mod != XKB_MOD_INVALID)
-                            ret |= (1 << xi->mod_index.num_mod);
+                                // XR_LOG_INFO("XkbStateNotify: mods {:0x} base mods: {:0x} latched mods {:0x}
+                                // locked mods
+                                // {:0x}",
+                                //             xkb_evt->state.mods,
+                                //             xkb_evt->state.base_mods,
+                                //             xkb_evt->state.latched_mods,
+                                //             xkb_evt->state.locked_mods);
 
-                        // mod3 - scroll lock, don’t need it for now
-                        // if ((in & Mod3Mask) && xi->mod_index.mod3_mod != XKB_MOD_INVALID)
-                        // 	ret |= (1 << xi->mod_index.mod3_mod);
+                                auto get_xkb_mod_mask_fn = [xi = &_input_helper](const uint32_t in) {
+                                    uint32_t ret = 0;
+                                    if ((in & ShiftMask) && xi->mod_index.shift_mod != XKB_MOD_INVALID)
+                                        ret |= (1 << xi->mod_index.shift_mod);
+                                    if ((in & LockMask) && xi->mod_index.caps_mod != XKB_MOD_INVALID)
+                                        ret |= (1 << xi->mod_index.caps_mod);
+                                    if ((in & ControlMask) && xi->mod_index.ctrl_mod != XKB_MOD_INVALID)
+                                        ret |= (1 << xi->mod_index.ctrl_mod);
+                                    if ((in & Mod1Mask) && xi->mod_index.alt_mod != XKB_MOD_INVALID)
+                                        ret |= (1 << xi->mod_index.alt_mod);
+                                    if ((in & Mod2Mask) && xi->mod_index.num_mod != XKB_MOD_INVALID)
+                                        ret |= (1 << xi->mod_index.num_mod);
 
-                        if ((in & Mod4Mask) && xi->mod_index.logo_mod != XKB_MOD_INVALID)
-                            ret |= (1 << xi->mod_index.logo_mod);
+                                    // mod3 - scroll lock, don’t need it for now
+                                    // if ((in & Mod3Mask) && xi->mod_index.mod3_mod != XKB_MOD_INVALID)
+                                    // 	ret |= (1 << xi->mod_index.mod3_mod);
 
-                        // what is mod5 ??!!
-                        // if ((in & Mod5Mask) && xi->mod_index.mod5_mod != XKB_MOD_INVALID)
-                        // ret |= (1 << xi->mod_index.mod5_mod);
+                                    if ((in & Mod4Mask) && xi->mod_index.logo_mod != XKB_MOD_INVALID)
+                                        ret |= (1 << xi->mod_index.logo_mod);
 
-                        return ret;
-                    };
+                                    // what is mod5 ??!!
+                                    // if ((in & Mod5Mask) && xi->mod_index.mod5_mod != XKB_MOD_INVALID)
+                                    // ret |= (1 << xi->mod_index.mod5_mod);
 
-                    // adapted from here
-                    // https://coral.googlesource.com/weston-imx/+/refs/heads/master/libweston/compositor-x11.c
+                                    return ret;
+                                };
 
-                    xkb_state_update_mask(raw_ptr(_input_helper.xkb_state),
-                                          get_xkb_mod_mask_fn(xkb_evt->state.base_mods),
-                                          get_xkb_mod_mask_fn(xkb_evt->state.latched_mods),
-                                          get_xkb_mod_mask_fn(xkb_evt->state.locked_mods),
-                                          0,
-                                          0,
-                                          xkb_evt->state.group);
+                                // adapted from here
+                                // https://coral.googlesource.com/weston-imx/+/refs/heads/master/libweston/compositor-x11.c
+
+                                xkb_state_update_mask(raw_ptr(_input_helper.xkb_state),
+                                                      get_xkb_mod_mask_fn(xkb_evt->state.base_mods),
+                                                      get_xkb_mod_mask_fn(xkb_evt->state.latched_mods),
+                                                      get_xkb_mod_mask_fn(xkb_evt->state.locked_mods),
+                                                      0,
+                                                      0,
+                                                      xkb_evt->state.group);
+                            }
+                            continue;
+                        }
+
+                        if ((window_event.type == ButtonPress) || (window_event.type == ButtonRelease)) {
+                            event_mouse_button(&window_event.xbutton);
+                            continue;
+                        }
+
+                        if (window_event.type == MotionNotify) {
+                            event_motion_notify(&window_event.xmotion);
+                            continue;
+                        }
+
+                        if (window_event.type == ClientMessage) {
+                            event_client_message(&window_event.xclient);
+                            continue;
+                        }
+
+                        if ((window_event.type == KeyPress) || (window_event.type == KeyRelease)) {
+                            event_key(&window_event.xkey);
+                            continue;
+                        }
+
+                        if (window_event.type == ConfigureNotify) {
+                            event_configure(&window_event.xconfigure);
+                        }
+                    }
+                    continue;
                 }
-                continue;
-            }
 
-            if ((window_event.type == ButtonPress) || (window_event.type == ButtonRelease)) {
-                event_mouse_button(&window_event.xbutton);
-                continue;
-            }
+                //
+                // Find if any gamepad has data to be read
+                auto itr_gamepad = ranges::find_if(
+                    _platform->_gamepads, [&](const PlatformGamepad& gamepad) { return e.data.fd == gamepad._fd; });
 
-            if (window_event.type == MotionNotify) {
-                event_motion_notify(&window_event.xmotion);
-                continue;
-            }
+                if (itr_gamepad != std::cend(_platform->_gamepads)) {
+                    //
+                    // drain all events
+                    input_event gamepad_events[8];
+                    for (;;) {
+                        const ssize_t bytes_read =
+                            syscall_wrapper(read, itr_gamepad->_fd, gamepad_events, sizeof(gamepad_events));
 
-            if (window_event.type == ClientMessage) {
-                event_client_message(&window_event.xclient);
-                continue;
-            }
+                        //
+                        // nothing to read
+                        if (bytes_read <= 0) {
+                            if (errno != EAGAIN) {
+                                XR_LOG_ERR("Failed to read from gamepad {}, error {}",
+                                           itr_gamepad->_device_path.generic_string(),
+                                           errno);
+                            }
+                            break;
+                        }
 
-            if ((window_event.type == KeyPress) || (window_event.type == KeyRelease)) {
-                event_key(&window_event.xkey);
-                continue;
-            }
+                        //
+                        // translate and forward
+                        for (ssize_t i = 0; i < (bytes_read / sizeof(input_event)); ++i) {
+                            const input_event& ine = gamepad_events[i];
+                            if (const auto [valid, win_event] = itr_gamepad->make_window_event(gamepad_events[i]);
+                                valid) {
+                                core.events.window(win_event);
+                            }
+                        }
+                    }
 
-            if (window_event.type == ConfigureNotify) {
-                event_configure(&window_event.xconfigure);
+                    continue;
+                }
+
+                //
+                // handle any other events here registered with the epoll fd
             }
         }
 
@@ -1313,4 +1574,14 @@ xray::ui::window::event_configure(const XConfigureEvent* x11evt)
     we.event.configure = cfg_evt;
 
     core.events.window(we);
+}
+
+std::span<const xray::ui::GamepadAxisInfo>
+xray::ui::window::gamepad_axis_info() const noexcept
+{
+    if (_platform->_gamepads.empty()) {
+        return {};
+    } else {
+        return std::span{ _platform->_gamepads[0]._axis_info };
+    }
 }

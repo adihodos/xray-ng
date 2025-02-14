@@ -30,17 +30,11 @@
 
 #pragma once
 
-#include "xray/xray.hpp"
-#include "xray/base/resource_holder.hpp"
-#include "xray/base/unique_pointer.hpp"
-#include "xray/ui/events.hpp"
-#include "xray/ui/window_params.hpp"
-#include "xray/ui/window.common.core.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
-
-#include <X11/Xlib.h>
 #include <atomic>
 #include <cstdint>
+#include <span>
+
+#include <X11/Xlib.h>
 #include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon-x11.h>
 #include <xkbcommon/xkbcommon.h>
@@ -48,6 +42,14 @@
 #if !defined(XRAY_GRAPHICS_API_VULKAN)
 #include <GL/glx.h>
 #endif
+
+#include "xray/xray.hpp"
+#include "xray/base/resource_holder.hpp"
+#include "xray/base/unique_pointer.hpp"
+#include "xray/ui/events.hpp"
+#include "xray/ui/window_params.hpp"
+#include "xray/ui/window.common.core.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 
 // TODO: needs refactoring so that platform specific things don't leak everywhere this file is included
 
@@ -167,6 +169,8 @@ class window
 
     int32_t width() const noexcept { return _wnd_width; }
     int32_t height() const noexcept { return _wnd_height; }
+
+    std::span<const GamepadAxisInfo> gamepad_axis_info() const noexcept;
 
     void message_loop();
     void quit() noexcept { _quit_flag = true; }

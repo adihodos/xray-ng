@@ -3,6 +3,7 @@
 #include <bitset>
 #include <cstdint>
 #include <cstddef>
+#include <span>
 
 #include <tl/expected.hpp>
 #include <concurrencpp/forward_declarations.h>
@@ -19,6 +20,7 @@
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera.controller.arcball.hpp"
 #include "xray/scene/camera.controller.flight.hpp"
+#include "xray/ui/events.gamepad.hpp"
 
 namespace xray::ui {
 class user_interface;
@@ -86,6 +88,7 @@ class GameSimulation
     void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
     void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
     void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
+    void process_gamepad_state();
 
     struct SimState
     {
@@ -133,6 +136,20 @@ class GameSimulation
 
     xray::base::timer_highp _timer{};
     xray::ui::user_interface* _ui{};
+
+    struct InputStateTracker
+    {
+        xray::base::containers::vector<xray::ui::GamepadAxisEvent> last_axis_events;
+        xray::base::containers::vector<xray::ui::GamepadAxisInfo> axis_info;
+
+        explicit InputStateTracker(xray::base::MemoryArena* arena, std::span<const xray::ui::GamepadAxisInfo> ai)
+            : last_axis_events{ *arena }
+            , axis_info{ ai.begin(), ai.end(), *arena }
+        {
+            last_axis_events.resize(4, xray::ui::GamepadAxisEvent{ .timestamp = 0 });
+        }
+
+    } _inputstate;
 
   public:
     GameSimulation(PrivateConstructionToken,

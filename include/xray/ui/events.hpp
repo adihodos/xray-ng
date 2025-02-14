@@ -32,6 +32,7 @@
 
 #include "xray/base/delegate.hpp"
 #include "xray/ui/key_sym.hpp"
+#include "xray/ui/events.gamepad.hpp"
 #include "xray/xray.hpp"
 
 #include <cstdint>
@@ -219,37 +220,6 @@ struct window_loop_event
     int32_t wnd_width;
     int32_t wnd_height;
     window* wnd;
-};
-
-enum class GamepadAxis : uint8_t
-{
-    LeftX,
-    LeftY,
-    RightX,
-    RightY,
-};
-
-enum class GamepadButton : uint8_t
-{
-    Left,
-    Left2,
-    Right,
-    Right2,
-};
-
-struct GamepadAxisEvent
-{
-    GamepadAxis axis;
-    int32_t i32;
-    float f32;
-    uint64_t timestamp;
-};
-
-struct GamepadButtonEvent
-{
-    GamepadButton button;
-    int32_t i32;
-    uint64_t timestamp;
 };
 
 struct window_event
