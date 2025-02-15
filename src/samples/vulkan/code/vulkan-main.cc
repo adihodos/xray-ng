@@ -360,8 +360,6 @@ task_create_gltf_resources(concurrencpp::executor_tag,
         gltf_geometries.push_back(GltfGeometryEntry{
             .name = gltf.name,
             .hashed_name = GeometryHandleType{ FNV::fnv1a(gltf.name) },
-            // .bounding_box = gltf_geometry->bounding_box,
-            // .bounding_sphere = gltf_geometry->bounding_sphere,
             .vertex_index_count = obj_vtx_idx_count,
             .buffer_offsets = global_vertex_index_count,
         });

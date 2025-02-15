@@ -3,6 +3,7 @@
 #include <array>
 #include <algorithm>
 
+#include <rfl.hpp>
 #include <concurrencpp/concurrencpp.h>
 #include <Lz/Lz.hpp>
 #include <imgui/imgui.h>
@@ -36,6 +37,7 @@
 #include "xray/ui/user_interface.hpp"
 #include "xray/ui/window.hpp"
 #include "xray/ui/events.gamepad.hpp"
+#include "xray/ui/events.pretty.print.hpp"
 #include "init_context.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
@@ -70,6 +72,16 @@ B5::GameSimulation::SimState::SimState(const InitContext& init_context)
                                                               1000.0f);
 
     camera.set_projection(perspective_projection);
+}
+
+B5::GameSimulation::InputStateTracker::InputStateTracker(xray::base::MemoryArena* arena,
+                                                         std::span<const xray::ui::GamepadAxisInfo> ai)
+    : last_axis_events{ *arena }
+    , axis_info{ ai.begin(), ai.end(), *arena }
+{
+    last_axis_events.resize(rfl::get_underlying_enumerator_array<xray::ui::GamepadAxis>().size(),
+                            xray::ui::GamepadAxisEvent{ .timestamp = 0 });
+    assert(last_axis_events.size() == axis_info.size());
 }
 
 B5::GameSimulation::GameSimulation(PrivateConstructionToken,
@@ -164,14 +176,14 @@ B5::GameSimulation::create(const InitContext& init_ctx)
 
 struct FlightModel
 {
-    float thruster_large{ 48000.0f };
-    float thruster_small{ 24000.0f };
+    float thruster_large{ 24000.0f };
+    float thruster_small{ 12000.0f };
 };
 
 void
 B5::GameSimulation::handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e)
 {
-    // XR_LOG_INFO("GamepadAxisEvent {} - {}", (uint32_t)e.axis, e.i32);
+    XR_LOG_INFO("event {} - {}", e.axis, e.i32);
     assert(static_cast<size_t>(e.axis) < _inputstate.last_axis_events.size());
     _inputstate.last_axis_events[static_cast<size_t>(e.axis)] = e;
 }
@@ -179,6 +191,7 @@ B5::GameSimulation::handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& 
 void
 B5::GameSimulation::handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e)
 {
+    XR_LOG_INFO("Button event {}, {}", e.button, e.i32);
 }
 
 void
@@ -342,7 +355,7 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
     if (ImGui::Begin("Demo options")) {
         if (ImGui::CollapsingHeader("::: Gamepad axis state :::")) {
             for (const GamepadAxisEvent& e : _inputstate.last_axis_events) {
-                format_to_n(scratch_buff, "axis {} - {}", (uint32_t)e.axis, e.i32);
+                format_to_n(scratch_buff, "{} - {}", e.axis, e.i32);
                 ImGui::TextColored({ 0.0f, 1.0f, 0.0f, 1.0f }, "%s", scratch_buff);
             }
         }
@@ -806,67 +819,75 @@ B5::GameSimulation::process_gamepad_state()
     const FlightModel fm{};
     const JPH::BodyID ship_body = _world.ent_player.phys_body_id;
 
-    ScratchPadArena temp_arena{ &_arena_temp };
-    containers::vector<tuple<int32_t, JPH::Vec3>> torqs{ temp_arena };
-    containers::vector<tuple<int32_t, JPH::Vec3>> forces{ temp_arena };
+    lz::chain(lz::zip(_inputstate.last_axis_events, _inputstate.axis_info))
+        .forEach([this, ship_body, &fm](const std::tuple<GamepadAxisEvent, GamepadAxisInfo>& evt_bundle) {
+            const auto& [axis_event, axis_info] = evt_bundle;
 
-    for (const GamepadAxisEvent& e : _inputstate.last_axis_events) {
-        if (std::abs(e.i32) <= _inputstate.axis_info[static_cast<size_t>(e.axis)].deadzone) {
-            continue;
-        }
+            if (std::abs(axis_event.i32) <= axis_info.deadzone) {
+                return;
+            }
 
-        tl::optional<tuple<int32_t, JPH::Vec3>> applied_force;
-        tl::optional<tuple<int32_t, JPH::Vec3>> applied_torque;
+            tl::optional<tuple<int32_t, JPH::Vec3>> applied_force;
+            tl::optional<tuple<int32_t, JPH::Vec3>> applied_torque;
 
-        switch (e.axis) {
-            case GamepadAxis::LeftX:
-                applied_force = tuple{ e.i32, JPH::Vec3::sAxisX() };
-                break;
+            switch (axis_event.axis) {
+                case GamepadAxis::LeftX:
+                    applied_force = tuple{ axis_event.i32, JPH::Vec3::sAxisX() };
+                    break;
 
-            case GamepadAxis::LeftY:
-                applied_force = tuple{ -e.i32, JPH::Vec3::sAxisZ() };
-                break;
+                case GamepadAxis::LeftY:
+                    applied_force = tuple{ -axis_event.i32, JPH::Vec3::sAxisZ() };
+                    break;
 
-            case GamepadAxis::RightX:
-                //
-                // pitch
-                applied_torque = tuple{ e.i32, JPH::Vec3::sAxisZ() };
-                break;
+                case GamepadAxis::RightX:
+                    //
+                    // pitch
+                    applied_torque = tuple{ axis_event.i32, JPH::Vec3::sAxisZ() };
+                    break;
 
-            case GamepadAxis::RightY:
-                //
-                // roll
-                applied_torque = tuple{ e.i32, JPH::Vec3::sAxisX() };
-                break;
+                case GamepadAxis::RightY:
+                    //
+                    // roll
+                    applied_torque = tuple{ axis_event.i32, JPH::Vec3::sAxisX() };
+                    break;
 
-            default:
-                break;
-        }
+                case GamepadAxis::LeftZ:
+                    //
+                    // yaw
+                    applied_torque = tuple{ axis_event.i32, JPH::Vec3::sAxisY() };
+                    break;
 
-        applied_force.map([&, this](const tuple<int, JPH::Vec3> force_with_axis) {
-            const auto [force, force_axis] = force_with_axis;
-            const float force_amount =
-                static_cast<float>(force) / static_cast<float>(std::numeric_limits<int16_t>::max());
+                case GamepadAxis::RightZ:
+                    applied_torque = tuple{ -axis_event.i32, JPH::Vec3::sAxisY() };
+                    break;
 
-            JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
-            const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
-            const JPH::Vec3 applied_force = ship_rotation * force_axis * force_amount * fm.thruster_large;
-            // XR_LOG_INFO("Applying force ({},{},{})", applied_force.GetX(), applied_force.GetY(),
-            // applied_force.GetZ());
-            ifc->AddForce(ship_body, applied_force);
+                default:
+                    break;
+            }
+
+            applied_force.map([&, this](const tuple<int, JPH::Vec3> force_with_axis) {
+                const auto [force, force_axis] = force_with_axis;
+                const float force_amount = static_cast<float>(force) / static_cast<float>(axis_info.max_val);
+
+                JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
+                const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
+                const JPH::Vec3 applied_force = ship_rotation * force_axis * force_amount * fm.thruster_large;
+                // XR_LOG_INFO("Applying force ({},{},{})", applied_force.GetX(), applied_force.GetY(),
+                // applied_force.GetZ());
+                ifc->AddForce(ship_body, applied_force);
+            });
+
+            applied_torque.map([&, this](const tuple<int, JPH::Vec3> force_with_axis) {
+                const auto [torque, torque_axis] = force_with_axis;
+                const float torque_amount = static_cast<float>(-torque) / static_cast<float>(axis_info.max_val);
+
+                JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
+                const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
+                const JPH::Vec3 applied_torque = ship_rotation * torque_axis * torque_amount * fm.thruster_small;
+                // XR_LOG_INFO(
+                //     "Applying torque ({},{},{})", applied_torque.GetX(), applied_torque.GetY(),
+                //     applied_torque.GetZ());
+                ifc->AddTorque(ship_body, applied_torque);
+            });
         });
-
-        applied_torque.map([&, this](const tuple<int, JPH::Vec3> force_with_axis) {
-            const auto [torque, torque_axis] = force_with_axis;
-            const float torque_amount =
-                static_cast<float>(-torque) / static_cast<float>(std::numeric_limits<int16_t>::max());
-
-            JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
-            const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
-            const JPH::Vec3 applied_torque = ship_rotation * torque_axis * torque_amount * fm.thruster_small;
-            // XR_LOG_INFO(
-            //     "Applying torque ({},{},{})", applied_torque.GetX(), applied_torque.GetY(), applied_torque.GetZ());
-            ifc->AddTorque(ship_body, applied_torque);
-        });
-    }
 }

@@ -36,6 +36,8 @@ enum class GamepadAxis : uint8_t
     LeftY,
     RightX,
     RightY,
+    LeftZ,
+    RightZ,
 };
 
 enum class GamepadButton : uint8_t

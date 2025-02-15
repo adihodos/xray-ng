@@ -142,12 +142,7 @@ class GameSimulation
         xray::base::containers::vector<xray::ui::GamepadAxisEvent> last_axis_events;
         xray::base::containers::vector<xray::ui::GamepadAxisInfo> axis_info;
 
-        explicit InputStateTracker(xray::base::MemoryArena* arena, std::span<const xray::ui::GamepadAxisInfo> ai)
-            : last_axis_events{ *arena }
-            , axis_info{ ai.begin(), ai.end(), *arena }
-        {
-            last_axis_events.resize(4, xray::ui::GamepadAxisEvent{ .timestamp = 0 });
-        }
+        explicit InputStateTracker(xray::base::MemoryArena* arena, std::span<const xray::ui::GamepadAxisInfo> ai);
 
     } _inputstate;
 

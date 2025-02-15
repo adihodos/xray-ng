@@ -632,10 +632,8 @@ struct GamepadButtonMapping
 struct PlatformGamepad
 {
     static constexpr const GamepadAxisMapping AXIS_MAPPING[] = {
-        { ABS_X, GamepadAxis::LeftX },
-        { ABS_Y, GamepadAxis::LeftY },
-        { ABS_RX, GamepadAxis::RightX },
-        { ABS_RY, GamepadAxis::RightY },
+        { ABS_X, GamepadAxis::LeftX },   { ABS_Y, GamepadAxis::LeftY }, { ABS_RX, GamepadAxis::RightX },
+        { ABS_RY, GamepadAxis::RightY }, { ABS_Z, GamepadAxis::LeftZ }, { ABS_RZ, GamepadAxis::RightZ },
     };
 
     static constexpr const GamepadButtonMapping BUTTON_MAPPING[] = {
