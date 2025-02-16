@@ -15,6 +15,7 @@
 #include "xray/base/unique_pointer.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
+#include "xray/base/memory.arena.unique.ptr.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/math/math.units.hpp"
 #include "xray/scene/camera.hpp"
@@ -43,6 +44,7 @@ namespace B5 {
 struct RenderEvent;
 struct InitContext;
 class PhysicsSystem;
+class Terrain;
 
 namespace simulation_details {
 
@@ -133,6 +135,8 @@ class GameSimulation
     xray::base::MemoryArena _arena_perm;
     xray::base::MemoryArena _arena_temp;
     simulation_details::GameWorldState _world;
+    // Terrain* _terrain{};
+    xray::base::unique_arena_ptr<Terrain> _terrain;
 
     xray::base::timer_highp _timer{};
     xray::ui::user_interface* _ui{};
@@ -150,6 +154,7 @@ class GameSimulation
     GameSimulation(PrivateConstructionToken,
                    const InitContext& init_context,
                    xray::base::unique_pointer<PhysicsSystem> phys,
+                   Terrain terrain,
                    std::span<std::byte> arena_perm,
                    std::span<std::byte> arena_temp);
     ~GameSimulation();

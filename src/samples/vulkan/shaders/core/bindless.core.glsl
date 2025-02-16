@@ -55,6 +55,16 @@ layout (set = 1, binding = 0) readonly buffer GlobalUIRenderData {
     UIData data[];
 } g_UIRenderDataGlobal[];
 
+struct TerrainInstanceData {
+    mat4 wvp;
+    uint colormap;
+    uint heightmap;
+};
+
+layout (set = 1, binding = 0, row_major) readonly buffer GlobalTerrainInstances {
+    TerrainInstanceData data[];
+} g_TerrainInstancesGlobal[];
+
 struct VertexPTC {
     vec2 pos;
     vec2 uv;

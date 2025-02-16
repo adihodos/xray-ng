@@ -15,7 +15,8 @@ struct UIData
     uint32_t textureid;
 };
 
-struct LightingSetup {
+struct LightingSetup
+{
     uint32_t sbo_directional_lights;
     uint32_t directional_lights_count;
     uint32_t sbo_point_ligths;
@@ -47,6 +48,13 @@ struct alignas(16) InstanceRenderInfo
     uint32_t idx_buff;
     uint32_t mtl_buffer_elem;
     uint32_t mtl_buffer;
+};
+
+struct alignas(16) TerrainInstanceData
+{
+    xray::math::mat4f world_view_proj;
+    uint32_t colormap;
+    uint32_t heightmap;
 };
 
 }

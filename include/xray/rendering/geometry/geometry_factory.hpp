@@ -125,8 +125,8 @@ struct GridParams
 {
     uint32_t cellsx;
     uint32_t cellsy;
-    float width;
-    float height;
+    uint32_t width;
+    uint32_t height;
 };
 
 struct ConeParams

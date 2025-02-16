@@ -55,6 +55,7 @@
 
 #include <noise/noise.h>
 #include <noise/noiseutils.h>
+#include <stb/stb_image_write.h>
 
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
@@ -66,13 +67,10 @@
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/containers/arena.string.hpp"
-#include "xray/base/containers/arena.unorderered_map.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
-#include "xray/rendering/colors/rgb_variants.hpp"
-#include "xray/rendering/colors/color_cast_rgb_variants.hpp"
 #include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/geometry/geometry_data.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
@@ -80,7 +78,6 @@
 #include "xray/rendering/procedural.hpp"
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
@@ -88,6 +85,7 @@
 #include "xray/ui/user.interface.backend.hpp"
 #include "xray/ui/user.interface.backend.vulkan.hpp"
 #include "xray/ui/user_interface_render_context.hpp"
+#include "xray/rendering/geometry/procedural.terrain.hpp"
 
 #include "xray/math/orientation.hpp"
 #include "xray/scene/scene.description.hpp"
@@ -312,14 +310,39 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     };
     XR_VK_COR_PROPAGATE_ERROR(p_pbr_color);
 
+    tl::expected<GraphicsPipeline, VulkanError> p_terrain{
+        GraphicsPipelineBuilder{ &perm.arena, &temp.arena }
+            .add_shader(ShaderStage::Vertex,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("terrain.vert"),
+                            .defines = to_cspan(std_shader_defs[0]),
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
+                                               ShaderBuildOptions::Compile_DumpShaderCode,
+                        })
+            .add_shader(ShaderStage::Fragment,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("terrain.vert"),
+                            .defines = to_cspan(std_shader_defs[1]),
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
+                                               ShaderBuildOptions::Compile_DumpShaderCode,
+                        })
+            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
+            .rasterization_state({
+                .poly_mode = VK_POLYGON_MODE_FILL,
+                .cull_mode = VK_CULL_MODE_BACK_BIT,
+                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .line_width = 1.0f,
+            })
+            .create_bindless(*renderer),
+    };
+    XR_VK_COR_PROPAGATE_ERROR(p_terrain);
+
     exec_timer.end();
     XR_LOG_INFO("[[TASK]] Graphics pipeline done, time {}", exec_timer.elapsed_millis());
 
     co_return tl::expected<GraphicsPipelineResources, VulkanError>{
-        tl::in_place,
-        std::move(*p_ads_color),
-        std::move(*p_ads_textured),
-        std::move(*p_pbr_color),
+        tl::in_place,          std::move(*p_ads_color), std::move(*p_ads_textured), std::move(*p_pbr_color),
+        std::move(*p_terrain),
     };
 }
 
@@ -982,6 +1005,7 @@ main_task(concurrencpp::executor_tag,
     auto gltf_render_resources_result = task_create_gltf_resources(
         concurrencpp::executor_tag{}, tpe, renderer_result, std::span{ scenedes->gltf_geometries });
 
+    auto scratchpad = GlobalMemorySystem::instance()->grab_medium_arena();
     //
     // process procedurally generated geomtry data
     vector<ProceduralGeometryEntry> procedural_geometries;
@@ -990,6 +1014,27 @@ main_task(concurrencpp::executor_tag,
     SmallVec<span<const uint8_t>> vertex_span;
     SmallVec<span<const uint32_t>> index_span;
     vec2ui32 vtx_idx_accum{};
+
+    struct HeightRangeWithColor
+    {
+        float height;
+        vec4ui8 color;
+    };
+
+    const auto terrain_ranges =
+        lz::chain(scenedes->terrain_ranges)
+            .map([](const TerrainRange& range) {
+                return HeightRangeWithColor{
+                    range.height,
+                    vec4ui8{
+                        static_cast<uint8_t>(range.color.r * 255.0f),
+                        static_cast<uint8_t>(range.color.g * 255.0f),
+                        static_cast<uint8_t>(range.color.b * 255.0f),
+                        static_cast<uint8_t>(range.color.a * 255.0f),
+                    },
+                };
+            })
+            .toVector(MemoryArenaAllocator<HeightRangeWithColor>{ scratchpad.arena }, std::execution::seq);
 
     //
     // procedurally generated shapes
@@ -1007,8 +1052,10 @@ main_task(concurrencpp::executor_tag,
 
                     noise::module::ScaleBias flat_terrain;
                     flat_terrain.SetSourceModule(0, base_flat_terrain);
-                    flat_terrain.SetScale(0.125);
-                    flat_terrain.SetBias(-0.75);
+                    // flat_terrain.SetScale(0.125);
+                    flat_terrain.SetScale(15.0);
+                    // flat_terrain.SetBias(-0.75);
+                    flat_terrain.SetBias(5.0);
 
                     noise::module::Perlin terrain_type;
                     terrain_type.SetOctaveCount(6);
@@ -1031,16 +1078,80 @@ main_task(concurrencpp::executor_tag,
                     noise::utils::NoiseMapBuilderPlane heightmap_builder;
                     heightmap_builder.SetDestNoiseMap(heightmap);
                     heightmap_builder.SetSourceModule(final_terrain);
-                    heightmap_builder.SetDestSize((gp.cellsx + 1), (gp.cellsy + 1));
+                    heightmap_builder.SetDestSize(gp.width, gp.height);
                     heightmap_builder.SetBounds(-3.0, 3.0, 1.0, 4.0);
+                    heightmap_builder.EnableSeamless();
                     heightmap_builder.Build();
 
-                    vertex_pntt* verts = grid.vertex_data();
-                    for (uint32_t z = 0; z < gp.cellsy + 1; ++z) {
-                        for (uint32_t x = 0; x < gp.cellsx + 1; ++x) {
-                            verts[z * (gp.cellsx + 1) + x].position.y = heightmap.GetValue(x, z);
+                    vertex_pntt* vertices = grid.vertex_data();
+                    for (size_t z = 0; z < (gp.cellsy + 1); ++z) {
+                        for (size_t x = 0; x < (gp.cellsx + 1); ++x) {
+                            vertices[z * (gp.cellsy + 1) + x].position.y = heightmap.GetValue(x, z);
                         }
                     }
+
+                    const size_t width = static_cast<size_t>(gp.width);
+                    const size_t height = static_cast<size_t>(gp.height);
+
+                    utils::Image height_map_image;
+                    utils::Image normal_map_image;
+                    utils::RendererImage render_img;
+                    render_img.SetSourceNoiseMap(heightmap);
+                    render_img.SetDestImage(height_map_image);
+
+                    render_img.EnableWrap();
+                    render_img.ClearGradient();
+                    render_img.AddGradientPoint(0.00, utils::Color(32, 160, 0, 255));   // grass
+                    render_img.AddGradientPoint(25, utils::Color(224, 224, 0, 255));    // dirt
+                    render_img.AddGradientPoint(85, utils::Color(128, 128, 128, 255));  // rock
+                    render_img.AddGradientPoint(200, utils::Color(255, 255, 255, 255)); // snow
+                    render_img.Render();
+
+                    utils::WriterBMP writer;
+                    writer.SetSourceImage(height_map_image);
+                    writer.SetDestFilename("monka.heightmap.bmp");
+                    writer.WriteDestFile();
+
+                    utils::RendererNormalMap normal_map;
+
+                    containers::vector<vec4ui8> terrain_colormap{
+                        width * height,
+                        vec4ui8::stdc::zero,
+                        scratchpad.arena,
+                    };
+                    containers::vector<vec4ui8> heightmap_pixels{
+                        width * height,
+                        vec4ui8::stdc::zero,
+                        scratchpad.arena,
+                    };
+
+                    // vertex_pntt* verts = grid.vertex_data();
+                    for (uint32_t z = 0; z < gp.height; ++z) {
+                        for (uint32_t x = 0; x < gp.width; ++x) {
+                            const float yval = heightmap.GetValue(x, z);
+
+                            auto itr = ranges::find_if(
+                                terrain_ranges, [yval](const HeightRangeWithColor& tr) { return yval <= tr.height; });
+
+                            terrain_colormap[z * gp.height + x] =
+                                itr == ranges::cend(terrain_ranges) ? terrain_ranges.back().color : itr->color;
+
+                            heightmap_pixels[z * gp.height + x] = vec4ui8{ static_cast<uint8_t>(yval) };
+                        }
+                    }
+
+                    stbi_write_png("monka.heightmap.png",
+                                   gp.width,
+                                   gp.height,
+                                   3,
+                                   heightmap_pixels.data(),
+                                   sizeof(vec4ui8) * gp.width);
+                    stbi_write_png("monka.terrain.png",
+                                   gp.width,
+                                   gp.height,
+                                   4,
+                                   terrain_colormap.data(),
+                                   sizeof(vec4ui8) * gp.height);
 
                     return grid;
                 } else if constexpr (std::is_same<Name, rfl::Literal<"cone">>()) {
@@ -1217,6 +1328,7 @@ main_task(concurrencpp::executor_tag,
         .directional_lights = std::move(scenedes->directional_lights),
         .point_lights = std::move(scenedes->point_lights),
         .spot_lights = std::move(scenedes->spot_lights),
+        .terrain_params = scenedes->terrain_params,
     };
 }
 

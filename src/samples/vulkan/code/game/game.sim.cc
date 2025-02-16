@@ -54,6 +54,7 @@
 #include "events.hpp"
 #include "system.physics.hpp"
 #include "push.constant.packer.hpp"
+#include "terrain.hpp"
 
 using namespace std;
 using namespace xray::rendering;
@@ -87,6 +88,7 @@ B5::GameSimulation::InputStateTracker::InputStateTracker(xray::base::MemoryArena
 B5::GameSimulation::GameSimulation(PrivateConstructionToken,
                                    const InitContext& init_context,
                                    xray::base::unique_pointer<PhysicsSystem> physics,
+                                   Terrain terrain,
                                    std::span<std::byte> arena_perm,
                                    std::span<std::byte> arena_temp)
     : _simstate{ init_context }
@@ -94,6 +96,7 @@ B5::GameSimulation::GameSimulation(PrivateConstructionToken,
     , _arena_perm{ arena_perm }
     , _arena_temp{ arena_temp }
     , _world{ _arena_perm }
+    , _terrain{ xray::base::make_unique<Terrain>(_arena_perm, std::move(terrain)) }
     , _ui{ init_context.ui }
     , _inputstate{ &_arena_perm, init_context.win->gamepad_axis_info() }
 {
@@ -167,9 +170,14 @@ B5::GameSimulation::create(const InitContext& init_ctx)
     if (arena_temp.empty())
         return nullptr;
 
+    auto terrain = Terrain::create(init_ctx);
+    if (!terrain)
+        return nullptr;
+
     return xray::base::make_unique<GameSimulation>(PrivateConstructionToken{},
                                                    init_ctx,
                                                    xray::base::make_unique<PhysicsSystem>(std::move(*physics_system)),
+                                                   std::move(*terrain),
                                                    arena_perm,
                                                    arena_temp);
 }
@@ -183,7 +191,6 @@ struct FlightModel
 void
 B5::GameSimulation::handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e)
 {
-    XR_LOG_INFO("event {} - {}", e.axis, e.i32);
     assert(static_cast<size_t>(e.axis) < _inputstate.last_axis_events.size());
     _inputstate.last_axis_events[static_cast<size_t>(e.axis)] = e;
 }
@@ -353,6 +360,8 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
     char scratch_buff[1024];
 
     if (ImGui::Begin("Demo options")) {
+        _terrain->user_interface(ui, re);
+
         if (ImGui::CollapsingHeader("::: Gamepad axis state :::")) {
             for (const GamepadAxisEvent& e : _inputstate.last_axis_events) {
                 format_to_n(scratch_buff, "{} - {}", e.axis, e.i32);
@@ -467,7 +476,6 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 
     user_interface(render_event.ui, render_event);
     _physics->update();
-
     process_gamepad_state();
 
     ScratchPadArena scratch_pad{ &_arena_temp };
@@ -486,6 +494,15 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         _simstate.flight_cam.update(rotation, translation);
         _simstate.camera.set_view_matrix(_simstate.flight_cam.view_matrix, _simstate.flight_cam.inverse_of_view_matrix);
     }
+
+    //
+    // set this here, will be used by other object further down
+    FrameGlobalData* fgd = render_event.g_ubo_data;
+    SimState* s = &_simstate;
+    fgd->world_view_proj = s->camera.projection_view();
+    fgd->view = s->camera.view();
+    fgd->eye_pos = s->camera.origin();
+    fgd->projection = s->camera.projection();
 
     static constexpr const auto sixty_herz = std::chrono::duration<float, std::milli>{ 1000.0f / 60.0f };
 
@@ -573,13 +590,6 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
                                   });
         }
 
-        FrameGlobalData* fgd = render_event.g_ubo_data;
-        SimState* s = &_simstate;
-        fgd->world_view_proj = s->camera.projection_view(); // identity for model -> world
-        fgd->view = s->camera.view();
-        fgd->eye_pos = s->camera.origin();
-        fgd->projection = s->camera.projection();
-
         //
         // lights setup
         fgd->lights = LightingSetup{
@@ -622,6 +632,8 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     };
     vkCmdSetViewport(render_event.frame_data->cmd_buf, 0, 1, &viewport);
     vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
+
+    _terrain->loop_event(render_event);
 
     auto instances_buffer =
         UniqueMemoryMapping::map_memory(render_event.renderer->device(),

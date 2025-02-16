@@ -14,7 +14,9 @@ set(project_sources
     ${proj_src_dir}/system.physics.hpp
     ${proj_src_dir}/system.physics.cc
     ${proj_src_dir}/system.physics.debug.renderer.hpp
-    ${proj_src_dir}/system.physics.debug.renderer.cc)
+    ${proj_src_dir}/system.physics.debug.renderer.cc
+    ${proj_src_dir}/terrain.hpp
+    ${proj_src_dir}/terrain.cc)
 
 set(shader_src_dir "${PROJECT_SOURCE_DIR}/shaders")
 set(shader_files ${shader_src_dir}/triangle/tri.vert

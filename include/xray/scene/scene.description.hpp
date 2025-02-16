@@ -40,6 +40,7 @@
 #include "xray/math/orientation.hpp"
 #include "xray/scene/light.types.hpp"
 #include "xray/rendering/geometry/geometry_factory.hpp"
+#include "xray/rendering/geometry/procedural.terrain.hpp"
 
 namespace xray::scene {
 
@@ -110,6 +111,8 @@ struct SceneDescription
     std::vector<scene::SpotLight> spot_lights;
     std::vector<ProceduralEntityDescription> procedural_entities;
     std::vector<GLTFEntityDescription> gltf_entities;
+    std::vector<rendering::TerrainRange> terrain_ranges;
+    xray::rendering::TerrainParams terrain_params;
 
     static tl::expected<SceneDescription, SceneError> from_file(const std::filesystem::path& file_path);
 };

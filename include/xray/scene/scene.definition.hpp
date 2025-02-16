@@ -49,6 +49,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
+#include "xray/rendering/geometry/procedural.terrain.hpp"
 #include "xray/scene/light.types.hpp"
 
 namespace xray::rendering {
@@ -153,6 +154,7 @@ struct GraphicsPipelineResources
     xray::rendering::GraphicsPipeline p_ads_color;
     xray::rendering::GraphicsPipeline p_ads_textured;
     xray::rendering::GraphicsPipeline p_pbr_color;
+    xray::rendering::GraphicsPipeline p_terrain;
 };
 
 struct SceneDefinition
@@ -168,6 +170,7 @@ struct SceneDefinition
     std::vector<DirectionalLight> directional_lights;
     std::vector<PointLight> point_lights;
     std::vector<SpotLight> spot_lights;
+    xray::rendering::TerrainParams terrain_params;
 };
 
 struct SceneResources

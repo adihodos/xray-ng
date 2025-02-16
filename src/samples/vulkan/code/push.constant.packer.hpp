@@ -38,6 +38,8 @@ struct PackedU32PushConstant
     {
         return std::span{ reinterpret_cast<const uint8_t*>(&value), 4 };
     }
+
+    constexpr uint32_t size() const noexcept { return static_cast<uint32_t>(sizeof(value)); }
 };
 
 }

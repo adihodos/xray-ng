@@ -397,8 +397,8 @@ xray::rendering::geometry_factory::grid(const GridParams& params)
     const size_t faces = cellsx * cellsz * 2;
     const size_t index_count = faces * 3;
 
-    const float hx = static_cast<float>(cellsx) * sx * 0.5f;
-    const float hz = static_cast<float>(cellsz) * sz * 0.5f;
+    const float hx = static_cast<float>(cellsx) * 0.5f;
+    const float hz = static_cast<float>(cellsz) * 0.5f;
     const float du = 1.0f / (static_cast<float>(cellsx));
     const float dz = 1.0f / (static_cast<float>(cellsz));
 
@@ -409,8 +409,7 @@ xray::rendering::geometry_factory::grid(const GridParams& params)
 
     for (size_t z = 0; z <= cellsz; ++z) {
         for (size_t x = 0; x <= cellsx; ++x) {
-            vtx[z * (cellsx + 1) + x].position =
-                vec3f{ static_cast<float>(x) * sx - hx, .0f, static_cast<float>(z) * sz - hz };
+            vtx[z * (cellsx + 1) + x].position = vec3f{ static_cast<float>(x) - hx, .0f, static_cast<float>(z) - hz };
 
             vtx[z * (cellsx + 1) + x].normal = vec3f::stdc::unit_y;
             vtx[z * (cellsx + 1) + x].texcoords =

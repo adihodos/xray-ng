@@ -83,8 +83,8 @@ xray::scene::write_test_scene_definition(const std::filesystem::path& scene_file
                 .gen_params = rfl::make_field<"grid">(GridParams{
                         .cellsx = 32,
                         .cellsy = 32,
-                        .width = 0.5f,
-                        .height = 0.5f
+                        .width = 1,
+                        .height = 1,
                         }),
             },
             ProceduralGeometryDescription {

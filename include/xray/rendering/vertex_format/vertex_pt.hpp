@@ -30,7 +30,6 @@
 
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
-#include "xray/xray.hpp"
 
 namespace xray {
 namespace rendering {
@@ -51,13 +50,20 @@ struct vertex_pt
     {
     }
 
-    vertex_pt(const math::vec3f& pos, const math::vec2f& texc) noexcept
+    constexpr vertex_pt(const math::vec3f& pos, const math::vec2f& texc) noexcept
         : position{ pos }
         , texcoord{ texc }
     {
     }
 
     static const char* name() noexcept { return "vertex_pt"; }
+    static constexpr vertex_pt null() noexcept
+    {
+        return vertex_pt{
+            math::vec3f::stdc::zero,
+            math::vec2f::stdc::zero,
+        };
+    }
 
     ///< Position in space.
     math::vec3f position;
