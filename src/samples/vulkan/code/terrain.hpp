@@ -57,8 +57,9 @@ class Terrain
     xray::base::unique_pointer<NoiseGen> _noise_gen;
     xray::rendering::TerrainParams _terrain_params;
 
-    struct UIState {
-      uint32_t lod_level{};
+    struct UIState
+    {
+        uint32_t lod_level{};
     } _uistate;
 
     struct RenderResources
@@ -73,13 +74,13 @@ class Terrain
 
   public:
     Terrain(PrivateConstructionToken,
-            xray::rendering::VulkanBuffer vertexbuffer,
-            xray::rendering::VulkanBuffer indexbuffer,
+            xray::rendering::VulkanBuffer&& vertexbuffer,
+            xray::rendering::VulkanBuffer&& indexbuffer,
             xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances,
             xray::rendering::BindlessImageResourceHandleEntryPair hmap,
             xray::rendering::BindlessImageResourceHandleEntryPair cmap,
-            xray::base::containers::vector<TerrainLodLevel> lod_levels,
-            xray::base::unique_pointer<NoiseGen> noise_gen,
+            xray::base::containers::vector<TerrainLodLevel>&& lod_levels,
+            xray::base::unique_pointer<NoiseGen>&& noise_gen,
             xray::rendering::TerrainParams terrain_params);
 
     Terrain(Terrain&&) = default;

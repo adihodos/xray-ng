@@ -41,13 +41,13 @@ struct TerrainVertex
 };
 
 B5::Terrain::Terrain(PrivateConstructionToken,
-                     xray::rendering::VulkanBuffer vertexbuffer,
-                     xray::rendering::VulkanBuffer indexbuffer,
+                     xray::rendering::VulkanBuffer&& vertexbuffer,
+                     xray::rendering::VulkanBuffer&& indexbuffer,
                      xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances,
                      xray::rendering::BindlessImageResourceHandleEntryPair hmap,
                      xray::rendering::BindlessImageResourceHandleEntryPair cmap,
-                     xray::base::containers::vector<TerrainLodLevel> lod_levels,
-                     xray::base::unique_pointer<NoiseGen> noise_gen,
+                     xray::base::containers::vector<TerrainLodLevel>&& lod_levels,
+                     xray::base::unique_pointer<NoiseGen>&& noise_gen,
                      TerrainParams terrain_params)
     : _noise_gen{ std::move(noise_gen) }
     , _terrain_params{ terrain_params }
@@ -267,7 +267,10 @@ B5::Terrain::create(const InitContext& ctx)
                                              })
                                              .sum();
 
-    XR_LOG_INFO("Terrain counts: {} {}", vertex_index_counts.x, vertex_index_counts.y);
+    XR_LOG_INFO("Terrain generator: lod levels: {}, vertices:{}, indices: {}",
+                params.lods,
+                vertex_index_counts.x,
+                vertex_index_counts.y);
 
     containers::vector<TerrainVertex> vertices{ size_t{ vertex_index_counts.x }, *ctx.temp };
     containers::vector<uint32_t> indices{ size_t{ vertex_index_counts.y }, *ctx.temp };
