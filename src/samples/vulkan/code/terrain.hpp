@@ -7,6 +7,7 @@
 #include <noise/noiseutils.h>
 
 #include "xray/base/memory.arena.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
@@ -21,6 +22,14 @@ namespace B5 {
 
 struct RenderEvent;
 struct InitContext;
+
+struct TerrainLodLevel
+{
+    uint32_t offset_vertex;
+    uint32_t offset_index;
+    uint32_t vertex_count;
+    uint32_t index_count;
+};
 
 struct NoiseGen
 {
@@ -48,6 +57,10 @@ class Terrain
     xray::base::unique_pointer<NoiseGen> _noise_gen;
     xray::rendering::TerrainParams _terrain_params;
 
+    struct UIState {
+      uint32_t lod_level{};
+    } _uistate;
+
     struct RenderResources
     {
         xray::rendering::VulkanBuffer vertexbuffer;
@@ -55,7 +68,7 @@ class Terrain
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances;
         xray::rendering::BindlessImageResourceHandleEntryPair heightmap;
         xray::rendering::BindlessImageResourceHandleEntryPair colormap;
-        uint32_t index_count{};
+        xray::base::containers::vector<TerrainLodLevel> lod_levels;
     } _renderstate;
 
   public:
@@ -65,7 +78,7 @@ class Terrain
             xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances,
             xray::rendering::BindlessImageResourceHandleEntryPair hmap,
             xray::rendering::BindlessImageResourceHandleEntryPair cmap,
-            uint32_t index_count,
+            xray::base::containers::vector<TerrainLodLevel> lod_levels,
             xray::base::unique_pointer<NoiseGen> noise_gen,
             xray::rendering::TerrainParams terrain_params);
 

@@ -1,12 +1,15 @@
 #include "terrain.hpp"
 
 #include <utility>
+#include <Lz/Lz.hpp>
 #include <imgui/imgui.h>
 #include <imgui/IconsFontAwesome.h>
 
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/memory.arena.unique.ptr.hpp"
 #include "xray/math/scalar3.hpp"
+#include "xray/math/scalar2.hpp"
+#include "xray/math/scalar2_math.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
@@ -43,7 +46,7 @@ B5::Terrain::Terrain(PrivateConstructionToken,
                      xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances,
                      xray::rendering::BindlessImageResourceHandleEntryPair hmap,
                      xray::rendering::BindlessImageResourceHandleEntryPair cmap,
-                     uint32_t index_count,
+                     xray::base::containers::vector<TerrainLodLevel> lod_levels,
                      xray::base::unique_pointer<NoiseGen> noise_gen,
                      TerrainParams terrain_params)
     : _noise_gen{ std::move(noise_gen) }
@@ -55,51 +58,102 @@ B5::Terrain::Terrain(PrivateConstructionToken,
             .instances = instances,
             .heightmap = hmap,
             .colormap = cmap,
-            .index_count = index_count,
+            .lod_levels = std::move(lod_levels),
         },
     }
 {
 }
 
-void
-make_terrain_grid(const uint32_t width,
-                  const uint32_t height,
-                  containers::vector<TerrainVertex>& vertices,
-                  containers::vector<uint32_t>& indices)
+struct TerrainDetails
 {
-    const size_t vertex_count = width * height;
-    const size_t faces = (width - 1) * (height - 1) * 2;
-    const size_t index_count = faces * 3;
+    uint32_t lod_factor;
+    uint32_t points;
+    uint32_t vertices;
+    uint32_t indices;
 
-    const float hx = static_cast<float>(width - 1) * 0.5f;
-    const float hz = static_cast<float>(height - 1) * 0.5f;
-    const float du = 1.0f / (static_cast<float>(width));
-    const float dz = 1.0f / (static_cast<float>(height));
+    TerrainDetails& operator+=(const TerrainDetails& rhs) noexcept
+    {
+        lod_factor += rhs.lod_factor;
+        points += rhs.points;
+        vertices += rhs.vertices;
+        indices += rhs.indices;
 
-    vertices.resize(vertex_count);
+        return *this;
+    }
+};
 
-    for (size_t z = 0; z < height; ++z) {
-        for (size_t x = 0; x < width; ++x) {
-            vertices[z * width + x].pos = vec3f{ static_cast<float>(x) - hx, .0f, static_cast<float>(z) - hz };
-            vertices[z * width + x].uv = vec2f{ static_cast<float>(x) * du, 1.0f - static_cast<float>(z) * dz };
-            // vertices[z * width + x].xy = { x, z };
+inline TerrainDetails
+operator+(const TerrainDetails& a, const TerrainDetails& b) noexcept
+{
+    TerrainDetails r{ a };
+    r += b;
+    return r;
+}
+
+TerrainDetails
+compute_terrain_details_lod(const TerrainParams& params, const uint32_t lod) noexcept
+{
+    assert(is_power_of_two(params.size));
+    assert(lod <= 8);
+
+    const uint32_t lod_factor = lod ? 2 << (lod - 1) : 1;
+
+    const uint32_t points_count = params.size / lod_factor + 1;
+    const uint32_t vertex_count = points_count * points_count;
+    const uint32_t faces = (points_count - 1) * (points_count - 1) * 2;
+    const uint32_t index_count = faces * 3;
+
+    return TerrainDetails{
+        .lod_factor = lod_factor,
+        .points = points_count,
+        .vertices = vertex_count,
+        .indices = index_count,
+    };
+}
+
+vec2ui32
+make_terrain_grid(const TerrainParams& params,
+                  const uint32_t lod,
+                  std::span<TerrainVertex> buffer_vertex,
+                  std::span<uint32_t> buffer_index)
+{
+    assert(is_power_of_two(params.size));
+    assert(lod <= 8);
+
+    const auto [lod_factor, points_count, vertex_count, index_count] = compute_terrain_details_lod(params, lod);
+
+    const float hx = static_cast<float>(params.size) * 0.5f;
+    const float hz = static_cast<float>(params.size) * 0.5f;
+    const float du = 1.0f / (static_cast<float>(points_count));
+    const float dz = 1.0f / (static_cast<float>(points_count));
+
+    assert(buffer_vertex.size() == vertex_count);
+    assert(buffer_index.size() == index_count);
+
+    for (size_t z = 0; z < points_count; ++z) {
+        for (size_t x = 0; x < points_count; ++x) {
+            buffer_vertex[z * points_count + x].pos =
+                vec3f{ static_cast<float>(x * lod_factor) - hx, .0f, static_cast<float>(z * lod_factor) - hz };
+            buffer_vertex[z * points_count + x].uv =
+                vec2f{ static_cast<float>(x) * du, 1.0f - static_cast<float>(z) * dz };
         }
     }
 
-    indices.resize(index_count, uint32_t{});
-    uint32_t* idx = indices.data();
-    for (size_t z = 0; z < height - 1; ++z) {
-        for (size_t x = 0; x < width - 1; ++x) {
+    uint32_t* idx = buffer_index.data();
+    for (size_t z = 0; z < points_count - 1; ++z) {
+        for (size_t x = 0; x < points_count - 1; ++x) {
 
-            *idx++ = static_cast<uint32_t>(z * width + x);
-            *idx++ = static_cast<uint32_t>(z * width + x + 1);
-            *idx++ = static_cast<uint32_t>((z + 1) * width + x);
+            *idx++ = static_cast<uint32_t>(z * points_count + x);
+            *idx++ = static_cast<uint32_t>(z * points_count + x + 1);
+            *idx++ = static_cast<uint32_t>((z + 1) * points_count + x);
 
-            *idx++ = static_cast<uint32_t>(z * width + x + 1);
-            *idx++ = static_cast<uint32_t>((z + 1) * width + x + 1);
-            *idx++ = static_cast<uint32_t>((z + 1) * width + x);
+            *idx++ = static_cast<uint32_t>(z * points_count + x + 1);
+            *idx++ = static_cast<uint32_t>((z + 1) * points_count + x + 1);
+            *idx++ = static_cast<uint32_t>((z + 1) * points_count + x);
         }
     }
+
+    return vec2ui32{ vertex_count, index_count };
 }
 
 void
@@ -131,15 +185,15 @@ make_terrain_heightmap_colormap(const xray::rendering::TerrainParams& params,
 
     noise_gen.heightmap_builder.SetDestNoiseMap(noise_gen.heightmap);
     noise_gen.heightmap_builder.SetSourceModule(noise_gen.final_terrain);
-    noise_gen.heightmap_builder.SetDestSize(params.width, params.height);
+    noise_gen.heightmap_builder.SetDestSize(params.size, params.size);
     noise_gen.heightmap_builder.SetBounds(params.xmin, params.xmax, params.zmin, params.zmax);
     noise_gen.heightmap_builder.EnableSeamless();
     noise_gen.heightmap_builder.Build();
 
-    heightmap.resize(params.width * params.height);
-    for (size_t z = 0; z < params.height; ++z) {
-        for (size_t x = 0; x < params.width; ++x) {
-            heightmap[z * params.width + x] = noise_gen.heightmap.GetValue(x, z);
+    heightmap.resize(params.size * params.size);
+    for (size_t z = 0; z < params.size; ++z) {
+        for (size_t x = 0; x < params.size; ++x) {
+            heightmap[z * params.size + x] = noise_gen.heightmap.GetValue(x, z);
         }
     }
 
@@ -172,11 +226,11 @@ make_terrain_heightmap_colormap(const xray::rendering::TerrainParams& params,
     // renderer_img.AddGradientPoint(1.0000, utils::Color(255, 255, 255, 255)); // snow
     renderer_img.Render();
 
-    colormap.resize(params.width * params.height);
-    for (size_t z = 0; z < params.height; ++z) {
-        for (size_t x = 0; x < params.width; ++x) {
+    colormap.resize(params.size * params.size);
+    for (size_t z = 0; z < params.size; ++z) {
+        for (size_t x = 0; x < params.size; ++x) {
             const auto color = height_map_image.GetValue(x, z);
-            colormap[z * params.width + x] = vec4ui8{ color.red, color.green, color.blue, color.alpha };
+            colormap[z * params.size + x] = vec4ui8{ color.red, color.green, color.blue, color.alpha };
         }
     }
 }
@@ -186,10 +240,46 @@ B5::Terrain::create(const InitContext& ctx)
 {
     TerrainParams params{ ctx.scene_def->terrain_params };
 
-    containers::vector<TerrainVertex> vertices{ *ctx.temp };
-    containers::vector<uint32_t> indices{ *ctx.temp };
+    containers::vector<TerrainDetails> lod_levels =
+        lz::chain(lz::range(uint32_t{}, params.lods ? params.lods : 1))
+            .map([&params](uint32_t lod) { return compute_terrain_details_lod(params, lod); })
+            .toVector(MemoryArenaAllocator<TerrainDetails>(*ctx.temp), std::execution::seq);
 
-    make_terrain_grid(params.width, params.height, vertices, indices);
+    for (const TerrainDetails& td : lod_levels) {
+        XR_LOG_INFO("Lod vtx: {} idx: {}", td.vertices, td.indices);
+    }
+
+    const containers::vector<vec2ui32> lod_offsets =
+        lz::eScan(lz::chain(lod_levels).map([](const TerrainDetails& td) {
+            return vec2ui32{ td.vertices, td.indices };
+        }),
+                  vec2ui32::stdc::zero,
+                  std::plus<vec2ui32>{})
+            .toVector(MemoryArenaAllocator<vec2ui32>(*ctx.temp), std::execution::seq);
+
+    for (const vec2ui32 v : lod_offsets) {
+        XR_LOG_INFO("LOD offsets: {} {}", v.x, v.y);
+    }
+
+    const vec2ui32 vertex_index_counts = lz::chain(lod_levels)
+                                             .map([](const TerrainDetails& td) {
+                                                 return vec2ui32{ td.vertices, td.indices };
+                                             })
+                                             .sum();
+
+    XR_LOG_INFO("Terrain counts: {} {}", vertex_index_counts.x, vertex_index_counts.y);
+
+    containers::vector<TerrainVertex> vertices{ size_t{ vertex_index_counts.x }, *ctx.temp };
+    containers::vector<uint32_t> indices{ size_t{ vertex_index_counts.y }, *ctx.temp };
+
+    lz::chain(lz::range(uint32_t{}, params.lods ? params.lods : 1)).forEach([&](const uint32_t lod) {
+        make_terrain_grid(params,
+                          lod,
+                          std::span{ vertices.data() + lod_offsets[lod].x, lod_levels[lod].vertices },
+                          std::span{ indices.data() + lod_offsets[lod].y, lod_levels[lod].indices });
+    });
+
+    // make_terrain_grid(params, 1, vertices, indices);
 
     containers::vector<float> heightmap_data{ *ctx.temp };
     containers::vector<vec4ui8> colormap_data{ *ctx.temp };
@@ -243,8 +333,8 @@ B5::Terrain::create(const InitContext& ctx)
                                                           .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
                                                           .memory_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                                           .format = VK_FORMAT_R32_SFLOAT,
-                                                          .width = params.width,
-                                                          .height = params.height,
+                                                          .width = params.size,
+                                                          .height = params.size,
                                                           .layers = 1,
                                                           .pixels = { to_bytes_span(heightmap_data) },
                                                       });
@@ -258,8 +348,8 @@ B5::Terrain::create(const InitContext& ctx)
                                                          .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
                                                          .memory_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                                          .format = VK_FORMAT_R8G8B8A8_UNORM,
-                                                         .width = params.width,
-                                                         .height = params.height,
+                                                         .width = params.size,
+                                                         .height = params.size,
                                                          .layers = 1,
                                                          .pixels = { to_bytes_span(colormap_data) },
                                                      });
@@ -311,6 +401,19 @@ B5::Terrain::create(const InitContext& ctx)
     BindlessStorageBufferResourceHandleEntryPair instances = ctx.renderer->bindless_sys().add_chunked_storage_buffer(
         std::move(*terrain_instances_buffer), ctx.renderer->max_inflight_frames(), tl::nullopt);
 
+    containers::vector<TerrainLodLevel> lod_lvls =
+        lz::chain(lz::zip(lod_levels, lod_offsets))
+            .map([](tuple<const TerrainDetails&, const vec2ui32&> p) {
+                const auto& [lvl, off] = p;
+                return TerrainLodLevel{
+                    .offset_vertex = off.x,
+                    .offset_index = off.y,
+                    .vertex_count = lvl.vertices,
+                    .index_count = lvl.indices,
+                };
+            })
+            .toVector(MemoryArenaAllocator<TerrainLodLevel>(*ctx.perm), std::execution::seq);
+
     return tl::expected<Terrain, VulkanError>{
         tl::in_place,
         PrivateConstructionToken{},
@@ -319,7 +422,7 @@ B5::Terrain::create(const InitContext& ctx)
         instances,
         heightmap,
         colormap,
-        static_cast<uint32_t>(indices.size()),
+        std::move(lod_lvls),
         std::move(noise_gen),
         params,
     };
@@ -355,31 +458,42 @@ B5::Terrain::loop_event(const RenderEvent& re)
                        0,
                        push_const.size(),
                        push_const.as_bytes().data());
-    vkCmdDrawIndexed(re.frame_data->cmd_buf, _renderstate.index_count, 1, 0, 0, 0);
+
+    const TerrainLodLevel& lod_lvl = _renderstate.lod_levels[_uistate.lod_level];
+    vkCmdDrawIndexed(re.frame_data->cmd_buf,
+                     lod_lvl.index_count,
+                     1,
+                     lod_lvl.offset_index,
+                     static_cast<int32_t>(lod_lvl.offset_vertex),
+                     0);
 }
 
 void
 B5::Terrain::user_interface(xray::ui::user_interface* ui, const RenderEvent& re)
 {
     if (ImGui::CollapsingHeader("Terrain")) {
+        const TerrainLodLevel& current_lod = _renderstate.lod_levels[_uistate.lod_level];
+
         ImGui::TextColored({ 0.0f, 1.0f, 0.0f, 1.0f },
-                           "Size: (%u x %u), indices %u",
-                           _terrain_params.width,
-                           _terrain_params.height,
-                           _renderstate.index_count);
+                           "Size: (%u x %u)\nLod level: %u (vertex count: %u, index count: %u)",
+                           _terrain_params.size,
+                           _terrain_params.size,
+                           _uistate.lod_level,
+                           current_lod.vertex_count,
+                           current_lod.index_count);
 
         auto clamped_rangle_slider_fn =
             [](const uint32_t value, const uint32_t min, const uint32_t max, const char* txt) {
                 int32_t int_val = static_cast<int32_t>(value);
                 const bool result =
                     ImGui::DragInt(txt, &int_val, 1.0f, static_cast<int32_t>(min), static_cast<int32_t>(max));
-                return result;
+                return pair{ result, static_cast<uint32_t>(int_val) };
             };
 
-        if (clamped_rangle_slider_fn(_terrain_params.width, 16, 1024, "width:")) {
-        }
-
-        if (clamped_rangle_slider_fn(_terrain_params.height, 16, 1024, "height:")) {
+        if (const auto [changed, new_lod_lvl] = clamped_rangle_slider_fn(
+                _uistate.lod_level, 0, static_cast<uint32_t>(_renderstate.lod_levels.size() - 1), "LOD:");
+            changed) {
+            _uistate.lod_level = new_lod_lvl;
         }
 
         // struct TerrainParams

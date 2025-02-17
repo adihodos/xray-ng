@@ -15,17 +15,17 @@ struct TerrainRange
 
 struct TerrainParams
 {
-    uint32_t width{ 512 };
-    uint32_t height{ 512 };
+    uint32_t size{ 512 };
+    uint32_t lods{ 8 };
     float scale{ 16.0f };
     float bias{ 8.0f };
     uint32_t octaves{ 6 };
-    float xmin{-1.0f};
-    float xmax{1.0f};
-    float zmin{-1.0f};
-    float zmax{1.0f};
+    float xmin{ -1.0f };
+    float xmax{ 1.0f };
+    float zmin{ -1.0f };
+    float zmax{ 1.0f };
     // meters
-    float sea_level{0.0f};
+    float sea_level{ 0.0f };
 };
 
 }
