@@ -25,76 +25,23 @@
 // ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #pragma once
 
-#include <cstdint>
-#include <concurrencpp/forward_declarations.h>
-#include "xray/ui/events.hpp"
-#include "xray/math/scalar3.hpp"
+#include "xray/math/scalar2.hpp"
+#include "xray/math/scalar2_math.hpp"
+#include "xray/math/axis.aligned.bounding.box.hpp"
 
 namespace xray {
-namespace base {
-class MemoryArena;
-class ConfigSystem;
+namespace math {
+
+template<typename T>
+using BBoxAA2D = BoundingBoxAxisAligned<scalar2<T>>;
+
+using BBoxAA2DI32 = BBoxAA2D<int32_t>;
+using BBoxAA2DUI32 = BBoxAA2D<uint32_t>;
+using BBoxAA2DF32 = BBoxAA2D<float>;
+using BBoxAA2DF64 = BBoxAA2D<double>;
+
 }
-
-namespace scene {
-class camera_controller;
-class camera;
-struct SceneResources;
-struct SceneDefinition;
-} // namespace scene
-
-namespace ui {
-class user_interface;
-}
-
-#if defined(XRAY_GRAPHICS_API_VULKAN)
-namespace rendering {
-struct FrameRenderData;
-class VulkanRenderer;
-class DebugDrawSystem;
-} // namespace rendering
-#endif
-
-} // namespace xray
-
-namespace B5 {
-
-struct FrameGlobalData;
-
-struct RenderEvent
-{
-    xray::ui::window_loop_event loop_event;
-    const xray::rendering::FrameRenderData* frame_data;
-    xray::rendering::VulkanRenderer* renderer;
-    xray::ui::user_interface* ui;
-    FrameGlobalData* g_ubo_data;
-    xray::rendering::DebugDrawSystem* dbg_draw;
-    xray::scene::SceneDefinition* sdef;
-    xray::scene::SceneResources* sres;
-    float delta;
-    xray::base::MemoryArena* arena_perm;
-    xray::base::MemoryArena* arena_temp;
-    concurrencpp::runtime* co_runtime;
-    const xray::scene::camera* cam;
-};
-
-struct InitContext
-{
-    int32_t surface_width;
-    int32_t surface_height;
-    xray::base::MemoryArena* perm;
-    xray::base::MemoryArena* temp;
-    xray::rendering::VulkanRenderer* renderer;
-    xray::base::ConfigSystem* config_sys;
-    xray::scene::SceneDefinition* scene_def;
-    xray::scene::SceneResources* scene_res;
-    xray::ui::user_interface* ui;
-    xray::ui::window* win;
-    concurrencpp::runtime* co_runtime;
-};
-
 }

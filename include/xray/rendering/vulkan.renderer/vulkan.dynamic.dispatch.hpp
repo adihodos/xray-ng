@@ -10,8 +10,9 @@ namespace xray::rendering {
     PFN_LIST_ENTRY(PFN_vkDestroyDebugUtilsMessengerEXT, DestroyDebugUtilsMessengerEXT)                                 \
     PFN_LIST_ENTRY(PFN_vkDebugMarkerSetObjectNameEXT, DebugMarkerSetObjectNameEXT)                                     \
     PFN_LIST_ENTRY(PFN_vkCmdDebugMarkerBeginEXT, CmdDebugMarkerBeginEXT)                                               \
-    PFN_LIST_ENTRY(PFN_vkCmdDebugMarkerEndEXT, CmdDebugMarkerEndEXT)                                             \
-    PFN_LIST_ENTRY(PFN_vkCmdDebugMarkerInsertEXT, CmdDebugMarkerInsertEXT)
+    PFN_LIST_ENTRY(PFN_vkCmdDebugMarkerEndEXT, CmdDebugMarkerEndEXT)                                                   \
+    PFN_LIST_ENTRY(PFN_vkCmdDebugMarkerInsertEXT, CmdDebugMarkerInsertEXT)                                             \
+    PFN_LIST_ENTRY(PFN_vkCmdSetPolygonModeEXT, CmdSetPolygonModeEXT)
 
 struct vkfn
 {

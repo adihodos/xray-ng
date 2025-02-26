@@ -98,6 +98,7 @@ struct PhysicalDeviceData
         VkPhysicalDeviceVulkan11Features vk11;
         VkPhysicalDeviceVulkan12Features vk12;
         VkPhysicalDeviceVulkan13Features vk13;
+        VkPhysicalDeviceExtendedDynamicState3FeaturesEXT dyn_state3;
     } features;
 
     VkPhysicalDeviceMemoryProperties memory;
@@ -425,6 +426,11 @@ class VulkanRenderer
             .submit_lock = std::reference_wrapper{ _render_state.queue_submit_mutex[static_cast<uint32_t>(qtype)] },
         };
     }
+
+    std::tuple<uint32_t, uint32_t> queue_family_indices() const noexcept
+    {
+        return { _render_state.queues[0].index, _render_state.queues[1].index };
+    }
     //
     uintptr_t reserve_staging_buffer_memory(const size_t bytes) noexcept
     {
@@ -473,10 +479,15 @@ template<typename VkObjectType>
 void
 VulkanRenderer::dbg_set_object_name(VkObjectType vkobj, const char* name) const noexcept
 {
+    const uint64_t object_handle = reinterpret_cast<uint64_t>(vkobj);
     if constexpr (std::is_same_v<VkBuffer, VkObjectType>) {
-        dbg_set_object_name(reinterpret_cast<uint64_t>(vkobj), VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, name);
+        dbg_set_object_name(object_handle, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, name);
     } else if constexpr (std::is_same_v<VkImage, VkObjectType>) {
-        dbg_set_object_name(reinterpret_cast<uint64_t>(vkobj), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, name);
+        dbg_set_object_name(object_handle, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, name);
+    } else if constexpr (std::is_same_v<VkCommandPool, VkObjectType>) {
+        dbg_set_object_name(object_handle, VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT, name);
+    } else if constexpr (std::is_same_v<VkQueue, VkObjectType>) {
+        dbg_set_object_name(object_handle, VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT, name);
     } else {
         static_assert(false, "Unsupported object type!");
     }

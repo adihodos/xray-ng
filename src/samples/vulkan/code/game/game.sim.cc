@@ -82,7 +82,7 @@ B5::GameSimulation::InputStateTracker::InputStateTracker(xray::base::MemoryArena
 {
     last_axis_events.resize(rfl::get_underlying_enumerator_array<xray::ui::GamepadAxis>().size(),
                             xray::ui::GamepadAxisEvent{ .timestamp = 0 });
-    assert(last_axis_events.size() == axis_info.size());
+    assert(last_axis_events.size() >= axis_info.size());
 }
 
 B5::GameSimulation::GameSimulation(PrivateConstructionToken,

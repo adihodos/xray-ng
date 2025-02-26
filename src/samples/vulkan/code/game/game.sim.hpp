@@ -85,6 +85,7 @@ class GameSimulation
     void loop_event(const RenderEvent&);
 
     static xray::base::unique_pointer<GameSimulation> create(const InitContext& init_ctx);
+    const xray::scene::camera& camera() const noexcept { return _simstate.camera; }
 
   private:
     void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);

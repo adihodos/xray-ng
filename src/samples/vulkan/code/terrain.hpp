@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
+#include <bitset>
 
 #include <tl/expected.hpp>
 #include <noise/noise.h>
@@ -8,11 +11,15 @@
 
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
+// #include "xray/base/containers/arena.unorderered_map.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
 #include "xray/rendering/geometry/procedural.terrain.hpp"
+#include "xray/math/scalar2.hpp"
+#include "xray/math/scalar2_math.hpp"
+#include "xray/math/scalar2.hash.hpp"
 
 namespace xray::ui {
 class user_interface;
@@ -48,6 +55,14 @@ class Terrain
   public:
     static tl::expected<Terrain, xray::rendering::VulkanError> create(const InitContext& ctx);
 
+    struct TerrainMaps
+    {
+        xray::rendering::BindlessImageResourceHandleEntryPair heightmap;
+        xray::rendering::BindlessImageResourceHandleEntryPair colormap;
+    };
+
+    using MappedTerrainChunks = std::unordered_map<xray::math::vec2i32, TerrainMaps>;
+
   private:
     struct PrivateConstructionToken
     {
@@ -57,9 +72,18 @@ class Terrain
     xray::base::unique_pointer<NoiseGen> _noise_gen;
     xray::rendering::TerrainParams _terrain_params;
 
+    enum DrawOptions
+    {
+        TerrainWireframeBit = 0,
+    };
+
     struct UIState
     {
         uint32_t lod_level{};
+        xray::math::vec2f32 cam_pos_xz_plane{};
+        std::bitset<16> draw_opts{};
+        std::vector<xray::math::vec2i32> visible_slabs;
+        std::vector<xray::math::vec2i32> spawned_slabs;
     } _uistate;
 
     struct RenderResources
@@ -67,9 +91,12 @@ class Terrain
         xray::rendering::VulkanBuffer vertexbuffer;
         xray::rendering::VulkanBuffer indexbuffer;
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances;
-        xray::rendering::BindlessImageResourceHandleEntryPair heightmap;
-        xray::rendering::BindlessImageResourceHandleEntryPair colormap;
         xray::base::containers::vector<TerrainLodLevel> lod_levels;
+        MappedTerrainChunks chunks;
+        std::unordered_set<xray::math::vec2i32> slabs_visible_last_frame;
+        std::vector<TerrainMaps> free_slabs;
+        xray::math::vec2f32 last_cam_pos;
+        xray::math::vec2f32 last_cam_dir;
     } _renderstate;
 
   public:
@@ -77,9 +104,8 @@ class Terrain
             xray::rendering::VulkanBuffer&& vertexbuffer,
             xray::rendering::VulkanBuffer&& indexbuffer,
             xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances,
-            xray::rendering::BindlessImageResourceHandleEntryPair hmap,
-            xray::rendering::BindlessImageResourceHandleEntryPair cmap,
             xray::base::containers::vector<TerrainLodLevel>&& lod_levels,
+            MappedTerrainChunks&& chunks,
             xray::base::unique_pointer<NoiseGen>&& noise_gen,
             xray::rendering::TerrainParams terrain_params);
 

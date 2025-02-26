@@ -100,7 +100,7 @@ is_unit_length(const scalar2<T>& v) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline bool
+constexpr inline bool
 operator==(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return is_equal(a.x, b.x) && is_equal(a.y, b.y);
@@ -108,7 +108,7 @@ operator==(const scalar2<T>& a, const scalar2<T>& b) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline bool
+constexpr inline bool
 operator!=(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return !(a == b);
@@ -340,7 +340,7 @@ point_to_polar_coords(const scalar2<T>& pt) noexcept
 /// components of the two input vectors.
 template<typename T>
     requires std::is_arithmetic_v<T>
-scalar2<T>
+constexpr scalar2<T>
 max(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return { max(a.x, b.x), max(a.y, b.y) };
@@ -350,7 +350,7 @@ max(const scalar2<T>& a, const scalar2<T>& b) noexcept
 /// components of the two input vectors.
 template<typename T>
     requires std::is_arithmetic_v<T>
-scalar2<T>
+constexpr scalar2<T>
 min(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return { min(a.x, b.x), min(a.y, b.y) };

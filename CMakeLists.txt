@@ -4,6 +4,9 @@ project(
   VERSION 0.5.0.0
   LANGUAGES C CXX)
 
+include(CTest)
+enable_testing()
+
 include(FetchContent)
 include(cmake/CPM.cmake)
 
@@ -35,7 +38,8 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   jrouwe/JoltPhysics
   GIT_TAG
-  v5.2.0
+  # v5.2.0
+  master
   DOWNLOAD_ONLY
   True
   OPTIONS

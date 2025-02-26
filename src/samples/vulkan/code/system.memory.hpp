@@ -69,6 +69,7 @@ class GlobalMemorySystem
         if constexpr (std::is_same_v<TagType, LargeArenaTag>) {
             void* mem_ptr{};
             if (!this->free_large.try_pop(mem_ptr)) {
+                assert(false && "Large arenas exhausted!");
                 // TODO: handle memory exhausted
             }
 
@@ -76,6 +77,7 @@ class GlobalMemorySystem
         } else if constexpr (std::is_same_v<TagType, MediumArenaTag>) {
             void* mem_ptr{};
             if (!free_medium.try_pop(mem_ptr)) {
+                assert(false && "Medium arenas exhausted!");
                 // TODO: handle memory exhausted
             }
             return ScopedMemoryArena<TagType>{ static_cast<std::byte*>(mem_ptr),
@@ -83,6 +85,7 @@ class GlobalMemorySystem
         } else if constexpr (std::is_same_v<TagType, SmallArenaTag>) {
             void* mem_ptr{};
             if (!free_small.try_pop(mem_ptr)) {
+                assert(false && "Small arenas exhausted!");
                 // TODO: handle memory exhausted
             }
             return ScopedMemoryArena<TagType>{ static_cast<std::byte*>(mem_ptr), GlobalMemoryConfig::SMALL_ARENA_SIZE };

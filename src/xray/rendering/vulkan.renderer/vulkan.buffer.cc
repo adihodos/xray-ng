@@ -42,12 +42,12 @@ xray::rendering::VulkanBuffer::create(xray::rendering::VulkanRenderer& renderer,
 
     assert(create_info.bytes >= initial_data_size);
 
-    XR_LOG_TRACE(
-        "Create buffer request, bytes size = {}, alignment = {}, aligned size = {}, aligned allocation size = {}",
-        create_info.bytes,
-        alignment,
-        aligned_bytes,
-        aligned_allocation_size);
+    XR_LOG_TRACE("Create buffer {}, bytes size = {}, alignment = {}, aligned size = {}, aligned allocation size = {}",
+                 create_info.name_tag ? create_info.name_tag : "anonymous",
+                 create_info.bytes,
+                 alignment,
+                 aligned_bytes,
+                 aligned_allocation_size);
 
     //
     // when creating an immutable buffer add TRANSFER_DST to usage flags

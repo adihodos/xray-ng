@@ -29,7 +29,8 @@
             nvimpager
             helix
 
-            gcc14
+            cling
+            gcc
             gdb
             seer
             libgit2

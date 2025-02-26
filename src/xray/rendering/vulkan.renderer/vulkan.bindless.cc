@@ -4,8 +4,34 @@
 #include <Lz/Lz.hpp>
 
 #include "xray/base/variant.helpers.hpp"
+#include "xray/base/logger.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
+
+namespace {
+
+constexpr const VkSamplerCreateInfo DEFAULT_SAMPLER_ATTRIBUTES{
+    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+    .pNext = nullptr,
+    .flags = 0,
+    .magFilter = VK_FILTER_LINEAR,
+    .minFilter = VK_FILTER_LINEAR,
+    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+    .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+    .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+    .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+    .mipLodBias = 0.0f,
+    .anisotropyEnable = false,
+    .maxAnisotropy = 1.0f,
+    .compareEnable = false,
+    .compareOp = VK_COMPARE_OP_NEVER,
+    .minLod = 0.0f,
+    .maxLod = VK_LOD_CLAMP_NONE,
+    .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+    .unnormalizedCoordinates = false,
+};
+
+}
 
 xray::rendering::BindlessSystem::BindlessSystem(
     UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,
@@ -105,6 +131,7 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
         VkDescriptorType res_type;
         uint32_t descriptor_count;
         VkShaderStageFlags stage_flags;
+        const char* tag;
     };
 
     const LayoutBindingsByResourceType layout_bindigs_by_res[] = {
@@ -112,16 +139,19 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
             .res_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptor_count = std::min(props.maxPerStageDescriptorUpdateAfterBindUniformBuffers, uint32_t{ 16 }),
             .stage_flags = VK_SHADER_STAGE_ALL,
+            .tag = "DS_uniform_buffer",
         },
         LayoutBindingsByResourceType{
             .res_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptor_count = 512,
             .stage_flags = VK_SHADER_STAGE_ALL,
+            .tag = "DS_storage_buffer",
         },
         LayoutBindingsByResourceType{
             .res_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptor_count = 512,
             .stage_flags = VK_SHADER_STAGE_ALL,
+            .tag = "DS_combined_sampler",
         },
     };
 
@@ -136,9 +166,19 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
             .pImmutableSamplers = nullptr,
         };
 
+        const VkDescriptorBindingFlags binding_flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+
+        const VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_create_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+            .pNext = nullptr,
+            .bindingCount = 1,
+            .pBindingFlags = &binding_flags,
+        };
+
         const VkDescriptorSetLayoutCreateInfo set_layout_info = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .pNext = nullptr,
+            .pNext =
+                layout_template.res_type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ? nullptr : &binding_flags_create_info,
             .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
             .bindingCount = 1,
             .pBindings = &layout_binding,
@@ -151,6 +191,7 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
             return XR_MAKE_VULKAN_ERROR(create_res);
         }
 
+        XR_LOG_INFO("DS layout: {} -> {}", layout_template.tag, fmt::ptr(set_layout));
         set_layouts.push_back(set_layout);
     }
 
@@ -232,6 +273,12 @@ xray::rendering::BindlessSystem::add_image(xray::rendering::VulkanImage img,
         .image_view = image_view,
         .info = img._info,
     };
+
+    if (smp == nullptr) {
+        auto def_sampler_entry = this->_sampler_table.find(DEFAULT_SAMPLER_ATTRIBUTES);
+        assert(def_sampler_entry != std::cend(_sampler_table));
+        smp = def_sampler_entry->second;
+    }
 
     _writes_img.push_back(WriteDescriptorImageInfo{
         .dst_array = handle,
@@ -426,6 +473,12 @@ xray::rendering::BindlessSystem::get_sampler(const VkSamplerCreateInfo& sampler_
 
     const auto inserted_entry = _sampler_table.emplace(sampler_info, new_sampler);
     return inserted_entry.first->second;
+}
+
+tl::expected<VkSampler, xray::rendering::VulkanError>
+xray::rendering::BindlessSystem::default_sampler(const VulkanRenderer& renderer)
+{
+    return get_sampler(DEFAULT_SAMPLER_ATTRIBUTES, renderer);
 }
 
 const xray::rendering::BindlessResourceEntry_Image&

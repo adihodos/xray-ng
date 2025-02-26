@@ -20,12 +20,9 @@ struct TerrainParams
     float scale{ 16.0f };
     float bias{ 8.0f };
     uint32_t octaves{ 6 };
-    float xmin{ -1.0f };
-    float xmax{ 1.0f };
-    float zmin{ -1.0f };
-    float zmax{ 1.0f };
     // meters
     float sea_level{ 0.0f };
+    float magnitude;
 };
 
 }

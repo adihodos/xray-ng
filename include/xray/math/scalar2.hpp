@@ -33,6 +33,7 @@
 
 #include "xray/math/swizzle.hpp"
 #include "xray/xray_types.hpp"
+#include "xray/math/rank.hpp"
 
 namespace xray {
 namespace math {
@@ -70,6 +71,7 @@ struct scalar2 : public SwizzleBase<T, 2>
     };
 
     using class_type = scalar2<T>;
+    using value_type = T;
 
     scalar2() noexcept = default;
 
@@ -84,6 +86,13 @@ struct scalar2 : public SwizzleBase<T, 2>
     constexpr scalar2(const U xval, const U yval) noexcept
         : x{ static_cast<T>(xval) }
         , y{ static_cast<T>(yval) }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    constexpr explicit scalar2(const scalar2<U> other) noexcept
+        : scalar2{ other.x, other.y }
     {
     }
 
@@ -144,6 +153,11 @@ struct scalar2 : public SwizzleBase<T, 2>
 };
 
 template<typename T>
+struct Rank<scalar2<T>> {
+    static constexpr const size_t R = 2;
+};
+
+template<typename T>
     requires std::is_arithmetic_v<T>
 struct scalar2<T>::stdc
 {
@@ -170,6 +184,8 @@ template<typename T>
 constexpr const scalar2<T> scalar2<T>::stdc::one;
 
 using vec2f = scalar2<scalar_lowp>;
+using vec2f32 = scalar2<scalar_lowp>;
+using vec2f64 = scalar2<scalar_mediump>;
 using vec2d = scalar2<scalar_mediump>;
 using vec2i32 = scalar2<int32_t>;
 using vec2ui32 = scalar2<uint32_t>;

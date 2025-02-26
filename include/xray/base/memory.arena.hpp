@@ -112,6 +112,12 @@ struct MemoryArena
 
     ~MemoryArena() { details::unpoison_memory_region(this->buf, this->buf_len); }
 
+    template<typename T>
+    [[nodiscard]] T* alloc_align(const size_t items) noexcept
+    {
+        return static_cast<T*>(alloc_align(items * sizeof(T), alignof(T)));
+    }
+
     [[nodiscard]] void* alloc_align(size_t size, size_t align) noexcept
     {
         // Align 'curr_offset' forward to the specified alignment
@@ -197,6 +203,11 @@ struct ScratchPadArena
         : arena{ arena_ }
         , prev_offset{ arena_->prev_offset }
         , curr_offset{ arena_->curr_offset }
+    {
+    }
+
+    explicit ScratchPadArena(MemoryArena& arena_) noexcept
+        : ScratchPadArena{ &arena_ }
     {
     }
 

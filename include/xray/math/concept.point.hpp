@@ -25,76 +25,47 @@
 // ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 
 #pragma once
 
-#include <cstdint>
-#include <concurrencpp/forward_declarations.h>
-#include "xray/ui/events.hpp"
-#include "xray/math/scalar3.hpp"
+#include <concepts>
+#include "xray/math/math_std.hpp"
+#include "xray/math/rank.hpp"
 
 namespace xray {
-namespace base {
-class MemoryArena;
-class ConfigSystem;
-}
+namespace math {
 
-namespace scene {
-class camera_controller;
-class camera;
-struct SceneResources;
-struct SceneDefinition;
-} // namespace scene
+/// \addtogroup __GroupXrayMath_Geometry
+/// @{
 
-namespace ui {
-class user_interface;
-}
+template<typename T>
+concept Point = requires() {
+    {
+        T{} + T{}
+    } -> std::same_as<T>;
+    {
+        T{} - T{}
+    } -> std::same_as<T>;
 
-#if defined(XRAY_GRAPHICS_API_VULKAN)
-namespace rendering {
-struct FrameRenderData;
-class VulkanRenderer;
-class DebugDrawSystem;
-} // namespace rendering
-#endif
+    {
+        xray::math::min(T{}, T{})
+    } -> std::same_as<T>;
+    {
+        xray::math::max(T{}, T{})
+    } -> std::same_as<T>;
 
+    Rank<T>::R == 2 || Rank<T>::R == 3;
+
+    typename T::value_type;
+    requires std::is_arithmetic_v<typename T::value_type>;
+    {
+        T{} * typename T::value_type{}
+    } -> std::same_as<T>;
+    requires std::equality_comparable<T>;
+    requires std::copy_constructible<T>;
+};
+
+/// @}
+
+} // namespace math
 } // namespace xray
-
-namespace B5 {
-
-struct FrameGlobalData;
-
-struct RenderEvent
-{
-    xray::ui::window_loop_event loop_event;
-    const xray::rendering::FrameRenderData* frame_data;
-    xray::rendering::VulkanRenderer* renderer;
-    xray::ui::user_interface* ui;
-    FrameGlobalData* g_ubo_data;
-    xray::rendering::DebugDrawSystem* dbg_draw;
-    xray::scene::SceneDefinition* sdef;
-    xray::scene::SceneResources* sres;
-    float delta;
-    xray::base::MemoryArena* arena_perm;
-    xray::base::MemoryArena* arena_temp;
-    concurrencpp::runtime* co_runtime;
-    const xray::scene::camera* cam;
-};
-
-struct InitContext
-{
-    int32_t surface_width;
-    int32_t surface_height;
-    xray::base::MemoryArena* perm;
-    xray::base::MemoryArena* temp;
-    xray::rendering::VulkanRenderer* renderer;
-    xray::base::ConfigSystem* config_sys;
-    xray::scene::SceneDefinition* scene_def;
-    xray::scene::SceneResources* scene_res;
-    xray::ui::user_interface* ui;
-    xray::ui::window* win;
-    concurrencpp::runtime* co_runtime;
-};
-
-}

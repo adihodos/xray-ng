@@ -47,14 +47,14 @@ clamp(const T val, const T min_val, const T max_val) noexcept
 }
 
 template<typename T>
-inline T
+constexpr inline T
 min(const T a, const T b) noexcept
 {
     return a < b ? a : b;
 }
 
 template<typename T>
-inline T
+constexpr inline T
 max(const T a, const T b) noexcept
 {
     return a > b ? a : b;

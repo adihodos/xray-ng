@@ -48,6 +48,8 @@ xray::scene::camera::set_view_matrix(const math::mat4f& view, const math::mat4f&
     direction_.y = view_.transform.a12;
     direction_.z = view_.transform.a22;
 
+    origin_ = math::vec3f{ inverse_of_view.a03, inverse_of_view.a13, inverse_of_view.a23 };
+
     invalidate();
 }
 

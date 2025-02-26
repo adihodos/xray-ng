@@ -219,6 +219,12 @@
 
 #endif /* !XRAY_COMPILER_IS_MSVC */
 
+#if defined(XRAY_COMPILER_IS_GCC) || defined(XRAY_COMPILER_IS_MINGW)
+#define XR_DISABLE_OPTIMIZATIONS _Pragma("GCC optimize(0)")
+#elif defined(XRAY_COMPILER_IS_CLANG)
+#elif defined(XRAY_COMPILER_IS_MSVC)
+#endif
+
 #define XR_U32_OFFSETOF(type_name, member_name) static_cast<uint32_t>(offsetof(type_name, member_name))
 
 #define XR_UNUSED_ARG(arg_name) (void)arg_name

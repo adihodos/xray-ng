@@ -326,7 +326,7 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
                             .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
                                                ShaderBuildOptions::Compile_DumpShaderCode,
                         })
-            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
+            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_POLYGON_MODE_EXT })
             .rasterization_state({
                 .poly_mode = VK_POLYGON_MODE_FILL,
                 .cull_mode = VK_CULL_MODE_BACK_BIT,
@@ -1046,112 +1046,18 @@ main_task(concurrencpp::executor_tag,
                     const GridParams gp = s.value();
                     geometry_data_t grid = geometry_factory::grid(gp);
 
-                    noise::module::RidgedMulti ridged;
-                    noise::module::Billow base_flat_terrain;
-                    base_flat_terrain.SetFrequency(2.0);
-
-                    noise::module::ScaleBias flat_terrain;
-                    flat_terrain.SetSourceModule(0, base_flat_terrain);
-                    // flat_terrain.SetScale(0.125);
-                    flat_terrain.SetScale(15.0);
-                    // flat_terrain.SetBias(-0.75);
-                    flat_terrain.SetBias(5.0);
-
-                    noise::module::Perlin terrain_type;
-                    terrain_type.SetOctaveCount(6);
-                    terrain_type.SetFrequency(0.5);
-                    terrain_type.SetPersistence(0.25);
-
-                    noise::module::Select terrain_selector;
-                    terrain_selector.SetSourceModule(0, flat_terrain);
-                    terrain_selector.SetSourceModule(1, ridged);
-                    terrain_selector.SetControlModule(terrain_type);
-                    terrain_selector.SetBounds(0.0f, 1000.0f);
-                    terrain_selector.SetEdgeFalloff(0.125);
-
-                    noise::module::Turbulence final_terrain;
-                    final_terrain.SetSourceModule(0, terrain_selector);
-                    final_terrain.SetFrequency(4.0);
-                    final_terrain.SetPower(0.125);
-
-                    noise::utils::NoiseMap heightmap;
-                    noise::utils::NoiseMapBuilderPlane heightmap_builder;
-                    heightmap_builder.SetDestNoiseMap(heightmap);
-                    heightmap_builder.SetSourceModule(final_terrain);
-                    heightmap_builder.SetDestSize(gp.width, gp.height);
-                    heightmap_builder.SetBounds(-3.0, 3.0, 1.0, 4.0);
-                    heightmap_builder.EnableSeamless();
-                    heightmap_builder.Build();
-
-                    vertex_pntt* vertices = grid.vertex_data();
-                    for (size_t z = 0; z < (gp.cellsy + 1); ++z) {
-                        for (size_t x = 0; x < (gp.cellsx + 1); ++x) {
-                            vertices[z * (gp.cellsy + 1) + x].position.y = heightmap.GetValue(x, z);
-                        }
-                    }
-
-                    const size_t width = static_cast<size_t>(gp.width);
-                    const size_t height = static_cast<size_t>(gp.height);
-
-                    utils::Image height_map_image;
-                    utils::Image normal_map_image;
-                    utils::RendererImage render_img;
-                    render_img.SetSourceNoiseMap(heightmap);
-                    render_img.SetDestImage(height_map_image);
-
-                    render_img.EnableWrap();
-                    render_img.ClearGradient();
-                    render_img.AddGradientPoint(0.00, utils::Color(32, 160, 0, 255));   // grass
-                    render_img.AddGradientPoint(25, utils::Color(224, 224, 0, 255));    // dirt
-                    render_img.AddGradientPoint(85, utils::Color(128, 128, 128, 255));  // rock
-                    render_img.AddGradientPoint(200, utils::Color(255, 255, 255, 255)); // snow
-                    render_img.Render();
-
-                    utils::WriterBMP writer;
-                    writer.SetSourceImage(height_map_image);
-                    writer.SetDestFilename("monka.heightmap.bmp");
-                    writer.WriteDestFile();
-
-                    utils::RendererNormalMap normal_map;
-
-                    containers::vector<vec4ui8> terrain_colormap{
-                        width * height,
-                        vec4ui8::stdc::zero,
-                        scratchpad.arena,
-                    };
-                    containers::vector<vec4ui8> heightmap_pixels{
-                        width * height,
-                        vec4ui8::stdc::zero,
-                        scratchpad.arena,
-                    };
-
-                    // vertex_pntt* verts = grid.vertex_data();
-                    for (uint32_t z = 0; z < gp.height; ++z) {
-                        for (uint32_t x = 0; x < gp.width; ++x) {
-                            const float yval = heightmap.GetValue(x, z);
-
-                            auto itr = ranges::find_if(
-                                terrain_ranges, [yval](const HeightRangeWithColor& tr) { return yval <= tr.height; });
-
-                            terrain_colormap[z * gp.height + x] =
-                                itr == ranges::cend(terrain_ranges) ? terrain_ranges.back().color : itr->color;
-
-                            heightmap_pixels[z * gp.height + x] = vec4ui8{ static_cast<uint8_t>(yval) };
-                        }
-                    }
-
-                    stbi_write_png("monka.heightmap.png",
-                                   gp.width,
-                                   gp.height,
-                                   3,
-                                   heightmap_pixels.data(),
-                                   sizeof(vec4ui8) * gp.width);
-                    stbi_write_png("monka.terrain.png",
-                                   gp.width,
-                                   gp.height,
-                                   4,
-                                   terrain_colormap.data(),
-                                   sizeof(vec4ui8) * gp.height);
+                    // stbi_write_png("monka.heightmap.png",
+                    //                gp.width,
+                    //                gp.height,
+                    //                3,
+                    //                heightmap_pixels.data(),
+                    //                sizeof(vec4ui8) * gp.width);
+                    // stbi_write_png("monka.terrain.png",
+                    //                gp.width,
+                    //                gp.height,
+                    //                4,
+                    //                terrain_colormap.data(),
+                    //                sizeof(vec4ui8) * gp.height);
 
                     return grid;
                 } else if constexpr (std::is_same<Name, rfl::Literal<"cone">>()) {
@@ -1532,7 +1438,12 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
         .scene_def = &*scene_result,
         .ui = raw_ptr(ui),
         .win = &main_window,
+        .co_runtime = raw_ptr(cor_runtime),
     });
+
+    if (!game_sim) {
+        return tl::make_unexpected(MiscError{ .what = "game sim creation error" });
+    }
 
     return tl::expected<GameMain, ProgramError>(
         tl::in_place,
@@ -1631,6 +1542,8 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
         .delta = delta,
         .arena_perm = _arena_perm,
         .arena_temp = _arena_temp,
+        .co_runtime = raw_ptr(_co_runtime),
+        .cam = &_game_sim->camera(),
     });
 
     _debug_draw->render(DebugDrawSystem::RenderContext{ .renderer = raw_ptr(_vkrenderer), .frd = &frd });

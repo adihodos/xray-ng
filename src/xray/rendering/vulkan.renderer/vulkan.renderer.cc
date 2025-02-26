@@ -213,7 +213,10 @@ detail::PhysicalDeviceData::PhysicalDeviceData(VkPhysicalDevice dev)
     features.vk12.pNext = &features.vk13;
 
     features.vk13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    features.vk13.pNext = nullptr;
+    features.vk13.pNext = &features.dyn_state3;
+
+    features.dyn_state3.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
+    features.dyn_state3.pNext = nullptr;
 
     vkGetPhysicalDeviceFeatures2(device, &features.base);
     vkGetPhysicalDeviceProperties2(device, &properties.base);
@@ -234,10 +237,12 @@ detail::PhysicalDeviceData::PhysicalDeviceData(const PhysicalDeviceData& rhs)
     features.base.pNext = &features.vk11;
     features.vk11.pNext = &features.vk12;
     features.vk12.pNext = &features.vk13;
+    features.vk13.pNext = &features.dyn_state3;
 
     properties.base.pNext = &properties.vk11;
     properties.vk11.pNext = &properties.vk12;
     properties.vk12.pNext = &properties.vk13;
+    properties.vk13.pNext = &properties.descriptor_indexing;
     queue_props = rhs.queue_props;
     device = rhs.device;
 }
@@ -253,10 +258,12 @@ detail::PhysicalDeviceData::operator=(const PhysicalDeviceData& rhs)
         features.base.pNext = &features.vk11;
         features.vk11.pNext = &features.vk12;
         features.vk12.pNext = &features.vk13;
+        features.vk13.pNext = &features.dyn_state3;
 
         properties.base.pNext = &properties.vk11;
         properties.vk11.pNext = &properties.vk12;
         properties.vk12.pNext = &properties.vk13;
+        properties.vk13.pNext = &properties.descriptor_indexing;
         queue_props = rhs.queue_props;
         device = rhs.device;
     }
@@ -876,6 +883,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig&
         VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
         VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
         VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+        VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
     };
 
     const VkDeviceCreateInfo device_create_info = {
@@ -1293,6 +1301,12 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer::PrivateConstructionToken,
     , _dpool_state{ std::move(dpool) }
     , _bindless{ std::move(bindless) }
 {
+    const char* queue_names[] = { "graphics queue", "transfer queue" };
+    const char* pool_names[] = { "cmd_pool_graphics", "cmd_pool_transfer" };
+    for (uint32_t qidx : { static_cast<uint32_t>(QueueType::Graphics), static_cast<uint32_t>(QueueType::Transfer) }) {
+        dbg_set_object_name(xray::base::raw_ptr(_render_state.queues[qidx].cmd_pool), pool_names[qidx]);
+        dbg_set_object_name(_render_state.queues[qidx].handle, queue_names[qidx]);
+    }
 }
 
 FrameRenderData
