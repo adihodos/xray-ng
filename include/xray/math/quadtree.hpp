@@ -55,6 +55,10 @@ struct QuadTreeNode
 {
     BoundingBoxAxisAligned<PointType> bbox;
     std::optional<uint32_t> links[4]{};
+
+    bool is_leaf_node() const noexcept {
+        return !links[0];
+    }
 };
 
 ///

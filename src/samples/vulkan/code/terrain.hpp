@@ -55,13 +55,13 @@ class Terrain
   public:
     static tl::expected<Terrain, xray::rendering::VulkanError> create(const InitContext& ctx);
 
-    struct TerrainMaps
+    struct SlabRenderResources
     {
         xray::rendering::BindlessImageResourceHandleEntryPair heightmap;
         xray::rendering::BindlessImageResourceHandleEntryPair colormap;
     };
 
-    using MappedTerrainChunks = std::unordered_map<xray::math::vec2i32, TerrainMaps>;
+    using SlabResourceTable = std::unordered_map<xray::math::vec2i32, SlabRenderResources>;
 
   private:
     struct PrivateConstructionToken
@@ -92,9 +92,9 @@ class Terrain
         xray::rendering::VulkanBuffer indexbuffer;
         xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances;
         xray::base::containers::vector<TerrainLodLevel> lod_levels;
-        MappedTerrainChunks chunks;
+        SlabResourceTable slabs_table;
         std::unordered_set<xray::math::vec2i32> slabs_visible_last_frame;
-        std::vector<TerrainMaps> free_slabs;
+        std::vector<SlabRenderResources> slabs_freelist;
         xray::math::vec2f32 last_cam_pos;
         xray::math::vec2f32 last_cam_dir;
     } _renderstate;
@@ -105,7 +105,7 @@ class Terrain
             xray::rendering::VulkanBuffer&& indexbuffer,
             xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances,
             xray::base::containers::vector<TerrainLodLevel>&& lod_levels,
-            MappedTerrainChunks&& chunks,
+            SlabResourceTable&& chunks,
             xray::base::unique_pointer<NoiseGen>&& noise_gen,
             xray::rendering::TerrainParams terrain_params);
 

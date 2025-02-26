@@ -105,6 +105,7 @@ target_link_libraries(
           concurrencpp::concurrencpp
           $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
           noise
+          frozen::frozen
           atomic_queue
           Jolt)
 

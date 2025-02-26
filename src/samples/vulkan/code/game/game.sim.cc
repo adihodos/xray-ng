@@ -71,7 +71,6 @@ B5::GameSimulation::SimState::SimState(const InitContext& init_context)
                                                               65.0_DEG2RADF32,
                                                               0.1f,
                                                               1000.0f);
-
     camera.set_projection(perspective_projection);
 }
 
@@ -225,110 +224,9 @@ B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
             return;
         }
 
-        if (!_ui->wants_input() && is_key_press_event) {
-            const key_event* ke = &evt.event.key;
-            using xray::ui::KeySymbol;
-            using namespace xray::math;
-
-            float force_axis_z{};
-            float force_axis_x{};
-            float roll{};
-            float yaw{};
-            float pitch{};
-            switch (ke->keycode) {
-                case KeySymbol::key_w:
-                    force_axis_z = +1.0f;
-                    break;
-
-                case KeySymbol::key_s:
-                    force_axis_z = -1.0f;
-                    break;
-
-                case KeySymbol::key_a:
-                    force_axis_x = -1.0f;
-                    break;
-
-                case KeySymbol::key_d:
-                    force_axis_x = 1.0f;
-                    break;
-
-                case KeySymbol::key_q:
-                    roll = +1.0f;
-                    break;
-
-                case KeySymbol::key_e:
-                    roll = -1.0f;
-                    break;
-
-                case KeySymbol::left:
-                    yaw = -1.0f;
-                    break;
-
-                case KeySymbol::right:
-                    yaw = 1.0f;
-                    break;
-
-                case KeySymbol::up:
-                    pitch = 1.0f;
-                    break;
-
-                case KeySymbol::down:
-                    pitch = -1.0f;
-                    break;
-
-                case KeySymbol::backspace: {
-                    JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
-                    ifc->SetPositionRotationAndVelocity(_world.ent_player.phys_body_id,
-                                                        JPH::Vec3::sZero(),
-                                                        JPH::Quat::sIdentity(),
-                                                        JPH::Vec3::sZero(),
-                                                        JPH::Vec3::sZero());
-                } break;
-
-                default:
-                    break;
-            }
-
-            constexpr float thruster_force{ 48000.0f };
-            constexpr float small_thruster_force{ 24000.0f };
-
-            auto apply_force_fn = [ifc = &_physics->sim()->GetBodyInterface()](const JPH::BodyID body,
-                                                                               const JPH::Vec3 axis,
-                                                                               const float modifier,
-                                                                               const float force) {
-                JPH::RMat44 rot = ifc->GetCenterOfMassTransform(body).GetRotation();
-                const JPH::Vec3 applied_force = rot * axis * modifier * force;
-                ifc->AddForce(body, applied_force);
-            };
-
-            if (!is_zero(force_axis_z)) {
-                apply_force_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisZ(), force_axis_z, thruster_force);
-            }
-
-            if (!is_zero(force_axis_x)) {
-                apply_force_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisX(), force_axis_x, thruster_force);
-            }
-
-            auto apply_torque_fn = [ifc = &_physics->sim()->GetBodyInterface()](const JPH::BodyID body,
-                                                                                const JPH::Vec3 axis,
-                                                                                const float modifier,
-                                                                                const float force) {
-                JPH::RMat44 rot = ifc->GetCenterOfMassTransform(body).GetRotation();
-                const JPH::Vec3 torque = rot * axis * force * modifier;
-                ifc->AddTorque(body, torque);
-            };
-
-            if (!is_zero(roll)) {
-                apply_torque_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisZ(), roll, small_thruster_force);
-            }
-
-            if (!is_zero(yaw)) {
-                apply_torque_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisY(), yaw, small_thruster_force);
-            }
-
-            if (!is_zero(pitch)) {
-                apply_torque_fn(_world.ent_player.phys_body_id, JPH::Vec3::sAxisX(), pitch, small_thruster_force);
-            }
+        if (!_ui->wants_input() && evt.type == event_type::key) {
+            _inputstate.keyboard[static_cast<size_t>(evt.event.key.keycode)] =
+                evt.event.key.type == event_action_type::press;
         }
 
         if (_uistate.use_arcball_cam) {
@@ -475,8 +373,9 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     ZoneScopedNCS("scene loop", tracy::Color::Orange, 32);
 
     user_interface(render_event.ui, render_event);
-    _physics->update();
     process_gamepad_state();
+    process_keyboard_state();
+    _physics->update();
 
     ScratchPadArena scratch_pad{ &_arena_temp };
 
@@ -826,6 +725,57 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 }
 
 void
+B5::GameSimulation::process_keyboard_state()
+{
+    const FlightModel fm{};
+    const JPH::BodyID ship_body = _world.ent_player.phys_body_id;
+
+    for (const KeySymbol ks : {
+             KeySymbol::key_w,
+             KeySymbol::key_s,
+             KeySymbol::key_a,
+             KeySymbol::key_d,
+             KeySymbol::key_q,
+             KeySymbol::key_e,
+             KeySymbol::up,
+             KeySymbol::down,
+             KeySymbol::left,
+             KeySymbol::right,
+         }) {
+        if (!_inputstate.keyboard[static_cast<size_t>(ks)]) {
+            continue;
+        }
+
+        const KeyStateData& key_state = _inputstate.keys_mapping.at(ks);
+
+        if (key_state.force == ForceType::Impulse) {
+            JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
+            const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
+            const JPH::Vec3 applied_force =
+                ship_rotation * JPH::Vec3{ key_state.force_axis.x, key_state.force_axis.y, key_state.force_axis.z } *
+                fm.thruster_large;
+            ifc->AddForce(ship_body, applied_force);
+        } else {
+            JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
+            const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
+            const JPH::Vec3 applied_torque =
+                ship_rotation * JPH::Vec3{ key_state.force_axis.x, key_state.force_axis.y, key_state.force_axis.z } *
+                fm.thruster_small;
+            ifc->AddTorque(ship_body, applied_torque);
+        }
+    }
+
+    if (_inputstate.keyboard[static_cast<size_t>(KeySymbol::backspace)]) {
+        JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
+        ifc->SetPositionRotationAndVelocity(_world.ent_player.phys_body_id,
+                                            JPH::Vec3::sZero(),
+                                            JPH::Quat::sIdentity(),
+                                            JPH::Vec3::sZero(),
+                                            JPH::Vec3::sZero());
+    }
+}
+
+void
 B5::GameSimulation::process_gamepad_state()
 {
     const FlightModel fm{};
@@ -884,8 +834,6 @@ B5::GameSimulation::process_gamepad_state()
                 JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
                 const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
                 const JPH::Vec3 applied_force = ship_rotation * force_axis * force_amount * fm.thruster_large;
-                // XR_LOG_INFO("Applying force ({},{},{})", applied_force.GetX(), applied_force.GetY(),
-                // applied_force.GetZ());
                 ifc->AddForce(ship_body, applied_force);
             });
 
@@ -896,9 +844,6 @@ B5::GameSimulation::process_gamepad_state()
                 JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
                 const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
                 const JPH::Vec3 applied_torque = ship_rotation * torque_axis * torque_amount * fm.thruster_small;
-                // XR_LOG_INFO(
-                //     "Applying torque ({},{},{})", applied_torque.GetX(), applied_torque.GetY(),
-                //     applied_torque.GetZ());
                 ifc->AddTorque(ship_body, applied_torque);
             });
         });

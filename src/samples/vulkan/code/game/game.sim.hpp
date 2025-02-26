@@ -6,7 +6,9 @@
 #include <span>
 
 #include <tl/expected.hpp>
+#include <tl/optional.hpp>
 #include <concurrencpp/forward_declarations.h>
+#include <frozen/unordered_map.h>
 
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Body/BodyID.h>
@@ -22,6 +24,7 @@
 #include "xray/scene/camera.controller.arcball.hpp"
 #include "xray/scene/camera.controller.flight.hpp"
 #include "xray/ui/events.gamepad.hpp"
+#include "xray/ui/key_sym.hpp"
 
 namespace xray::ui {
 class user_interface;
@@ -92,6 +95,7 @@ class GameSimulation
     void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
     void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
     void process_gamepad_state();
+    void process_keyboard_state();
 
     struct SimState
     {
@@ -136,16 +140,40 @@ class GameSimulation
     xray::base::MemoryArena _arena_perm;
     xray::base::MemoryArena _arena_temp;
     simulation_details::GameWorldState _world;
-    // Terrain* _terrain{};
     xray::base::unique_arena_ptr<Terrain> _terrain;
 
     xray::base::timer_highp _timer{};
     xray::ui::user_interface* _ui{};
 
+    enum class ForceType
+    {
+        Impulse,
+        Torque
+    };
+
+    struct KeyStateData
+    {
+        xray::math::vec3f force_axis;
+        ForceType force;
+    };
+
     struct InputStateTracker
     {
         xray::base::containers::vector<xray::ui::GamepadAxisEvent> last_axis_events;
         xray::base::containers::vector<xray::ui::GamepadAxisInfo> axis_info;
+        std::bitset<256> keyboard{ 0 };
+        frozen::unordered_map<xray::ui::KeySymbol, KeyStateData, 10> keys_mapping{
+            { xray::ui::KeySymbol::key_w, KeyStateData{ xray::math::vec3f::stdc::unit_z, ForceType::Impulse } },
+            { xray::ui::KeySymbol::key_s, KeyStateData{ -xray::math::vec3f::stdc::unit_z, ForceType::Impulse } },
+            { xray::ui::KeySymbol::key_a, KeyStateData{ -xray::math::vec3f::stdc::unit_x, ForceType::Impulse } },
+            { xray::ui::KeySymbol::key_d, KeyStateData{ xray::math::vec3f::stdc::unit_x, ForceType::Impulse } },
+            { xray::ui::KeySymbol::key_q, KeyStateData{ xray::math::vec3f::stdc::unit_z, ForceType::Torque } },
+            { xray::ui::KeySymbol::key_e, KeyStateData{ -xray::math::vec3f::stdc::unit_z, ForceType::Torque } },
+            { xray::ui::KeySymbol::up, KeyStateData{ xray::math::vec3f::stdc::unit_x, ForceType::Torque } },
+            { xray::ui::KeySymbol::down, KeyStateData{ -xray::math::vec3f::stdc::unit_x, ForceType::Torque } },
+            { xray::ui::KeySymbol::left, KeyStateData{ -xray::math::vec3f::stdc::unit_y, ForceType::Torque } },
+            { xray::ui::KeySymbol::right, KeyStateData{ xray::math::vec3f::stdc::unit_y, ForceType::Torque } },
+        };
 
         explicit InputStateTracker(xray::base::MemoryArena* arena, std::span<const xray::ui::GamepadAxisInfo> ai);
 

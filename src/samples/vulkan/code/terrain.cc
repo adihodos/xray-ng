@@ -112,7 +112,7 @@ B5::Terrain::Terrain(PrivateConstructionToken,
                      xray::rendering::VulkanBuffer&& indexbuffer,
                      xray::rendering::BindlessStorageBufferResourceHandleEntryPair instances,
                      xray::base::containers::vector<TerrainLodLevel>&& lod_levels,
-                     MappedTerrainChunks&& chunks,
+                     SlabResourceTable&& chunks,
                      xray::base::unique_pointer<NoiseGen>&& noise_gen,
                      TerrainParams terrain_params)
     : _noise_gen{ std::move(noise_gen) }
@@ -123,11 +123,11 @@ B5::Terrain::Terrain(PrivateConstructionToken,
             .indexbuffer = std::move(indexbuffer),
             .instances = instances,
             .lod_levels = std::move(lod_levels),
-            .chunks = std::move(chunks),
+            .slabs_table = std::move(chunks),
         },
     }
 {
-    lz::chain(_renderstate.chunks)
+    lz::chain(_renderstate.slabs_table)
         .transformTo(
             std::inserter(_renderstate.slabs_visible_last_frame, _renderstate.slabs_visible_last_frame.begin()),
             [](const auto& slab) { return slab.first; });
@@ -298,6 +298,8 @@ make_terrain_heightmap_colormap(const xray::rendering::TerrainParams& params,
     renderer_img.Render();
 
     assert(colormap.size() == params.size * params.size);
+    //
+    // libnoise data is laid out bottom to top in memory
     for (size_t z = 0; z < params.size; ++z) {
         const utils::Color* slab_ptr = height_map_image.GetConstSlabPtr(static_cast<int32_t>(params.size - z - 1));
         memcpy(colormap.subspan(z * params.size).data(), slab_ptr, params.size * sizeof(*slab_ptr));
@@ -516,7 +518,7 @@ B5::Terrain::create(const InitContext& ctx)
     auto terrain_images = img_gen_task_res.get();
     XR_VK_PROPAGATE_ERROR(terrain_images);
 
-    MappedTerrainChunks terrain_chunks{};
+    SlabResourceTable terrain_chunks{};
     for (auto&& [coords, images] : lz::zip(terrain_images->chunks, terrain_images->textures)) {
         BindlessImageResourceHandleEntryPair heightmap =
             ctx.renderer->bindless_sys().add_image(std::move(images.heightmap), *sampler, tl::nullopt);
@@ -567,10 +569,9 @@ copy_render_resources(xray::rendering::VulkanRenderer* renderer,
                       xray::rendering::QueuedJob& queued_job,
                       std::span<float> heightmap,
                       std::span<vec4ui8> color_map,
-                      const B5::Terrain::TerrainMaps& textures,
+                      const B5::Terrain::SlabRenderResources& textures,
                       const TerrainParams& params)
 {
-
     const uintptr_t staging_mem =
         renderer->reserve_staging_buffer_memory(heightmap.size_bytes() + color_map.size_bytes());
     uintptr_t staging_buffer_ptr = renderer->staging_buffer_memory();
@@ -606,12 +607,12 @@ copy_render_resources(xray::rendering::VulkanRenderer* renderer,
          lz::zip(copies,
                  buffer_image_copies,
                  lz::chunks(memory_barriers, 2),
-                 std::initializer_list<VkImage>{ textures.colormap.second.handle, textures.heightmap.second.handle })) {
+                 std::initializer_list<VkImage>{ textures.heightmap.second.handle, textures.colormap.second.handle })) {
         auto [copy_dst, copy_bytes, copy_src] = copy_data;
         memcpy(reinterpret_cast<void*>(copy_dst), reinterpret_cast<const void*>(copy_src), copy_bytes);
 
         buffer_copy = VkBufferImageCopy{
-            .bufferOffset = staging_mem,
+            .bufferOffset = copy_dst - staging_buffer_ptr,
             .bufferRowLength = 0,
             .bufferImageHeight = 0,
             .imageSubresource = subresource_layers,
@@ -630,8 +631,8 @@ copy_render_resources(xray::rendering::VulkanRenderer* renderer,
             .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .srcQueueFamilyIndex = queue_idx_graphics,
-            .dstQueueFamilyIndex = queue_idx_transfer,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image = texture,
             .subresourceRange = subresource_range,
         };
@@ -661,12 +662,12 @@ copy_render_resources(xray::rendering::VulkanRenderer* renderer,
             .pNext = nullptr,
             .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_2_NONE,
-            .dstAccessMask = VK_ACCESS_2_NONE,
+            .dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             .newLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL,
-            .srcQueueFamilyIndex = queue_idx_transfer,
-            .dstQueueFamilyIndex = queue_idx_graphics,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image = texture,
             .subresourceRange = subresource_range,
         };
@@ -711,6 +712,7 @@ B5::Terrain::loop_event(const RenderEvent& re)
     //
     const auto slabs_current_frame =
         lz::chain(world_quad.get_nodes())
+            .filter([](const QuadTreeF32::tree_node_type& node) { return node.is_leaf_node(); })
             .map([](const QuadTreeF32::tree_node_type& node) { return node.bbox.center(); })
             .filter([cam_pos_xz_plane,
                      max_vis_dst = static_cast<float>(_terrain_params.size * 1)](const vec2f32 node_center) {
@@ -748,41 +750,39 @@ B5::Terrain::loop_event(const RenderEvent& re)
     // to a texture
     const size_t terrain_items = _terrain_params.size * _terrain_params.size;
     tl::optional<concurrencpp::result<size_t>> task_gen_recycle;
-    containers::vector<std::pair<vec2i32, TerrainMaps>> recycled_slab_resources{ *scratchpad.arena };
+    containers::vector<std::pair<vec2i32, SlabRenderResources>> recycled_slab_resources{ *scratchpad.arena };
 
-    if (!slabs_to_spawn.empty() && !slabs_to_despawn.empty()) {
+    if (!slabs_to_spawn.empty() && (!slabs_to_despawn.empty() || !_renderstate.slabs_freelist.empty())) {
         //
         // recycle from this frame
         while (!slabs_to_despawn.empty() && !slabs_to_spawn.empty()) {
             auto despawned = slabs_to_despawn.extract(slabs_to_despawn.begin());
             auto spawned = slabs_to_spawn.extract(slabs_to_spawn.begin());
-            auto despawned_slab_render_resources = _renderstate.chunks.extract(despawned.value());
+            auto despawned_slab_render_resources = _renderstate.slabs_table.extract(despawned.value());
             recycled_slab_resources.emplace_back(spawned.value(), despawned_slab_render_resources.mapped());
         }
 
         //
         // recycle from the free-list
-        while (!slabs_to_spawn.empty() && !_renderstate.free_slabs.empty()) {
+        while (!slabs_to_spawn.empty() && !_renderstate.slabs_freelist.empty()) {
             auto spawned = slabs_to_spawn.extract(slabs_to_spawn.begin());
-            auto free_slab = _renderstate.free_slabs.back();
-            _renderstate.free_slabs.pop_back();
+            auto free_slab = _renderstate.slabs_freelist.back();
+            _renderstate.slabs_freelist.pop_back();
             recycled_slab_resources.emplace_back(spawned.value(), free_slab);
         }
 
         task_gen_recycle = re.co_runtime->thread_pool_executor()->submit(
             [&recycled_slab_resources, params = &_terrain_params, renderer = re.renderer, terrain_items]() {
                 ScopedSmallArenaType scratch = GlobalMemorySystem::instance()->grab_small_arena();
-
-                std::span<float> heightmap_data =
-                    std::span{ scratch.arena.alloc_align<float>(terrain_items), terrain_items };
-                std::span<vec4ui8> colormap_data =
-                    std::span{ scratch.arena.alloc_align<vec4ui8>(terrain_items), terrain_items };
-
                 const vec2f32 slab_half_size = vec2f32{ params->size / 2 };
-
-                auto queued_job = renderer->create_job(QueueType::Transfer);
+                auto queued_job = renderer->create_job(QueueType::Graphics);
 
                 for (auto&& [slab_center, slab_render_res] : recycled_slab_resources) {
+                    std::span<float> heightmap_data =
+                        std::span{ scratch.arena.alloc_align<float>(terrain_items), terrain_items };
+                    std::span<vec4ui8> colormap_data =
+                        std::span{ scratch.arena.alloc_align<vec4ui8>(terrain_items), terrain_items };
+
                     make_terrain_heightmap_colormap(*params,
                                                     BBoxAA2DF32{
                                                         vec2f32{ slab_center } - slab_half_size,
@@ -795,16 +795,18 @@ B5::Terrain::loop_event(const RenderEvent& re)
                         renderer, *queued_job, heightmap_data, colormap_data, slab_render_res, *params);
                 }
 
+                [[maybe_unused]] auto wait_token = renderer->submit_job(std::move(*queued_job));
                 return size_t{ 1 };
             });
     }
 
     //
     // move remaining slabs marked for despawning to the free list
-    lz::chain(slabs_to_despawn).transformTo(std::back_inserter(_renderstate.free_slabs), [this](const vec2i32 slab) {
-        auto node_handle = _renderstate.chunks.extract(slab);
-        return node_handle.mapped();
-    });
+    lz::chain(slabs_to_despawn)
+        .transformTo(std::back_inserter(_renderstate.slabs_freelist), [this](const vec2i32 slab) {
+            auto node_handle = _renderstate.slabs_table.extract(slab);
+            return node_handle.mapped();
+        });
 
     //
     // handle slabs that need to have render resources created
@@ -856,7 +858,7 @@ B5::Terrain::loop_event(const RenderEvent& re)
     // wait for any tasks to complete
     task_gen_recycle.map([&, this](auto&& task_result) {
         [[maybe_unused]] auto res = task_result.get();
-        _renderstate.chunks.insert(std::begin(recycled_slab_resources), std::end(recycled_slab_resources));
+        _renderstate.slabs_table.insert(std::begin(recycled_slab_resources), std::end(recycled_slab_resources));
     });
 
     for (auto&& [task_slab, slab_coords] : lz::zip(tasks_create_slabs_results, slabs_to_spawn)) {
@@ -871,8 +873,9 @@ B5::Terrain::loop_event(const RenderEvent& re)
         re.renderer->queue_image_ownership_transfer(heightmap.first);
         re.renderer->queue_image_ownership_transfer(colormap.first);
 
-        assert(!_renderstate.chunks.contains(slab_coords));
-        [[maybe_unused]] auto [itr, was_inserted] = _renderstate.chunks.try_emplace(slab_coords, heightmap, colormap);
+        assert(!_renderstate.slabs_table.contains(slab_coords));
+        [[maybe_unused]] auto [itr, was_inserted] =
+            _renderstate.slabs_table.try_emplace(slab_coords, heightmap, colormap);
         assert(was_inserted);
     }
 
@@ -924,8 +927,8 @@ B5::Terrain::loop_event(const RenderEvent& re)
             TerrainInstanceData* instance = mem_map.as<TerrainInstanceData>();
 
             for (vec2i32 slab_center : visible_range) {
-                auto slab_entry = _renderstate.chunks.find(slab_center);
-                assert(slab_entry != std::cend(_renderstate.chunks));
+                auto slab_entry = _renderstate.slabs_table.find(slab_center);
+                assert(slab_entry != std::cend(_renderstate.slabs_table));
                 instance->colormap = destructure_bindless_resource_handle(slab_entry->second.colormap.first).first;
                 instance->heightmap = destructure_bindless_resource_handle(slab_entry->second.heightmap.first).first;
 
@@ -1018,7 +1021,7 @@ B5::Terrain::user_interface(xray::ui::user_interface* ui, const RenderEvent& re)
             };
         };
 
-        for (auto&& [slab_center, dontcare] : _renderstate.chunks) {
+        for (auto&& [slab_center, dontcare] : _renderstate.slabs_table) {
             vec2f32 c{ slab_center };
             c /= WORLD_SECTION_SIZE;
             c = viewport_transform_fn(c, cursor.x, cursor.y, viewport_width, viewport_width);
@@ -1045,7 +1048,9 @@ B5::Terrain::user_interface(xray::ui::user_interface* ui, const RenderEvent& re)
         draw_list->ChannelsMerge();
         ImGui::Dummy(ImVec2(viewport_width, viewport_width));
 
-        for (const auto& [scenter, dontcare] : _renderstate.chunks) {
+        ImGui::Text(
+            "Slabs: in use: %zu, free: %zu", _renderstate.slabs_table.size(), _renderstate.slabs_freelist.size());
+        for (const auto& [scenter, dontcare] : _renderstate.slabs_table) {
             ImGui::Text("Slab @ %d, %d", scenter.x, scenter.y);
         }
     }

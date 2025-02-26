@@ -21,6 +21,7 @@ cpmaddpackage("gh:vimpunk/mio#master")
 cpmaddpackage("gh:iboB/itlib#master")
 cpmaddpackage("gh:getml/reflect-cpp#main")
 cpmaddpackage("gh:max0x7ba/atomic_queue#master")
+cpmaddpackage("gh:serge-sans-paille/frozen#master")
 
 cpmaddpackage(
   NAME
