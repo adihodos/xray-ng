@@ -97,6 +97,7 @@ class Terrain
         std::vector<SlabRenderResources> slabs_freelist;
         xray::math::vec2f32 last_cam_pos;
         xray::math::vec2f32 last_cam_dir;
+        float max_view_distance_squared;
     } _renderstate;
 
   public:

@@ -158,7 +158,6 @@ if(TARGET Linux)
   target_compile_options(
     xray-set-compile-options-lib
     INTERFACE
-      # $<$<CONFIG:Debug>:-O0>
       $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables;-fsanitize=address>
       $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
   )

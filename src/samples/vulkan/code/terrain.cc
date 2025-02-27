@@ -34,7 +34,9 @@
 #include "bindless.pipeline.config.hpp"
 #include "system.memory.hpp"
 
-XR_DISABLE_OPTIMIZATIONS
+// XR_DISABLE_OPTIMIZATIONS
+
+#pragma GCC optimize("O0")
 
 using namespace std;
 using namespace xray::base;
@@ -125,6 +127,8 @@ B5::Terrain::Terrain(PrivateConstructionToken,
             .instances = instances,
             .lod_levels = std::move(lod_levels),
             .slabs_table = std::move(chunks),
+            .max_view_distance_squared = static_cast<float>((terrain_params.cells_view_dist * terrain_params.size) *
+                                                            (terrain_params.cells_view_dist * terrain_params.size)),
         },
     }
 {
@@ -234,7 +238,7 @@ make_terrain_heightmap_colormap(const xray::rendering::TerrainParams& params,
 {
     XR_LOG_INFO("[[terrain]] slab {}x{}, {}x{}", bounds.min.x, bounds.max.x, bounds.min.y, bounds.max.y);
 
-    const uint32_t slab_size = params.size ;
+    const uint32_t slab_size = params.size;
     std::mt19937 rand_eng{ params.seed };
 
     B5::NoiseGen noise_gen{};
@@ -369,6 +373,7 @@ create_terrain_slab_render_resources(const TerrainParams terrain_params,
                    4,
                    colormap.data(),
                    terrain_params.size * sizeof(vec4ui8));
+
     return tl::expected<TerrainSlabTextures, VulkanError>{
         tl::in_place,
         std::move(*colormap_texture),
@@ -383,20 +388,30 @@ task_generate_terrain_chunk(concurrencpp::executor_tag,
 {
     auto temp_arena = B5::GlobalMemorySystem::instance()->grab_medium_arena();
 
-    QuadTreeF32 world_quad{ temp_arena.arena, WORLD_BOUNDS, static_cast<float>(params.terrain.size) };
+    QuadTreeF32 world_quad{
+        temp_arena.arena,
+        WORLD_BOUNDS,
+        static_cast<float>(params.terrain.size),
+        params.terrain.maximum_visible_distance(),
+    };
     world_quad.insert(vec2f32{ 0 });
 
     //
     //
-    const auto slabs_to_spawn =
-        lz::chain(world_quad.get_nodes())
-            .map([](const QuadTreeF32::tree_node_type& node) { return node.bbox.center(); })
-            .filter([max_vis_dst = static_cast<float>(params.terrain.size)](const vec2f32 node_center) {
-                return dot(node_center, node_center) <= max_vis_dst * max_vis_dst;
-            })
-            .map([](const vec2f32 vis_slab_center) { return vec2i32{ vis_slab_center }; })
-            .to<containers::unordered_set<vec2i32>>(std::execution::seq,
-                                                    MemoryArenaAllocator<vec2i32>{ temp_arena.arena });
+    const float max_view_dist_squared =
+        (params.terrain.cells_view_dist * params.terrain.size) * (params.terrain.cells_view_dist * params.terrain.size);
+
+    const auto slabs_to_spawn = lz::chain(world_quad.get_nodes())
+                                    .filter([maxs = params.terrain.size](const QuadTreeF32::tree_node_type& node) {
+                                        return node.is_leaf_node();
+                                    })
+                                    .map([](const QuadTreeF32::tree_node_type& node) { return node.bbox.center(); })
+                                    .filter([max_view_dist_squared](const vec2f32 node_center) {
+                                        return dot(node_center, node_center) <= max_view_dist_squared;
+                                    })
+                                    .map([](const vec2f32 vis_slab_center) { return vec2i32{ vis_slab_center }; })
+                                    .to<containers::unordered_set<vec2i32>>(
+                                        std::execution::seq, MemoryArenaAllocator<vec2i32>{ temp_arena.arena });
 
     containers::vector<concurrencpp::result<tl::expected<TerrainSlabTextures, VulkanError>>> spawned_tasks{
         temp_arena.arena
@@ -715,18 +730,25 @@ B5::Terrain::loop_event(const RenderEvent& re)
     _renderstate.last_cam_dir = view_dir;
 
     ScratchPadArena scratchpad{ re.arena_temp };
-    QuadTreeF32 world_quad{ *re.arena_temp, WORLD_BOUNDS, static_cast<float>(_terrain_params.size) };
+    QuadTreeF32 world_quad{
+        *re.arena_temp,
+        WORLD_BOUNDS,
+        static_cast<float>(_terrain_params.size),
+        _terrain_params.maximum_visible_distance(),
+    };
     world_quad.insert(cam_pos_xz_plane);
 
     //
     //
+    const float max_view_dist_squared = _renderstate.max_view_distance_squared;
+
     const auto slabs_current_frame =
         lz::chain(world_quad.get_nodes())
-            .filter([](const QuadTreeF32::tree_node_type& node) { return node.is_leaf_node(); })
+            .filter(
+                [maxs = _terrain_params.size](const QuadTreeF32::tree_node_type& node) { return node.is_leaf_node(); })
             .map([](const QuadTreeF32::tree_node_type& node) { return node.bbox.center(); })
-            .filter([cam_pos_xz_plane,
-                     max_vis_dst = static_cast<float>(_terrain_params.size * 1)](const vec2f32 node_center) {
-                return squared_distance(cam_pos_xz_plane, node_center) <= max_vis_dst * max_vis_dst;
+            .filter([cam_pos_xz_plane, max_view_dist_squared](const vec2f32 node_center) {
+                return squared_distance(cam_pos_xz_plane, node_center) <= max_view_dist_squared;
             })
             .map([](const vec2f32 vis_slab_center) { return vec2i32{ vis_slab_center }; })
             .to<containers::unordered_set<vec2i32>>(std::execution::seq,

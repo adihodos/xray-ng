@@ -56,9 +56,7 @@ struct QuadTreeNode
     BoundingBoxAxisAligned<PointType> bbox;
     std::optional<uint32_t> links[4]{};
 
-    bool is_leaf_node() const noexcept {
-        return !links[0];
-    }
+    bool is_leaf_node() const noexcept { return !links[0]; }
 };
 
 ///
@@ -75,17 +73,26 @@ struct QuadTree
 
     static constexpr const value_type MIN_SQUARED_DST{ value_type{ 512 } * value_type{ 512 } };
 
-    value_type min_dist_to_child_squared{ 1024 };
+    value_type min_node_size_squared{ 1024 };
+    value_type max_visiblity_distance_squared{ 1024 };
     std::optional<uint32_t> root;
     xray::base::containers::vector<tree_node_type> nodes;
 
-    QuadTree(base::MemoryArena& arena, const bbox_type& bounds, const value_type& min_dst_to_child)
-        : QuadTree{ arena, bounds.min, bounds.max, min_dst_to_child }
+    QuadTree(base::MemoryArena& arena,
+             const bbox_type& bounds,
+             const value_type min_dst_to_child,
+             const value_type maximum_visible_distance)
+        : QuadTree{ arena, bounds.min, bounds.max, min_dst_to_child, maximum_visible_distance }
     {
     }
 
-    QuadTree(base::MemoryArena& arena, const PointType& minp, const PointType& maxp, const value_type min_dst_to_child)
-        : min_dist_to_child_squared{ min_dst_to_child * min_dst_to_child }
+    QuadTree(base::MemoryArena& arena,
+             const PointType& minp,
+             const PointType& maxp,
+             const value_type minimum_node_size,
+             const value_type maximum_visible_distance)
+        : min_node_size_squared{ minimum_node_size * minimum_node_size }
+        , max_visiblity_distance_squared{ maximum_visible_distance * maximum_visible_distance }
         , root{ 0 }
         , nodes{ base::MemoryArenaAllocator<tree_node_type>{ arena } }
     {
@@ -98,50 +105,50 @@ struct QuadTree
         return std::span{ nodes }.subspan(1, nodes.size() - 1);
     }
 
-    value_type squared_distance_to_node(uint32_t child, const PointType pos) const noexcept
+    value_type squared_distance_point_to_node(uint32_t child, const PointType pos) const noexcept
     {
         assert(size_t{ child } < nodes.size());
         return squared_distance(nodes[child].bbox.center(), pos);
     }
 
-    void insert_impl(uint32_t parent, const PointType pos)
+    void insert_impl(uint32_t node_id, const PointType pos)
     {
-        const value_type sqdst_to_child = squared_distance_to_node(parent, pos);
-        const auto sq_node_width = nodes[parent].bbox.width() * nodes[parent].bbox.width();
+        const value_type squared_distance_to_node = squared_distance_point_to_node(node_id, pos);
+        const value_type squared_node_width = nodes[node_id].bbox.width() * nodes[node_id].bbox.width();
 
-        if (sqdst_to_child < sq_node_width && sq_node_width > min_dist_to_child_squared) {
-            const PointType center = nodes[parent].bbox.center();
+        if (squared_distance_to_node < max_visiblity_distance_squared && squared_node_width > min_node_size_squared) {
+            const PointType center = nodes[node_id].bbox.center();
 
             //
             // bottom left
-            if (!nodes[parent].links[0]) {
+            if (!nodes[node_id].links[0]) {
                 const uint32_t id = static_cast<uint32_t>(nodes.size());
-                nodes.push_back(tree_node_type{ bbox_type{ nodes[parent].bbox.min, center } });
-                nodes[parent].links[0] = id;
+                nodes.push_back(tree_node_type{ bbox_type{ nodes[node_id].bbox.min, center } });
+                nodes[node_id].links[0] = id;
             }
 
-            if (!nodes[parent].links[1]) {
+            if (!nodes[node_id].links[1]) {
                 const uint32_t id = static_cast<uint32_t>(nodes.size());
-                nodes.push_back(tree_node_type{ bbox_type{ PointType{ center.x, nodes[parent].bbox.min.y },
-                                                           PointType{ nodes[parent].bbox.max.x, center.y } } });
-                nodes[parent].links[1] = id;
+                nodes.push_back(tree_node_type{ bbox_type{ PointType{ center.x, nodes[node_id].bbox.min.y },
+                                                           PointType{ nodes[node_id].bbox.max.x, center.y } } });
+                nodes[node_id].links[1] = id;
             }
 
-            if (!nodes[parent].links[2]) {
+            if (!nodes[node_id].links[2]) {
                 const uint32_t id = static_cast<uint32_t>(nodes.size());
-                nodes.push_back(tree_node_type{ bbox_type{ PointType{ nodes[parent].bbox.min.x, center.y },
-                                                           PointType{ center.x, nodes[parent].bbox.max.y } } });
-                nodes[parent].links[2] = id;
+                nodes.push_back(tree_node_type{ bbox_type{ PointType{ nodes[node_id].bbox.min.x, center.y },
+                                                           PointType{ center.x, nodes[node_id].bbox.max.y } } });
+                nodes[node_id].links[2] = id;
             }
 
-            if (!nodes[parent].links[3]) {
+            if (!nodes[node_id].links[3]) {
                 const uint32_t id = static_cast<uint32_t>(nodes.size());
-                nodes.push_back(tree_node_type{ bbox_type{ center, nodes[parent].bbox.max } });
-                nodes[parent].links[3] = id;
+                nodes.push_back(tree_node_type{ bbox_type{ center, nodes[node_id].bbox.max } });
+                nodes[node_id].links[3] = id;
             }
 
             for (size_t i = 0; i < 4; ++i) {
-                insert_impl(*nodes[parent].links[i], pos);
+                insert_impl(*nodes[node_id].links[i], pos);
             }
         }
     }

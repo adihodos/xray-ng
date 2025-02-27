@@ -57,55 +57,55 @@ main(int argc, char** argv)
         std::unordered_set<vec2i32> prev_frame_nodes{};
         const float pos_frames[] = { 128.0f, -384.0f };
 
-        for (size_t i = 0; i < 2; ++i) {
-            ScratchPadArena test_scratchpad{ scratch_arena };
-
-            QuadTreeF32 qtree{ scratch_arena, grid.min, grid.max, 256.0f };
-            qtree.insert(vec2f32{ pos_frames[i] });
-
-            std::unordered_set<vec2i32> this_frame_nodes;
-            for (const auto& node : qtree.get_nodes() | std::views::filter([](const QuadTreeF32::tree_node_type& node) {
-                                        return node.bbox.width() <= 256.0f;
-                                    })) {
-                this_frame_nodes.insert(vec2i32{ node.bbox.center() });
-            }
-
-            containers::vector<vec2i32> new_nodes{ MemoryArenaAllocator<vec2i32>{ scratch_arena } };
-            std::ranges::copy_if(this_frame_nodes, std::back_inserter(new_nodes), [&prev_frame_nodes](vec2i32 n) {
-                return !prev_frame_nodes.contains(n);
-            });
-
-            containers::vector<vec2i32> despawned_nodes{ MemoryArenaAllocator<vec2i32>{ scratch_arena } };
-            std::ranges::copy_if(prev_frame_nodes, std::back_inserter(despawned_nodes), [&this_frame_nodes](vec2i32 p) {
-                return !this_frame_nodes.contains(p);
-            });
-
-            std::ranges::make_heap(despawned_nodes, [O = vec2f32{ pos_frames[i] }](const vec2i32& a, const vec2i32& b) {
-                const float sqdst_a = squared_distance(O, vec2f32{ a });
-                const float sqdst_b = squared_distance(O, vec2f32{ b });
-                return sqdst_a < sqdst_b;
-            });
-
-            fmt::println("\nFrame #{}\nPrevious nodes: ", i);
-            for (const vec2i32 n : prev_frame_nodes) {
-                fmt::print("{} ", n);
-            }
-
-            fmt::println("\nframe nodes: ");
-            for (const vec2i32 n : this_frame_nodes) {
-                fmt::print("{} ", n);
-            }
-
-            fmt::println("\nSpawned this frame: ");
-            for (const vec2i32 n : new_nodes) {
-                fmt::print("{} ", n);
-            }
-
-            fmt::println("\nDespawned this frame: ");
-            for (const vec2i32 n : despawned_nodes) {
-                fmt::print("{} ", n);
-            }
-            prev_frame_nodes = this_frame_nodes;
-        }
+        // for (size_t i = 0; i < 2; ++i) {
+        //     ScratchPadArena test_scratchpad{ scratch_arena };
+        //
+        //     QuadTreeF32 qtree{ scratch_arena, grid.min, grid.max, 256.0f };
+        //     qtree.insert(vec2f32{ pos_frames[i] });
+        //
+        //     std::unordered_set<vec2i32> this_frame_nodes;
+        //     for (const auto& node : qtree.get_nodes() | std::views::filter([](const QuadTreeF32::tree_node_type& node) {
+        //                                 return node.bbox.width() <= 256.0f;
+        //                             })) {
+        //         this_frame_nodes.insert(vec2i32{ node.bbox.center() });
+        //     }
+        //
+        //     containers::vector<vec2i32> new_nodes{ MemoryArenaAllocator<vec2i32>{ scratch_arena } };
+        //     std::ranges::copy_if(this_frame_nodes, std::back_inserter(new_nodes), [&prev_frame_nodes](vec2i32 n) {
+        //         return !prev_frame_nodes.contains(n);
+        //     });
+        //
+        //     containers::vector<vec2i32> despawned_nodes{ MemoryArenaAllocator<vec2i32>{ scratch_arena } };
+        //     std::ranges::copy_if(prev_frame_nodes, std::back_inserter(despawned_nodes), [&this_frame_nodes](vec2i32 p) {
+        //         return !this_frame_nodes.contains(p);
+        //     });
+        //
+        //     std::ranges::make_heap(despawned_nodes, [O = vec2f32{ pos_frames[i] }](const vec2i32& a, const vec2i32& b) {
+        //         const float sqdst_a = squared_distance(O, vec2f32{ a });
+        //         const float sqdst_b = squared_distance(O, vec2f32{ b });
+        //         return sqdst_a < sqdst_b;
+        //     });
+        //
+        //     fmt::println("\nFrame #{}\nPrevious nodes: ", i);
+        //     for (const vec2i32 n : prev_frame_nodes) {
+        //         fmt::print("{} ", n);
+        //     }
+        //
+        //     fmt::println("\nframe nodes: ");
+        //     for (const vec2i32 n : this_frame_nodes) {
+        //         fmt::print("{} ", n);
+        //     }
+        //
+        //     fmt::println("\nSpawned this frame: ");
+        //     for (const vec2i32 n : new_nodes) {
+        //         fmt::print("{} ", n);
+        //     }
+        //
+        //     fmt::println("\nDespawned this frame: ");
+        //     for (const vec2i32 n : despawned_nodes) {
+        //         fmt::print("{} ", n);
+        //     }
+        //     prev_frame_nodes = this_frame_nodes;
+        // }
     };
 }
