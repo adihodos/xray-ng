@@ -16,6 +16,7 @@ struct TerrainRange
 struct TerrainParams
 {
     uint32_t size{ 512 };
+    uint32_t seed{ 1337 };
     uint32_t lods{ 8 };
     float scale{ 16.0f };
     float bias{ 8.0f };

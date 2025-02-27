@@ -1,6 +1,7 @@
 #include "terrain.hpp"
 
 #include <utility>
+#include <random>
 #include <Lz/Lz.hpp>
 #include <imgui/imgui.h>
 #include <imgui/IconsFontAwesome.h>
@@ -233,7 +234,15 @@ make_terrain_heightmap_colormap(const xray::rendering::TerrainParams& params,
 {
     XR_LOG_INFO("[[terrain]] slab {}x{}, {}x{}", bounds.min.x, bounds.max.x, bounds.min.y, bounds.max.y);
 
+    const uint32_t slab_size = params.size ;
+    std::mt19937 rand_eng{ params.seed };
+
     B5::NoiseGen noise_gen{};
+    noise_gen.ridged.SetSeed(rand_eng());
+    noise_gen.ridged.SetNoiseQuality(noise::NoiseQuality::QUALITY_BEST);
+
+    noise_gen.base_flat_terrain.SetSeed(rand_eng());
+    noise_gen.base_flat_terrain.SetNoiseQuality(noise::NoiseQuality::QUALITY_BEST);
     noise_gen.base_flat_terrain.SetFrequency(2.0);
 
     noise::module::ScaleBias flat_terrain;
@@ -241,6 +250,8 @@ make_terrain_heightmap_colormap(const xray::rendering::TerrainParams& params,
     flat_terrain.SetScale(params.scale);
     flat_terrain.SetBias(params.bias);
 
+    noise_gen.terrain_type.SetSeed(rand_eng());
+    noise_gen.terrain_type.SetNoiseQuality(noise::NoiseQuality::QUALITY_BEST);
     noise_gen.terrain_type.SetOctaveCount(params.octaves);
     noise_gen.terrain_type.SetFrequency(0.5);
     noise_gen.terrain_type.SetPersistence(0.25);
@@ -251,29 +262,28 @@ make_terrain_heightmap_colormap(const xray::rendering::TerrainParams& params,
     noise_gen.terrain_selector.SetBounds(0.0f, 1000.0f);
     noise_gen.terrain_selector.SetEdgeFalloff(0.125);
 
+    noise_gen.final_terrain.SetSeed(rand_eng());
     noise_gen.final_terrain.SetSourceModule(0, noise_gen.terrain_selector);
     noise_gen.final_terrain.SetFrequency(4.0);
     noise_gen.final_terrain.SetPower(0.125);
 
     noise_gen.heightmap_builder.SetDestNoiseMap(noise_gen.heightmap);
     noise_gen.heightmap_builder.SetSourceModule(noise_gen.final_terrain);
-    noise_gen.heightmap_builder.SetDestSize(params.size, params.size);
-    const float terrain_scale = static_cast<float>(params.size) / WORLD_SIZE;
+    noise_gen.heightmap_builder.SetDestSize(slab_size, slab_size);
+    const float terrain_scale = static_cast<float>(slab_size) / WORLD_SIZE;
     noise_gen.heightmap_builder.SetBounds(bounds.min.x * terrain_scale,
                                           bounds.max.x * terrain_scale,
                                           bounds.min.y * terrain_scale,
                                           bounds.max.y * terrain_scale);
-    // noise_gen.heightmap_builder.EnableSeamless();
     noise_gen.heightmap_builder.Build();
-
     assert(heightmap.size() == params.size * params.size);
 
     //
     // libnoise image pixels are laid in memory bottom to top while Vulkan textures
     // are top to bottom
-    for (size_t z = 0; z < params.size; ++z) {
-        const float* slab_ptr = noise_gen.heightmap.GetConstSlabPtr(static_cast<int32_t>(params.size - z - 1));
-        memcpy(heightmap.subspan(z * params.size).data(), slab_ptr, params.size * sizeof(float));
+    for (size_t z = 0; z < slab_size; ++z) {
+        const float* slab_ptr = noise_gen.heightmap.GetConstSlabPtr(static_cast<int32_t>(slab_size - z - 1));
+        memcpy(heightmap.subspan(z * slab_size).data(), slab_ptr, slab_size * sizeof(float));
     }
 
     utils::Image height_map_image;
@@ -300,9 +310,9 @@ make_terrain_heightmap_colormap(const xray::rendering::TerrainParams& params,
     assert(colormap.size() == params.size * params.size);
     //
     // libnoise data is laid out bottom to top in memory
-    for (size_t z = 0; z < params.size; ++z) {
-        const utils::Color* slab_ptr = height_map_image.GetConstSlabPtr(static_cast<int32_t>(params.size - z - 1));
-        memcpy(colormap.subspan(z * params.size).data(), slab_ptr, params.size * sizeof(*slab_ptr));
+    for (size_t z = 0; z < slab_size; ++z) {
+        const utils::Color* slab_ptr = height_map_image.GetConstSlabPtr(static_cast<int32_t>(slab_size - z - 1));
+        memcpy(colormap.subspan(z * slab_size).data(), slab_ptr, slab_size * sizeof(*slab_ptr));
     }
 }
 
