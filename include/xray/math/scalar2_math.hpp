@@ -44,7 +44,7 @@ namespace math {
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline scalar2<T>&
+inline constexpr scalar2<T>&
 scalar2<T>::operator+=(const scalar2<T>& rhs) noexcept
 {
     x += rhs.x;
@@ -54,7 +54,7 @@ scalar2<T>::operator+=(const scalar2<T>& rhs) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline scalar2<T>&
+inline constexpr scalar2<T>&
 scalar2<T>::operator-=(const class_type& rhs) noexcept
 {
     x -= rhs.x;
@@ -64,7 +64,7 @@ scalar2<T>::operator-=(const class_type& rhs) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline scalar2<T>&
+inline constexpr scalar2<T>&
 scalar2<T>::operator*=(const T scalar) noexcept
 {
     x *= scalar;
@@ -74,7 +74,7 @@ scalar2<T>::operator*=(const T scalar) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline scalar2<T>&
+inline constexpr scalar2<T>&
 scalar2<T>::operator/=(const T scalar) noexcept
 {
     x /= scalar;
@@ -116,7 +116,7 @@ operator!=(const scalar2<T>& a, const scalar2<T>& b) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 operator-(const scalar2<T>& a) noexcept
 {
     return scalar2<T>{ -a.x, -a.y };
@@ -124,7 +124,7 @@ operator-(const scalar2<T>& a) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 operator*(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return scalar2<T>{ a.x * b.x, a.y * b.y };
@@ -132,7 +132,7 @@ operator*(const scalar2<T>& a, const scalar2<T>& b) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 operator*(const scalar2<T>& a, const T b) noexcept
 {
     return scalar2<T>{ a.x * b, a.y * b };
@@ -140,7 +140,7 @@ operator*(const scalar2<T>& a, const T b) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 operator*(const T a, const scalar2<T>& b) noexcept
 {
     return b * a;
@@ -148,7 +148,7 @@ operator*(const T a, const scalar2<T>& b) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 operator/(const scalar2<T>& a, const T b) noexcept
 {
     return scalar2<T>{ a.x / b, a.y / b };
@@ -156,7 +156,7 @@ operator/(const scalar2<T>& a, const T b) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 operator+(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return scalar2<T>{ a.x + b.x, a.y + b.y };
@@ -164,7 +164,7 @@ operator+(const scalar2<T>& a, const scalar2<T>& b) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 operator-(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return scalar2<T>{ a.x - b.x, a.y - b.y };
@@ -173,7 +173,7 @@ operator-(const scalar2<T>& a, const scalar2<T>& b) noexcept
 /// \brief Returns the square of the length of the input vector.
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 length_squared(const scalar2<T>& a) noexcept
 {
     return a.x * a.x + a.y * a.y;
@@ -191,7 +191,7 @@ length(const scalar2<T>& a) noexcept
 /// \brief Returns the dot product of two vectors.
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 dot(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return a.x * b.x + a.y * b.y;
@@ -199,7 +199,7 @@ dot(const scalar2<T>& a, const scalar2<T>& b) noexcept
 
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline auto
+inline constexpr auto
 dot_dot(const scalar2<T>& a) noexcept
 {
     return length_squared(a);
@@ -222,7 +222,7 @@ normalize(const scalar2<T>& v) noexcept
 /// \brief Returns the projection of a vector on another vector.
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline scalar2<T>
+inline constexpr scalar2<T>
 project(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return (dot(a, b) * b) / (dot_dot(b));
@@ -232,7 +232,7 @@ project(const scalar2<T>& a, const scalar2<T>& b) noexcept
 /// on another vector that is unit length.
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline scalar2<T>
+inline constexpr scalar2<T>
 project_unit(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return dot(a, b) * b;
@@ -241,7 +241,7 @@ project_unit(const scalar2<T>& a, const scalar2<T>& b) noexcept
 /// \brief Test if two vectors are orthogonal.
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline bool
+inline constexpr bool
 are_orthogonal(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return is_zero(dot(a, b));
@@ -259,7 +259,7 @@ angle_of(const scalar2<T>& a, const scalar2<T>& b) noexcept
 /// \brief Returns a vector that is orthogonal to the input vector.
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline scalar2<T>
+inline constexpr scalar2<T>
 perpendicular(const scalar2<T>& v) noexcept
 {
     return { -v.y, v.x };
@@ -269,7 +269,7 @@ perpendicular(const scalar2<T>& v) noexcept
 /// first input vector and the second input vector.
 template<typename T>
     requires std::is_arithmetic_v<T>
-inline T
+inline constexpr T
 perp_product(const scalar2<T>& a, const scalar2<T>& b) noexcept
 {
     return -a.y * b.x + a.x * b.y;

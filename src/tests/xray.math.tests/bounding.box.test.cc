@@ -26,6 +26,16 @@ main(int argc, char** argv)
 
     MemoryArena scratch_arena{ std::span{ SCRATCH_BUFFER } };
 
+    "BoxAA construct from origin + extents"_test = []() {
+        // constexpr const BBoxAA2DI32 box{ OriginWithExtentsTag{}, { -5, 10 }, { 3, 4 } };
+        // boost::ut::expect(box == BBoxAA2DI32{ { -8, 6 }, { -2, 14 } });width
+        constexpr const BBoxAA2DI32 box{ OriginWithExtentsTag{}, { 0, 0 }, { 512 * 2, 512 * 2 } };
+        constexpr const BBoxAA2DI32 box_ur{{256, 256}, {512, 512}};
+        const auto box_c = box ^ box_ur;
+        boost::ut::expect(box_c.has_value());
+        boost::ut::expect(*box_c == box_ur);
+    };
+
     BBoxAA2DI32 box{ vec2i32{ -1, -1 }, vec2i32{ 5, 9 } };
     "BoxAA properties"_test = [box]() {
         boost::ut::expect(box.center() == vec2i32{ 2, 4 });
@@ -51,6 +61,37 @@ main(int argc, char** argv)
         boost::ut::expect(box2.center() == vec2i32{ 0 });
     };
 
+    "BOX intersect"_test = []() {
+        constexpr const BBoxAA2DI32 box_a{ { -2, -6 }, { 4, 8 } };
+        constexpr const BBoxAA2DI32 box_b{ { 1, 2 }, { 6, 10 } };
+        const auto box_c = box_a ^ box_b;
+        boost::ut::expect(box_c.has_value());
+        boost::ut::expect(box_c == tl::optional{ BBoxAA2DI32{ { 1, 2 }, { 4, 8 } } });
+
+        constexpr const BBoxAA2DI32 box_d{ { -5, -5 }, { 0, 3 } };
+        const auto box_e = box_a ^ box_d;
+        boost::ut::expect(box_e.has_value());
+        boost::ut::expect(*box_e == BBoxAA2DI32{ { -2, -5 }, { 0, 3 } });
+    };
+
+    "BOX intersect - box inside box"_test = []() {
+        constexpr const BBoxAA2DI32 box_a{ { -2, -6 }, { 4, 8 } };
+        constexpr const BBoxAA2DI32 box_b{ { -2, 0 }, { 3, 8 } };
+        boost::ut::expect(box_a.contains_box(box_b));
+        const auto box_c = box_a ^ box_b;
+        boost::ut::expect(box_c.has_value());
+        boost::ut::expect(*box_c == box_b);
+
+
+    };
+
+    "BOX intersect - should miss"_test = []() {
+        constexpr const BBoxAA2DI32 box_a{ { -2, -6 }, { 4, 8 } };
+        constexpr const BBoxAA2DI32 box_b{ { -8, -4 }, { -3, 4 } };
+        const auto box_c = box_a ^ box_b;
+        boost::ut::expect(!box_c);
+    };
+
     "QuadTree basic"_test = [&]() {
         constexpr const BBoxAA2DF32 grid{ vec2f32{ -32768.0f }, vec2f32{ 32768.0f } };
 
@@ -64,7 +105,8 @@ main(int argc, char** argv)
         //     qtree.insert(vec2f32{ pos_frames[i] });
         //
         //     std::unordered_set<vec2i32> this_frame_nodes;
-        //     for (const auto& node : qtree.get_nodes() | std::views::filter([](const QuadTreeF32::tree_node_type& node) {
+        //     for (const auto& node : qtree.get_nodes() | std::views::filter([](const QuadTreeF32::tree_node_type&
+        //     node) {
         //                                 return node.bbox.width() <= 256.0f;
         //                             })) {
         //         this_frame_nodes.insert(vec2i32{ node.bbox.center() });
@@ -76,11 +118,13 @@ main(int argc, char** argv)
         //     });
         //
         //     containers::vector<vec2i32> despawned_nodes{ MemoryArenaAllocator<vec2i32>{ scratch_arena } };
-        //     std::ranges::copy_if(prev_frame_nodes, std::back_inserter(despawned_nodes), [&this_frame_nodes](vec2i32 p) {
+        //     std::ranges::copy_if(prev_frame_nodes, std::back_inserter(despawned_nodes), [&this_frame_nodes](vec2i32
+        //     p) {
         //         return !this_frame_nodes.contains(p);
         //     });
         //
-        //     std::ranges::make_heap(despawned_nodes, [O = vec2f32{ pos_frames[i] }](const vec2i32& a, const vec2i32& b) {
+        //     std::ranges::make_heap(despawned_nodes, [O = vec2f32{ pos_frames[i] }](const vec2i32& a, const vec2i32&
+        //     b) {
         //         const float sqdst_a = squared_distance(O, vec2f32{ a });
         //         const float sqdst_b = squared_distance(O, vec2f32{ b });
         //         return sqdst_a < sqdst_b;

@@ -135,10 +135,10 @@ struct scalar2 : public SwizzleBase<T, 2>
     /// \name Member operators
     /// @{
 
-    inline class_type& operator+=(const class_type& rhs) noexcept;
-    inline class_type& operator-=(const class_type& rhs) noexcept;
-    inline class_type& operator*=(const T scalar) noexcept;
-    inline class_type& operator/=(const T scalar) noexcept;
+    inline constexpr class_type& operator+=(const class_type& rhs) noexcept;
+    inline constexpr class_type& operator-=(const class_type& rhs) noexcept;
+    inline constexpr class_type& operator*=(const T scalar) noexcept;
+    inline constexpr class_type& operator/=(const T scalar) noexcept;
 
     /// @}
 
@@ -153,7 +153,8 @@ struct scalar2 : public SwizzleBase<T, 2>
 };
 
 template<typename T>
-struct Rank<scalar2<T>> {
+struct Rank<scalar2<T>>
+{
     static constexpr const size_t R = 2;
 };
 

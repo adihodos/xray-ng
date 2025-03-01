@@ -36,6 +36,7 @@
 #include <span>
 #include <optional>
 
+#include "xray/base/logger.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/math/math_std.hpp"
@@ -62,7 +63,6 @@ struct QuadTreeNode
 ///
 /// based on this
 /// https://lisyarus.github.io/blog/posts/building-a-quadtree.html
-
 template<typename PointType>
     requires Point<PointType> && requires { Rank<PointType>::R == 2; }
 struct QuadTree
@@ -71,28 +71,17 @@ struct QuadTree
     using value_type = typename PointType::value_type;
     using bbox_type = BBoxAA2D<value_type>;
 
-    static constexpr const value_type MIN_SQUARED_DST{ value_type{ 512 } * value_type{ 512 } };
-
-    value_type min_node_size_squared{ 1024 };
-    value_type max_visiblity_distance_squared{ 1024 };
+    value_type min_node_size{ 256 };
     std::optional<uint32_t> root;
     xray::base::containers::vector<tree_node_type> nodes;
 
-    QuadTree(base::MemoryArena& arena,
-             const bbox_type& bounds,
-             const value_type min_dst_to_child,
-             const value_type maximum_visible_distance)
-        : QuadTree{ arena, bounds.min, bounds.max, min_dst_to_child, maximum_visible_distance }
+    QuadTree(base::MemoryArena& arena, const bbox_type& bounds, const value_type min_dst_to_child)
+        : QuadTree{ arena, bounds.min, bounds.max, min_dst_to_child }
     {
     }
 
-    QuadTree(base::MemoryArena& arena,
-             const PointType& minp,
-             const PointType& maxp,
-             const value_type minimum_node_size,
-             const value_type maximum_visible_distance)
-        : min_node_size_squared{ minimum_node_size * minimum_node_size }
-        , max_visiblity_distance_squared{ maximum_visible_distance * maximum_visible_distance }
+    QuadTree(base::MemoryArena& arena, const PointType& minp, const PointType& maxp, const value_type minimum_node_size)
+        : min_node_size{ minimum_node_size }
         , root{ 0 }
         , nodes{ base::MemoryArenaAllocator<tree_node_type>{ arena } }
     {
@@ -111,12 +100,21 @@ struct QuadTree
         return squared_distance(nodes[child].bbox.center(), pos);
     }
 
-    void insert_impl(uint32_t node_id, const PointType pos)
+    template<typename SplitStrategyFN, typename Projection>
+    void insert_impl(uint32_t node_id, const PointType pos, SplitStrategyFN&& split_strategy_fn, Projection&& proj)
     {
-        const value_type squared_distance_to_node = squared_distance_point_to_node(node_id, pos);
-        const value_type squared_node_width = nodes[node_id].bbox.width() * nodes[node_id].bbox.width();
+        const value_type node_width = nodes[node_id].bbox.width();
+        const bool range_check = split_strategy_fn(nodes[node_id]);
+        const bool split_node = range_check && (node_width > min_node_size);
 
-        if (squared_distance_to_node < max_visiblity_distance_squared && squared_node_width > min_node_size_squared) {
+        if (range_check && !(node_width > min_node_size)) {
+            XR_LOG_INFO("Node {} @ {} x {}", node_id, nodes[node_id].bbox.min, nodes[node_id].bbox.max);
+            proj(nodes[node_id]);
+        }
+
+        // XR_LOG_INFO("Node {} @ {}, split {}, width {}", node_id, nodes[node_id].bbox.center(), split_node, node_width);
+
+        if (split_node) {
             const PointType center = nodes[node_id].bbox.center();
 
             //
@@ -148,12 +146,19 @@ struct QuadTree
             }
 
             for (size_t i = 0; i < 4; ++i) {
-                insert_impl(*nodes[node_id].links[i], pos);
+                insert_impl(*nodes[node_id].links[i],
+                            pos,
+                            std::forward<SplitStrategyFN>(split_strategy_fn),
+                            std::forward<Projection>(proj));
             }
         }
     }
 
-    void insert(const PointType pos) { insert_impl(*root, pos); }
+    template<typename SplitStrategyFN, typename Projection>
+    void insert(const PointType pos, SplitStrategyFN&& split_strategy_fn, Projection&& proj)
+    {
+        insert_impl(*root, pos, std::forward<SplitStrategyFN>(split_strategy_fn), std::forward<Projection>(proj));
+    }
 
     const tree_node_type& get_node(uint32_t id) const noexcept
     {

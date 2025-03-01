@@ -31,6 +31,7 @@
 #include <initializer_list>
 #include <limits>
 #include <ranges>
+#include <tl/optional.hpp>
 
 #include "xray/math/math_std.hpp"
 #include "xray/math/rank.hpp"
@@ -41,6 +42,9 @@ namespace math {
 
 /// \addtogroup __GroupXrayMath_Geometry
 /// @{
+
+struct OriginWithExtentsTag
+{};
 
 template<typename PointType>
     requires Point<PointType>
@@ -61,11 +65,14 @@ struct BoundingBoxAxisAligned
     {
     }
 
+    constexpr BoundingBoxAxisAligned(OriginWithExtentsTag, PointType origin, PointType half_extents) noexcept
+        : BoundingBoxAxisAligned{ origin - half_extents, origin + half_extents }
+    {
+    }
+
     template<std::ranges::forward_range PointsRange>
         requires std::is_same_v<std::ranges::range_value_t<PointsRange>, PointType>
     constexpr BoundingBoxAxisAligned(PointsRange&& pts) noexcept;
-
-    // constexpr BoundingBoxAxisAligned(std::initializer_list<PointType> points_coll) noexcept;
 
     PointType center() const noexcept { return (max + min) / value_type{ 2 }; }
     value_type width() const noexcept { return std::abs(max.x - min.x); }
@@ -122,6 +129,34 @@ struct BoundingBoxAxisAligned
 
     constexpr bool operator!=(const BoundingBoxAxisAligned<PointType>& rhs) const noexcept { return !(*this == rhs); }
 
+    constexpr bool contains_point(const PointType p) const noexcept
+    {
+        if (p.x < min.x || p.x > max.x)
+            return false;
+
+        if (p.y < min.y || p.y > max.y)
+            return false;
+
+        if constexpr (class_type::R == 3) {
+            if (p.z < min.z || p.z > max.z)
+                return false;
+        }
+
+        return true;
+    }
+
+    constexpr bool contains_box(const BoundingBoxAxisAligned<PointType>& rhs) const noexcept
+    {
+        if constexpr (class_type::R == 2) {
+            return rhs.min.x >= min.x && rhs.min.x <= max.x && rhs.max.x >= min.x && rhs.max.x <= max.x &&
+                   rhs.min.y >= min.y && rhs.min.y <= max.y && rhs.max.y >= min.y && rhs.max.y <= max.y;
+        } else {
+            return rhs.min.x >= min.x && rhs.min.x <= max.x && rhs.max.x >= min.x && rhs.max.x <= max.x &&
+                   rhs.min.y >= min.y && rhs.min.y <= max.y && rhs.max.y >= min.y && rhs.max.y <= max.y &&
+                   rhs.min.z >= min.z && rhs.min.z <= max.z && rhs.max.z >= min.z && rhs.max.z <= max.z;
+        }
+    }
+
     struct stdc;
 };
 
@@ -151,6 +186,30 @@ constexpr BoundingBoxAxisAligned<PointType>::BoundingBoxAxisAligned(PointsRange&
         this->min = math::min(this->min, point);
         this->max = math::max(this->max, point);
     }
+}
+
+template<typename PointType>
+    requires Point<PointType>
+tl::optional<BoundingBoxAxisAligned<PointType>>
+operator^(const BoundingBoxAxisAligned<PointType>& lhs, const BoundingBoxAxisAligned<PointType>& rhs) noexcept
+{
+    using value_type = typename BoundingBoxAxisAligned<PointType>::value_type;
+
+    const value_type min_x = math::max(lhs.min.x, rhs.min.x);
+    const value_type max_x = math::min(lhs.max.x, rhs.max.x);
+
+    if (min_x >= max_x) {
+        return tl::nullopt;
+    }
+
+    const value_type min_y = math::max(lhs.min.y, rhs.min.y);
+    const value_type max_y = math::min(lhs.max.y, rhs.max.y);
+
+    if (min_y >= max_y) {
+        return tl::nullopt;
+    }
+
+    return BoundingBoxAxisAligned<PointType>{ PointType{ min_x, min_y }, PointType{ max_x, max_y } };
 }
 
 // template<typename PointType>
