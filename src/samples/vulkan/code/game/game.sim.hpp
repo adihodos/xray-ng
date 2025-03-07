@@ -26,10 +26,14 @@
 #include "xray/ui/events.gamepad.hpp"
 #include "xray/ui/key_sym.hpp"
 
+#include "flight.cam.hpp"
+
 namespace xray::ui {
 class user_interface;
 struct GamepadAxisEvent;
 struct GamepadButtonEvent;
+struct mouse_button_event;
+struct mouse_motion_event;
 };
 
 namespace xray::scene {
@@ -56,6 +60,7 @@ struct Starfury
     uint32_t entity{};
     uint32_t geometry{};
     JPH::BodyID phys_body_id{};
+    JPH::Body* phys_body{};
 };
 
 struct GameWorldState
@@ -94,6 +99,9 @@ class GameSimulation
     void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
     void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
     void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
+    void handle_mouse_button_event(const xray::ui::mouse_button_event& mbe);
+    void handle_mouse_motion_event(const xray::ui::mouse_motion_event& mme);
+
     void process_gamepad_state();
     void process_keyboard_state();
 
@@ -109,6 +117,7 @@ class GameSimulation
             1000.0f,
         };
         std::bitset<8> lights_sync{ 0 };
+        FlightCamera flightcam;
 
         SimState() = default;
         SimState(const InitContext& init_context);
@@ -175,7 +184,12 @@ class GameSimulation
             { xray::ui::KeySymbol::right, KeyStateData{ xray::math::vec3f::stdc::unit_y, ForceType::Torque } },
         };
 
-        explicit InputStateTracker(xray::base::MemoryArena* arena, std::span<const xray::ui::GamepadAxisInfo> ai);
+        xray::math::vec2f32 screen_size_inv;
+        tl::optional<xray::math::vec2f32> last_mouse_down{};
+
+        InputStateTracker(xray::base::MemoryArena* arena,
+                          std::span<const xray::ui::GamepadAxisInfo> ai,
+                          xray::math::vec2f32 scr_size);
 
     } _inputstate;
 

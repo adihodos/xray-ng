@@ -10,6 +10,7 @@
 #include "xray/math/scalar2.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/window_x11.hpp"
+#include "xray/ui/events.pretty.print.hpp"
 #include "xray/base/fnv_hash.hpp"
 
 #include <X11/XKBlib.h>
@@ -660,10 +661,8 @@ PlatformGamepad::make_window_event(const input_event& evt) noexcept
                 return axismapping.native == axis;
             });
 
-        if (itr_translated != ranges::cend(PlatformGamepad::AXIS_MAPPING)
-            // &&
-            //           std::abs(evt.value) > _axis_info[static_cast<size_t>(itr_translated->translated)].deadzone
-        ) {
+        if (itr_translated != ranges::cend(PlatformGamepad::AXIS_MAPPING)) {
+            // XR_LOG_INFO("[[gamepad event]] {}", itr_translated->translated);
             window_event win_event;
             win_event.type = event_type::gamepad_axis;
             win_event.event.gamepad_axis = GamepadAxisEvent{
@@ -1261,14 +1260,6 @@ xray::ui::window::message_loop()
                             const XkbEvent* xkb_evt = reinterpret_cast<const XkbEvent*>(&window_event);
                             if (xkb_evt->any.xkb_type == XkbStateNotify) {
 
-                                // XR_LOG_INFO("XkbStateNotify: mods {:0x} base mods: {:0x} latched mods {:0x}
-                                // locked mods
-                                // {:0x}",
-                                //             xkb_evt->state.mods,
-                                //             xkb_evt->state.base_mods,
-                                //             xkb_evt->state.latched_mods,
-                                //             xkb_evt->state.locked_mods);
-
                                 auto get_xkb_mod_mask_fn = [xi = &_input_helper](const uint32_t in) {
                                     uint32_t ret = 0;
                                     if ((in & ShiftMask) && xi->mod_index.shift_mod != XKB_MOD_INVALID)
@@ -1423,9 +1414,11 @@ xray::ui::window::event_mouse_button(const XButtonEvent* x11evt)
     };
 
     {
-        static constexpr x11_button_mapping REGULAR_BUTTON_MAPPINGS[] = { { Button1, mouse_button::button1 },
-                                                                          { Button2, mouse_button::button2 },
-                                                                          { Button3, mouse_button::button3 } };
+        static constexpr x11_button_mapping REGULAR_BUTTON_MAPPINGS[] = {
+            { Button1, mouse_button::button1 },
+            { Button2, mouse_button::button2 },
+            { Button3, mouse_button::button3 },
+        };
 
         auto mapped_button =
             find_if(begin(REGULAR_BUTTON_MAPPINGS),

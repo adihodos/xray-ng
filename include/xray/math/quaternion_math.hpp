@@ -33,6 +33,8 @@
 #include "xray/math/math_base.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/quaternion.hpp"
+#include "xray/math/scalar2.hpp"
+#include "xray/math/scalar2_math.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/xray.hpp"
@@ -148,7 +150,7 @@ normalize(const quaternion<real_type>& q) noexcept
         return quaternion<real_type>::stdc::identity;
     }
 
-    const real_type scale_factor = real_type{1} / len_sq;
+    const real_type scale_factor = real_type{ 1 } / len_sq;
     return { q.w * scale_factor, q.x * scale_factor, q.y * scale_factor, q.z * scale_factor };
 }
 
@@ -267,6 +269,21 @@ inline bool
 is_identity(const quaternion<real_type>& q) noexcept
 {
     return is_equal(real_type(1), q.w) && is_zero(q.x * q.x + q.y * q.y + q.z * q.z);
+}
+
+template<typename RealType>
+    requires std::is_floating_point_v<RealType>
+quaternion<RealType>
+screen_to_arcball(const scalar2<RealType> p) noexcept
+{
+    const float distance = dot(p, p);
+
+    if (distance <= 1.0f) {
+        return normalize(math::quatf{ 0.0f, p.x, p.y, std::sqrt(1.0f - distance) });
+    } else {
+        const vec2f unit_p = normalize(p);
+        return normalize(math::quatf{ 0.0f, unit_p.x, unit_p.y, 0.0f });
+    }
 }
 
 /// @}

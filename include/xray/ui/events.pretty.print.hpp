@@ -31,7 +31,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include "xray/ui/events.hpp"
-// #include "xray/ui/events.gamepad.hpp"
+#include "xray/ui/events.gamepad.hpp"
 
 namespace xray::ui {
 enum class GamepadAxis : uint8_t;
@@ -58,6 +58,12 @@ template<>
 struct formatter<xray::ui::GamepadButton> : formatter<fmt::string_view>
 {
     auto format(const xray::ui::GamepadButton value, format_context& ctx) const -> format_context::iterator;
+};
+
+template<>
+struct formatter<xray::ui::event_action_type> : formatter<fmt::string_view>
+{
+    auto format(const xray::ui::event_action_type value, format_context& ctx) const -> format_context::iterator;
 };
 
 } // namespace fmt

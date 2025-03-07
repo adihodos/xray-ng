@@ -108,11 +108,9 @@ struct QuadTree
         const bool split_node = range_check && (node_width > min_node_size);
 
         if (range_check && !(node_width > min_node_size)) {
-            XR_LOG_INFO("Node {} @ {} x {}", node_id, nodes[node_id].bbox.min, nodes[node_id].bbox.max);
+            // XR_LOG_INFO("Node {} @ {} x {}", node_id, nodes[node_id].bbox.min, nodes[node_id].bbox.max);
             proj(nodes[node_id]);
         }
-
-        // XR_LOG_INFO("Node {} @ {}, split {}, width {}", node_id, nodes[node_id].bbox.center(), split_node, node_width);
 
         if (split_node) {
             const PointType center = nodes[node_id].bbox.center();

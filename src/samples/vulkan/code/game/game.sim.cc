@@ -22,6 +22,7 @@
 #include <Jolt/Math/Vec3.h>
 #include <Jolt/Math/Real.h>
 
+#include "xray/base/app_config.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/xray.fmt.hpp"
@@ -39,6 +40,8 @@
 #include "xray/ui/events.gamepad.hpp"
 #include "xray/ui/events.pretty.print.hpp"
 #include "init_context.hpp"
+#include "xray/math/scalar2.hpp"
+#include "xray/math/scalar2_math.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/math/constants.hpp"
@@ -46,6 +49,7 @@
 #include "xray/math/math.units.hpp"
 #include "xray/math/quaternion.hpp"
 #include "xray/math/quaternion_math.hpp"
+#include "xray/math/scalar2_string_cast.hpp"
 #include "xray/math/scalar3_string_cast.hpp"
 #include "xray/math/transforms_r4.hpp"
 #include "xray/math/objects/aabb3_math.hpp"
@@ -65,6 +69,9 @@ using namespace xray::scene;
 
 B5::GameSimulation::SimState::SimState(const InitContext& init_context)
     : arcball_cam{ xray::math::vec3f::stdc::zero, 1.0f, { init_context.surface_width, init_context.surface_height } }
+    , flightcam{
+        .params = FlightCameraParams::from_file(init_context.config_sys->config_path("flight.camera.params.conf")),
+    }
 {
     const auto perspective_projection = perspective_symmetric(static_cast<float>(init_context.surface_width) /
                                                                   static_cast<float>(init_context.surface_height),
@@ -75,12 +82,17 @@ B5::GameSimulation::SimState::SimState(const InitContext& init_context)
 }
 
 B5::GameSimulation::InputStateTracker::InputStateTracker(xray::base::MemoryArena* arena,
-                                                         std::span<const xray::ui::GamepadAxisInfo> ai)
+                                                         std::span<const xray::ui::GamepadAxisInfo> ai,
+                                                         const vec2f32 scr_size)
     : last_axis_events{ *arena }
     , axis_info{ ai.begin(), ai.end(), *arena }
+    , screen_size_inv{ scr_size }
 {
-    last_axis_events.resize(rfl::get_underlying_enumerator_array<xray::ui::GamepadAxis>().size(),
-                            xray::ui::GamepadAxisEvent{ .timestamp = 0 });
+    last_axis_events.reserve(rfl::get_underlying_enumerator_array<xray::ui::GamepadAxis>().size());
+    for (const auto [e_name, e_value] : rfl::get_enumerator_array<xray::ui::GamepadAxis>()) {
+        last_axis_events.push_back(GamepadAxisEvent{ .axis = e_value, .i32 = 0, .f32 = 0.0f, .timestamp = 0 });
+    }
+
     assert(last_axis_events.size() >= axis_info.size());
 }
 
@@ -97,7 +109,14 @@ B5::GameSimulation::GameSimulation(PrivateConstructionToken,
     , _world{ _arena_perm }
     , _terrain{ xray::base::make_unique<Terrain>(_arena_perm, std::move(terrain)) }
     , _ui{ init_context.ui }
-    , _inputstate{ &_arena_perm, init_context.win->gamepad_axis_info() }
+    , _inputstate{
+        &_arena_perm,
+        init_context.win->gamepad_axis_info(),
+        vec2f32{
+            1.0f / static_cast<float>(init_context.surface_width),
+            1.0f / static_cast<float>(init_context.surface_height),
+        },
+    }
 {
     _timer.start();
 
@@ -150,6 +169,7 @@ B5::GameSimulation::GameSimulation(PrivateConstructionToken,
     JPH::Body* body = body_ifc->CreateBody(body_settings);
     assert(body != nullptr);
     _world.ent_player.phys_body_id = body->GetID();
+    _world.ent_player.phys_body = body;
     body_ifc->AddBody(_world.ent_player.phys_body_id, EActivation::Activate);
 }
 
@@ -191,6 +211,7 @@ void
 B5::GameSimulation::handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e)
 {
     assert(static_cast<size_t>(e.axis) < _inputstate.last_axis_events.size());
+    // XR_LOG_INFO("Gamepad axis {}, {}, {}", e.axis, e.i32, e.f32);
     _inputstate.last_axis_events[static_cast<size_t>(e.axis)] = e;
 }
 
@@ -198,6 +219,49 @@ void
 B5::GameSimulation::handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e)
 {
     XR_LOG_INFO("Button event {}, {}", e.button, e.i32);
+}
+
+void
+B5::GameSimulation::handle_mouse_button_event(const xray::ui::mouse_button_event& mbe)
+{
+
+    if (mbe.type == event_action_type::press) {
+        if (mbe.button == mouse_button::button3) {
+            // XR_LOG_INFO("Mouse button {}, type {}, pos @ {}x{}", mbe.button, mbe.type, mbe.pointer_x, mbe.pointer_y);
+            _inputstate.last_mouse_down = vec2f32{ mbe.pointer_x, mbe.pointer_y };
+        }
+    } else {
+        if (mbe.button == mouse_button::button3) {
+            _inputstate.last_mouse_down = {};
+            _simstate.flightcam.look_input = vec2f32{ 0 };
+        }
+    }
+}
+
+void
+B5::GameSimulation::handle_mouse_motion_event(const xray::ui::mouse_motion_event& mme)
+{
+    if (_inputstate.last_mouse_down) {
+        const vec2f32 mouse_pos{ mme.pointer_x, mme.pointer_y };
+
+        const vec2f32 initial_input = vec2f{
+            xray::math::clamp(
+                _inputstate.last_mouse_down->x * 2.0f * _inputstate.screen_size_inv.x - 1.0f, -1.0f, 1.0f),
+            xray::math::clamp(
+                1.0f - 2.0f * _inputstate.last_mouse_down->y * _inputstate.screen_size_inv.y, -1.0f, 1.0f),
+        };
+
+        const vec2f32 current_input = vec2f{
+            xray::math::clamp(mouse_pos.x * 2.0f * _inputstate.screen_size_inv.x - 1.0f, -1.0f, 1.0f),
+            xray::math::clamp(1.0f - 2.0f * mouse_pos.y * _inputstate.screen_size_inv.y, -1.0f, 1.0f),
+        };
+
+        const vec2f32 delta_input = current_input - initial_input;
+        // XR_LOG_INFO("mouse motion {}, delta {}", mouse_pos, delta_input);
+
+        _simstate.flightcam.look_input = delta_input;
+        // XR_LOG_INFO("Input {}", _simstate.flightcam.look_input);
+    }
 }
 
 void
@@ -218,6 +282,20 @@ B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
             _ui->input_event(evt);
         }
 
+        if (_uistate.use_arcball_cam) {
+            _simstate.arcball_cam.input_event(evt);
+        }
+
+        if (evt.type == event_type::mouse_button) {
+            handle_mouse_button_event(evt.event.button);
+            return;
+        }
+
+        if (evt.type == event_type::mouse_motion) {
+            handle_mouse_motion_event(evt.event.motion);
+            return;
+        }
+
         const bool is_key_press_event = evt.type == event_type::key && evt.event.key.type == event_action_type::press;
         if (is_key_press_event && evt.event.key.keycode == KeySymbol::f10) {
             _uistate.ui_opened = !_uistate.ui_opened;
@@ -227,10 +305,6 @@ B5::GameSimulation::event_handler(const xray::ui::window_event& evt)
         if (!_ui->wants_input() && evt.type == event_type::key) {
             _inputstate.keyboard[static_cast<size_t>(evt.event.key.keycode)] =
                 evt.event.key.type == event_action_type::press;
-        }
-
-        if (_uistate.use_arcball_cam) {
-            _simstate.arcball_cam.input_event(evt);
         }
 
         return;
@@ -259,6 +333,17 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
 
     if (ImGui::Begin("Demo options")) {
         _terrain->user_interface(ui, re);
+
+        if (ImGui::CollapsingHeader("::: Ship :::", ImGuiTreeNodeFlags_DefaultOpen)) {
+            const JPH::Vec3 com_pos = _world.ent_player.phys_body->GetCenterOfMassPosition();
+            const JPH::Vec3 pos = _world.ent_player.phys_body->GetPosition();
+
+            format_to_n(scratch_buff, "COM Pos: ({},{},{})", com_pos.GetX(), com_pos.GetY(), com_pos.GetZ());
+            ImGui::TextColored({ 0.0f, 1.0f, 0.0f, 1.0f }, "%s", scratch_buff);
+
+            format_to_n(scratch_buff, "Pos: ({},{},{})", pos.GetX(), pos.GetY(), pos.GetZ());
+            ImGui::TextColored({ 0.0f, 1.0f, 0.0f, 1.0f }, "%s", scratch_buff);
+        }
 
         if (ImGui::CollapsingHeader("::: Gamepad axis state :::")) {
             for (const GamepadAxisEvent& e : _inputstate.last_axis_events) {
@@ -379,19 +464,21 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 
     ScratchPadArena scratch_pad{ &_arena_temp };
 
-    JPH::BodyInterface* bdi = &_physics->sim()->GetBodyInterface();
-    const JPH::Mat44 player_tf = bdi->GetCenterOfMassTransform(_world.ent_player.phys_body_id);
-
     if (_uistate.use_arcball_cam) {
         _simstate.arcball_cam.set_zoom_speed(4.0f * render_event.delta * 1.0e-3f);
         _simstate.arcball_cam.update_camera(_simstate.camera);
     } else {
-        mat4f rotation;
-        player_tf.GetRotation().Transposed().StoreFloat4x4(reinterpret_cast<JPH::Float4*>(&rotation.components));
-        vec3f translation;
-        player_tf.GetTranslation().StoreFloat3(reinterpret_cast<JPH::Float3*>(&translation.components));
-        _simstate.flight_cam.update(rotation, translation);
-        _simstate.camera.set_view_matrix(_simstate.flight_cam.view_matrix, _simstate.flight_cam.inverse_of_view_matrix);
+        // mat4f rotation;
+        // player_tf.GetRotation().Transposed().StoreFloat4x4(reinterpret_cast<JPH::Float4*>(&rotation.components));
+        // vec3f translation;
+        // player_tf.GetTranslation().StoreFloat3(reinterpret_cast<JPH::Float3*>(&translation.components));
+        // _simstate.flight_cam.update(rotation, translation);
+        // _simstate.camera.set_view_matrix(_simstate.flight_cam.view_matrix,
+        // _simstate.flight_cam.inverse_of_view_matrix);
+
+        // JPH::BodyInterface* bdi = &_physics->sim()->GetBodyInterface();
+        const MatrixWithInvertedMatrixPair4f view_transform = _simstate.flightcam.update(*_world.ent_player.phys_body);
+        _simstate.camera.set_view_matrix(view_transform);
     }
 
     //
@@ -781,6 +868,23 @@ B5::GameSimulation::process_gamepad_state()
     const FlightModel fm{};
     const JPH::BodyID ship_body = _world.ent_player.phys_body_id;
 
+    if (!_inputstate.axis_info.empty() && !_inputstate.last_mouse_down) {
+        vec2f32 input_vec{ 0 };
+
+        for (const auto [idx, axis] : { std::tuple{ 0, GamepadAxis::RightX }, std::tuple{ 1, GamepadAxis::RightY } }) {
+            const GamepadAxisEvent& axis_event = _inputstate.last_axis_events[static_cast<size_t>(axis)];
+            const GamepadAxisInfo& axis_info = _inputstate.axis_info[static_cast<size_t>(axis)];
+
+            if (std::abs(axis_event.i32) <= axis_info.deadzone) {
+                continue;
+            }
+
+            input_vec[idx] = axis_event.f32;
+        }
+
+        _simstate.flightcam.look_input = input_vec;
+    }
+
     lz::chain(lz::zip(_inputstate.last_axis_events, _inputstate.axis_info))
         .forEach([this, ship_body, &fm](const std::tuple<GamepadAxisEvent, GamepadAxisInfo>& evt_bundle) {
             const auto& [axis_event, axis_info] = evt_bundle;
@@ -794,23 +898,25 @@ B5::GameSimulation::process_gamepad_state()
 
             switch (axis_event.axis) {
                 case GamepadAxis::LeftX:
+                    // XR_LOG_INFO("LeftX");
                     applied_force = tuple{ axis_event.i32, JPH::Vec3::sAxisX() };
                     break;
 
                 case GamepadAxis::LeftY:
+                    // XR_LOG_INFO("LeftY");
                     applied_force = tuple{ -axis_event.i32, JPH::Vec3::sAxisZ() };
                     break;
 
                 case GamepadAxis::RightX:
                     //
                     // pitch
-                    applied_torque = tuple{ axis_event.i32, JPH::Vec3::sAxisZ() };
+                    // applied_torque = tuple{ axis_event.i32, JPH::Vec3::sAxisZ() };
                     break;
 
                 case GamepadAxis::RightY:
                     //
                     // roll
-                    applied_torque = tuple{ axis_event.i32, JPH::Vec3::sAxisX() };
+                    // applied_torque = tuple{ axis_event.i32, JPH::Vec3::sAxisX() };
                     break;
 
                 case GamepadAxis::LeftZ:

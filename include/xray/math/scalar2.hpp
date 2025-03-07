@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <type_traits>
 
@@ -139,6 +140,18 @@ struct scalar2 : public SwizzleBase<T, 2>
     inline constexpr class_type& operator-=(const class_type& rhs) noexcept;
     inline constexpr class_type& operator*=(const T scalar) noexcept;
     inline constexpr class_type& operator/=(const T scalar) noexcept;
+
+    constexpr value_type& operator[](const size_t idx) noexcept
+    {
+        assert(idx < 2);
+        return this->components[idx];
+    }
+
+    constexpr value_type operator[](const size_t idx) const noexcept
+    {
+        assert(idx < 2);
+        return this->components[idx];
+    }
 
     /// @}
 

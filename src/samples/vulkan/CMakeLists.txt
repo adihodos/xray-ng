@@ -15,6 +15,8 @@ set(project_sources
     ${proj_src_dir}/system.physics.cc
     ${proj_src_dir}/system.physics.debug.renderer.hpp
     ${proj_src_dir}/system.physics.debug.renderer.cc
+    ${proj_src_dir}/flight.cam.hpp
+    ${proj_src_dir}/flight.cam.cc
     ${proj_src_dir}/terrain.hpp
     ${proj_src_dir}/terrain.cc)
 
