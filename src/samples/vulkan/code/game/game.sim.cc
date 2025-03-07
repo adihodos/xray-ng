@@ -229,10 +229,12 @@ B5::GameSimulation::handle_mouse_button_event(const xray::ui::mouse_button_event
         if (mbe.button == mouse_button::button3) {
             // XR_LOG_INFO("Mouse button {}, type {}, pos @ {}x{}", mbe.button, mbe.type, mbe.pointer_x, mbe.pointer_y);
             _inputstate.last_mouse_down = vec2f32{ mbe.pointer_x, mbe.pointer_y };
+            _simstate.flightcam.pivot_mode = true;
         }
     } else {
         if (mbe.button == mouse_button::button3) {
             _inputstate.last_mouse_down = {};
+            _simstate.flightcam.pivot_mode = false;
             _simstate.flightcam.look_input = vec2f32{ 0 };
         }
     }
