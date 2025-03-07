@@ -37,7 +37,7 @@ struct Reader
         if (s) {
             return s;
         }
-        return make_config_error("Field @ {} not found", _idx);
+        return rfl::error(make_config_error("Field @ {} not found", _idx));
     }
 
     /// Retrieves a particular field from an object.
@@ -50,7 +50,7 @@ struct Reader
         if (s)
             return s;
         else
-            return make_config_error("Field @ {} not found", _name);
+            return rfl::error(make_config_error("Field @ {} not found", _name));
     }
 
     /// Determines whether a variable is empty (the NULL type).
@@ -66,7 +66,7 @@ struct Reader
         using ValType = std::remove_cvref_t<T>;
         if constexpr (std::is_same_v<T, std::string>) {
             const char* s = config_setting_get_string(_var);
-            return s ? rfl::Result<T>{ std::string{ s } } : make_config_error("variable is not a string");
+            return s ? rfl::Result<T>{ std::string{ s } } : rfl::error("variable is not a string");
         } else if constexpr (std::is_same_v<T, bool>) {
             return config_setting_get_bool(_var) != 0;
         } else if constexpr (std::is_floating_point_v<T>) {
@@ -85,7 +85,7 @@ struct Reader
         if (config_setting_is_list(_var))
             return _var;
         else
-            return rfl::Error("Variable is not an array");
+            return rfl::error("Variable is not an array");
     }
 
     /// Casts _var as an InputObjectType.
@@ -94,7 +94,7 @@ struct Reader
     {
         if (config_setting_is_group(_var))
             return _var;
-        return rfl::Error("Variable is not an object");
+        return rfl::error("Variable is not an object");
     }
 
     /// Iterates through an array and inserts the values into the array
@@ -143,7 +143,7 @@ struct Reader
     {
         // If you do not want to support this functionality,
         // just return this.
-        return rfl::Error("Not supported.");
+        return rfl::error("Not supported.");
     }
 };
 }

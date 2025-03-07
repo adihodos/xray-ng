@@ -31,7 +31,7 @@ read(const std::string& _libconfig_str)
     config_t cfg;
     const int result = config_read_string(&cfg, _libconfig_str.c_str());
     if (result != CONFIG_TRUE) {
-        return rfl::Error(std::string{ config_error_text(&cfg) } + std::to_string(config_error_line(&cfg)));
+        return rfl::error(std::string{ config_error_text(&cfg) } + std::to_string(config_error_line(&cfg)));
     }
 
     return read<T, Ps...>(config_root_setting(&cfg));
@@ -53,7 +53,7 @@ read(const std::filesystem::path& path)
 {
     config_t cfg;
     if (config_read_file(&cfg, path.string().c_str()) != CONFIG_TRUE) {
-        return rfl::Error(std::string{ config_error_text(&cfg) } + std::to_string(config_error_line(&cfg)));
+        return rfl::error(std::string{ config_error_text(&cfg) } + std::to_string(config_error_line(&cfg)));
     }
 
     return read<T, Ps...>(config_root_setting(&cfg));

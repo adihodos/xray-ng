@@ -42,7 +42,7 @@ xray::scene::SceneDescription::from_file(const std::filesystem::path& file_path)
 
     if (!loaded_scene) {
         return tl::make_unexpected(
-            SceneError{ .err = fmt::format("Failed to parse scene: {}", loaded_scene.error()->what()) });
+            SceneError{ .err = fmt::format("Failed to parse scene: {}", loaded_scene.error().what()) });
     }
 
     return loaded_scene.value();
