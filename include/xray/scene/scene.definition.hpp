@@ -155,6 +155,7 @@ struct GraphicsPipelineResources
     xray::rendering::GraphicsPipeline p_ads_textured;
     xray::rendering::GraphicsPipeline p_pbr_color;
     xray::rendering::GraphicsPipeline p_terrain;
+    xray::rendering::GraphicsPipeline p_sprites;
 };
 
 struct SceneDefinition

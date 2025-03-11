@@ -33,6 +33,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
+#include "xray/rendering/sprite.system/sprite.system.hpp"
 #include "xray/scene/scene.definition.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/user_interface.hpp"
@@ -53,12 +54,14 @@
 #include "xray/math/scalar3_string_cast.hpp"
 #include "xray/math/transforms_r4.hpp"
 #include "xray/math/objects/aabb3_math.hpp"
+#include "xray/math/scalar4x4_string_cast.hpp"
 
 #include "bindless.pipeline.config.hpp"
 #include "events.hpp"
 #include "system.physics.hpp"
 #include "push.constant.packer.hpp"
 #include "terrain.hpp"
+#include "sprite.ids.crosshairs.hpp"
 
 using namespace std;
 using namespace xray::rendering;
@@ -485,12 +488,25 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 
     //
     // set this here, will be used by other object further down
-    FrameGlobalData* fgd = render_event.g_ubo_data;
+    FrameGlobalData* frame_global_data = render_event.g_ubo_data;
     SimState* s = &_simstate;
-    fgd->world_view_proj = s->camera.projection_view();
-    fgd->view = s->camera.view();
-    fgd->eye_pos = s->camera.origin();
-    fgd->projection = s->camera.projection();
+    frame_global_data->world_view_proj = s->camera.projection_view();
+    frame_global_data->view = s->camera.view();
+    frame_global_data->eye_pos = s->camera.origin();
+    frame_global_data->projection = s->camera.projection();
+    frame_global_data->ortho = orthographic(0.0f,
+                                            static_cast<float>(render_event.frame_data->fbsize.width),
+                                            0.0f,
+                                            static_cast<float>(render_event.frame_data->fbsize.height),
+                                            0.1f,
+                                            100.0f);
+
+    // const auto m0 = orthographic_symmetric(static_cast<float>(render_event.frame_data->fbsize.width),
+    //                                        static_cast<float>(render_event.frame_data->fbsize.height),
+    //                                        0.1f,
+    //                                        100.0f);
+    //
+    // XR_LOG_INFO("Ortho: {}\nOrtho symmetric {}", frame_global_data->ortho, m0);
 
     static constexpr const auto sixty_herz = std::chrono::duration<float, std::milli>{ 1000.0f / 60.0f };
 
@@ -580,7 +596,7 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
 
         //
         // lights setup
-        fgd->lights = LightingSetup{
+        frame_global_data->lights = LightingSetup{
             .sbo_directional_lights = destructure_bindless_resource_handle(
                                           bindless_subresource_handle_from_bindless_resource_handle(
                                               sres->sbo_directional_lights.first, render_event.frame_data->id))
@@ -599,7 +615,7 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         };
 
         const uint32_t color_tex_handle = destructure_bindless_resource_handle(sres->color_tex.first).first;
-        fgd->global_color_texture = color_tex_handle;
+        frame_global_data->global_color_texture = color_tex_handle;
 
         render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
     }
@@ -787,6 +803,10 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         draw_entities_fn(ents_textured_mtl);
     }
 
+    //
+    // HUD + anything else 2D related
+    draw_hud(render_event);
+
     for (const auto& [idx, dir_light] : lz::enumerate(render_event.sdef->directional_lights)) {
         if (!_uistate.dbg_directional_lights[idx])
             continue;
@@ -861,6 +881,59 @@ B5::GameSimulation::process_keyboard_state()
                                             JPH::Quat::sIdentity(),
                                             JPH::Vec3::sZero(),
                                             JPH::Vec3::sZero());
+    }
+}
+
+void
+B5::GameSimulation::draw_hud(const RenderEvent& render_evt)
+{
+    const float size = 128.0f;
+    vec2f32 coords{ 0 };
+    for (const SpriteHandleType sprite_id : {
+             SpriteIds::WHITE_RETINA_CROSSHAIR126,
+             SpriteIds::WHITE_RETINA_CROSSHAIR127,
+             SpriteIds::WHITE_RETINA_CROSSHAIR128,
+             SpriteIds::WHITE_RETINA_CROSSHAIR129,
+             SpriteIds::WHITE_RETINA_CROSSHAIR049,
+         }) {
+        render_evt.sprites->draw(
+            coords.x, coords.y, size, size, sprite_id, static_cast<uint32_t>(color_palette::flat::greensea400));
+        coords.x += size;
+    }
+
+    coords.x = 0;
+    coords.y += size;
+    for (const SpriteHandleType sprite_id : {
+             SpriteIds::WHITE_RETINA_CROSSHAIR126,
+             SpriteIds::WHITE_RETINA_CROSSHAIR127,
+             SpriteIds::WHITE_RETINA_CROSSHAIR128,
+             SpriteIds::WHITE_RETINA_CROSSHAIR129,
+             SpriteIds::WHITE_RETINA_CROSSHAIR049,
+         }) {
+        render_evt.sprites->draw_scaled_rotated(coords.x,
+                                                coords.y,
+                                                size,
+                                                size,
+                                                2.0f,
+                                                radians(45.0f),
+                                                sprite_id,
+                                                static_cast<uint32_t>(color_palette::flat::greensea600));
+        coords.x += size * 2.0f;
+    }
+
+    coords.x = 0.0f;
+    coords.y += size * 2.0f;
+
+    for (const auto [rotation, sprite_id] : { std::tuple{ radians(45.0f), SpriteIds::WHITE_RETINA_CROSSHAIR126 },
+                                              std::tuple{ radians(-45.0f), SpriteIds::WHITE_RETINA_CROSSHAIR127 } }) {
+        render_evt.sprites->draw_scaled_rotated_with_origin(512.0f,
+                                                            512.0f,
+                                                            size,
+                                                            size,
+                                                            3.0f,
+                                                            rotation,
+                                                            sprite_id,
+                                                            static_cast<uint32_t>(color_palette::flat::emerald50));
     }
 }
 

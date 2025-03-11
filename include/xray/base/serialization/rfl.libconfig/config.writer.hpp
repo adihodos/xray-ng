@@ -135,7 +135,7 @@ class Writer
             s = config_setting_add(_parent->val_, _name.data(), CONFIG_TYPE_FLOAT);
             config_setting_set_float(s, _var);
         } else if constexpr (std::is_integral_v<ValueType>) {
-            if constexpr (sizeof(ValueType) > 4) {
+            if constexpr (std::is_same_v<int64_t, ValueType> || std::is_same_v<uint64_t, ValueType>) {
                 s = config_setting_add(_parent->val_, _name.data(), CONFIG_TYPE_INT64);
                 config_setting_set_int64(s, _var);
             } else {

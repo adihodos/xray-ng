@@ -11,6 +11,7 @@
 #include <ktx.h>
 #include <mio/mmap.hpp>
 
+#include "xray/base/xray.fmt.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
@@ -943,6 +944,13 @@ xray::rendering::VulkanImage::from_file(VulkanRenderer& renderer, const VulkanIm
         const VkResult create_res = WRAP_VULKAN_FUNC(
             vkCreateImageView, renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
         XR_VK_CHECK_RESULT(create_res);
+
+        if (load_info.tag_name) {
+            renderer.dbg_set_object_name(raw_ptr(image), load_info.tag_name);
+            char scratch_buff[128];
+            xray::base::format_to_n(scratch_buff, "{}::imageview", load_info.tag_name);
+            renderer.dbg_set_object_name(raw_ptr(img_view), scratch_buff);
+        }
 
         return VulkanImage{
             xrUniqueImageWithMemoryAndView{ renderer.device(),

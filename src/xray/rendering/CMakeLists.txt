@@ -45,6 +45,9 @@ set(project_sources
     ${proj_src_dir}/geometry/heightmap.generator.cc
     ${proj_inc_dir}/geometry.importer.gltf.hpp
     ${proj_src_dir}/geometry.importer.gltf.cc
+    ${proj_inc_dir}/sprite.system/sprite.system.hpp
+    ${proj_inc_dir}/sprite.system/sprite.defs.hpp
+    ${proj_src_dir}/sprite.system/sprite.system.cc
     ${proj_inc_dir}/texture_loader.hpp
     ${proj_src_dir}/texture_loader.cc)
 
@@ -75,6 +78,7 @@ set(vk-project-sources
     ${vk-proj-inc-dir}/vulkan.pipeline.hpp
     ${vk-proj-src-dir}/vulkan.pipeline.cc
     ${vk-proj-inc-dir}/vulkan.image.hpp
+    ${vk-proj-inc-dir}/vulkan.image.defs.hpp
     ${vk-proj-src-dir}/vulkan.image.cc
     ${vk-proj-inc-dir}/vulkan.error.hpp
     ${vk-proj-src-dir}/vulkan.error.cc
@@ -83,6 +87,7 @@ set(vk-project-sources
     # ${vk-proj-inc-dir}/vulkan.queue.submit.token.hpp
     # ${vk-proj-src-dir}/vulkan.queue.submit.token.cc
     ${vk-proj-inc-dir}/vulkan.bindless.hpp
+    ${vk-proj-inc-dir}/vulkan.bindless.defs.hpp
     ${vk-proj-src-dir}/vulkan.bindless.cc
     ${vk-proj-inc-dir}/vulkan.renderer.config.hpp
     ${vk-proj-src-dir}/vulkan.renderer.config.cc)

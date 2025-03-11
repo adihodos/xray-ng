@@ -7,6 +7,7 @@
 #include "xray/base/logger.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 
 namespace {
 
@@ -36,10 +37,12 @@ constexpr const VkSamplerCreateInfo DEFAULT_SAMPLER_ATTRIBUTES{
 xray::rendering::BindlessSystem::BindlessSystem(
     UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,
     std::vector<VkDescriptorSetLayout> set_layouts,
-    std::vector<VkDescriptorSet> descriptors)
+    std::vector<VkDescriptorSet> descriptors,
+    std::unordered_map<VkSamplerCreateInfo, VkSampler>&& sampler_table)
     : _bindless{ std::move(bindless) }
     , _set_layouts{ std::move(set_layouts) }
     , _descriptors{ std::move(descriptors) }
+    , _sampler_table{ std::move(sampler_table) }
 {
 }
 
@@ -237,6 +240,11 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
         return XR_MAKE_VULKAN_ERROR(alloc_result);
     }
 
+    VkSampler new_sampler{};
+    const VkResult create_result =
+        WRAP_VULKAN_FUNC(vkCreateSampler, device, &DEFAULT_SAMPLER_ATTRIBUTES, nullptr, &new_sampler);
+    XR_VK_CHECK_RESULT(create_result);
+
     return BindlessSystem{
         UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout>{
             device,
@@ -245,6 +253,7 @@ xray::rendering::BindlessSystem::create(VkDevice device, const VkPhysicalDeviceD
         },
         std::move(set_layouts),
         std::move(descriptor_sets),
+        std::unordered_map<VkSamplerCreateInfo, VkSampler>{ { DEFAULT_SAMPLER_ATTRIBUTES, new_sampler } },
     };
 }
 

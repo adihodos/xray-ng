@@ -488,6 +488,8 @@ VulkanRenderer::dbg_set_object_name(VkObjectType vkobj, const char* name) const 
         dbg_set_object_name(object_handle, VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT, name);
     } else if constexpr (std::is_same_v<VkQueue, VkObjectType>) {
         dbg_set_object_name(object_handle, VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT, name);
+    } else if constexpr (std::is_same_v<VkImageView, VkObjectType>) {
+        dbg_set_object_name(object_handle, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT, name);
     } else {
         static_assert(false, "Unsupported object type!");
     }

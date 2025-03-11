@@ -79,6 +79,7 @@
 #include "xray/rendering/vertex_format/vertex.format.pbr.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
+#include "xray/rendering/sprite.system/sprite.system.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
 #include "xray/ui/user_interface.hpp"
@@ -168,7 +169,8 @@ struct MiscError
 #define PROGRAM_ERRORS_LIST                                                                                            \
     PROGRAM_ERRORS_LIST_ENTRY(xray::rendering::VulkanError),                                                           \
         PROGRAM_ERRORS_LIST_ENTRY(xray::rendering::GeometryImportError),                                               \
-        PROGRAM_ERRORS_LIST_ENTRY(xray::scene::SceneError), PROGRAM_ERRORS_LIST_ENTRY(MiscError)
+        PROGRAM_ERRORS_LIST_ENTRY(xray::scene::SceneError), PROGRAM_ERRORS_LIST_ENTRY(MiscError),                      \
+        PROGRAM_ERRORS_LIST_ENTRY(xray::rendering::SpriteAtlasError)
 
 #define PROGRAM_ERRORS_LIST_ENTRY(e) e
 using ProgramError = swl::variant<PROGRAM_ERRORS_LIST>;
@@ -337,12 +339,51 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     };
     XR_VK_COR_PROPAGATE_ERROR(p_terrain);
 
+    tl::expected<GraphicsPipeline, VulkanError> p_sprites{
+        GraphicsPipelineBuilder{ &perm.arena, &temp.arena }
+            .add_shader(ShaderStage::Vertex,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("sprites.glsl"),
+                            .defines = to_cspan(std_shader_defs[0]),
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
+                                               ShaderBuildOptions::Compile_DumpShaderCode,
+                        })
+            .add_shader(ShaderStage::Fragment,
+                        ShaderBuildOptions{
+                            .code_or_file_path = xr_app_config->shader_path("sprites.glsl"),
+                            .defines = to_cspan(std_shader_defs[1]),
+                            .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
+                                               ShaderBuildOptions::Compile_DumpShaderCode,
+                        })
+            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_POLYGON_MODE_EXT })
+            .rasterization_state({
+                .poly_mode = VK_POLYGON_MODE_FILL,
+                .cull_mode = VK_CULL_MODE_BACK_BIT,
+                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .line_width = 1.0f,
+            })
+            .depth_stencil_state(DepthStencilState{ .depth_test_enable = false, .depth_write_enable = false })
+            .color_blend(VkPipelineColorBlendAttachmentState{
+                .blendEnable = true,
+                .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .colorBlendOp = VK_BLEND_OP_ADD,
+                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .alphaBlendOp = VK_BLEND_OP_ADD,
+                .colorWriteMask = VK_COLOR_COMPONENT_A_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                  VK_COLOR_COMPONENT_R_BIT,
+            })
+            .create_bindless(*renderer),
+    };
+    XR_VK_COR_PROPAGATE_ERROR(p_sprites);
+
     exec_timer.end();
     XR_LOG_INFO("[[TASK]] Graphics pipeline done, time {}", exec_timer.elapsed_millis());
 
     co_return tl::expected<GraphicsPipelineResources, VulkanError>{
         tl::in_place,          std::move(*p_ads_color), std::move(*p_ads_textured), std::move(*p_pbr_color),
-        std::move(*p_terrain),
+        std::move(*p_terrain), std::move(*p_sprites),
     };
 }
 
@@ -1254,6 +1295,7 @@ class GameMain
              xray::base::unique_pointer<xray::ui::user_interface> ui,
              xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> ui_backend,
              xray::base::unique_pointer<xray::rendering::DebugDrawSystem> debug_draw,
+             xray::base::unique_pointer<xray::rendering::SpriteSystem> sprite_sys,
              xray::rendering::BindlessUniformBufferResourceHandleEntryPair global_ubo,
              xray::base::unique_pointer<SceneDefinition> scenedef,
              xray::base::unique_pointer<SceneResources> sceneres,
@@ -1266,6 +1308,7 @@ class GameMain
         , _ui{ std::move(ui) }
         , _ui_backend{ std::move(ui_backend) }
         , _debug_draw{ std::move(debug_draw) }
+        , _sprite_sys{ std::move(sprite_sys) }
         , _global_ubo{ global_ubo }
         , _scenedef{ std::move(scenedef) }
         , _sceneres{ std::move(sceneres) }
@@ -1303,6 +1346,7 @@ class GameMain
     xray::base::unique_pointer<xray::ui::user_interface> _ui{};
     xray::base::unique_pointer<xray::ui::UserInterfaceRenderBackend_Vulkan> _ui_backend{};
     xray::base::unique_pointer<xray::rendering::DebugDrawSystem> _debug_draw{};
+    xray::base::unique_pointer<xray::rendering::SpriteSystem> _sprite_sys{};
     xray::rendering::rgb_color _clear_color{ xray::rendering::color_palette::material::deeppurple900 };
     xray::base::timer_highp _timer{};
     xray::base::unique_pointer<SceneDefinition> _scenedef;
@@ -1389,6 +1433,10 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
     });
     XR_PROPAGATE_ERROR(debug_draw);
 
+    auto sprite_sys =
+        SpriteSystem::from_file(xr_app_config->texture_path("hud/crosshairs.conf"), *xr_app_config, *renderer);
+    XR_PROPAGATE_ERROR(sprite_sys);
+
     const VulkanBufferCreateInfo bci{
         .name_tag = "UBO - FrameGlobalData",
         .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -1454,6 +1502,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
         std::move(ui),
         xray::base::make_unique<UserInterfaceRenderBackend_Vulkan>(std::move(*vk_backend)),
         xray::base::make_unique<DebugDrawSystem>(std::move(*debug_draw)),
+        xray::base::make_unique<SpriteSystem>(std::move(*sprite_sys)),
         g_ubo_handles,
         xray::base::make_unique<SceneDefinition>(std::move(*scene_result)),
         xray::base::make_unique<SceneResources>(std::move(scene_resources)),
@@ -1537,6 +1586,7 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
         .ui = xray::base::raw_ptr(_ui),
         .g_ubo_data = g_ubo_mapping->as<FrameGlobalData>(),
         .dbg_draw = raw_ptr(_debug_draw),
+        .sprites = raw_ptr(_sprite_sys),
         .sdef = raw_ptr(_scenedef),
         .sres = raw_ptr(_sceneres),
         .delta = delta,
@@ -1547,6 +1597,11 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
     });
 
     _debug_draw->render(DebugDrawSystem::RenderContext{ .renderer = raw_ptr(_vkrenderer), .frd = &frd });
+    _sprite_sys->render(SpriteSystemRenderContext{
+        .renderer = raw_ptr(_vkrenderer),
+        .frame_data = &frd,
+        .sres = raw_ptr(_sceneres),
+    });
 
     //
     // move the UBO mapping into the lambda so that the data is flushed before the rendering starts
@@ -1613,7 +1668,8 @@ main(int argc, char** argv)
                                },
                                [](const xray::scene::SceneError& serr) { return serr.err; },
                                [](const B5::MiscError& msc) { return msc.what; },
-                               [](const GeometryImportError& ge) { return std::string{ "geometry error" }; } },
+                               [](const GeometryImportError& ge) { return std::string{ "geometry error" }; },
+                               [](const SpriteAtlasError& se) { return se.what; } },
                            f));
         });
 

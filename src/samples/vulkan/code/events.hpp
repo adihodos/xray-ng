@@ -56,6 +56,7 @@ namespace rendering {
 struct FrameRenderData;
 class VulkanRenderer;
 class DebugDrawSystem;
+class SpriteSystem;
 } // namespace rendering
 #endif
 
@@ -73,6 +74,7 @@ struct RenderEvent
     xray::ui::user_interface* ui;
     FrameGlobalData* g_ubo_data;
     xray::rendering::DebugDrawSystem* dbg_draw;
+    xray::rendering::SpriteSystem* sprites;
     xray::scene::SceneDefinition* sdef;
     xray::scene::SceneResources* sres;
     float delta;

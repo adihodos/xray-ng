@@ -97,6 +97,7 @@ class GameSimulation
 
   private:
     void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
+    void draw_hud(const RenderEvent& render_evt);
     void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
     void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
     void handle_mouse_button_event(const xray::ui::mouse_button_event& mbe);

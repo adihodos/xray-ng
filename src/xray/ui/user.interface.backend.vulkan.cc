@@ -161,8 +161,8 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
             .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
             .rasterization_state(RasterizationState{
                 .poly_mode = VK_POLYGON_MODE_FILL,
-                .cull_mode = VK_CULL_MODE_NONE,
-                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .cull_mode = VK_CULL_MODE_BACK_BIT,
+                .front_face = VK_FRONT_FACE_CLOCKWISE,
                 .line_width = 1.0f,
             })
             .depth_stencil_state(DepthStencilState{ .depth_test_enable = false, .depth_write_enable = false })
