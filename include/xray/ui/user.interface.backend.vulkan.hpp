@@ -50,8 +50,6 @@ class UserInterfaceRenderBackend_Vulkan
         base::MemoryArena* arena_perm,
         base::MemoryArena* arena_temp);
 
-    UIRenderUniform uniform_data() const noexcept;
-
     void render(const UserInterfaceRenderContext&,
                 rendering::VulkanRenderer& vkr,
                 const rendering::FrameRenderData& rd);

@@ -55,12 +55,23 @@ class Terrain;
 
 namespace simulation_details {
 
+struct SpacecraftData
+{
+    JPH::Vec3 direction{JPH::Vec3::sAxisZ()};
+    JPH::Vec3 up{JPH::Vec3::sAxisY()};
+    JPH::Vec3 position;
+    JPH::Vec3 linear_velocity;
+    JPH::Vec3 angular_velocity;
+    float throttle{};
+};
+
 struct Starfury
 {
     uint32_t entity{};
     uint32_t geometry{};
     JPH::BodyID phys_body_id{};
     JPH::Body* phys_body{};
+    SpacecraftData data;
 };
 
 struct GameWorldState
@@ -98,6 +109,8 @@ class GameSimulation
   private:
     void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
     void draw_hud(const RenderEvent& render_evt);
+    void draw_hud_text(xray::ui::user_interface* ui, const RenderEvent& re);
+
     void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
     void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
     void handle_mouse_button_event(const xray::ui::mouse_button_event& mbe);

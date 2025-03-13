@@ -41,6 +41,7 @@
 #include "xray/ui/events.gamepad.hpp"
 #include "xray/ui/events.pretty.print.hpp"
 #include "init_context.hpp"
+#include "xray/math/math_std.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar2_math.hpp"
 #include "xray/math/scalar4x4.hpp"
@@ -174,6 +175,10 @@ B5::GameSimulation::GameSimulation(PrivateConstructionToken,
     _world.ent_player.phys_body_id = body->GetID();
     _world.ent_player.phys_body = body;
     body_ifc->AddBody(_world.ent_player.phys_body_id, EActivation::Activate);
+    _world.ent_player.data.linear_velocity = JPH::Vec3::sZero();
+    _world.ent_player.data.angular_velocity = JPH::Vec3::sZero();
+    _world.ent_player.data.position = _world.ent_player.phys_body->GetCenterOfMassPosition();
+    _world.ent_player.data.throttle = 0.0f;
 }
 
 B5::GameSimulation::~GameSimulation() {}
@@ -331,12 +336,18 @@ void
 B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEvent& re)
 {
     ZoneScopedNCS("UI", tracy::Color::GreenYellow, 16);
-    if (!_uistate.ui_opened)
-        return;
 
-    char scratch_buff[1024];
+    draw_hud_text(ui, re);
+    if (!_uistate.ui_opened) {
+        return;
+    }
 
     if (ImGui::Begin("Demo options")) {
+        char scratch_buff[1024];
+        // ui->push_font("TerminessNerdFontMono-Regular_24");
+
+        ui->push_font("ZedMonoNerdFontMono-Medium_24");
+
         _terrain->user_interface(ui, re);
 
         if (ImGui::CollapsingHeader("::: Ship :::", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -453,6 +464,8 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
                           _uistate.dbg_point_lights,
                           _uistate.toggle_point_lights,
                           display_point_light_fn);
+
+        ui->pop_font();
     }
     ImGui::End();
 }
@@ -466,6 +479,15 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     process_gamepad_state();
     process_keyboard_state();
     _physics->update();
+
+    simulation_details::SpacecraftData* sd = &_world.ent_player.data;
+    sd->position = _world.ent_player.phys_body->GetCenterOfMassPosition();
+    sd->linear_velocity = _world.ent_player.phys_body->GetLinearVelocity();
+    sd->angular_velocity = _world.ent_player.phys_body->GetAngularVelocity();
+
+    const JPH::Mat44 ship_world_transform = _world.ent_player.phys_body->GetWorldTransform();
+    sd->direction = ship_world_transform.GetAxisZ();
+    sd->up = ship_world_transform.GetAxisY();
 
     ScratchPadArena scratch_pad{ &_arena_temp };
 
@@ -884,57 +906,206 @@ B5::GameSimulation::process_keyboard_state()
     }
 }
 
+struct HudTextElement
+{
+    float x;
+    float y;
+    float w;
+    float h;
+    uint32_t color;
+};
+
+float
+compute_compass_bearing(const vec2f32 pos) noexcept
+{
+    //
+    // https://stackoverflow.com/questions/31838855/how-do-i-easily-convert-a-line-angle-to-a-navigational-bearing-scale-i-e-with
+    // (A1 - atan2(y2-y1,x2-x1) * 180/pi ) %%360
+    // North is 0 degrees, East 90, South 180, West 270
+    return static_cast<int32_t>(std::round(450.0f - atan2(pos.y, pos.x) * F32::OneEightyOverPi)) % 360;
+}
+
+void
+B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEvent& re)
+{
+    ImGui::SetNextWindowPos({ 0.0f, 0.0f });
+    ImGui::Begin("HUD",
+                 nullptr,
+                 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+                     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar |
+                     ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs);
+
+    const uint32_t hud_color = static_cast<uint32_t>(color_palette::flat::greensea300);
+    constexpr const string_view hud_font_name{ "B612-Bold_48" };
+    const auto hud_font = ui->find_font(hud_font_name.data());
+    const auto hud_font_small = ui->find_font("B612-Bold_32");
+    ui->push_font(hud_font_name.data());
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    const simulation_details::SpacecraftData* sd = &_world.ent_player.data;
+    char scratch_buffer[1024];
+
+    constexpr const float COMPASS_BAR_WIDTH = 1600.0f;
+    constexpr const float COMPASS_ARC = 120;
+    constexpr const float COMPASS_ANGLE_INCREMENT = 15;
+
+    const bool singularity = is_zero(sd->direction.Cross(JPH::Vec3::sAxisY()).LengthSq());
+    const JPH::Vec3 dir = singularity ? sd->up : sd->direction;
+
+    const vec2f32 compass_origin{ static_cast<float>(re.frame_data->fbsize.width) * 0.5f, 32.0f };
+    const float compass_bearing = compute_compass_bearing(vec2f32{ sd->direction.GetX(), dir.GetZ() });
+
+    format_to_n(scratch_buffer, "ALT: {}", static_cast<int32_t>(sd->position.GetY()));
+
+    vec2f32 cursor_xy{ 256.0f, 512.0f };
+    draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
+    cursor_xy.y += hud_font->font->Ascent;
+
+    format_to_n(scratch_buffer, "{}", static_cast<int32_t>(std::round(sd->linear_velocity.Length())));
+    draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
+    cursor_xy.y += hud_font->font->Ascent + 4.0f;
+
+    auto draw_compass_markers = [draw_list, hud_color, hud_font_small](const float start_angle,
+                                                                       const float range_degrees,
+                                                                       const float angle_increment,
+                                                                       const float line_length,
+                                                                       const vec2f32 line_origin) {
+        const float angle_start = start_angle - (range_degrees * 0.5f);
+        const float angle_end = start_angle + (range_degrees * 0.5f);
+
+        float current_angle = angle_start;
+        while (current_angle <= angle_end) {
+            //
+            // find next multiple of angle_increment
+            const float marker_angle =
+                ((static_cast<int32_t>(current_angle) - 1) / static_cast<int32_t>(angle_increment) + 1) *
+                angle_increment;
+
+            if (marker_angle > angle_end)
+                break;
+
+            const float marker_x = line_origin.x + ((marker_angle - angle_start) / (range_degrees)) * line_length;
+            draw_list->AddText(
+                hud_font_small->font, hud_font_small->pixel_size, { marker_x, line_origin.y }, hud_color, "|");
+
+            float displayed_angle = marker_angle;
+            if (displayed_angle < 0.0f)
+                displayed_angle += 360.0f;
+            if (displayed_angle > 360.0f)
+                displayed_angle -= 360.0f;
+
+            char scratch_buf[64];
+            format_to_n(scratch_buf, "{:3.0f}°", displayed_angle);
+            draw_list->AddText(hud_font_small->font,
+                               hud_font_small->pixel_size,
+                               { marker_x, line_origin.y + hud_font_small->font->Ascent },
+                               hud_color,
+                               scratch_buf);
+            current_angle += angle_increment;
+        }
+    };
+
+    draw_compass_markers(compass_bearing,
+                         COMPASS_ARC,
+                         COMPASS_ANGLE_INCREMENT,
+                         COMPASS_BAR_WIDTH,
+                         compass_origin - vec2f32{ COMPASS_BAR_WIDTH * 0.5f, 0.0f });
+
+    re.sprites->draw(compass_origin.x - 32.0f,
+                     compass_origin.y + hud_font_small->font->Ascent * 2.0f,
+                     64.0f,
+                     64.0f,
+                     SpriteIds::WHITE_RETINA_CROSSHAIR127,
+                     hud_color);
+
+    format_to_n(scratch_buffer, "{}", compass_bearing);
+    draw_list->AddText(hud_font_small->font,
+                       hud_font_small->pixel_size,
+                       { compass_origin.x + 4.0f, compass_origin.y + hud_font_small->font->Ascent * 2.0f + 32.0f },
+                       hud_color,
+                       scratch_buffer);
+
+    auto add_text_element = [&](const string_view label, auto&& v) {
+        using value_type = std::remove_cvref_t<decltype(v)>;
+        if constexpr (std::is_floating_point_v<value_type>) {
+            format_to_n(scratch_buffer, "{}: {:3.3f}", label, v);
+        } else if constexpr (std::is_integral_v<value_type>) {
+            format_to_n(scratch_buffer, "{}: {}", label, v);
+        } else if constexpr (std::is_same_v<value_type, JPH::Vec3>) {
+            format_to_n(scratch_buffer, "{}: {:3.3f}, {:3.3f}, {:3.3f}", label, v.GetX(), v.GetY(), v.GetZ());
+        } else {
+            static_assert(false, "Unhandled value type");
+        }
+
+        draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
+        cursor_xy.y += hud_font->font->Ascent + 4.0f;
+    };
+
+    add_text_element("Ang", sd->angular_velocity);
+    const JPH::Mat44 xf = _world.ent_player.phys_body->GetWorldTransform();
+    add_text_element("X", xf.GetAxisX());
+    add_text_element("Y", xf.GetAxisY());
+    add_text_element("Z", xf.GetAxisZ());
+
+    ImGui::Dummy({ static_cast<float>(re.frame_data->fbsize.width), static_cast<float>(re.frame_data->fbsize.height) });
+
+    ui->pop_font();
+    ImGui::End();
+}
+
 void
 B5::GameSimulation::draw_hud(const RenderEvent& render_evt)
 {
-    const float size = 128.0f;
-    vec2f32 coords{ 0 };
-    for (const SpriteHandleType sprite_id : {
-             SpriteIds::WHITE_RETINA_CROSSHAIR126,
-             SpriteIds::WHITE_RETINA_CROSSHAIR127,
-             SpriteIds::WHITE_RETINA_CROSSHAIR128,
-             SpriteIds::WHITE_RETINA_CROSSHAIR129,
-             SpriteIds::WHITE_RETINA_CROSSHAIR049,
-         }) {
-        render_evt.sprites->draw(
-            coords.x, coords.y, size, size, sprite_id, static_cast<uint32_t>(color_palette::flat::greensea400));
-        coords.x += size;
-    }
+    // const float size = 128.0f;
+    // vec2f32 coords{ 0 };
+    // for (const SpriteHandleType sprite_id : {
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR126,
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR127,
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR128,
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR129,
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR049,
+    //      }) {
+    //     render_evt.sprites->draw(
+    //         coords.x, coords.y, size, size, sprite_id, static_cast<uint32_t>(color_palette::flat::greensea400));
+    //     coords.x += size;
+    // }
 
-    coords.x = 0;
-    coords.y += size;
-    for (const SpriteHandleType sprite_id : {
-             SpriteIds::WHITE_RETINA_CROSSHAIR126,
-             SpriteIds::WHITE_RETINA_CROSSHAIR127,
-             SpriteIds::WHITE_RETINA_CROSSHAIR128,
-             SpriteIds::WHITE_RETINA_CROSSHAIR129,
-             SpriteIds::WHITE_RETINA_CROSSHAIR049,
-         }) {
-        render_evt.sprites->draw_scaled_rotated(coords.x,
-                                                coords.y,
-                                                size,
-                                                size,
-                                                2.0f,
-                                                radians(45.0f),
-                                                sprite_id,
-                                                static_cast<uint32_t>(color_palette::flat::greensea600));
-        coords.x += size * 2.0f;
-    }
+    // coords.x = 0;
+    // coords.y += size;
+    // for (const SpriteHandleType sprite_id : {
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR126,
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR127,
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR128,
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR129,
+    //          SpriteIds::WHITE_RETINA_CROSSHAIR049,
+    //      }) {
+    //     render_evt.sprites->draw_scaled_rotated(coords.x,
+    //                                             coords.y,
+    //                                             size,
+    //                                             size,
+    //                                             2.0f,
+    //                                             radians(45.0f),
+    //                                             sprite_id,
+    //                                             static_cast<uint32_t>(color_palette::flat::greensea600));
+    //     coords.x += size * 2.0f;
+    // }
 
-    coords.x = 0.0f;
-    coords.y += size * 2.0f;
-
-    for (const auto [rotation, sprite_id] : { std::tuple{ radians(45.0f), SpriteIds::WHITE_RETINA_CROSSHAIR126 },
-                                              std::tuple{ radians(-45.0f), SpriteIds::WHITE_RETINA_CROSSHAIR127 } }) {
-        render_evt.sprites->draw_scaled_rotated_with_origin(512.0f,
-                                                            512.0f,
-                                                            size,
-                                                            size,
-                                                            3.0f,
-                                                            rotation,
-                                                            sprite_id,
-                                                            static_cast<uint32_t>(color_palette::flat::emerald50));
-    }
+    // coords.x = 0.0f;
+    // coords.y += size * 2.0f;
+    //
+    // for (const auto [rotation, sprite_id] : { std::tuple{ radians(45.0f), SpriteIds::WHITE_RETINA_CROSSHAIR126 },
+    //                                           std::tuple{ radians(-45.0f), SpriteIds::WHITE_RETINA_CROSSHAIR127 } })
+    //                                           {
+    //     render_evt.sprites->draw_scaled_rotated_with_origin(512.0f,
+    //                                                         512.0f,
+    //                                                         size,
+    //                                                         size,
+    //                                                         3.0f,
+    //                                                         rotation,
+    //                                                         sprite_id,
+    //                                                         static_cast<uint32_t>(color_palette::flat::emerald50));
+    // }
 }
 
 void

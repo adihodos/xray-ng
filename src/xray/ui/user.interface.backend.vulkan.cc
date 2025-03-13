@@ -87,7 +87,8 @@ layout (location = 1) in VS_OUT_FS_IN {
 layout (location = 0) out vec4 FinalFragColor;
 
 void main() {
-    FinalFragColor = texture(g_Textures2DGlobal[fs_in.textureid], fs_in.uv.st) * fs_in.color;
+    FinalFragColor = texture(g_Textures2DGlobal[fs_in.textureid], fs_in.uv.st).r * fs_in.color;
+    // FinalFragColor = vec4(fs_in.color.rgb, texture(g_Textures2DGlobal[fs_in.textureid], fs_in.uv.st).r);
 }
 )#" };
 
@@ -180,7 +181,7 @@ UserInterfaceRenderBackend_Vulkan::create(rendering::VulkanRenderer& renderer,
                                      .wpkg = resources_job->buffer,
                                      .type = VK_IMAGE_TYPE_2D,
                                      .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                     .format = VK_FORMAT_R8G8B8A8_UNORM,
+                                     .format = VK_FORMAT_R8_UNORM,
                                      .width = backend_create_info.atlas_width,
                                      .height = backend_create_info.atlas_height,
                                      .pixels = { backend_create_info.font_atlas_pixels },
@@ -360,17 +361,6 @@ UserInterfaceRenderBackend_Vulkan::render(const UserInterfaceRenderContext& ctx,
             global_vtx_offset += draw_list->VtxBuffer.Size;
         }
     }
-}
-
-UIRenderUniform
-UserInterfaceRenderBackend_Vulkan::uniform_data() const noexcept
-{
-    // 2.0f / draw_data->DisplaySize.x;
-    // 2.0f / draw_data->DisplaySize.y;
-    // float translate[2];
-    // translate[0] = -1.0f - draw_data->DisplayPos.x * scale[0];
-    // translate[1] = -1.0f - draw_data->DisplayPos.y * scale[1];
-    return UIRenderUniform{};
 }
 
 }

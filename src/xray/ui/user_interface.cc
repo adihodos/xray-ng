@@ -1,6 +1,7 @@
 #include "xray/ui/user_interface.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/xray.fmt.hpp"
 #include "xray/base/pod_zero.hpp"
 #include "xray/math/objects/rectangle.hpp"
 #include "xray/math/projection.hpp"
@@ -24,6 +25,8 @@
 
 #include <algorithm>
 #include <concurrencpp/concurrencpp.h>
+
+#include <itlib/small_vector.hpp>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -257,104 +260,72 @@ xray::ui::user_interface::user_interface(concurrencpp::result<FontsLoadBundle> f
 
     auto font_packages = font_pkg_future.get();
 
-    //
-    // Default fonts that always get loaded (Proggy and FontAwesome)
     ImGuiIO& io = ImGui::GetIO();
+
     // auto default_font = io.Fonts->AddFontDefault();
     // _rendercontext.fonts.push_back({ "Default", 13.0f, default_font });
-
-    static constexpr const ImWchar glyph_ranges[] = {
-        0x0020,
-        0x00FF, // Basic Latin + Latin Supplement
-
-        /*powerline_extra :*/
-        0xe0a0,
-        0xe0a3,
-        0xe0b0,
-        0xe0d4,
-
-        /*font_awesome :*/
-        0xf000,
-        0xf0b2,
-        0xf0c0,
-        0xf2e0,
-
-        /*font_awesome_extensions :*/
-        0xe200,
-        0xe2a9,
-
-        /*material_design_icons :*/ 
-        // 0xe700,
-        // 0xe7c5,
-
-        /*weather_icons :*/
-        0xe300,
-        0xe3e3,
-        0xfa8f,
-        0xfa9d,
-
-        /*octicons :*/
-        0xf400,
-        0xf4a9,
-        0xf67c,
-        0xf67c,
-
-        /*font_logos :*/ 
-        0xf300,
-        0xf313,
-
-        /*iec_power :*/
-        0x23fb,
-        0x23fe,
-        0x2b58,
-        0x2b58,
-
-        /*seti_ui :*/ 
-        0xe5fa,
-        0xe62e,
-    };
 
     ImFontConfig config;
     config.OversampleH = 3;
     config.OversampleV = 1;
     config.GlyphExtraSpacing.x = 1.0f;
-    config.MergeMode = true;
+    config.MergeMode = false;
     config.FontDataOwnedByAtlas = false;
 
+    itlib::small_vector<ImWchar, 512> glyph_ranges;
+
     for (size_t i = 0, count = font_packages.info.size(); i < count; ++i) {
-        const font_info& fi = font_packages.info[i];
-        const mio::mmap_source& src = font_packages.data[i];
-        config.MergeMode = (i != 0);
+        const font_info& curr_font = font_packages.info[i];
+        const mio::mmap_source& mmaped_font_data = font_packages.data[i];
 
-        auto fnt = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
-            (void*)src.data(), (int)src.size(), fi.pixel_size, &config, glyph_ranges);
+        assert(curr_font.path.has_stem());
+        const string base_font_name = curr_font.path.stem().generic_string();
 
-        if (!fnt) {
-            XR_LOG_INFO("Failed to load font {}", fi.path.string());
-            continue;
+        char scratch_buffer[1024];
+
+        for (const uint8_t font_size : curr_font.sizes) {
+            base::format_to_n(scratch_buffer, "{}_{}", base_font_name, font_size);
+
+            const size_t glyph_range_start = glyph_ranges.size();
+
+            for (const auto [r_start, r_end] : curr_font.glyph_ranges) {
+                glyph_ranges.push_back(r_start);
+                glyph_ranges.push_back(r_end);
+            }
+
+            if (glyph_ranges.empty()) {
+                glyph_ranges.push_back(0x0020);
+                glyph_ranges.push_back(0x00FF);
+            }
+
+            //
+            // glyph range array needs to be terminated with a zero
+            glyph_ranges.push_back(0x0);
+
+            assert(glyph_ranges.size() < 512);
+
+            ImFont* font_handle =
+                ImGui::GetIO().Fonts->AddFontFromMemoryTTF((void*)mmaped_font_data.data(),
+                                                           static_cast<int32_t>(mmaped_font_data.size()),
+                                                           static_cast<float>(font_size),
+                                                           &config,
+                                                           glyph_ranges.cbegin() + glyph_range_start);
+
+            if (!font_handle) {
+                XR_LOG_INFO("Failed to load font {}", curr_font.path.string());
+                continue;
+            }
+
+            _rendercontext.fonts.emplace_back(scratch_buffer, static_cast<float>(font_size), font_handle);
         }
-
-        _rendercontext.fonts.emplace_back(fi.path.stem().string(), fi.pixel_size, fnt);
     }
-
-    sort(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& f0, const loaded_font& f1) {
-        if (f0.name < f1.name) {
-            return true;
-        }
-
-        if (f0.name > f1.name) {
-            return false;
-        }
-
-        return f0.pixel_size <= f1.pixel_size;
-    });
 
     for_each(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& fi) {
         XR_LOG_INFO("added font {}, size {}, handle {:p}...", fi.name, fi.pixel_size, fmt::ptr(fi.font));
     });
 
     ImGui::GetIO().Fonts->Build();
-    io.Fonts->GetTexDataAsRGBA32(&_rendercontext.atlas_data, &_rendercontext.atlas_width, &_rendercontext.atlas_height);
+    io.Fonts->GetTexDataAsAlpha8(&_rendercontext.atlas_data, &_rendercontext.atlas_width, &_rendercontext.atlas_height);
 
     XR_LOG_INFO("Font atlas {}x{}", _rendercontext.atlas_width, _rendercontext.atlas_height);
 }
@@ -631,66 +602,68 @@ xray::ui::user_interface::init(const std::span<const font_info> font_list)
 void
 xray::ui::user_interface::load_fonts(const std::span<const font_info> font_list)
 {
+    assert(false && "This should not be used anymore");
     //
     // Default fonts that always get loaded (Proggy and FontAwesome)
-    ImGuiIO& io = ImGui::GetIO();
-    auto default_font = io.Fonts->AddFontDefault();
-    _rendercontext.fonts.push_back({ "Default", 13.0f, default_font });
-
-    ImFontConfig config;
-    config.MergeMode = true;
-    static const ImWchar icon_ranges[] = { fonts::awesome::ICON_MIN_FA, fonts::awesome::ICON_MAX_FA, 0 };
-
-    auto font_awesome = io.Fonts->AddFontFromFileTTF(
-        ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").generic_string().c_str(),
-        13.0f,
-        &config,
-        icon_ranges);
-    assert(font_awesome != nullptr);
-    _rendercontext.fonts.push_back({ "fontawesome", 13.0f, font_awesome });
-
-    bool urmom{ false };
-    for_each(cbegin(font_list), cend(font_list), [&urmom, this](const font_info& fi) mutable {
-        if (fi.path.generic_string().find("Terminess") != string::npos && !urmom) {
-
-            ImFontConfig config;
-            config.OversampleH = 3;
-            config.OversampleV = 1;
-            config.GlyphExtraSpacing.x = 1.0f;
-
-            auto fnt = ImGui::GetIO().Fonts->AddFontFromFileTTF(fi.path.generic_string().c_str(),
-                                                                fi.pixel_size,
-                                                                &config,
-                                                                ImGui::GetIO().Fonts->GetGlyphRangesDefault());
-
-            if (!fnt) {
-                XR_LOG_INFO("Failed to load font {}", fi.path.string());
-                return;
-            }
-
-            _rendercontext.fonts.emplace_back(fi.path.stem().string(), fi.pixel_size, fnt);
-            ImGui::GetIO().FontDefault = _rendercontext.fonts.back().font;
-            urmom = true;
-        }
-    });
-
-    sort(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& f0, const loaded_font& f1) {
-        if (f0.name < f1.name) {
-            return true;
-        }
-
-        if (f0.name > f1.name) {
-            return false;
-        }
-
-        return f0.pixel_size <= f1.pixel_size;
-    });
-
-    for_each(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& fi) {
-        XR_LOG_INFO("added font {}, size {} ...", fi.name, fi.pixel_size);
-    });
-
-    io.Fonts->GetTexDataAsRGBA32(&_rendercontext.atlas_data, &_rendercontext.atlas_width, &_rendercontext.atlas_height);
+    // ImGuiIO& io = ImGui::GetIO();
+    // auto default_font = io.Fonts->AddFontDefault();
+    // _rendercontext.fonts.push_back({ "Default", 13.0f, default_font });
+    //
+    // ImFontConfig config;
+    // config.MergeMode = true;
+    // static const ImWchar icon_ranges[] = { fonts::awesome::ICON_MIN_FA, fonts::awesome::ICON_MAX_FA, 0 };
+    //
+    // auto font_awesome = io.Fonts->AddFontFromFileTTF(
+    //     ConfigSystem::instance()->font_path("fontawesome/fontawesome-webfont.ttf").generic_string().c_str(),
+    //     13.0f,
+    //     &config,
+    //     icon_ranges);
+    // assert(font_awesome != nullptr);
+    // _rendercontext.fonts.push_back({ "fontawesome", 13.0f, font_awesome });
+    //
+    // bool urmom{ false };
+    // for_each(cbegin(font_list), cend(font_list), [&urmom, this](const font_info& fi) mutable {
+    //     if (fi.path.generic_string().find("Terminess") != string::npos && !urmom) {
+    //
+    //         ImFontConfig config;
+    //         config.OversampleH = 3;
+    //         config.OversampleV = 1;
+    //         config.GlyphExtraSpacing.x = 1.0f;
+    //
+    //         auto fnt = ImGui::GetIO().Fonts->AddFontFromFileTTF(fi.path.generic_string().c_str(),
+    //                                                             fi.pixel_size,
+    //                                                             &config,
+    //                                                             ImGui::GetIO().Fonts->GetGlyphRangesDefault());
+    //
+    //         if (!fnt) {
+    //             XR_LOG_INFO("Failed to load font {}", fi.path.string());
+    //             return;
+    //         }
+    //
+    //         _rendercontext.fonts.emplace_back(fi.path.stem().string(), fi.pixel_size, fnt);
+    //         ImGui::GetIO().FontDefault = _rendercontext.fonts.back().font;
+    //         urmom = true;
+    //     }
+    // });
+    //
+    // sort(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& f0, const loaded_font& f1) {
+    //     if (f0.name < f1.name) {
+    //         return true;
+    //     }
+    //
+    //     if (f0.name > f1.name) {
+    //         return false;
+    //     }
+    //
+    //     return f0.pixel_size <= f1.pixel_size;
+    // });
+    //
+    // for_each(begin(_rendercontext.fonts), end(_rendercontext.fonts), [](const loaded_font& fi) {
+    //     XR_LOG_INFO("added font {}, size {} ...", fi.name, fi.pixel_size);
+    // });
+    //
+    // io.Fonts->GetTexDataAsRGBA32(&_rendercontext.atlas_data, &_rendercontext.atlas_width,
+    // &_rendercontext.atlas_height);
 }
 
 xray::ui::user_interface::~user_interface() noexcept
@@ -979,7 +952,7 @@ xray::ui::user_interface::render_backend_create_info() noexcept
         .font_atlas_pixels =
             std::span<const uint8_t>{
                 _rendercontext.atlas_data,
-                (size_t)(_rendercontext.atlas_width * _rendercontext.atlas_height * 4),
+                (size_t)(_rendercontext.atlas_width * _rendercontext.atlas_height),
             },
         .atlas_width = (uint32_t)_rendercontext.atlas_width,
         .atlas_height = (uint32_t)_rendercontext.atlas_height,

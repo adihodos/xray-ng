@@ -69,6 +69,8 @@
 #include "xray/base/containers/arena.string.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
+#include "xray/base/serialization/rfl.libconfig/config.save.hpp"
+#include "xray/base/serialization/rfl.libconfig/config.load.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
 #include "xray/rendering/debug_draw.hpp"
@@ -115,6 +117,45 @@ namespace B5 {
 template<typename T, size_t N = 4>
 using SmallVec = itlib::small_vector<T, N>;
 
+struct HudTextElement
+{
+    float x;
+    float y;
+    float w;
+    float h;
+    uint32_t font_name;
+    uint32_t color;
+};
+
+struct HeadsUpDisplay
+{
+    std::vector<HudTextElement> text_elements;
+};
+
+struct HudConfigurationTextElement
+{
+    float x;
+    float y;
+    float w;
+    float h;
+    std::string font;
+    uint8_t font_size;
+    xray::math::vec3f color;
+};
+
+struct HudFontDefinition
+{
+    std::filesystem::path path;
+    std::vector<uint8_t> sizes;
+    std::vector<std::tuple<uint16_t, uint16_t>> glyph_ranges;
+};
+
+struct HudConfigDefinition
+{
+    std::vector<HudFontDefinition> font_list;
+    // std::vector<HudConfigurationTextElement> text_elements;
+};
+
 concurrencpp::result<FontsLoadBundle>
 task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
 {
@@ -124,28 +165,30 @@ task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
 
     namespace fs = std::filesystem;
 
+    // TODO: should move UI init here probably
+    rfl::Result<HudConfigDefinition> hud_config =
+        rfl::libconfig::read<HudConfigDefinition>(xr_app_config->config_path("hud.conf"));
+    assert(hud_config.has_value());
+
     FontsLoadBundle font_pkgs;
 
-    const fs::path font_dir = xr_app_config->font_root() / "nerd-fonts";
-    for (const fs::directory_entry& dir_entry : fs::recursive_directory_iterator(font_dir)) {
-        if (!dir_entry.is_regular_file() || !dir_entry.path().has_extension())
-            continue;
-
-        const fs::path file_ext{ dir_entry.path().extension() };
-        if (file_ext != ".ttf" && file_ext != ".otf") {
+    for (auto&& font_def : hud_config->font_list) {
+        const fs::path font_file_path = xr_app_config->font_root() / font_def.path;
+        if (!fs::exists(font_file_path) || !fs::is_regular_file(font_file_path)) {
+            XR_LOG_ERR("Font file {} does not exist", font_file_path);
             continue;
         }
 
         std::error_code err{};
-        mio::mmap_source font_data{ mio::make_mmap_source(dir_entry.path().generic_string(), err) };
+        mio::mmap_source font_data{ mio::make_mmap_source(font_file_path.generic_string(), err) };
         if (err) {
-            XR_LOG_INFO("Font file {} could not be loaded {}", dir_entry.path().generic_string(), err.message());
+            XR_LOG_ERR("Font file {} could not be loaded {}", font_file_path, err.message());
             continue;
         }
 
-        font_pkgs.info.emplace_back(dir_entry.path(), 24.0f);
+        font_pkgs.info.emplace_back(font_def.path, std::move(font_def.sizes), std::move(font_def.glyph_ranges));
         font_pkgs.data.emplace_back(std::move(font_data));
-    };
+    }
 
     exec_timer.end();
     XR_LOG_INFO("[[TASK]] Font load task done, time {}", exec_timer.elapsed_millis());
@@ -1467,7 +1510,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
     };
     XR_PROPAGATE_ERROR(vk_backend);
 
-    // ui->set_global_font("TerminessNerdFontMono-Regular");
+    // ui->set_global_font("ZedMonoNerdFontMono-Medium_24");
 
     const BindlessUniformBufferResourceHandleEntryPair g_ubo_handles =
         renderer->bindless_sys().add_chunked_uniform_buffer(std::move(*g_ubo), renderer->buffering_setup().buffers);
