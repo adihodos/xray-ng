@@ -98,6 +98,7 @@
 #include "bindless.pipeline.config.hpp"
 #include "system.memory.hpp"
 #include "events.hpp"
+#include "hud.config.hpp"
 
 #include "xray/ui/window.hpp"
 
@@ -143,20 +144,7 @@ struct HudConfigurationTextElement
     xray::math::vec3f color;
 };
 
-struct HudFontDefinition
-{
-    std::filesystem::path path;
-    std::vector<uint8_t> sizes;
-    std::vector<std::tuple<uint16_t, uint16_t>> glyph_ranges;
-};
-
-struct HudConfigDefinition
-{
-    std::vector<HudFontDefinition> font_list;
-    // std::vector<HudConfigurationTextElement> text_elements;
-};
-
-concurrencpp::result<FontsLoadBundle>
+concurrencpp::result<std::tuple<FontsLoadBundle, xray::base::unique_pointer<HudConfigDefinition>>>
 task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
 {
     XR_LOG_INFO("[[TASK]] Load fonts");
@@ -193,7 +181,7 @@ task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
     exec_timer.end();
     XR_LOG_INFO("[[TASK]] Font load task done, time {}", exec_timer.elapsed_millis());
 
-    co_return font_pkgs;
+    co_return std::tuple{ std::move(font_pkgs), xray::base::make_unique<HudConfigDefinition>(std::move(*hud_config)) };
 }
 
 struct GeometryResourceTaskParams
@@ -1342,6 +1330,7 @@ class GameMain
              xray::rendering::BindlessUniformBufferResourceHandleEntryPair global_ubo,
              xray::base::unique_pointer<SceneDefinition> scenedef,
              xray::base::unique_pointer<SceneResources> sceneres,
+             xray::base::unique_pointer<HudConfigDefinition> hud_config,
              MemoryArena* arena_perm,
              MemoryArena* arena_temp,
              xray::base::unique_pointer<GameSimulation> game_sim)
@@ -1355,6 +1344,7 @@ class GameMain
         , _global_ubo{ global_ubo }
         , _scenedef{ std::move(scenedef) }
         , _sceneres{ std::move(sceneres) }
+        , _hud_config{ std::move(hud_config) }
         , _arena_perm{ arena_perm }
         , _arena_temp{ arena_temp }
         , _game_sim{ std::move(game_sim) }
@@ -1394,6 +1384,7 @@ class GameMain
     xray::base::timer_highp _timer{};
     xray::base::unique_pointer<SceneDefinition> _scenedef;
     xray::base::unique_pointer<SceneResources> _sceneres;
+    xray::base::unique_pointer<HudConfigDefinition> _hud_config;
     xray::rendering::BindlessUniformBufferResourceHandleEntryPair _global_ubo;
     MemoryArena* _arena_perm{};
     MemoryArena* _arena_temp{};
@@ -1416,8 +1407,8 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
 
     //
     // start font loading
-    concurrencpp::result<FontsLoadBundle> font_pkg_load_result =
-        task_load_fonts(concurrencpp::executor_tag{}, cor_runtime->thread_executor().get());
+    concurrencpp::result<std::tuple<FontsLoadBundle, xray::base::unique_pointer<HudConfigDefinition>>>
+        font_pkg_load_result = task_load_fonts(concurrencpp::executor_tag{}, cor_runtime->thread_executor().get());
 
     concurrencpp::result_promise<VulkanRenderer*> renderer_promise{};
 
@@ -1501,16 +1492,14 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
                              });
     XR_PROPAGATE_ERROR(g_ubo);
 
-    xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(
-        std::move(font_pkg_load_result)) };
+    auto [font_bundle, hud_config] = font_pkg_load_result.get();
+    xray::base::unique_pointer<user_interface> ui{ xray::base::make_unique<xray::ui::user_interface>(font_bundle) };
 
     tl::expected<UserInterfaceRenderBackend_Vulkan, VulkanError> vk_backend{
         UserInterfaceRenderBackend_Vulkan::create(
             *renderer, ui->render_backend_create_info(), &arena_perm0.arena, &arena_temp0.arena),
     };
     XR_PROPAGATE_ERROR(vk_backend);
-
-    // ui->set_global_font("ZedMonoNerdFontMono-Medium_24");
 
     const BindlessUniformBufferResourceHandleEntryPair g_ubo_handles =
         renderer->bindless_sys().add_chunked_uniform_buffer(std::move(*g_ubo), renderer->buffering_setup().buffers);
@@ -1549,6 +1538,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
         g_ubo_handles,
         xray::base::make_unique<SceneDefinition>(std::move(*scene_result)),
         xray::base::make_unique<SceneResources>(std::move(scene_resources)),
+        std::move(hud_config),
         arena_perm,
         arena_temp,
         std::move(game_sim));
@@ -1637,6 +1627,7 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
         .arena_temp = _arena_temp,
         .co_runtime = raw_ptr(_co_runtime),
         .cam = &_game_sim->camera(),
+        .hud_cfg = raw_ptr(_hud_config),
     });
 
     _debug_draw->render(DebugDrawSystem::RenderContext{ .renderer = raw_ptr(_vkrenderer), .frd = &frd });

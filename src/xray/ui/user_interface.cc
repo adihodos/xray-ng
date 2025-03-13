@@ -236,7 +236,7 @@ xray::ui::user_interface::user_interface(const std::span<const font_info> font_l
     load_fonts(font_list);
 }
 
-xray::ui::user_interface::user_interface(concurrencpp::result<FontsLoadBundle> font_pkg_future)
+xray::ui::user_interface::user_interface(const FontsLoadBundle& font_packages)
 {
     IMGUI_CHECKVERSION();
     _imcontext = unique_pointer<ImGuiContext, imcontext_deleter>{ []() {
@@ -257,8 +257,6 @@ xray::ui::user_interface::user_interface(concurrencpp::result<FontsLoadBundle> f
     }() };
 
     set_current();
-
-    auto font_packages = font_pkg_future.get();
 
     ImGuiIO& io = ImGui::GetIO();
 

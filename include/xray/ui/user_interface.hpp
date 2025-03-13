@@ -101,7 +101,7 @@ class user_interface
 
     user_interface() noexcept;
     user_interface(const std::span<const font_info> font_list);
-    explicit user_interface(concurrencpp::result<FontsLoadBundle> font_pkg_future);
+    explicit user_interface(const FontsLoadBundle& font_pkg_future);
     ~user_interface() noexcept;
 
     bool input_event(const window_event& evt);

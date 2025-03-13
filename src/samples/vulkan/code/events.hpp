@@ -65,6 +65,7 @@ class SpriteSystem;
 namespace B5 {
 
 struct FrameGlobalData;
+struct HudConfigDefinition;
 
 struct RenderEvent
 {
@@ -82,6 +83,7 @@ struct RenderEvent
     xray::base::MemoryArena* arena_temp;
     concurrencpp::runtime* co_runtime;
     const xray::scene::camera* cam;
+    const HudConfigDefinition* hud_cfg;
 };
 
 struct InitContext

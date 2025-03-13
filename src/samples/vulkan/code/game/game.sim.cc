@@ -63,6 +63,7 @@
 #include "push.constant.packer.hpp"
 #include "terrain.hpp"
 #include "sprite.ids.crosshairs.hpp"
+#include "hud.config.hpp"
 
 using namespace std;
 using namespace xray::rendering;
@@ -922,7 +923,7 @@ compute_compass_bearing(const vec2f32 pos) noexcept
     // https://stackoverflow.com/questions/31838855/how-do-i-easily-convert-a-line-angle-to-a-navigational-bearing-scale-i-e-with
     // (A1 - atan2(y2-y1,x2-x1) * 180/pi ) %%360
     // North is 0 degrees, East 90, South 180, West 270
-    return static_cast<int32_t>(std::round(450.0f - atan2(pos.y, pos.x) * F32::OneEightyOverPi)) % 360;
+    return std::fmod(450.0f - atan2(pos.y, pos.x) * F32::OneEightyOverPi, 360.0f);
 }
 
 void
@@ -946,14 +947,16 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     const simulation_details::SpacecraftData* sd = &_world.ent_player.data;
     char scratch_buffer[1024];
 
-    constexpr const float COMPASS_BAR_WIDTH = 1600.0f;
-    constexpr const float COMPASS_ARC = 120;
-    constexpr const float COMPASS_ANGLE_INCREMENT = 15;
+    // constexpr const float COMPASS_BAR_WIDTH = 1600.0f;
+    // constexpr const float COMPASS_ARC = 120;
+    // constexpr const float COMPASS_ANGLE_INCREMENT = 15;
 
     const bool singularity = is_zero(sd->direction.Cross(JPH::Vec3::sAxisY()).LengthSq());
     const JPH::Vec3 dir = singularity ? sd->up : sd->direction;
 
-    const vec2f32 compass_origin{ static_cast<float>(re.frame_data->fbsize.width) * 0.5f, 32.0f };
+    const HudConfigDefinition* hud_cfg = re.hud_cfg;
+
+    const vec2f32 compass_origin{ static_cast<float>(re.frame_data->fbsize.width) * 0.5f, hud_cfg->compass.ypos };
     const float compass_bearing = compute_compass_bearing(vec2f32{ sd->direction.GetX(), dir.GetZ() });
 
     format_to_n(scratch_buffer, "ALT: {}", static_cast<int32_t>(sd->position.GetY()));
@@ -966,11 +969,11 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
     cursor_xy.y += hud_font->font->Ascent + 4.0f;
 
-    auto draw_compass_markers = [draw_list, hud_color, hud_font_small](const float start_angle,
-                                                                       const float range_degrees,
-                                                                       const float angle_increment,
-                                                                       const float line_length,
-                                                                       const vec2f32 line_origin) {
+    auto draw_compass_markers = [draw_list, hud_color, hud_font_small, hud_cfg](const float start_angle,
+                                                                                const float range_degrees,
+                                                                                const float angle_increment,
+                                                                                const float line_length,
+                                                                                const vec2f32 line_origin) {
         const float angle_start = start_angle - (range_degrees * 0.5f);
         const float angle_end = start_angle + (range_degrees * 0.5f);
 
@@ -986,8 +989,17 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
                 break;
 
             const float marker_x = line_origin.x + ((marker_angle - angle_start) / (range_degrees)) * line_length;
-            draw_list->AddText(
-                hud_font_small->font, hud_font_small->pixel_size, { marker_x, line_origin.y }, hud_color, "|");
+            const char* marker_symbol = hud_cfg->compass.glyph_minor.data();
+
+            if (is_zero(std::fmod(marker_angle, angle_increment * 2.0f))) {
+                marker_symbol = hud_cfg->compass.glyph_major.data();
+            }
+
+            draw_list->AddText(hud_font_small->font,
+                               hud_font_small->pixel_size,
+                               { marker_x, line_origin.y },
+                               hud_color,
+                               marker_symbol);
 
             float displayed_angle = marker_angle;
             if (displayed_angle < 0.0f)
@@ -1007,10 +1019,10 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     };
 
     draw_compass_markers(compass_bearing,
-                         COMPASS_ARC,
-                         COMPASS_ANGLE_INCREMENT,
-                         COMPASS_BAR_WIDTH,
-                         compass_origin - vec2f32{ COMPASS_BAR_WIDTH * 0.5f, 0.0f });
+                         hud_cfg->compass.arc_degrees,
+                         hud_cfg->compass.angle_increment,
+                         hud_cfg->compass.bar_width,
+                         compass_origin - vec2f32{ hud_cfg->compass.bar_width * 0.5f, 0.0f });
 
     re.sprites->draw(compass_origin.x - 32.0f,
                      compass_origin.y + hud_font_small->font->Ascent * 2.0f,
@@ -1019,7 +1031,7 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
                      SpriteIds::WHITE_RETINA_CROSSHAIR127,
                      hud_color);
 
-    format_to_n(scratch_buffer, "{}", compass_bearing);
+    format_to_n(scratch_buffer, "{:3.0f}", compass_bearing);
     draw_list->AddText(hud_font_small->font,
                        hud_font_small->pixel_size,
                        { compass_origin.x + 4.0f, compass_origin.y + hud_font_small->font->Ascent * 2.0f + 32.0f },
