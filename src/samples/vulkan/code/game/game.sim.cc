@@ -72,6 +72,8 @@ using namespace xray::ui;
 using namespace xray::math;
 using namespace xray::scene;
 
+XR_DISABLE_OPTIMIZATIONS
+
 B5::GameSimulation::SimState::SimState(const InitContext& init_context)
     : arcball_cam{ xray::math::vec3f::stdc::zero, 1.0f, { init_context.surface_width, init_context.surface_height } }
     , flightcam{
@@ -485,6 +487,7 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
     sd->position = _world.ent_player.phys_body->GetCenterOfMassPosition();
     sd->linear_velocity = _world.ent_player.phys_body->GetLinearVelocity();
     sd->angular_velocity = _world.ent_player.phys_body->GetAngularVelocity();
+    sd->rotation = _world.ent_player.phys_body->GetRotation();
 
     const JPH::Mat44 ship_world_transform = _world.ent_player.phys_body->GetWorldTransform();
     sd->direction = ship_world_transform.GetAxisZ();
@@ -947,10 +950,6 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     const simulation_details::SpacecraftData* sd = &_world.ent_player.data;
     char scratch_buffer[1024];
 
-    // constexpr const float COMPASS_BAR_WIDTH = 1600.0f;
-    // constexpr const float COMPASS_ARC = 120;
-    // constexpr const float COMPASS_ANGLE_INCREMENT = 15;
-
     const bool singularity = is_zero(sd->direction.Cross(JPH::Vec3::sAxisY()).LengthSq());
     const JPH::Vec3 dir = singularity ? sd->up : sd->direction;
 
@@ -1024,17 +1023,127 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
                          hud_cfg->compass.bar_width,
                          compass_origin - vec2f32{ hud_cfg->compass.bar_width * 0.5f, 0.0f });
 
-    re.sprites->draw(compass_origin.x - 32.0f,
-                     compass_origin.y + hud_font_small->font->Ascent * 2.0f,
-                     64.0f,
-                     64.0f,
-                     SpriteIds::WHITE_RETINA_CROSSHAIR127,
-                     hud_color);
+    const vec2f32 v2{ compass_origin.x, compass_origin.y + hud_font_small->font->Ascent * 2.0f };
+    const vec2f32 p{ v2 + vec2f32{ 0.0f, 32.0f } };
+    const vec2f32 v0{ compass_origin.x - 24.0f, p.y };
+    const vec2f32 v1{ compass_origin.x + 24.0f, p.y };
 
-    format_to_n(scratch_buffer, "{:3.0f}", compass_bearing);
+    draw_list->AddTriangleFilled({ v0.x, v0.y }, { v2.x, v2.y }, { v1.x, v1.y }, hud_color);
+    // draw_list->AddTriangle({ v0.x, v0.y }, { v2.x, v2.y }, { v1.x, v1.y }, hud_color, 4.0f);
+
+    // re.sprites->draw(compass_origin.x - 32.0f,
+    //                  compass_origin.y + hud_font_small->font->Ascent * 2.0f,
+    //                  64.0f,
+    //                  64.0f,
+    //                  SpriteIds::WHITE_RETINA_CROSSHAIR024,
+    //                  hud_color);
+
+    // format_to_n(scratch_buffer, "{:3.0f}", compass_bearing);
+    // draw_list->AddText(hud_font_small->font,
+    //                    hud_font_small->pixel_size,
+    //                    { compass_origin.x + 4.0f, compass_origin.y + hud_font_small->font->Ascent * 2.0f + 32.0f },
+    //                    hud_color,
+    //                    scratch_buffer);
+
+    //
+    // altitude
+    auto draw_altitude_markers = [draw_list, hud_color, hud_font_small, hud_cfg](const float altitude,
+                                                                                 const float altitude_range,
+                                                                                 const float altitude_increment,
+                                                                                 const float line_length,
+                                                                                 const vec2f32 line_origin) {
+        const float altitude_start = altitude - (altitude_range * 0.5f);
+        const float altitude_end = altitude + (altitude_range * 0.5f);
+
+        for (float current_altitude = altitude_start; current_altitude <= altitude_end;
+             current_altitude += altitude_increment) {
+            //
+            // find next multiple of angle_increment
+            const float altitude_marker = std::floor(current_altitude / altitude_increment) * altitude_increment;
+
+            if (altitude_marker > altitude_end)
+                break;
+
+            const float marker_y =
+                line_origin.y + (1.0f - (altitude_marker - altitude_start) / (altitude_range)) * line_length;
+
+            if (marker_y <= (line_origin.y + hud_cfg->altimeter.marker_height))
+                continue;
+
+            if (marker_y >= (line_origin.y - hud_cfg->altimeter.marker_height + line_length))
+                continue;
+
+            const bool is_marker_large = is_zero(std::fmod(altitude_marker, hud_cfg->altimeter.marker_big_meters));
+            const float line_len =
+                is_marker_large ? hud_cfg->altimeter.marker_big_len : hud_cfg->altimeter.marker_small_len;
+
+            draw_list->AddRectFilled({ line_origin.x, marker_y - hud_cfg->altimeter.marker_height * 0.5f },
+                                     { line_origin.x + line_len, marker_y + hud_cfg->altimeter.marker_height * 0.5f },
+                                     hud_color);
+
+            if (is_marker_large) {
+                char scratch_buf[64];
+                format_to_n(scratch_buf, "{: >3.0f}", altitude_marker);
+                draw_list->AddText(hud_font_small->font,
+                                   hud_font_small->pixel_size,
+                                   { line_origin.x + hud_cfg->altimeter.marker_big_len + 4.0f,
+                                     marker_y - hud_font_small->font->Ascent * 0.5f },
+                                   hud_color,
+                                   scratch_buf);
+            }
+        }
+    };
+
+    const float altimeter_bar_height =
+        static_cast<float>(re.frame_data->fbsize.height) - hud_cfg->altimeter.ymargin * 2.0f;
+    const vec2f32 altimeter_origin{
+        static_cast<float>(re.frame_data->fbsize.width) - hud_cfg->altimeter.xmargin,
+        hud_cfg->altimeter.ymargin,
+    };
+
+    draw_altitude_markers(sd->position.GetY(),
+                          hud_cfg->altimeter.range,
+                          hud_cfg->altimeter.increment,
+                          altimeter_bar_height,
+                          altimeter_origin);
+
+    draw_list->AddRectFilled({ altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y },
+                             { altimeter_origin.x, altimeter_origin.y + altimeter_bar_height },
+                             hud_color);
+    draw_list->AddRectFilled(
+        { altimeter_origin.x, altimeter_origin.y },
+        { altimeter_origin.x + hud_cfg->altimeter.bar_ends_len, altimeter_origin.y + hud_cfg->altimeter.bar_width },
+        hud_color);
+
+    draw_list->AddRectFilled(
+        { altimeter_origin.x, altimeter_origin.y + altimeter_bar_height - hud_cfg->altimeter.bar_width },
+        { altimeter_origin.x + hud_cfg->altimeter.bar_ends_len, altimeter_origin.y + altimeter_bar_height },
+        hud_color);
+
+    draw_list->AddLine(
+        { 0.0f, altimeter_origin.y + altimeter_bar_height * 0.5f },
+        { static_cast<float>(re.frame_data->fbsize.width), altimeter_origin.y + altimeter_bar_height * 0.5f },
+        static_cast<uint32_t>(color_palette::web::orange_red));
+
+    const vec2f32 alt_arrowpos{
+        altimeter_origin.x + hud_cfg->altimeter.bar_ends_len,
+        altimeter_origin.y + altimeter_bar_height * 0.5f - 64.0f,
+    };
+
+    re.sprites->draw_scaled_rotated(alt_arrowpos.x,
+                                    alt_arrowpos.y,
+                                    128.0f,
+                                    128.0f,
+                                    1.0f,
+                                    radians(-90.0f),
+                                    SpriteIds::WHITE_RETINA_CROSSHAIR127,
+                                    hud_color);
+
+    format_to_n(scratch_buffer, "{: >5.0f}", sd->position.GetY());
+    const vec2f32 alt_hight_text_pos{ alt_arrowpos + vec2f32{ 32.0f, 32.0f } };
     draw_list->AddText(hud_font_small->font,
                        hud_font_small->pixel_size,
-                       { compass_origin.x + 4.0f, compass_origin.y + hud_font_small->font->Ascent * 2.0f + 32.0f },
+                       { alt_hight_text_pos.x, alt_hight_text_pos.y },
                        hud_color,
                        scratch_buffer);
 
@@ -1054,11 +1163,9 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
         cursor_xy.y += hud_font->font->Ascent + 4.0f;
     };
 
-    add_text_element("Ang", sd->angular_velocity);
-    const JPH::Mat44 xf = _world.ent_player.phys_body->GetWorldTransform();
-    add_text_element("X", xf.GetAxisX());
-    add_text_element("Y", xf.GetAxisY());
-    add_text_element("Z", xf.GetAxisZ());
+    add_text_element("ROLL", sd->rotation.GetRotationAngle(JPH::Vec3::sAxisZ()));
+    add_text_element("PITCH", sd->rotation.GetRotationAngle(JPH::Vec3::sAxisX()));
+    add_text_element("RollPitchYaw", sd->rotation.GetEulerAngles());
 
     ImGui::Dummy({ static_cast<float>(re.frame_data->fbsize.width), static_cast<float>(re.frame_data->fbsize.height) });
 
@@ -1069,8 +1176,8 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
 void
 B5::GameSimulation::draw_hud(const RenderEvent& render_evt)
 {
-    // const float size = 128.0f;
-    // vec2f32 coords{ 0 };
+    const float size = 128.0f;
+    vec2f32 coords{ 0 };
     // for (const SpriteHandleType sprite_id : {
     //          SpriteIds::WHITE_RETINA_CROSSHAIR126,
     //          SpriteIds::WHITE_RETINA_CROSSHAIR127,

@@ -24,10 +24,25 @@ struct HudCompassDefinition
     std::string glyph_minor{ "-" };
 };
 
+struct HudAltimeterDefinition
+{
+    float xmargin{ 256.0f };
+    float ymargin{ 128.0f };
+    float range{ 300.0f };
+    float increment{ 10.0f };
+    float bar_ends_len{ 32.0f };
+    float bar_width{ 8.0f };
+    float marker_big_meters{ 50.0f };
+    float marker_big_len{ 8.0f };
+    float marker_small_len{ 4.0f };
+    float marker_height{4.0f};
+};
+
 struct HudConfigDefinition
 {
     std::vector<HudFontDefinition> font_list;
     HudCompassDefinition compass;
+    HudAltimeterDefinition altimeter;
     // std::vector<HudConfigurationTextElement> text_elements;
 };
 

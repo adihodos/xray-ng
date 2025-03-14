@@ -57,8 +57,9 @@ namespace simulation_details {
 
 struct SpacecraftData
 {
-    JPH::Vec3 direction{JPH::Vec3::sAxisZ()};
-    JPH::Vec3 up{JPH::Vec3::sAxisY()};
+    JPH::Vec3 direction{ JPH::Vec3::sAxisZ() };
+    JPH::Vec3 up{ JPH::Vec3::sAxisY() };
+    JPH::Quat rotation{ JPH::Quat::sIdentity() };
     JPH::Vec3 position;
     JPH::Vec3 linear_velocity;
     JPH::Vec3 angular_velocity;

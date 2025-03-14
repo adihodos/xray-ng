@@ -119,7 +119,11 @@ class SpriteSystem
                              const float scale,
                              const float rotation,
                              const SpriteHandleType sprite_handle,
-                             const uint32_t color);
+                             const uint32_t color)
+    {
+        draw_scaled_rotated_with_origin(
+            x + width * 0.5f, y + height * 0.5f, width, height, scale, rotation, sprite_handle, color);
+    }
 
     void draw_with_origin(const float ox,
                           const float oy,
