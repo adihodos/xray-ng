@@ -955,7 +955,6 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
 
     const HudConfigDefinition* hud_cfg = re.hud_cfg;
 
-    const vec2f32 compass_origin{ static_cast<float>(re.frame_data->fbsize.width) * 0.5f, hud_cfg->compass.ypos };
     const float compass_bearing = compute_compass_bearing(vec2f32{ sd->direction.GetX(), dir.GetZ() });
 
     format_to_n(scratch_buffer, "ALT: {}", static_cast<int32_t>(sd->position.GetY()));
@@ -968,6 +967,12 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
     cursor_xy.y += hud_font->font->Ascent + 4.0f;
 
+    const float compass_bar_width = static_cast<float>(re.frame_data->fbsize.width) - hud_cfg->compass.xmargin * 2.0f;
+    const vec2f32 compass_origin{
+        hud_cfg->compass.xmargin,
+        hud_cfg->compass.ymargin,
+    };
+
     auto draw_compass_markers = [draw_list, hud_color, hud_font_small, hud_cfg](const float start_angle,
                                                                                 const float range_degrees,
                                                                                 const float angle_increment,
@@ -976,21 +981,21 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
         const float angle_start = start_angle - (range_degrees * 0.5f);
         const float angle_end = start_angle + (range_degrees * 0.5f);
 
-        float current_angle = angle_start;
-        while (current_angle <= angle_end) {
-            //
-            // find next multiple of angle_increment
-            const float marker_angle =
-                ((static_cast<int32_t>(current_angle) - 1) / static_cast<int32_t>(angle_increment) + 1) *
-                angle_increment;
-
-            if (marker_angle > angle_end)
-                break;
-
+        for (float current_angle = angle_start; current_angle <= angle_end; current_angle += angle_increment) {
+            const float marker_angle = std::floor(current_angle / angle_increment) * angle_increment;
             const float marker_x = line_origin.x + ((marker_angle - angle_start) / (range_degrees)) * line_length;
+
+            if (marker_x <= line_origin.x) {
+                continue;
+            }
+
+            if (marker_x >= line_origin.x + line_length) {
+                continue;
+            }
+
             const char* marker_symbol = hud_cfg->compass.glyph_minor.data();
 
-            if (is_zero(std::fmod(marker_angle, angle_increment * 2.0f))) {
+            if (is_zero(std::fmod(marker_angle, hud_cfg->compass.label_angle_multiple))) {
                 marker_symbol = hud_cfg->compass.glyph_major.data();
             }
 
@@ -1013,20 +1018,22 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
                                { marker_x, line_origin.y + hud_font_small->font->Ascent },
                                hud_color,
                                scratch_buf);
-            current_angle += angle_increment;
         }
     };
 
     draw_compass_markers(compass_bearing,
                          hud_cfg->compass.arc_degrees,
                          hud_cfg->compass.angle_increment,
-                         hud_cfg->compass.bar_width,
-                         compass_origin - vec2f32{ hud_cfg->compass.bar_width * 0.5f, 0.0f });
+                         compass_bar_width,
+                         compass_origin);
 
-    const vec2f32 v2{ compass_origin.x, compass_origin.y + hud_font_small->font->Ascent * 2.0f };
+    const vec2f32 v2{
+        compass_origin.x + compass_bar_width * 0.5f,
+        compass_origin.y + hud_font_small->font->Ascent * 2.0f,
+    };
     const vec2f32 p{ v2 + vec2f32{ 0.0f, 32.0f } };
-    const vec2f32 v0{ compass_origin.x - 24.0f, p.y };
-    const vec2f32 v1{ compass_origin.x + 24.0f, p.y };
+    const vec2f32 v0{ p.x - 24.0f, p.y };
+    const vec2f32 v1{ p.x + 24.0f, p.y };
 
     draw_list->AddTriangleFilled({ v0.x, v0.y }, { v2.x, v2.y }, { v1.x, v1.y }, hud_color);
     // draw_list->AddTriangle({ v0.x, v0.y }, { v2.x, v2.y }, { v1.x, v1.y }, hud_color, 4.0f);
@@ -1110,21 +1117,24 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     draw_list->AddRectFilled({ altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y },
                              { altimeter_origin.x, altimeter_origin.y + altimeter_bar_height },
                              hud_color);
+
     draw_list->AddRectFilled(
-        { altimeter_origin.x, altimeter_origin.y },
-        { altimeter_origin.x + hud_cfg->altimeter.bar_ends_len, altimeter_origin.y + hud_cfg->altimeter.bar_width },
+        { altimeter_origin.x - hud_cfg->altimeter.bar_width - hud_cfg->altimeter.bar_ends_len, altimeter_origin.y },
+        { altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y + hud_cfg->altimeter.bar_width },
         hud_color);
 
     draw_list->AddRectFilled(
-        { altimeter_origin.x, altimeter_origin.y + altimeter_bar_height - hud_cfg->altimeter.bar_width },
-        { altimeter_origin.x + hud_cfg->altimeter.bar_ends_len, altimeter_origin.y + altimeter_bar_height },
+        { altimeter_origin.x - hud_cfg->altimeter.bar_width - hud_cfg->altimeter.bar_ends_len,
+          altimeter_origin.y + altimeter_bar_height - hud_cfg->altimeter.bar_width },
+        { altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y + altimeter_bar_height },
         hud_color);
 
-    draw_list->AddLine(
-        { 0.0f, altimeter_origin.y + altimeter_bar_height * 0.5f },
-        { static_cast<float>(re.frame_data->fbsize.width), altimeter_origin.y + altimeter_bar_height * 0.5f },
-        static_cast<uint32_t>(color_palette::web::orange_red));
-
+    //
+    // draw_list->AddLine(
+    //     { 0.0f, altimeter_origin.y + altimeter_bar_height * 0.5f },
+    //     { static_cast<float>(re.frame_data->fbsize.width), altimeter_origin.y + altimeter_bar_height * 0.5f },
+    //     static_cast<uint32_t>(color_palette::web::orange_red));
+    //
     const vec2f32 alt_arrowpos{
         altimeter_origin.x + hud_cfg->altimeter.bar_ends_len,
         altimeter_origin.y + altimeter_bar_height * 0.5f - 64.0f,
