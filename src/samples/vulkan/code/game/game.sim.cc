@@ -957,16 +957,16 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
 
     const float compass_bearing = compute_compass_bearing(vec2f32{ sd->direction.GetX(), dir.GetZ() });
 
-    format_to_n(scratch_buffer, "ALT: {}", static_cast<int32_t>(sd->position.GetY()));
+    // format_to_n(scratch_buffer, "ALT: {}", static_cast<int32_t>(sd->position.GetY()));
 
-    vec2f32 cursor_xy{ 256.0f, 512.0f };
-    draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
-    cursor_xy.y += hud_font->font->Ascent;
-
-    format_to_n(scratch_buffer, "{}", static_cast<int32_t>(std::round(sd->linear_velocity.Length())));
-    draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
-    cursor_xy.y += hud_font->font->Ascent + 4.0f;
-
+    // vec2f32 cursor_xy{ 256.0f, 512.0f };
+    // draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
+    // cursor_xy.y += hud_font->font->Ascent;
+    //
+    // format_to_n(scratch_buffer, "{}", static_cast<int32_t>(std::round(sd->linear_velocity.Length())));
+    // draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
+    // cursor_xy.y += hud_font->font->Ascent + 4.0f;
+    //
     const float compass_bar_width = static_cast<float>(re.frame_data->fbsize.width) - hud_cfg->compass.xmargin * 2.0f;
     const vec2f32 compass_origin{
         hud_cfg->compass.xmargin,
@@ -1052,6 +1052,124 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     //                    hud_color,
     //                    scratch_buffer);
 
+    auto draw_ranged_indicator = [spritesys = re.sprites, draw_list, hud_color, hud_font_small](
+                                     const RangedIndicatorDefinition& cfg,
+                                     const vec2f32 screen_size,
+                                     const float indicated_value) {
+        const float range_start = indicated_value - (cfg.range * 0.5f);
+        const float range_end = indicated_value + (cfg.range * 0.5f);
+
+        const vec2f32 indicator_origin = {
+            cfg.xmargin > 0 ? cfg.xmargin : screen_size.x + cfg.xmargin,
+            cfg.ymargin > 0 ? cfg.ymargin : screen_size.y + cfg.ymargin,
+        };
+
+        const float dir_x = cfg.xmargin > 0 ? 1.0f : -1.0f;
+        const vec2f32 indicator_size =
+            screen_size - vec2f32{ std::fabs(cfg.xmargin) * 2.0f, std::fabs(cfg.ymargin) * 2.0f };
+
+        auto order_ascending_fn = [](const float x, const float y) {
+            return x > y ? std::tuple{ y, x } : std::tuple{ x, y };
+        };
+
+        for (float current_value = range_start; current_value <= range_end; current_value += cfg.increment) {
+            //
+            // find next multiple of angle_increment
+            const float altitude_marker = std::floor(current_value / cfg.increment) * cfg.increment;
+
+            if (altitude_marker > range_end)
+                break;
+
+            const float marker_y =
+                indicator_origin.y + (1.0f - (altitude_marker - range_start) / (cfg.range)) * indicator_size.y;
+
+            if (marker_y <= (indicator_origin.y + cfg.marker_height))
+                continue;
+
+            if (marker_y >= (indicator_origin.y - cfg.marker_height + indicator_size.y))
+                continue;
+
+            const bool is_marker_large = is_zero(std::fmod(altitude_marker, cfg.marker_big_meters));
+            const float marker_len = is_marker_large ? cfg.marker_big_len : cfg.marker_small_len;
+
+            const auto [x0, x1] = order_ascending_fn(indicator_origin.x, indicator_origin.x - dir_x * marker_len);
+            draw_list->AddRectFilled(
+                { x0, marker_y - cfg.marker_height * 0.5f }, { x1, marker_y + cfg.marker_height * 0.5f }, hud_color);
+
+            if (is_marker_large) {
+                char scratch_buf[64];
+                format_to_n(scratch_buf, "{: >3.0f}", altitude_marker);
+                float xpos = indicator_origin.x - (cfg.marker_big_len + 4.0f) * dir_x;
+                if (cfg.xmargin > 0.0f) {
+                    const ImVec2 text_size =
+                        hud_font_small->font->CalcTextSizeA(hud_font_small->pixel_size, 128.0f, 0.0f, scratch_buf);
+                    xpos -= text_size.x;
+                }
+
+                draw_list->AddText(hud_font_small->font,
+                                   hud_font_small->pixel_size,
+                                   { xpos, marker_y - hud_font_small->font->Ascent * 0.5f },
+                                   hud_color,
+                                   scratch_buf);
+            }
+        }
+
+        //
+        // base line
+        const auto [x0, x1] = order_ascending_fn(indicator_origin.x, indicator_origin.x + cfg.bar_width * dir_x);
+        draw_list->AddRectFilled({ x0, indicator_origin.y }, { x1, indicator_origin.y + indicator_size.y }, hud_color);
+
+        //
+        // upper and lower ends
+        const auto [bx0, bx1] =
+            order_ascending_fn(indicator_origin.x, indicator_origin.x + (cfg.bar_width + cfg.bar_ends_len) * dir_x);
+
+        draw_list->AddRectFilled({ bx0, indicator_origin.y }, { bx1, indicator_origin.y + cfg.bar_width }, hud_color);
+
+        draw_list->AddRectFilled({ bx0, indicator_origin.y + indicator_size.y - cfg.bar_width },
+                                 { bx1, indicator_origin.y + indicator_size.y },
+                                 hud_color);
+
+        //
+        // indicator
+        const vec2f32 indicator_arrowpos{
+            cfg.xmargin > 0.0f ? indicator_origin.x - cfg.bar_width - 128.0f : indicator_origin.x + cfg.bar_width,
+            indicator_origin.y + indicator_size.y * 0.5f - 64.0f,
+        };
+
+        spritesys->draw_scaled_rotated(indicator_arrowpos.x,
+                                       indicator_arrowpos.y,
+                                       128.0f,
+                                       128.0f,
+                                       1.0f,
+                                       radians(90.0f * dir_x),
+                                       SpriteIds::WHITE_RETINA_CROSSHAIR127,
+                                       hud_color);
+
+        char scratch_buffer[128];
+        format_to_n(scratch_buffer, "{: >5.0f}", indicated_value);
+        float xpos = indicator_arrowpos.x - (cfg.marker_big_len + 4.0f) * dir_x;
+        if (cfg.xmargin > 0.0f) {
+            const ImVec2 text_size =
+                hud_font_small->font->CalcTextSizeA(hud_font_small->pixel_size, 128.0f, 0.0f, scratch_buf);
+            xpos -= text_size.x;
+        }
+
+        const vec2f32 alt_hight_text_pos{ alt_arrowpos + vec2f32{ 32.0f, 32.0f } };
+        draw_list->AddText(hud_font_small->font,
+                           hud_font_small->pixel_size,
+                           { alt_hight_text_pos.x, alt_hight_text_pos.y },
+                           hud_color,
+                           scratch_buffer);
+    };
+
+    draw_ranged_indicator(hud_cfg->speedometer,
+                          vec2f32{ re.frame_data->fbsize.width, re.frame_data->fbsize.height },
+                          sd->linear_velocity.Length());
+
+    draw_ranged_indicator(
+        hud_cfg->altimeter, vec2f32{ re.frame_data->fbsize.width, re.frame_data->fbsize.height }, sd->position.GetY());
+
     //
     // altitude
     auto draw_altitude_markers = [draw_list, hud_color, hud_font_small, hud_cfg](const float altitude,
@@ -1101,61 +1219,60 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
         }
     };
 
-    const float altimeter_bar_height =
-        static_cast<float>(re.frame_data->fbsize.height) - hud_cfg->altimeter.ymargin * 2.0f;
-    const vec2f32 altimeter_origin{
-        static_cast<float>(re.frame_data->fbsize.width) - hud_cfg->altimeter.xmargin,
-        hud_cfg->altimeter.ymargin,
-    };
-
-    draw_altitude_markers(sd->position.GetY(),
-                          hud_cfg->altimeter.range,
-                          hud_cfg->altimeter.increment,
-                          altimeter_bar_height,
-                          altimeter_origin);
-
-    draw_list->AddRectFilled({ altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y },
-                             { altimeter_origin.x, altimeter_origin.y + altimeter_bar_height },
-                             hud_color);
-
-    draw_list->AddRectFilled(
-        { altimeter_origin.x - hud_cfg->altimeter.bar_width - hud_cfg->altimeter.bar_ends_len, altimeter_origin.y },
-        { altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y + hud_cfg->altimeter.bar_width },
-        hud_color);
-
-    draw_list->AddRectFilled(
-        { altimeter_origin.x - hud_cfg->altimeter.bar_width - hud_cfg->altimeter.bar_ends_len,
-          altimeter_origin.y + altimeter_bar_height - hud_cfg->altimeter.bar_width },
-        { altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y + altimeter_bar_height },
-        hud_color);
-
+    // const float altimeter_bar_height =
+    //     static_cast<float>(re.frame_data->fbsize.height) - hud_cfg->altimeter.ymargin * 2.0f;
+    // const vec2f32 altimeter_origin{
+    //     static_cast<float>(re.frame_data->fbsize.width) - hud_cfg->altimeter.xmargin,
+    //     hud_cfg->altimeter.ymargin,
+    // };
+    //
+    // draw_altitude_markers(sd->position.GetY(),
+    //                       hud_cfg->altimeter.range,
+    //                       hud_cfg->altimeter.increment,
+    //                       altimeter_bar_height,
+    //                       altimeter_origin);
+    //
+    // draw_list->AddRectFilled({ altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y },
+    //                          { altimeter_origin.x, altimeter_origin.y + altimeter_bar_height },
+    //                          hud_color);
+    //
+    // draw_list->AddRectFilled(
+    //     { altimeter_origin.x - hud_cfg->altimeter.bar_width - hud_cfg->altimeter.bar_ends_len, altimeter_origin.y },
+    //     { altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y + hud_cfg->altimeter.bar_width },
+    //     hud_color);
+    //
+    // draw_list->AddRectFilled(
+    //     { altimeter_origin.x - hud_cfg->altimeter.bar_width - hud_cfg->altimeter.bar_ends_len,
+    //       altimeter_origin.y + altimeter_bar_height - hud_cfg->altimeter.bar_width },
+    //     { altimeter_origin.x - hud_cfg->altimeter.bar_width, altimeter_origin.y + altimeter_bar_height },
+    //     hud_color);
     //
     // draw_list->AddLine(
     //     { 0.0f, altimeter_origin.y + altimeter_bar_height * 0.5f },
     //     { static_cast<float>(re.frame_data->fbsize.width), altimeter_origin.y + altimeter_bar_height * 0.5f },
     //     static_cast<uint32_t>(color_palette::web::orange_red));
+    // //
+    // const vec2f32 alt_arrowpos{
+    //     altimeter_origin.x + hud_cfg->altimeter.bar_ends_len,
+    //     altimeter_origin.y + altimeter_bar_height * 0.5f - 64.0f,
+    // };
     //
-    const vec2f32 alt_arrowpos{
-        altimeter_origin.x + hud_cfg->altimeter.bar_ends_len,
-        altimeter_origin.y + altimeter_bar_height * 0.5f - 64.0f,
-    };
-
-    re.sprites->draw_scaled_rotated(alt_arrowpos.x,
-                                    alt_arrowpos.y,
-                                    128.0f,
-                                    128.0f,
-                                    1.0f,
-                                    radians(-90.0f),
-                                    SpriteIds::WHITE_RETINA_CROSSHAIR127,
-                                    hud_color);
-
-    format_to_n(scratch_buffer, "{: >5.0f}", sd->position.GetY());
-    const vec2f32 alt_hight_text_pos{ alt_arrowpos + vec2f32{ 32.0f, 32.0f } };
-    draw_list->AddText(hud_font_small->font,
-                       hud_font_small->pixel_size,
-                       { alt_hight_text_pos.x, alt_hight_text_pos.y },
-                       hud_color,
-                       scratch_buffer);
+    // re.sprites->draw_scaled_rotated(alt_arrowpos.x,
+    //                                 alt_arrowpos.y,
+    //                                 128.0f,
+    //                                 128.0f,
+    //                                 1.0f,
+    //                                 radians(-90.0f),
+    //                                 SpriteIds::WHITE_RETINA_CROSSHAIR127,
+    //                                 hud_color);
+    //
+    // format_to_n(scratch_buffer, "{: >5.0f}", sd->position.GetY());
+    // const vec2f32 alt_hight_text_pos{ alt_arrowpos + vec2f32{ 32.0f, 32.0f } };
+    // draw_list->AddText(hud_font_small->font,
+    //                    hud_font_small->pixel_size,
+    //                    { alt_hight_text_pos.x, alt_hight_text_pos.y },
+    //                    hud_color,
+    //                    scratch_buffer);
 
     auto add_text_element = [&](const string_view label, auto&& v) {
         using value_type = std::remove_cvref_t<decltype(v)>;
@@ -1173,9 +1290,9 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
         cursor_xy.y += hud_font->font->Ascent + 4.0f;
     };
 
-    add_text_element("ROLL", sd->rotation.GetRotationAngle(JPH::Vec3::sAxisZ()));
-    add_text_element("PITCH", sd->rotation.GetRotationAngle(JPH::Vec3::sAxisX()));
-    add_text_element("RollPitchYaw", sd->rotation.GetEulerAngles());
+    // add_text_element("ROLL", sd->rotation.GetRotationAngle(JPH::Vec3::sAxisZ()));
+    // add_text_element("PITCH", sd->rotation.GetRotationAngle(JPH::Vec3::sAxisX()));
+    // add_text_element("RollPitchYaw", sd->rotation.GetEulerAngles());
 
     ImGui::Dummy({ static_cast<float>(re.frame_data->fbsize.width), static_cast<float>(re.frame_data->fbsize.height) });
 
