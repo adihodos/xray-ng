@@ -1427,23 +1427,7 @@ GameMain::create(MemoryArena* arena_perm, MemoryArena* arena_temp)
 
     const RendererConfig rcfg{ RendererConfig::from_file(xr_app_config->config_root() / "renderer.conf") };
 
-    tl::optional<VulkanRenderer> opt_renderer
-    {
-        VulkanRenderer::create(
-#if defined(XRAY_OS_IS_WINDOWS)
-            WindowPlatformDataWin32{
-                .module = main_window.native_module(),
-                .window = main_window.native_window(),
-                .width = static_cast<uint32_t>(main_window.width()),
-                .height = static_cast<uint32_t>(main_window.height()),
-            }
-#else
-            main_window.platform_data()
-#endif
-            ,
-            rcfg)
-    };
-
+    tl::optional<VulkanRenderer> opt_renderer{ VulkanRenderer::create(main_window.platform_data(), rcfg) };
     if (!opt_renderer) {
         return tl::make_unexpected(MiscError{ .what = "Failed to create Vulkan renderer" });
     }
@@ -1663,7 +1647,11 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 }
 
 int
+#if defined(XRAY_OS_IS_WINDOWS)
+WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+#else
 main(int argc, char** argv)
+#endif
 {
     TracySetProgramName("XrayNG");
 

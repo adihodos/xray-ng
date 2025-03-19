@@ -30,15 +30,19 @@
 
 #pragma once
 
-#include "xray/base/unique_pointer.hpp"
-#include "xray/ui/events.hpp"
-#include "xray/ui/window.common.core.hpp"
-#include "xray/ui/window_params.hpp"
-#include "xray/xray.hpp"
+#include <span>
 #include <atomic>
 #include <cstdint>
 #include <type_traits>
 #include <windows.h>
+
+#include "xray/base/unique_pointer.hpp"
+#include "xray/ui/events.hpp"
+#include "xray/ui/events.gamepad.hpp"
+#include "xray/ui/window.common.core.hpp"
+#include "xray/ui/window_params.hpp"
+
+#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 
 namespace xray {
 namespace ui {
@@ -113,6 +117,7 @@ class window
     handle_type handle() const noexcept { return _window; }
     handle_type native_window() const noexcept { return _window; }
     HMODULE native_module() const noexcept { return GetModuleHandle(nullptr); }
+    xray::rendering::WindowPlatformDataWin32 platform_data() const noexcept;
 
     void disable_cursor() noexcept;
     void enable_cursor() noexcept;
@@ -135,6 +140,7 @@ class window
 
     int32_t width() const noexcept { return _wnd_width; }
     int32_t height() const noexcept { return _wnd_height; }
+    std::span<const GamepadAxisInfo> gamepad_axis_info() const noexcept;
 
     void message_loop();
     void quit() noexcept { _quit_flag = true; }
@@ -168,6 +174,9 @@ class window
     int32_t _wnd_width{ -1 };
     int32_t _wnd_height{ -1 };
     std::atomic<int32_t> _quit_flag{ false };
+
+    struct WindowInternalState;
+    xray::base::unique_pointer<WindowInternalState> _winternal;
 };
 
 } // namespace ui

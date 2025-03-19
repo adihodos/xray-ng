@@ -1151,11 +1151,11 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
         float xpos = indicator_arrowpos.x - (cfg.marker_big_len + 4.0f) * dir_x;
         if (cfg.xmargin > 0.0f) {
             const ImVec2 text_size =
-                hud_font_small->font->CalcTextSizeA(hud_font_small->pixel_size, 128.0f, 0.0f, scratch_buf);
+                hud_font_small->font->CalcTextSizeA(hud_font_small->pixel_size, 128.0f, 0.0f, scratch_buffer);
             xpos -= text_size.x;
         }
 
-        const vec2f32 alt_hight_text_pos{ alt_arrowpos + vec2f32{ 32.0f, 32.0f } };
+        const vec2f32 alt_hight_text_pos{ indicator_arrowpos + vec2f32{ 32.0f, 32.0f } };
         draw_list->AddText(hud_font_small->font,
                            hud_font_small->pixel_size,
                            { alt_hight_text_pos.x, alt_hight_text_pos.y },
@@ -1274,22 +1274,22 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     //                    hud_color,
     //                    scratch_buffer);
 
-    auto add_text_element = [&](const string_view label, auto&& v) {
-        using value_type = std::remove_cvref_t<decltype(v)>;
-        if constexpr (std::is_floating_point_v<value_type>) {
-            format_to_n(scratch_buffer, "{}: {:3.3f}", label, v);
-        } else if constexpr (std::is_integral_v<value_type>) {
-            format_to_n(scratch_buffer, "{}: {}", label, v);
-        } else if constexpr (std::is_same_v<value_type, JPH::Vec3>) {
-            format_to_n(scratch_buffer, "{}: {:3.3f}, {:3.3f}, {:3.3f}", label, v.GetX(), v.GetY(), v.GetZ());
-        } else {
-            static_assert(false, "Unhandled value type");
-        }
-
-        draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
-        cursor_xy.y += hud_font->font->Ascent + 4.0f;
-    };
-
+    // auto add_text_element = [&](const string_view label, auto&& v) {
+    //     using value_type = std::remove_cvref_t<decltype(v)>;
+    //     if constexpr (std::is_floating_point_v<value_type>) {
+    //         format_to_n(scratch_buffer, "{}: {:3.3f}", label, v);
+    //     } else if constexpr (std::is_integral_v<value_type>) {
+    //         format_to_n(scratch_buffer, "{}: {}", label, v);
+    //     } else if constexpr (std::is_same_v<value_type, JPH::Vec3>) {
+    //         format_to_n(scratch_buffer, "{}: {:3.3f}, {:3.3f}, {:3.3f}", label, v.GetX(), v.GetY(), v.GetZ());
+    //     } else {
+    //         static_assert(false, "Unhandled value type");
+    //     }
+    //
+    //     draw_list->AddText({ cursor_xy.x, cursor_xy.y }, hud_color, scratch_buffer);
+    //     cursor_xy.y += hud_font->font->Ascent + 4.0f;
+    // };
+    //
     // add_text_element("ROLL", sd->rotation.GetRotationAngle(JPH::Vec3::sAxisZ()));
     // add_text_element("PITCH", sd->rotation.GetRotationAngle(JPH::Vec3::sAxisX()));
     // add_text_element("RollPitchYaw", sd->rotation.GetEulerAngles());

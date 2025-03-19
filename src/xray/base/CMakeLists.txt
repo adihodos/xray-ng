@@ -61,6 +61,6 @@ target_compile_definitions(
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC fmt::fmt spdlog::spdlog $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
+  PUBLIC fmt::fmt spdlog::spdlog $<IF:$<CXX_COMPILER_ID:MSVC>,libconfig,config>
          reflectcpp swl-variant tl::optional
   PRIVATE itlib::itlib joboccara::pipes)

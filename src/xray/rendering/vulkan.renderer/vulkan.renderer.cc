@@ -611,15 +611,15 @@ VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig&
     }
 
     const small_vec_4<const char*> extensions_list{ [&supported_extensions]() {
-        small_vec_4<const char*> exts_list
-        {
+        small_vec_4<const char*> exts_list{
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(XRAY_OS_IS_WINDOWS)
-                VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #else
-                VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+            VK_KHR_XLIB_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
-                VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
         };
 
         static constexpr const initializer_list<const char*> display_extensions_list = {
@@ -920,45 +920,46 @@ VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig&
 
     XR_LOG_INFO("Device created successfully");
 
-    tl::optional<PresentToSurface> present_to_surface{ [&win_data,
-                                                        instance =
-                                                            raw_ptr(vkinstance)]() -> tl::optional<PresentToSurface> {
+    tl::optional<PresentToSurface> present_to_surface{
+        [&win_data, instance = raw_ptr(vkinstance)]() -> tl::optional<PresentToSurface> {
 #if defined(XRAY_OS_IS_WINDOWS)
-        if (const WindowPlatformDataWin32* wp = swl::get_if<WindowPlatformDataWin32>(&win_data)) {
-            const VkWin32SurfaceCreateInfoKHR create_info{ .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-                                                           .pNext = nullptr,
-                                                           .flags = 0,
-                                                           .hinstance =
-                                                               reinterpret_cast<HINSTANCE>(GetModuleHandle(nullptr)),
-                                                           .hwnd = wp->window };
+            if (const WindowPlatformDataWin32* wp = swl::get_if<WindowPlatformDataWin32>(&win_data)) {
+                const VkWin32SurfaceCreateInfoKHR create_info{
+                    .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+                    .pNext = nullptr,
+                    .flags = 0,
+                    .hinstance = reinterpret_cast<HINSTANCE>(wp->module),
+                    .hwnd = reinterpret_cast<HWND>(wp->window),
+                };
 
-            xrUniqueVkSurfaceKHR surface{ [&]() {
-                                             VkSurfaceKHR surface{};
-                                             WRAP_VULKAN_FUNC(
-                                                 vkCreateWin32SurfaceKHR, instance, &create_info, nullptr, &surface);
-                                             return surface;
-                                         }(),
-                                          VkResourceDeleter_VkSurfaceKHR{ instance } };
+                xrUniqueVkSurfaceKHR surface{
+                    [&]() {
+                        VkSurfaceKHR surface{};
+                        WRAP_VULKAN_FUNC(vkCreateWin32SurfaceKHR, instance, &create_info, nullptr, &surface);
+                        return surface;
+                    }(),
+                    VkResourceDeleter_VkSurfaceKHR{ instance },
+                };
 
-            if (!surface)
-                return tl::nullopt;
+                if (!surface)
+                    return tl::nullopt;
 
-            XR_LOG_INFO("Surface created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(surface)));
-            return tl::make_optional<PresentToSurface>(PresentToWindowSurface{ *wp, std::move(surface) });
-        }
+                XR_LOG_INFO("Surface created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(surface)));
+                return tl::make_optional<PresentToSurface>(PresentToWindowSurface{ *wp, std::move(surface) });
+            }
 
 #else
-        if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
-            return create_xlib_surface(*xlib, instance);
-        }
+            if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
+                return create_xlib_surface(*xlib, instance);
+            }
 
-        if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
-            return create_xcb_surface(*xcb, instance);
-        }
+            if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
+                return create_xcb_surface(*xcb, instance);
+            }
 #endif
-
-        return tl::nullopt;
-    }() };
+            return tl::nullopt;
+        }()
+    };
 
     if (!present_to_surface) {
         XR_LOG_CRITICAL("Cannot create a surface of any kind (display/window)");
@@ -1065,7 +1066,7 @@ VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig&
             }();
 
             const VkExtent3D swapchain_dimensions = swl::visit(
-                VariantVisitor {
+                VariantVisitor{
 #if defined(XRAY_OS_IS_WINDOWS)
                     [](const WindowPlatformDataWin32& win32) {
                         return VkExtent3D{ .width = win32.width, .height = win32.height, .depth = 1 };
@@ -1074,9 +1075,9 @@ VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig&
                     [](const WindowPlatformDataXcb& xcb) {
                         return VkExtent3D{ .width = xcb.width, .height = xcb.height, .depth = 1 };
                     },
-                        [](const WindowPlatformDataXlib& xlib) {
-                            return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
-                        },
+                    [](const WindowPlatformDataXlib& xlib) {
+                        return VkExtent3D{ .width = xlib.width, .height = xlib.height, .depth = 1 };
+                    },
 #endif
                 },
                 win_data);
@@ -2241,7 +2242,7 @@ xray::rendering::VulkanRenderer::consume_many_wait_tokens(xray::base::MemoryAren
                      std::numeric_limits<uint64_t>::max());
 
     for (VkFence f : wait_fences) {
-        vkDestroyFence(device(), f, None);
+        vkDestroyFence(device(), f, nullptr);
     }
 
     const QueueData qdata = queue_data(tokens[0].queue());

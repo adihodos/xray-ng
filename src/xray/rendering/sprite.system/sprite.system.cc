@@ -137,7 +137,7 @@ tl::optional<SpriteAtlasEntry>
 SpriteSystem::get_sprite_by_id(const SpriteHandleType id) const noexcept
 {
     auto itr_entry = _sprites_table.find(id);
-    return itr_entry == std::cend(_sprites_table) ? tl::nullopt : tl::optional{ itr_entry->second };
+    return itr_entry == std::cend(_sprites_table) ? tl::nullopt : tl::optional<SpriteAtlasEntry>{ itr_entry->second };
 }
 
 void

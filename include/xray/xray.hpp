@@ -223,6 +223,7 @@
 #define XR_DISABLE_OPTIMIZATIONS _Pragma("GCC optimize(0)")
 #elif defined(XRAY_COMPILER_IS_CLANG)
 #elif defined(XRAY_COMPILER_IS_MSVC)
+#define XR_DISABLE_OPTIMIZATIONS __pragma(optimize("", off))
 #endif
 
 #define XR_U32_OFFSETOF(type_name, member_name) static_cast<uint32_t>(offsetof(type_name, member_name))

@@ -52,7 +52,7 @@ class BPLayerInterfaceImpl final : public JPH::BroadPhaseLayerInterface
         mObjectToBroadPhase[PhysicsSystem::ObjectLayers::MOVING] = PhysicsSystem::BroadPhaseLayers::MOVING;
     }
 
-    virtual uint GetNumBroadPhaseLayers() const override { return PhysicsSystem::BroadPhaseLayers::NUM_LAYERS; }
+    virtual JPH::uint GetNumBroadPhaseLayers() const override { return PhysicsSystem::BroadPhaseLayers::NUM_LAYERS; }
 
     virtual JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer inLayer) const override
     {

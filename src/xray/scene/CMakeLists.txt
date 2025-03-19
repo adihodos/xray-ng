@@ -35,5 +35,5 @@ target_compile_definitions(${PROJECT_NAME}
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC xray-base xray-ui xray-rendering
-         $<IF:$<PLATFORM_ID:Windows>,libconfig,config> tl::optional
+    $<IF:$<CXX_COMPILER_ID:MSVC>,libconfig,config> tl::optional
   PRIVATE joboccara::pipes)

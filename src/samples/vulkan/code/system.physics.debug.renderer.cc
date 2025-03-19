@@ -14,6 +14,10 @@
 
 #if defined(XRAY_OS_IS_POSIX_FAMILY)
 #include <sys/mman.h>
+#elif defined(XRAY_OS_IS_WINDOWS)
+#include <windows.h>
+#else
+#error "unsupported OS"
 #endif
 
 #include "events.hpp"
@@ -23,6 +27,22 @@ namespace B5 {
 
 const size_t MAX_LINES = 4096;
 const size_t MAX_YF_TRIANGLES = 65536;
+
+std::span<std::byte>
+os_virtual_alloc(const size_t block_size) noexcept
+{
+    std::byte* memptr =
+#if defined(XRAY_OS_IS_POSIX_FAMILY)
+        static_cast<std::byte*>(
+            mmap(nullptr, static_cast<int>(block_size), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+#elif defined(XRAY_OS_IS_WINDOWS)
+        static_cast<std::byte*>(VirtualAlloc(nullptr, block_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+#else
+#error "unsupported OS"
+#endif
+
+    return memptr ? std::span{ memptr, block_size } : std::span<std::byte>{};
+}
 
 PhysicsEngineDebugRenderer::PhysicsEngineDebugRenderer(PhysDebugRenderResourcesBundle res_lines,
                                                        PhysDebugRenderResourcesBundle res_yftris,
@@ -256,12 +276,13 @@ PhysicsEngineDebugRenderer::create(const InitContext& ctx)
 
     //
     // TODO: portability
-    const size_t block_size = (MAX_LINES + 1) * sizeof(Line) + (MAX_YF_TRIANGLES + 1) * 2 * sizeof(Line);
+    const size_t block_size_lines = (MAX_LINES + 1) * sizeof(Line);
+    const size_t block_size_triangles = (MAX_YF_TRIANGLES + 1) * 2 * 3 * sizeof(Line);
+    const size_t block_size = block_size_lines + block_size_triangles * 2;
     XR_LOG_INFO("Allocating {} Kb/{} Mb for lines and triangles", block_size / 1024, block_size / (1024 * 1024));
-    std::byte* lines_mem = static_cast<std::byte*>(
-        mmap(nullptr, static_cast<int>(block_size), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
 
-    if (!lines_mem)
+    std::span<std::byte> memory_block = os_virtual_alloc(block_size);
+    if (memory_block.empty())
         return nullptr;
 
     auto gpu_lines = VulkanBuffer::create(*ctx.renderer,
@@ -348,17 +369,17 @@ PhysicsEngineDebugRenderer::create(const InitContext& ctx)
 
     return xray::base::make_unique<PhysicsEngineDebugRenderer>(
         PhysDebugRenderResourcesBundle{
-            .arena_mem = std::span{ lines_mem, MAX_LINES + sizeof(Line) },
+            .arena_mem = memory_block.subspan(0, block_size_lines),
             .gpu_buffer = std::move(*gpu_lines),
             .pipeline = std::move(*lines_pp),
         },
         PhysDebugRenderResourcesBundle{
-            .arena_mem = std::span{ lines_mem + MAX_LINES + 1, MAX_YF_TRIANGLES },
+            .arena_mem = memory_block.subspan(block_size_lines, block_size_triangles),
             .gpu_buffer = std::move(*gpu_yftris),
             .pipeline = std::move(*yftris_pp),
         },
         PhysDebugRenderResourcesBundle{
-            .arena_mem = std::span{ lines_mem + MAX_LINES + 1 + MAX_YF_TRIANGLES + 1, MAX_YF_TRIANGLES },
+            .arena_mem = memory_block.subspan(block_size_lines + block_size_triangles, block_size_triangles),
             .gpu_buffer = std::move(*gpu_filled),
             .pipeline = std::move(*filled_pp),
         });

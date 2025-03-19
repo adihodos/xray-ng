@@ -45,7 +45,8 @@ struct VulkanImageCreateInfo
     uint32_t height{};
     uint32_t depth{ 1 };
     uint32_t layers{ 1 };
-    std::initializer_list<const std::span<const uint8_t>> pixels{};
+    std::initializer_list<const std::span<const uint8_t>> pixels =
+        std::initializer_list<const std::span<const uint8_t>>{};
 };
 
 } // namespace xray::rendering

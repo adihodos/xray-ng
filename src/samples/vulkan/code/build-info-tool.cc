@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 #include <optional>
+#include <regex>
 #include <ranges>
 
 #include <fmt/core.h>
@@ -154,8 +155,14 @@ write_build_info(const fs::path& output_dir)
 #if defined(PLATFORM_WINDOWS)
         char temp_buffer[2048]{};
         ULONG max_chars{ 2047 };
+
         const auto result = GetUserNameExA(NameSamCompatible, temp_buffer, &max_chars);
-        return fmt::format("{}", result ? temp_buffer : "unknown");
+        if (!result)
+            return std::string{ "unknown" };
+
+        std::regex re{ R"#(\\)#" };
+        const std::string sanitized_username = std::regex_replace(temp_buffer, re, "/");
+        return sanitized_username;
 #else
         vector<uint8_t> temp_buffer;
         const uid_t user_id = getuid();

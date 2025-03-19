@@ -10,7 +10,7 @@ set(proj_inc_dir "${PROJECT_SOURCE_DIR}/src")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}/src")
 
 set(project_sources ${proj_src_dir}/atlass.tool.main.cc)
-add_executable(${PROJECT_NAME} WIN32 ${project_sources})
+add_executable(${PROJECT_NAME} ${project_sources})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_link_libraries(
   ${PROJECT_NAME}

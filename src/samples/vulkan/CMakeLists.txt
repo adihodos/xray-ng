@@ -44,8 +44,6 @@ target_compile_definitions(
   build-info-tool PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_WINDOWS>
                           $<$<PLATFORM_ID:Linux>:PLATFORM_LINUX>)
 
-# set(windows_libs User32 Secur32 Ws2_32)
-
 target_link_libraries(
   build-info-tool
   PRIVATE # "$<$<PLATFORM_ID:Windows>:${windows_libs}>"
@@ -69,6 +67,7 @@ add_custom_command(
 
 add_executable(
   ${PROJECT_NAME}
+  WIN32
   ${project_sources} "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
   ${shader_files} ${config_files})
 
@@ -106,7 +105,7 @@ target_link_libraries(
           reflectcpp
           spdlog::spdlog
           concurrencpp::concurrencpp
-          $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
+          $<IF:$<CXX_COMPILER_ID:MSVC>,libconfig,config>
           noise
           frozen::frozen
           atomic_queue

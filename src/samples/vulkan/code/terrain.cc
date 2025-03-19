@@ -34,9 +34,7 @@
 #include "bindless.pipeline.config.hpp"
 #include "system.memory.hpp"
 
-// XR_DISABLE_OPTIMIZATIONS
-
-#pragma GCC optimize("O0")
+XR_DISABLE_OPTIMIZATIONS
 
 using namespace std;
 using namespace xray::base;
@@ -882,8 +880,8 @@ B5::Terrain::loop_event(const RenderEvent& re)
 
     //
     // wait for any tasks to complete
-    task_gen_recycle.map([&, this](auto&& task_result) {
-        [[maybe_unused]] auto res = task_result.get();
+    task_gen_recycle.map([&, this](concurrencpp::result<size_t>& task_result) {
+        [[maybe_unused]] size_t res = task_result.get();
         _renderstate.slabs_table.insert(std::begin(recycled_slab_resources), std::end(recycled_slab_resources));
     });
 

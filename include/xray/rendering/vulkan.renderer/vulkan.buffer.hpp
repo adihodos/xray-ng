@@ -22,7 +22,7 @@ struct VulkanBufferCreateInfo
     VkMemoryPropertyFlags memory_properties;
     size_t bytes{};
     size_t frames{1};
-    std::initializer_list<std::span<const uint8_t>> initial_data{};
+    std::initializer_list<std::span<const uint8_t>> initial_data = std::initializer_list<std::span<const uint8_t>>{};
 };
 
 using xrUniqueBufferWithMemory = UniqueVulkanResourcePack<VkDevice, VkBuffer, VkDeviceMemory>;

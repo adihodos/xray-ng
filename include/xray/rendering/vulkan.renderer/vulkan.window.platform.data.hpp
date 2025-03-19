@@ -29,8 +29,8 @@ struct WindowPlatformDataXlib
 // TODO: replace all OS specific types with cstdint ones
 struct WindowPlatformDataWin32
 {
-    HMODULE module;
-    HWND window;
+    uintptr_t module;
+    uintptr_t window;
     uint32_t width;
     uint32_t height;
 };

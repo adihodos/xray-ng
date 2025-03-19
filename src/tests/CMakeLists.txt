@@ -1,6 +1,16 @@
 project(XrayTests LANGUAGES C CXX)
 
-cpmaddpackage("gh:boost-ext/ut@2.3.0")
+cpmaddpackage(
+    NAME
+    boost-ut
+    GITHUB_REPOSITORY
+    boost-ext/ut
+    GIT_TAG
+    v2.3.0
+    OPTIONS
+    "BOOST_UT_DISABLE_MODULE ON")
+
+# cpmaddpackage("gh:boost-ext/ut@2.3.0")
 
 set(XRAY_MATH_TEST_SOURCES
     ${PROJECT_SOURCE_DIR}/xray.math.tests/bounding.box.test.cc)

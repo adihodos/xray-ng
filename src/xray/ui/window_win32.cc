@@ -1,16 +1,21 @@
+#include "xray/ui/window_win32.hpp"
+
+#include <GameInput.h>
+#include <windowsx.h>
+#include <winrt/base.h>
+
 #if defined(XRAY_RENDERER_OPENGL)
 #include "opengl/opengl.hpp"
 #include "opengl/wglext.h"
 #endif
 
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/containers/fixed_vector.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/maybe.hpp"
 #include "xray/base/pod_zero.hpp"
 #include "xray/ui/key_sym.hpp"
-#include "xray/ui/window_win32.hpp"
-#include <windowsx.h>
+#include "xray/ui/events.gamepad.hpp"
+#include "xray/ui/events.pretty.print.hpp"
 
 using namespace xray::base;
 using namespace xray::ui;
@@ -326,6 +331,13 @@ PFNWGLSWAPINTERVALEXTPROC wgl::SwapIntervalEXT;
 
 #endif /* defined XRAY_RENDERER_OPENGL */
 
+struct xray::ui::window::WindowInternalState
+{
+    winrt::com_ptr<IGameInput> input_interface{ nullptr };
+    winrt::com_ptr<IGameInputDevice> input_device{ nullptr };
+    winrt::com_ptr<IGameInputReading> prev_reading{ nullptr };
+};
+
 xray::ui::window::window(const window_params_t& wparam)
 {
     initialize(&wparam);
@@ -341,6 +353,7 @@ xray::ui::window::window(window&& other) noexcept
     , _window_dc{ std::move(other._window_dc) }
     , _glcontext{ std::move(other._glcontext) }
 #endif
+    , _winternal{ std::move(other._winternal) }
     , _wnd_width{ other._wnd_width }
     , _wnd_height{ other._wnd_height }
     , _quit_flag{ other._quit_flag.load() }
@@ -621,6 +634,11 @@ xray::ui::window::initialize(const window_params_t* wp)
 
 #endif /* defined XRAY_RENDERER_OPENGL */
 
+    _winternal = xray::base::make_unique<WindowInternalState>();
+    const HRESULT result = ::GameInputCreate(_winternal->input_interface.put());
+    if (!SUCCEEDED(result)) {
+    }
+
     ShowWindow(_window, SW_SHOWNORMAL);
     UpdateWindow(_window);
 
@@ -632,10 +650,20 @@ xray::ui::window::initialize(const window_params_t* wp)
     }
 }
 
+xray::rendering::WindowPlatformDataWin32
+xray::ui::window::platform_data() const noexcept
+{
+    return xray::rendering::WindowPlatformDataWin32{
+        .module = reinterpret_cast<uintptr_t>(GetModuleHandle(nullptr)),
+        .window = reinterpret_cast<uintptr_t>(_window),
+        .width = static_cast<uint32_t>(_wnd_width),
+        .height = static_cast<uint32_t>(_wnd_height),
+    };
+}
+
 LRESULT WINAPI
 xray::ui::window::window_proc_stub(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-
     if (msg == WM_CREATE) {
         const auto ptr = (const CREATESTRUCT*)lparam;
         SetWindowLongPtr(wnd, GWLP_USERDATA, (LONG_PTR)ptr->lpCreateParams);
@@ -709,6 +737,12 @@ xray::ui::window::enable_cursor() noexcept
 {
 }
 
+std::span<const xray::ui::GamepadAxisInfo>
+xray::ui::window::gamepad_axis_info() const noexcept
+{
+    return {};
+}
+
 void
 xray::ui::window::message_loop()
 {
@@ -727,6 +761,34 @@ xray::ui::window::message_loop()
 
             TranslateMessage(&wnd_msg);
             DispatchMessage(&wnd_msg);
+        }
+
+        if (!_winternal->prev_reading) {
+            if (const HRESULT res = _winternal->input_interface->GetCurrentReading(
+                    GameInputKindGamepad, _winternal->input_device.get(), _winternal->prev_reading.put());
+                SUCCEEDED(res)) {
+
+                _winternal->prev_reading->GetDevice(_winternal->input_device.put());
+
+                GameInputGamepadState gamepad_state;
+                _winternal->prev_reading->GetGamepadState(&gamepad_state);
+            }
+        } else {
+            winrt::com_ptr<IGameInputReading> next_reading;
+            const HRESULT res = _winternal->input_interface->GetNextReading(_winternal->prev_reading.get(),
+                                                                            GameInputKindGamepad,
+                                                                            _winternal->input_device.get(),
+                                                                            next_reading.put());
+            if (SUCCEEDED(res)) {
+                _winternal->prev_reading = next_reading;
+                //
+                // process
+            } else {
+                if (res != GAMEINPUT_E_READING_NOT_FOUND) {
+                    _winternal->input_device = nullptr;
+                    _winternal->prev_reading = nullptr;
+                }
+            }
         }
 
         core.events.poll_end(poll_end_event{});
@@ -801,7 +863,7 @@ xray::ui::window::event_mouse_wheel(const WPARAM wparam, const LPARAM lparam)
     XR_LOG_INFO("Wheel event!");
     mouse_wheel_event mwe;
     mwe.delta = GET_WHEEL_DELTA_WPARAM(wparam) < 0 ? +1 : -1;
-    mwe.fdelta = GET_WHEEL_DELTA_WPARAM(wparam)  / 120.0f;
+    mwe.fdelta = GET_WHEEL_DELTA_WPARAM(wparam) / 120.0f;
     mwe.wnd = this;
     mwe.pointer_x = GET_X_LPARAM(lparam);
     mwe.pointer_y = GET_Y_LPARAM(lparam);
