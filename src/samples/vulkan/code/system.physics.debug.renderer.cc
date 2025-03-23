@@ -7,18 +7,11 @@
 #include <xray/xray.hpp>
 #include <xray/base/logger.hpp>
 #include <xray/base/scoped_guard.hpp>
+#include <xray/base/xray.misc.hpp>
 #include <xray/rendering/shader.code.builder.hpp>
 #include <xray/rendering/vulkan.renderer/vulkan.renderer.hpp>
 #include <xray/rendering/vulkan.renderer/vulkan.pipeline.hpp>
 #include <xray/rendering/vertex_format/vertex_pc.hpp>
-
-#if defined(XRAY_OS_IS_POSIX_FAMILY)
-#include <sys/mman.h>
-#elif defined(XRAY_OS_IS_WINDOWS)
-#include <windows.h>
-#else
-#error "unsupported OS"
-#endif
 
 #include "events.hpp"
 #include "push.constant.packer.hpp"
@@ -27,22 +20,6 @@ namespace B5 {
 
 const size_t MAX_LINES = 4096;
 const size_t MAX_YF_TRIANGLES = 65536;
-
-std::span<std::byte>
-os_virtual_alloc(const size_t block_size) noexcept
-{
-    std::byte* memptr =
-#if defined(XRAY_OS_IS_POSIX_FAMILY)
-        static_cast<std::byte*>(
-            mmap(nullptr, static_cast<int>(block_size), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-#elif defined(XRAY_OS_IS_WINDOWS)
-        static_cast<std::byte*>(VirtualAlloc(nullptr, block_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-#else
-#error "unsupported OS"
-#endif
-
-    return memptr ? std::span{ memptr, block_size } : std::span<std::byte>{};
-}
 
 PhysicsEngineDebugRenderer::PhysicsEngineDebugRenderer(PhysDebugRenderResourcesBundle res_lines,
                                                        PhysDebugRenderResourcesBundle res_yftris,

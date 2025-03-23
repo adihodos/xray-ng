@@ -4,6 +4,11 @@ project(
   VERSION 0.5.0.0
   LANGUAGES C CXX)
 
+# cmake_policy(SET CMP0091 NEW)
+# set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
 include(CTest)
 enable_testing()
 
@@ -66,6 +71,7 @@ if(JoltPhysics_ADDED)
   set(CPP_RTTI_ENABLED "OFF")
   set(OBJECT_LAYER_BITS "16")
   set(CPP_RTTI_ENABLED "ON")
+  set(USE_STATIC_MSVC_RUNTIME_LIBRARY "OFF")
   add_subdirectory(${JoltPhysics_SOURCE_DIR}/Build
                    ${JoltPhysics_SOURCE_DIR}/Build/out)
 endif()
@@ -169,14 +175,12 @@ if(TARGET Linux)
 
   target_compile_definitions(xray-set-compile-options-lib
                              INTERFACE "${cxx_stdlib_dbg_flags}")
-
 endif()
 
 target_compile_options(
   xray-set-compile-options-lib
   INTERFACE
-  "$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>"
-)
+  "$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>")
 
 target_compile_definitions(
   xray-set-compile-options-lib INTERFACE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD> 

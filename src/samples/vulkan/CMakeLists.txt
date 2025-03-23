@@ -39,6 +39,7 @@ if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
 endif()
 
 add_executable(build-info-tool ${proj_src_dir}/build-info-tool.cc)
+# set_property(TARGET build-info-tool PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_compile_features(build-info-tool PRIVATE cxx_std_20)
 target_compile_definitions(
   build-info-tool PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_WINDOWS>
@@ -70,6 +71,8 @@ add_executable(
   WIN32
   ${project_sources} "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
   ${shader_files} ${config_files})
+
+# set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_dependencies(${PROJECT_NAME} build-info-tool)
 

@@ -10,6 +10,7 @@ if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
 endif()
 
 if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Windows")
+  find_package(GDK REQUIRED)
   set(platform_sources ${proj_inc_dir}/window_win32.hpp
                        ${proj_src_dir}/window_win32.cc)
 endif()
@@ -56,5 +57,5 @@ target_link_libraries(
     fmt::fmt
     concurrencpp::concurrencpp
     $<$<PLATFORM_ID:Linux>:OpenGL::GL;X11::Xi;X11::Xinerama;X11::xcb;X11::X11_xcb;X11::Xkb;X11::xkbcommon;X11::xkbcommon_X11>
-    $<$<PLATFORM_ID:Windows>:xgameruntime,windowsapp>
+    $<$<PLATFORM_ID:Windows>:GDK::GDK;windowsapp>
 )

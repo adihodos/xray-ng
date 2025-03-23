@@ -471,28 +471,34 @@ B5::Terrain::create(const InitContext& ctx)
                                         .center = vec2i32::stdc::zero,
                                     });
 
+#if defined(XRAY_COMPILER_IS_MSVC)
+    containers::vector<TerrainDetails> lod_levels{
+        MemoryArenaAllocator<TerrainDetails>(*ctx.temp),
+    };
+    for (const uint32_t lod : lz::range(std::max(params.lods, uint32_t{ 1 }))) {
+        lod_levels.emplace_back(compute_terrain_details_lod(params, lod));
+    }
+
+#else
     containers::vector<TerrainDetails> lod_levels =
         lz::chain(lz::range(uint32_t{}, params.lods ? params.lods : 1))
             .map([&params](uint32_t lod) { return compute_terrain_details_lod(params, lod); })
             .toVector(MemoryArenaAllocator<TerrainDetails>(*ctx.temp), std::execution::seq);
+#endif
 
     for (const TerrainDetails& td : lod_levels) {
         XR_LOG_INFO("Lod vtx: {} idx: {}", td.vertices, td.indices);
     }
 
     const containers::vector<vec2ui32> lod_offsets =
-        lz::eScan(lz::chain(lod_levels).map([](const TerrainDetails& td) {
-            return vec2ui32{ td.vertices, td.indices };
-        }),
-                  vec2ui32::stdc::zero,
-                  std::plus<vec2ui32>{})
+        lz::eScan(
+            lz::chain(lod_levels).map([](const TerrainDetails& td) { return vec2ui32{ td.vertices, td.indices }; }),
+            vec2ui32::stdc::zero,
+            std::plus<vec2ui32>{})
             .toVector(MemoryArenaAllocator<vec2ui32>(*ctx.temp), std::execution::seq);
 
-    const vec2ui32 vertex_index_counts = lz::chain(lod_levels)
-                                             .map([](const TerrainDetails& td) {
-                                                 return vec2ui32{ td.vertices, td.indices };
-                                             })
-                                             .sum();
+    const vec2ui32 vertex_index_counts =
+        lz::chain(lod_levels).map([](const TerrainDetails& td) { return vec2ui32{ td.vertices, td.indices }; }).sum();
 
     XR_LOG_INFO("Terrain generator: lod levels: {}, vertices:{}, indices: {}",
                 params.lods,
@@ -746,23 +752,42 @@ B5::Terrain::loop_event(const RenderEvent& re)
             slabs_current_frame.insert(vec2i32{ n.bbox.center() });
         });
 
+#if defined(XRAY_COMPILER_IS_MSVC)
+    containers::unordered_set<vec2i32> slabs_to_spawn{ MemoryArenaAllocator<vec2i32>{ *re.arena_temp } };
+    ranges::copy(slabs_current_frame | views::filter([this](const vec2i32 curr_frame_slab) {
+                     return !_renderstate.slabs_visible_last_frame.contains(curr_frame_slab);
+                 }),
+                 std::inserter(slabs_to_spawn, std::begin(slabs_to_spawn)));
+
+#else
     auto slabs_to_spawn = lz::chain(slabs_current_frame)
                               .filter([this](const vec2i32 curr_frame_slab) {
                                   return !_renderstate.slabs_visible_last_frame.contains(curr_frame_slab);
                               })
                               .to<containers::unordered_set<vec2i32>>(std::execution::seq,
                                                                       MemoryArenaAllocator<vec2i32>{ *re.arena_temp });
+#endif
 
     for (const vec2i32 spawned : slabs_to_spawn) {
         XR_LOG_INFO("Spawned: {}", spawned);
     }
 
+#if defined(XRAY_COMPILER_IS_MSVC)
+    containers::unordered_set<vec2i32> slabs_to_despawn{ MemoryArenaAllocator<vec2i32>{ *re.arena_temp } };
+    ranges::copy(_renderstate.slabs_visible_last_frame |
+                     views::filter([&slabs_current_frame](const vec2i32 last_frame_slab) {
+                         return !slabs_current_frame.contains(last_frame_slab);
+                     }),
+                 std::inserter(slabs_to_despawn, std::begin(slabs_to_despawn)));
+
+#else
     auto slabs_to_despawn = lz::chain(_renderstate.slabs_visible_last_frame)
                                 .filter([&slabs_current_frame](const vec2i32 last_frame_slab) {
                                     return !slabs_current_frame.contains(last_frame_slab);
                                 })
                                 .to<containers::unordered_set<vec2i32>>(
                                     std::execution::seq, MemoryArenaAllocator<vec2i32>{ *re.arena_temp });
+#endif
 
     for (const vec2i32 despawned : slabs_to_despawn) {
         XR_LOG_INFO("Despawning {}", despawned);
@@ -838,6 +863,36 @@ B5::Terrain::loop_event(const RenderEvent& re)
     using CreateTerrainSlabResult = tl::expected<TerrainSlabTextures, VulkanError>;
     using TaskCreateTerrainSlabResult = concurrencpp::result<CreateTerrainSlabResult>;
 
+#if defined(XRAY_COMPILER_IS_MSVC)
+    containers::vector<TaskCreateTerrainSlabResult> tasks_create_slabs_results{
+        MemoryArenaAllocator<TaskCreateTerrainSlabResult>{ *scratchpad.arena }
+    };
+
+    ranges::transform(slabs_to_spawn, back_inserter(tasks_create_slabs_results), [&, this](vec2i32 slab_center) {
+        const size_t terrain_items = _terrain_params.size * _terrain_params.size;
+
+        std::span<float> heightmap{ scratchpad.arena->alloc_align<float>(terrain_items), terrain_items };
+        std::span<vec4ui8> colormap{ scratchpad.arena->alloc_align<vec4ui8>(terrain_items), terrain_items };
+
+        const vec2f32 slab_half_size = vec2f32{ _terrain_params.size / 2 };
+
+        const BBoxAA2DF32 bounds{
+            vec2f32{ slab_center } - slab_half_size,
+            vec2f32{ slab_center } + slab_half_size,
+        };
+
+        return re.co_runtime->thread_executor()->submit([terrain_params = &_terrain_params,
+                                                         heightmap,
+                                                         bounds,
+                                                         colormap,
+                                                         coords = slab_center,
+                                                         renderer = re.renderer]() {
+            make_terrain_heightmap_colormap(*terrain_params, bounds, heightmap, colormap);
+            return create_terrain_slab_render_resources(*terrain_params, coords, renderer, heightmap, colormap);
+        });
+    });
+
+#else
     containers::vector<TaskCreateTerrainSlabResult> tasks_create_slabs_results =
         lz::chain(slabs_to_spawn)
             .map([&, this](vec2i32 slab_center) {
@@ -865,9 +920,22 @@ B5::Terrain::loop_event(const RenderEvent& re)
             })
             .to<containers::vector<TaskCreateTerrainSlabResult>>(
                 std::execution::seq, MemoryArenaAllocator<TaskCreateTerrainSlabResult>(*scratchpad.arena));
-
+#endif
     //
     // perform slab visibility check
+
+#if defined(XRAY_COMPILER_IS_MSVC)
+    containers::vector<vec2i32> slabs_visible_current_frame{ MemoryArenaAllocator<vec2i32>{ *scratchpad.arena } };
+    ranges::copy(slabs_current_frame | views::filter([half_size = static_cast<float>(_terrain_params.size),
+                                                      ray_dir,
+                                                      ray_origin = cam_pos_xz_plane](vec2i32 slab_center) {
+                     const vec2f32 slab_box_min = vec2f32{ slab_center } - vec2f32{ half_size };
+                     const vec2f32 slab_box_max = vec2f32{ slab_center } + vec2f32{ half_size };
+                     return ray_aabb_intersect(ray_origin, ray_dir, slab_box_min, slab_box_max);
+                 }),
+                 back_inserter(slabs_visible_current_frame));
+
+#else
     containers::vector<vec2i32> slabs_visible_current_frame =
         lz::chain(slabs_current_frame)
             .filter([half_size = static_cast<float>(_terrain_params.size), ray_dir, ray_origin = cam_pos_xz_plane](
@@ -877,6 +945,7 @@ B5::Terrain::loop_event(const RenderEvent& re)
                 return ray_aabb_intersect(ray_origin, ray_dir, slab_box_min, slab_box_max);
             })
             .to<containers::vector<vec2i32>>(std::execution::seq, MemoryArenaAllocator<vec2i32>{ *scratchpad.arena });
+#endif
 
     //
     // wait for any tasks to complete
