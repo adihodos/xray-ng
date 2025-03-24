@@ -386,7 +386,7 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
                             .compile_options = ShaderBuildOptions::Compile_GenerateDebugInfo |
                                                ShaderBuildOptions::Compile_DumpShaderCode,
                         })
-            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_POLYGON_MODE_EXT })
+            .dynamic_state({ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR })
             .rasterization_state({
                 .poly_mode = VK_POLYGON_MODE_FILL,
                 .cull_mode = VK_CULL_MODE_BACK_BIT,
@@ -1648,7 +1648,8 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
 
 int
 #if defined(XRAY_OS_IS_WINDOWS)
-WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+    WINAPI
+    WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #else
 main(int argc, char** argv)
 #endif

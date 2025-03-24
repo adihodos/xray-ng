@@ -119,7 +119,7 @@ cpmaddpackage(
   "TINYGLTF_BUILD_LOADER_EXAMPLE OFF"
   "TINYGLTF_HEADER_ONLY ON")
 
-if(WIN32)
+# if(WIN32)
   cpmaddpackage(
     NAME
     ktx-tools
@@ -134,9 +134,9 @@ if(WIN32)
     "KTX_FEATURE_TESTS OFF"
     "KTX_FEATURE_VK_UPLOAD OFF"
     "KTX_FEATURE_GL_UPLOAD OFF")
-else()
-  find_package(Ktx REQUIRED)
-endif()
+# else()
+#   find_package(Ktx REQUIRED)
+# endif()
 
 target_link_libraries(
   ${PROJECT_NAME}
@@ -152,6 +152,8 @@ target_link_libraries(
          concurrencpp::concurrencpp
          cpp-lazy::cpp-lazy
          Vulkan::shaderc_combined
+         Vulkan::SPIRV-Tools
+         # Vulkan::glslang
          Vulkan::SPIRV-Tools
          ktx
          stb::stb

@@ -376,6 +376,7 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
         ImGui::Checkbox(scratch_buff, &_uistate.use_arcball_cam);
         ImGui::Checkbox("Draw bounding box", &_uistate.draw_bbox);
 
+#if defined(JPH_DEBUG_RENDERER)
         if (ImGui::CollapsingHeader("::: Physics engine debug draw :::")) {
             ImGui::Checkbox("Draw the shapes of all bodies", &_uistate.phys_draw.mDrawShape);
             ImGui::Checkbox("Draw a bounding box per body", &_uistate.phys_draw.mDrawBoundingBox);
@@ -385,6 +386,7 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
                             &_uistate.phys_draw.mDrawMassAndInertia);
             ImGui::Checkbox("Draw shapes in wireframe instead of solid", &_uistate.phys_draw.mDrawShapeWireframe);
         }
+#endif
 
         // ImGui::Checkbox("Draw individual nodes bounding boxes", &_uistate.draw_nodes_bbox);
         // ImGui::Checkbox("Draw bounding sphere", &_uistate.draw_sphere);
@@ -1446,3 +1448,4 @@ B5::GameSimulation::process_gamepad_state()
             });
         });
 }
+

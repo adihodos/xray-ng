@@ -145,9 +145,11 @@ class GameSimulation
         bool ui_opened{ false };
         static constexpr const size_t MAX_LIGHTS = 64;
         bool use_arcball_cam{ false };
+#ifdef JPH_DEBUG_RENDERER
         JPH::BodyManager::DrawSettings phys_draw{
             .mDrawShape = false,
         };
+#endif
         bool draw_bbox{ false };
         bool draw_world_axis{ true };
         bool draw_sphere{ false };
