@@ -18,7 +18,6 @@
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/memory.arena.unique.ptr.hpp"
-#include "xray/base/basic_timer.hpp"
 #include "xray/math/math.units.hpp"
 #include "xray/scene/camera.hpp"
 #include "xray/scene/camera.controller.arcball.hpp"
@@ -168,7 +167,6 @@ class GameSimulation
     simulation_details::GameWorldState _world;
     xray::base::unique_arena_ptr<Terrain> _terrain;
 
-    xray::base::timer_highp _timer{};
     xray::ui::user_interface* _ui{};
 
     enum class ForceType

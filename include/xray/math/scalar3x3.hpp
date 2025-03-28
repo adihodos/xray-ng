@@ -28,17 +28,17 @@
 
 #pragma once
 
-#include "xray/base/algorithms/copy_pod_range.hpp"
+#include <cassert>
+#include <cstddef>
+#include <type_traits>
+
 #include "xray/base/array_dimension.hpp"
-#include "xray/base/shims/stl_type_traits_shims.hpp"
 #include "xray/math/math_base.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/vector_type_tag.hpp"
 #include "xray/xray.hpp"
 #include "xray/xray_types.hpp"
-#include <cassert>
-#include <cstddef>
 
 namespace xray {
 namespace math {
@@ -54,9 +54,9 @@ namespace math {
 ///          S and a reflection RF (R, S, RF) then the matrices need to be
 ///          concatenated like this : FinalTransform = RF * S * R.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 class scalar3x3
 {
-
     /// \name Data members and defined types.
     /// @{
   public:
@@ -96,9 +96,6 @@ class scalar3x3
 
     constexpr scalar3x3(const T (&arr)[9]) noexcept;
 
-    /// \brief Constructs from an array of values.
-    scalar3x3(const T* input, const size_t count) noexcept;
-
     /// \brief Construct a diagonal matrix, setting A(i,j) = 0 for every i <> j.
     constexpr scalar3x3(const T a01_, const T a11_, const T a22_) noexcept;
 
@@ -125,13 +122,13 @@ class scalar3x3
     /// @{
 
   public:
-    class_type& operator+=(const class_type& rhs) noexcept;
+    constexpr class_type& operator+=(const class_type& rhs) noexcept;
 
-    class_type& operator-=(const class_type& rhs) noexcept;
+    constexpr class_type& operator-=(const class_type& rhs) noexcept;
 
-    class_type& operator*=(const T k) noexcept;
+    constexpr class_type& operator*=(const T k) noexcept;
 
-    class_type& operator/=(const T k) noexcept;
+    constexpr class_type& operator/=(const T k) noexcept;
 
     /// @}
 
@@ -156,6 +153,7 @@ class scalar3x3
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar3x3<T>::stdc
 {
     ///< Null 3x3 matrix.
@@ -166,15 +164,18 @@ struct scalar3x3<T>::stdc
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar3x3<T> scalar3x3<T>::stdc::null;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const scalar3x3<T> scalar3x3<T>::stdc::identity;
 
 using mat3f = scalar3x3<float>;
 using mat3d = scalar3x3<double>;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr scalar3x3<T>::scalar3x3(const T a00_,
                                   const T a01_,
                                   const T a02_,
@@ -197,24 +198,21 @@ constexpr scalar3x3<T>::scalar3x3(const T a00_,
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr scalar3x3<T>::scalar3x3(const T a01_, const T a11_, const T a22_) noexcept
     : scalar3x3{ a01_, T(0), T(0), T(0), a11_, T(0), T(0), T(0), a22_ }
 {
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr scalar3x3<T>::scalar3x3(const T (&arr)[9]) noexcept
     : scalar3x3{ arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7], arr[8] }
 {
 }
 
 template<typename T>
-scalar3x3<T>::scalar3x3(const T* input, const size_t count) noexcept
-{
-    base::copy_pod_range(input, math::min(XR_COUNTOF(components), count), components);
-}
-
-template<typename T>
+    requires std::is_arithmetic_v<T>
 template<typename VecType>
 scalar3x3<T>::scalar3x3(const scalar3<T>& x_axis,
                         const scalar3<T>& y_axis,
@@ -225,6 +223,7 @@ scalar3x3<T>::scalar3x3(const scalar3<T>& x_axis,
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3x3<T>::scalar3x3(const scalar3<T>& u, const scalar3<T>& w) noexcept
 {
     a00 = u.x * w.x;
@@ -239,6 +238,7 @@ scalar3x3<T>::scalar3x3(const scalar3<T>& u, const scalar3<T>& w) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 void
 scalar3x3<T>::set(const scalar3<T>& x_axis, const scalar3<T>& y_axis, const scalar3<T>& z_axis, col_tag) noexcept
 {
@@ -254,6 +254,7 @@ scalar3x3<T>::set(const scalar3<T>& x_axis, const scalar3<T>& y_axis, const scal
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 void
 scalar3x3<T>::set(const scalar3<T>& x_axis, const scalar3<T>& y_axis, const scalar3<T>& z_axis, row_tag) noexcept
 {
@@ -269,7 +270,8 @@ scalar3x3<T>::set(const scalar3<T>& x_axis, const scalar3<T>& y_axis, const scal
 }
 
 template<typename T>
-scalar3x3<T>&
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>&
 scalar3x3<T>::operator+=(const scalar3x3<T>& rhs) noexcept
 {
     for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
@@ -280,7 +282,8 @@ scalar3x3<T>::operator+=(const scalar3x3<T>& rhs) noexcept
 }
 
 template<typename T>
-scalar3x3<T>&
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>&
 scalar3x3<T>::operator-=(const scalar3x3<T>& rhs) noexcept
 {
     for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
@@ -291,7 +294,8 @@ scalar3x3<T>::operator-=(const scalar3x3<T>& rhs) noexcept
 }
 
 template<typename T>
-scalar3x3<T>&
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>&
 scalar3x3<T>::operator*=(const T scalar) noexcept
 {
     for (size_t i = 0; i < XR_COUNTOF(components); ++i) {
@@ -302,7 +306,8 @@ scalar3x3<T>::operator*=(const T scalar) noexcept
 }
 
 template<typename T>
-scalar3x3<T>&
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>&
 scalar3x3<T>::operator/=(const T scalar) noexcept
 {
     for (size_t i = 0; i < XR_COUNTOF(components); ++i) {

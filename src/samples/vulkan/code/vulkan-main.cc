@@ -149,7 +149,6 @@ task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
 {
     XR_LOG_INFO("[[TASK]] Load fonts");
     timer_highp exec_timer{};
-    exec_timer.start();
 
     namespace fs = std::filesystem;
 
@@ -178,8 +177,8 @@ task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
         font_pkgs.data.emplace_back(std::move(font_data));
     }
 
-    exec_timer.end();
-    XR_LOG_INFO("[[TASK]] Font load task done, time {}", exec_timer.elapsed_millis());
+    exec_timer.tick();
+    XR_LOG_INFO("[[TASK]] Font load task done, time {}", exec_timer.time_since_start());
 
     co_return std::tuple{ std::move(font_pkgs), xray::base::make_unique<HudConfigDefinition>(std::move(*hud_config)) };
 }
@@ -240,7 +239,6 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
                                concurrencpp::shared_result<VulkanRenderer*> renderer_result)
 {
     timer_highp exec_timer{};
-    exec_timer.start();
 
     //
     // TODO: Pipeline cache maybe ?!
@@ -409,8 +407,8 @@ task_create_graphics_pipelines(concurrencpp::executor_tag,
     };
     XR_VK_COR_PROPAGATE_ERROR(p_sprites);
 
-    exec_timer.end();
-    XR_LOG_INFO("[[TASK]] Graphics pipeline done, time {}", exec_timer.elapsed_millis());
+    exec_timer.tick();
+    XR_LOG_INFO("[[TASK]] Graphics pipeline done, time {}", exec_timer.time_since_start());
 
     co_return tl::expected<GraphicsPipelineResources, VulkanError>{
         tl::in_place,          std::move(*p_ads_color), std::move(*p_ads_textured), std::move(*p_pbr_color),
@@ -427,7 +425,6 @@ task_create_gltf_resources(concurrencpp::executor_tag,
                            const std::span<const scene::GltfGeometryDescription> gltf_geometry_defs)
 {
     timer_highp exec_timer{};
-    exec_timer.start();
 
     auto scratchpad = GlobalMemorySystem::instance()->grab_medium_arena();
 
@@ -665,8 +662,8 @@ task_create_gltf_resources(concurrencpp::executor_tag,
     auto sbo_wait_token = renderer->submit_job(std::move(*sbo_transfer_job));
     XR_VK_COR_PROPAGATE_ERROR(sbo_wait_token);
 
-    exec_timer.end();
-    XR_LOG_INFO("[[TASK]] - gltf geometry resources done, {} ms", exec_timer.elapsed_millis());
+    exec_timer.tick();
+    XR_LOG_INFO("[[TASK]] - gltf geometry resources done, {} ms", exec_timer.time_since_start());
 
     co_return tl::expected<tuple<GltfGeometry, GltfMaterialsData>, VulkanError>{
         tl::in_place,
@@ -696,7 +693,6 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
                                                  GeometryResourceTaskParams params)
 {
     timer_highp exec_timer{};
-    exec_timer.start();
 
     const size_t vertex_bytes =
         lz::chain(params.vertex_data).map([](const std::span<const uint8_t> sv) { return sv.size_bytes(); }).sum();
@@ -790,8 +786,8 @@ task_create_procedural_geometry_render_resources(concurrencpp::executor_tag,
     auto wait_token = renderer->submit_job(*cmd_buf);
     XR_COR_PROPAGATE_ERROR(wait_token);
 
-    exec_timer.end();
-    XR_LOG_INFO("[[TASK]] - procedural geometry resources, {} ms", exec_timer.elapsed_millis());
+    exec_timer.tick();
+    XR_LOG_INFO("[[TASK]] - procedural geometry resources, {} ms", exec_timer.time_since_start());
 
     co_return tl::expected<ProceduralGeometryRenderResources, VulkanError>{
         tl::in_place,
@@ -812,7 +808,6 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
     using namespace xray::scene;
 
     timer_highp exec_timer{};
-    exec_timer.start();
 
     ScopedSmallArenaType task_mem_arena = GlobalMemorySystem::instance()->grab_small_arena();
 
@@ -1024,8 +1019,8 @@ task_create_non_gltf_materials(concurrencpp::executor_tag,
         material_sbos.emplace_back(std::move(*sbo));
     }
 
-    exec_timer.end();
-    XR_LOG_INFO("[[TASK]] - non gltf materials done , {}", exec_timer.elapsed_millis());
+    exec_timer.tick();
+    XR_LOG_INFO("[[TASK]] - non gltf materials done , {}", exec_timer.time_since_start());
 
     XR_LOG_INFO("[[TASK]] - non gltf arena stats: allocations {}, largest block {}, high water {}, total bytes {}",
                 task_mem_arena.arena.stats.allocations,
@@ -1053,7 +1048,6 @@ main_task(concurrencpp::executor_tag,
           concurrencpp::shared_result<VulkanRenderer*> renderer_result)
 {
     timer_highp exec_timer{};
-    exec_timer.start();
 
     const auto loaded_scene = SceneDescription::from_file(xr_app_config->config_path("scenes/simple.scene.conf"));
     XR_COR_PROPAGATE_ERROR(loaded_scene);
@@ -1285,8 +1279,8 @@ main_task(concurrencpp::executor_tag,
     auto pipeline_resources = co_await pipelines_task_result;
     XR_COR_PROPAGATE_ERROR(pipeline_resources);
 
-    exec_timer.end();
-    XR_LOG_INFO("[[TASK]] - main done, {} ...", exec_timer.elapsed_millis());
+    exec_timer.tick();
+    XR_LOG_INFO("[[TASK]] - main done, {} ...", exec_timer.time_since_start());
 
     co_return SceneDefinition{
         .gltf = std::move(std::get<0>(*gltf_render_resources)),
@@ -1350,7 +1344,6 @@ class GameMain
         , _game_sim{ std::move(game_sim) }
     {
         hookup_event_delegates();
-        _timer.start();
     }
 
     GameMain(GameMain&& rhs) = default;
@@ -1575,8 +1568,8 @@ GameMain::loop_event(const xray::ui::window_loop_event& loop_event)
     ZoneScopedNCS("LoopEvent", 0xFF0000FF, 32);
     _arena_temp->free_all();
 
-    _timer.update_and_reset();
-    const float delta = _timer.elapsed_millis();
+    _timer.tick();
+    const float delta = _timer.delta_time_unscaled();
     _ui->tick(delta);
     _ui->new_frame(loop_event.wnd_width, loop_event.wnd_height);
 

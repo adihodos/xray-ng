@@ -154,6 +154,7 @@ xray::rendering::basic_mesh::compute_bounding()
         _aabb = math::transform(R4::translate(-origin), _aabb);
     }
 
+    op_tm.tick();
     XR_LOG_INFO("AABB : [{:3.3f}, {:3.3f}, {:3.3f}] : [{:3.3f}, "
                 "{:3.3f}, {:3.3f}]\n Time {:3.3f}",
                 _aabb.min.x,
@@ -162,7 +163,7 @@ xray::rendering::basic_mesh::compute_bounding()
                 _aabb.max.x,
                 _aabb.max.y,
                 _aabb.max.z,
-                op_tm.elapsed_millis());
+                op_tm.time_since_start());
 
     _bsphere = xray::math::bounding_sphere<float>(
         begin(_vertices), end(_vertices), [](const vertex_pnt& vs_in) { return vs_in.position; });
