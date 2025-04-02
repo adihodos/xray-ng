@@ -26,6 +26,7 @@
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/xray.fmt.hpp"
+#include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
@@ -46,6 +47,7 @@
 #include "xray/math/scalar2_math.hpp"
 #include "xray/math/scalar2x3.hpp"
 #include "xray/math/scalar2x3_math.hpp"
+#include "xray/math/scalar4.hpp"
 #include "xray/math/scalar4x4.hpp"
 #include "xray/math/scalar4x4_math.hpp"
 #include "xray/math/constants.hpp"
@@ -65,7 +67,7 @@
 #include "system.physics.hpp"
 #include "push.constant.packer.hpp"
 #include "terrain.hpp"
-#include "sprite.ids.crosshairs.hpp"
+#include "sprite.ids.hud.symbology.hpp"
 #include "hud.config.hpp"
 
 using namespace std;
@@ -75,7 +77,33 @@ using namespace xray::ui;
 using namespace xray::math;
 using namespace xray::scene;
 
-XR_DISABLE_OPTIMIZATIONS
+// XR_DISABLE_OPTIMIZATIONS
+
+tl::optional<vec2f32>
+world_to_screen(const xray::math::vec3f32 wpoint,
+                const xray::math::mat4f view_projection,
+                const float viewport_width,
+                const float viewport_height)
+{
+    //
+    // transform to homogeneous space
+    using namespace xray::math;
+    const vec4f32 p_hspace = mul_hpoint(view_projection, vec4f32{ wpoint, 1.0f });
+
+    //
+    // do perspective divide + clip
+    const vec4f32 p_ndc = p_hspace / p_hspace.w;
+    if (std::abs(p_ndc.x) > 1.0f || std::abs(p_ndc.y) > 1.0f) {
+        return tl::nullopt;
+    }
+
+    //
+    // transform to window coords
+    return vec2f32{
+        (p_ndc.x + 1.0f) * viewport_width * 0.5f,
+        (1.0f - p_ndc.y) * viewport_height * 0.5f,
+    };
+}
 
 B5::GameSimulation::SimState::SimState(const InitContext& init_context)
     : arcball_cam{ xray::math::vec3f::stdc::zero, 1.0f, { init_context.surface_width, init_context.surface_height } }
@@ -341,7 +369,7 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
 {
     ZoneScopedNCS("UI", tracy::Color::GreenYellow, 16);
 
-    draw_hud_text(ui, re);
+    draw_hud(ui, re);
     if (!_uistate.ui_opened) {
         return;
     }
@@ -477,24 +505,68 @@ B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const RenderEve
 }
 
 void
-B5::GameSimulation::loop_event(const RenderEvent& render_event)
+B5::GameSimulation::update_ship_data()
 {
-    ZoneScopedNCS("scene loop", tracy::Color::Orange, 32);
-
-    user_interface(render_event.ui, render_event);
-    process_gamepad_state();
-    process_keyboard_state();
-    _physics->update();
-
     simulation_details::SpacecraftData* sd = &_world.ent_player.data;
     sd->position = _world.ent_player.phys_body->GetCenterOfMassPosition();
     sd->linear_velocity = _world.ent_player.phys_body->GetLinearVelocity();
     sd->angular_velocity = _world.ent_player.phys_body->GetAngularVelocity();
     sd->rotation = _world.ent_player.phys_body->GetRotation();
 
-    const JPH::Mat44 ship_world_transform = _world.ent_player.phys_body->GetWorldTransform();
-    sd->direction = ship_world_transform.GetAxisZ().Normalized();
-    sd->up = ship_world_transform.GetAxisY().Normalized();
+    //
+    // get the roll angle towards the "ground" - project world's Up (0, 1, 0) on to the ships'
+    // XY plane
+    const JPH::Vec3 ship_fwd = sd->rotation.RotateAxisZ().Normalized();
+    JPH::Vec3 world_up = JPH::Vec3::sAxisY();
+
+    //
+    // if the ship direction aligns with the world Y axis use world Z as the reference
+    // vector for roll computation.
+    if (ship_fwd.Cross(world_up).IsNearZero(1.0e-6f)) {
+        // TODO: does not work properly, need a better way
+        world_up = JPH::Vec3::sAxisZ();
+    }
+
+    const JPH::Vec3 ship_up = sd->rotation.RotateAxisY().Normalized();
+    const JPH::Vec3 ship_right = sd->rotation.RotateAxisX().Normalized();
+
+    JPH::Vec3 world_up_proj = world_up - ship_fwd.Dot(world_up) * ship_fwd;
+    const float dot_w_u = world_up_proj.Dot(ship_up);
+    const float dot_w_r = world_up_proj.Dot(ship_right);
+
+    //
+    // to make a positive or negative angle use the dot product with the ship's right (X axis) vector
+    sd->roll_angle = atan2(world_up_proj.Cross(ship_up).Length(), dot_w_u);
+    sd->roll_angle = std::copysign(sd->roll_angle, dot_w_r);
+
+    //
+    // pitch
+    sd->pitch_angle = std::asin(ship_fwd.GetY());
+    //
+    // get yaw from projection of ships forward vector onto world's XZ plane
+    sd->yaw_angle = std::atan2(ship_fwd.GetZ(), ship_fwd.GetX());
+
+    sd->direction = ship_fwd;
+    sd->up = ship_up;
+    sd->right = sd->rotation.RotateAxisX().Normalized();
+
+    //
+    // https://stackoverflow.com/questions/31838855/how-do-i-easily-convert-a-line-angle-to-a-navigational-bearing-scale-i-e-with
+    // (A1 - atan2(y2-y1,x2-x1) * 180/pi ) %%360
+    // North is 0 degrees, East 90, South 180, West 270
+    sd->compass_bearing = std::fmod(450.0f - sd->yaw_angle * F32::OneEightyOverPi, 360.0f);
+}
+
+void
+B5::GameSimulation::loop_event(const RenderEvent& render_event)
+{
+    ZoneScopedNCS("scene loop", tracy::Color::Orange, 32);
+
+    process_gamepad_state();
+    process_keyboard_state();
+    _physics->update();
+
+    update_ship_data();
 
     ScratchPadArena scratch_pad{ &_arena_temp };
 
@@ -514,6 +586,8 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         const MatrixWithInvertedMatrixPair4f view_transform = _simstate.flightcam.update(*_world.ent_player.phys_body);
         _simstate.camera.set_view_matrix(view_transform);
     }
+
+    user_interface(render_event.ui, render_event);
 
     //
     // set this here, will be used by other object further down
@@ -820,10 +894,6 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
         draw_entities_fn(ents_textured_mtl);
     }
 
-    //
-    // HUD + anything else 2D related
-    draw_hud(render_event);
-
     for (const auto& [idx, dir_light] : lz::enumerate(render_event.sdef->directional_lights)) {
         if (!_uistate.dbg_directional_lights[idx])
             continue;
@@ -879,17 +949,16 @@ B5::GameSimulation::process_keyboard_state()
             const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
             const JPH::Vec3 applied_force =
                 ship_rotation * JPH::Vec3{ key_state.force_axis.x, key_state.force_axis.y, key_state.force_axis.z } *
-                fm.thruster_large;
+                fm.thruster_large * 4;
             ifc->AddForce(ship_body, applied_force);
         } else {
 
-            // JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
-            // const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
-            // const JPH::Vec3 applied_torque =
-            //     ship_rotation * JPH::Vec3{ key_state.force_axis.x, key_state.force_axis.y, key_state.force_axis.z } *
-            //     fm.thruster_small;
-            // ifc->AddTorque(ship_body, applied_torque);
-
+            JPH::BodyInterface* ifc = &_physics->sim()->GetBodyInterface();
+            const JPH::RMat44 ship_rotation = ifc->GetCenterOfMassTransform(ship_body).GetRotation();
+            const JPH::Vec3 applied_torque =
+                ship_rotation * JPH::Vec3{ key_state.force_axis.x, key_state.force_axis.y, key_state.force_axis.z } *
+                fm.thruster_small;
+            ifc->AddTorque(ship_body, applied_torque);
         }
     }
 
@@ -912,18 +981,27 @@ struct HudTextElement
     uint32_t color;
 };
 
-float
-compute_compass_bearing(const vec2f32 pos) noexcept
+vec3f
+angles_from_rotation(const JPH::Quat& rotation)
 {
-    //
-    // https://stackoverflow.com/questions/31838855/how-do-i-easily-convert-a-line-angle-to-a-navigational-bearing-scale-i-e-with
-    // (A1 - atan2(y2-y1,x2-x1) * 180/pi ) %%360
-    // North is 0 degrees, East 90, South 180, West 270
-    return std::fmod(450.0f - atan2(pos.y, pos.x) * F32::OneEightyOverPi, 360.0f);
+    const JPH::Vec3 ship_fwd = rotation.RotateAxisZ().Normalized();
+    const float yaw = std::atan2(ship_fwd.GetX(), ship_fwd.GetZ());
+    const float pitch = std::asin(ship_fwd.GetY());
+
+    const float plane_right_z = std::sin(yaw);
+    const float plane_right_x = std::cos(yaw);
+
+    const JPH::Vec3 ship_up = rotation.RotateAxisY().Normalized();
+    float roll = std::asin(ship_up.GetZ() * plane_right_z + ship_up.GetX() * plane_right_x);
+    if (ship_up.GetY() < 0.0f) {
+        roll = std::copysign(F32::Pi, roll) - roll;
+    }
+
+    return vec3f{ degrees(pitch), degrees(yaw), degrees(roll) };
 }
 
 void
-B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEvent& re)
+B5::GameSimulation::draw_hud(xray::ui::user_interface* ui, const RenderEvent& re)
 {
     ImGui::SetNextWindowPos({ 0.0f, 0.0f });
     ImGui::Begin("HUD",
@@ -938,6 +1016,12 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     const auto hud_font_small = ui->find_font("B612-Bold_32");
     ui->push_font(hud_font_name.data());
 
+    XRAY_SCOPE_EXIT_NOEXCEPT
+    {
+        ui->pop_font();
+        ImGui::End();
+    };
+
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
     const simulation_details::SpacecraftData* sd = &_world.ent_player.data;
@@ -947,8 +1031,9 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
     const JPH::Vec3 dir = singularity ? sd->up : sd->direction;
 
     const HudConfigDefinition* hud_cfg = re.hud_cfg;
+    char scratch_buff[256];
 
-    const float compass_bearing = compute_compass_bearing(vec2f32{ sd->direction.GetX(), dir.GetZ() });
+    const float compass_bearing = sd->compass_bearing;
 
     const float compass_bar_width = static_cast<float>(re.frame_data->fbsize.width) - hud_cfg->compass.xmargin * 2.0f;
     const vec2f32 compass_origin{
@@ -960,33 +1045,33 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
                                                                                 const float range_degrees,
                                                                                 const float angle_increment,
                                                                                 const float line_length,
-                                                                                const vec2f32 line_origin) {
+                                                                                const vec2f32 origin) {
         const float angle_start = start_angle - (range_degrees * 0.5f);
         const float angle_end = start_angle + (range_degrees * 0.5f);
 
         for (float current_angle = angle_start; current_angle <= angle_end; current_angle += angle_increment) {
             const float marker_angle = std::floor(current_angle / angle_increment) * angle_increment;
-            const float marker_x = line_origin.x + ((marker_angle - angle_start) / (range_degrees)) * line_length;
+            const float marker_x = origin.x + ((marker_angle - angle_start) / (range_degrees)) * line_length;
 
-            if (marker_x <= line_origin.x) {
+            if (marker_x <= origin.x) {
                 continue;
             }
 
-            if (marker_x >= line_origin.x + line_length) {
+            if (marker_x >= origin.x + line_length) {
                 continue;
             }
 
             const char* marker_symbol = hud_cfg->compass.glyph_minor.data();
 
-            if (is_zero(std::fmod(marker_angle, hud_cfg->compass.label_angle_multiple))) {
-                marker_symbol = hud_cfg->compass.glyph_major.data();
-            }
+            const float marker_width{ 4.0f };
+            const float marker_height = is_zero(std::fmod(marker_angle, hud_cfg->compass.label_angle_multiple))
+                                            ? marker_width * 4.0f
+                                            : marker_width * 2.0f;
 
-            draw_list->AddText(hud_font_small->font,
-                               hud_font_small->pixel_size,
-                               { marker_x, line_origin.y },
-                               hud_color,
-                               marker_symbol);
+            draw_list->AddRectFilled(
+                { marker_x - marker_width * 0.5f, origin.y + hud_font_small->font->Ascent + 2.0f },
+                { marker_x + marker_width * 0.5f, origin.y + hud_font_small->font->Ascent + 2.0f + marker_height },
+                hud_color);
 
             float displayed_angle = marker_angle;
             if (displayed_angle < 0.0f)
@@ -995,45 +1080,50 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
                 displayed_angle -= 360.0f;
 
             char scratch_buf[64];
-            format_to_n(scratch_buf, "{:3.0f}°", displayed_angle);
+            format_to_n(scratch_buf, "{:3.0f}", displayed_angle);
+
+            const auto [text_width, text_height] =
+                hud_font_small->font->CalcTextSizeA(hud_font_small->pixel_size, 128.0f, 0.0f, scratch_buf);
+
             draw_list->AddText(hud_font_small->font,
                                hud_font_small->pixel_size,
-                               { marker_x, line_origin.y + hud_font_small->font->Ascent },
+                               { marker_x - text_width * 0.5f, origin.y },
                                hud_color,
                                scratch_buf);
         }
     };
 
-    draw_compass_markers(compass_bearing,
-                         hud_cfg->compass.arc_degrees,
-                         hud_cfg->compass.angle_increment,
-                         compass_bar_width,
-                         compass_origin);
+    //
+    // HEADING
+    {
+        format_to_n(scratch_buff, "{:03.0f}", compass_bearing);
+        const float x_org = re.frame_data->fb_f32.width * 0.5f;
 
-    const vec2f32 v2{
-        compass_origin.x + compass_bar_width * 0.5f,
-        compass_origin.y + hud_font_small->font->Ascent * 2.0f,
-    };
-    const vec2f32 p{ v2 + vec2f32{ 0.0f, 32.0f } };
-    const vec2f32 v0{ p.x - 24.0f, p.y };
-    const vec2f32 v1{ p.x + 24.0f, p.y };
+        const auto [text_width, text_height] =
+            hud_font->font->CalcTextSizeA(hud_font->pixel_size, FLT_MAX, 0.0f, scratch_buff);
 
-    draw_list->AddTriangleFilled({ v0.x, v0.y }, { v2.x, v2.y }, { v1.x, v1.y }, hud_color);
-    // draw_list->AddTriangle({ v0.x, v0.y }, { v2.x, v2.y }, { v1.x, v1.y }, hud_color, 4.0f);
+        draw_list->AddRect({ x_org - text_width * 0.5f - 2.0f, 0.0f },
+                           { x_org + text_width * 0.5f + 2.0f, text_height + 4.0f },
+                           hud_color);
 
-    // re.sprites->draw(compass_origin.x - 32.0f,
-    //                  compass_origin.y + hud_font_small->font->Ascent * 2.0f,
-    //                  64.0f,
-    //                  64.0f,
-    //                  SpriteIds::WHITE_RETINA_CROSSHAIR024,
-    //                  hud_color);
+        draw_list->AddText(
+            hud_font->font, hud_font->pixel_size, { x_org - text_width * 0.5f, 2.0f }, hud_color, scratch_buff);
 
-    // format_to_n(scratch_buffer, "{:3.0f}", compass_bearing);
-    // draw_list->AddText(hud_font_small->font,
-    //                    hud_font_small->pixel_size,
-    //                    { compass_origin.x + 4.0f, compass_origin.y + hud_font_small->font->Ascent * 2.0f + 32.0f },
-    //                    hud_color,
-    //                    scratch_buffer);
+        format_to_n(scratch_buff, "HDG {:03.0f}", compass_bearing);
+        const auto [hdg_txt_w, hdg_txt_h] =
+            hud_font_small->font->CalcTextSizeA(hud_font_small->pixel_size, FLT_MAX, 0.0f, scratch_buff);
+        draw_list->AddText(hud_font_small->font,
+                           hud_font_small->pixel_size,
+                           { hud_cfg->compass.xmargin, 0.0f },
+                           hud_color,
+                           scratch_buff);
+
+        draw_compass_markers(compass_bearing,
+                             hud_cfg->compass.arc_degrees,
+                             hud_cfg->compass.angle_increment,
+                             compass_bar_width,
+                             compass_origin + vec2f32{ 0.0f, text_height + 4.0f });
+    }
 
     auto draw_ranged_indicator = [spritesys = re.sprites, draw_list, hud_color, hud_font_small](
                                      const RangedIndicatorDefinition& cfg,
@@ -1120,13 +1210,11 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
             indicator_origin.y + indicator_size.y * 0.5f - 64.0f,
         };
 
-        spritesys->draw_scaled_rotated(indicator_arrowpos.x,
+        spritesys->draw_scaled_rotated(SpriteIds::WHITE_RETINA_CROSSHAIR127,
+                                       indicator_arrowpos.x,
                                        indicator_arrowpos.y,
-                                       128.0f,
-                                       128.0f,
                                        1.0f,
                                        radians(90.0f * dir_x),
-                                       SpriteIds::WHITE_RETINA_CROSSHAIR127,
                                        hud_color);
 
         char scratch_buffer[128];
@@ -1202,113 +1290,63 @@ B5::GameSimulation::draw_hud_text(xray::ui::user_interface* ui, const RenderEven
         }
     };
 
-    //
-    // horizon line
-
-    // const JPH::Mat44 wt = _world.ent_player.phys_body->GetWorldTransform();
-
-    //    roll = math.atan2(
-    // 2 * ((q2 * q3) + (q0 * q1)),
-    // q0**2 - q1**2 - q2**2 + q3**2
-    // )  # radians
-    //
-
-    JPH::Quat q = sd->rotation;
-    const JPH::Vec3 zdir = q.RotateAxisZ();
-    const vec2f32 midpoint{ re.frame_data->fbsize.width / 2, re.frame_data->fbsize.height / 2 };
-    const float roll_angle = sd->rotation.GetEulerAngles().GetZ();
-    // sd->rotation.GetRotationAngle(zdir);
-    const vec2f32 top_left{ midpoint.x - 256.0f, midpoint.y - 2.0f };
-    const vec2f32 bottom_right{ midpoint.x + 256.0f, midpoint.y + 2.0f };
-
-    if (is_zero(roll_angle)) {
-        draw_list->AddRectFilled({ top_left.x, top_left.y }, { bottom_right.x, bottom_right.y }, hud_color);
-    } else {
-        // const float2x3 horizon_mtx{R2::rotate_off_center(roll_angle, midpoint)};
-        // const vec2f32 h0 = mul_point(horizon_mtx, top_left);
-        // const vec2f32 h1 = mul_point(horizon_mtx, bottom_right);
-
-        const float sin_theta = std::sin(roll_angle);
-        const float cos_theta = std::cos(roll_angle);
-        const vec2f32 horizon_dir = normalize(vec2f32{ cos_theta, sin_theta });
-        // const vec2f32 horizon_x = normalize(vec2f32{ cos_theta, sin_theta });
-        // const vec2f32 horizon_y = normalize(perpendicular(horizon_x));
-        const vec2f32 h0 = midpoint - horizon_dir * 512.0f;
-        const vec2f32 h1 = midpoint + horizon_dir * 512.0f;
-
-        // draw_list->AddRectFilled({ h0.x, h0.y }, { h1.x, h1.y }, hud_color);
-        draw_list->AddLine({ h0.x, h0.y }, { h1.x, h1.y }, hud_color, 4.0f);
+    if (_inputstate.last_mouse_down) {
+        //
+        // dont draw pitch ladder in free look
+        return;
     }
-    // re.sprites->draw_scaled_rotated_with_origin(
-    // midpoint.x, midpoint.y, 128.0f, 128.0f, 1.0f, roll_angle, SpriteIds::WHITE_RETINA_CROSSHAIR127, hud_color);
 
-    char scratch_buff[256];
-    const float r1 = sd->rotation.GetRotationAngle(JPH::Vec3::sAxisZ());
-    const float r2 = sd->rotation.GetRotationAngle(sd->direction);
+    //
+    // Pitch ladder
+    const vec2f32 midpoint{ re.frame_data->fbsize.width / 2, re.frame_data->fbsize.height / 2 };
+    const float roll_angle = sd->roll_angle;
 
-    format_to_n(scratch_buff, "{:3.2f} ({:3.2f})/AxisZ {:3.2f}/Dir {:3.2f}", roll_angle, degrees(roll_angle), r1, r2);
+    const uint32_t debug_color = static_cast<uint32_t>(color_palette::web::orange_red);
+    draw_list->AddLine({ 0.0f, midpoint.y }, { (float)re.frame_data->fbsize.width, midpoint.y }, debug_color, 8.0f);
+    draw_list->AddLine({ midpoint.x, 0.0f }, { midpoint.x, (float)re.frame_data->fbsize.height }, debug_color, 8.0f);
+
+    constexpr const float mid_spacing = 128.0f;
+    const float cos_theta = std::cos(sd->roll_angle);
+    const float sin_theta = std::sin(sd->roll_angle);
+    const vec2f32 horizon_line_direction = normalize(vec2f32{ cos_theta, sin_theta });
+
+    const JPH::Vec3 boresight_world =
+        JPH::Vec3{ re.cam->origin().x, re.cam->origin().y, re.cam->origin().z } + sd->rotation.RotateAxisZ();
+
+    world_to_screen(vec3f32{ boresight_world.GetX(), boresight_world.GetY(), boresight_world.GetZ() },
+                    re.cam->projection_view(),
+                    re.frame_data->fb_f32.width,
+                    re.frame_data->fb_f32.height)
+        .map([sprites = re.sprites, &re, hud_color](const vec2f32 boresight) {
+            sprites->draw_with_origin(SpriteIds::HUD_SYMBOLOGY_BORESIGHT, boresight.x, boresight.y, hud_color);
+        });
+
+    ImGui::PushClipRect({ hud_cfg->speedometer.xmargin, hud_cfg->speedometer.ymargin },
+                        { re.frame_data->fb_f32.width + hud_cfg->altimeter.xmargin,
+                          re.frame_data->fb_f32.height - hud_cfg->altimeter.ymargin },
+                        true);
+
+    const vec2f32 horizon_perp{ -horizon_line_direction.y, horizon_line_direction.x };
+    re.sprites->draw_scaled_rotated_with_origin(
+        SpriteIds::HUD_SYMBOLOGY_HORIZON_INDICATOR, midpoint.x, midpoint.y, 1.0f, cos_theta, sin_theta, hud_color);
+
+    const float ladder_interval = 128.0f;
+    const vec2f32 pos0 = midpoint + horizon_perp * ladder_interval;
+    // XR_LOG_INFO("LADDER POS: {}, cos: {:3.3f}, sin: {:3.3f}", pos0, cos_theta, sin_theta);
+
+    re.sprites->draw_scaled_rotated_with_origin(
+        SpriteIds::HUD_SYMBOLOGY_PITCH_LADDER_POSITIVE, pos0.x, pos0.y, 1.0f, cos_theta, sin_theta, hud_color);
+
+    const vec2f32 pos1 = midpoint - horizon_perp * ladder_interval;
+    re.sprites->draw_scaled_rotated_with_origin(
+        SpriteIds::HUD_SYMBOLOGY_PITCH_LADDER_POSITIVE, pos1.x, pos1.y, 1.0f, cos_theta, sin_theta, hud_color);
+
+    ImGui::PopClipRect();
+
+    format_to_n(scratch_buff, "Roll: {:3.2f}\nPitch {:3.2f}\nYaw: {:3.2f}", roll_angle, sd->pitch_angle, sd->yaw_angle);
     draw_list->AddText({ midpoint.x, midpoint.y + 128.0f }, hud_color, scratch_buff);
 
-    // const float2x3 roll_mtx{R2::rotate(roll_angle)};
-
     ImGui::Dummy({ static_cast<float>(re.frame_data->fbsize.width), static_cast<float>(re.frame_data->fbsize.height) });
-
-    ui->pop_font();
-    ImGui::End();
-}
-
-void
-B5::GameSimulation::draw_hud(const RenderEvent& render_evt)
-{
-    const float size = 128.0f;
-    vec2f32 coords{ 0 };
-    // for (const SpriteHandleType sprite_id : {
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR126,
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR127,
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR128,
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR129,
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR049,
-    //      }) {
-    //     render_evt.sprites->draw(
-    //         coords.x, coords.y, size, size, sprite_id, static_cast<uint32_t>(color_palette::flat::greensea400));
-    //     coords.x += size;
-    // }
-
-    // coords.x = 0;
-    // coords.y += size;
-    // for (const SpriteHandleType sprite_id : {
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR126,
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR127,
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR128,
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR129,
-    //          SpriteIds::WHITE_RETINA_CROSSHAIR049,
-    //      }) {
-    //     render_evt.sprites->draw_scaled_rotated(coords.x,
-    //                                             coords.y,
-    //                                             size,
-    //                                             size,
-    //                                             2.0f,
-    //                                             radians(45.0f),
-    //                                             sprite_id,
-    //                                             static_cast<uint32_t>(color_palette::flat::greensea600));
-    //     coords.x += size * 2.0f;
-    // }
-
-    // coords.x = 0.0f;
-    // coords.y += size * 2.0f;
-    //
-    // for (const auto [rotation, sprite_id] : { std::tuple{ radians(45.0f), SpriteIds::WHITE_RETINA_CROSSHAIR126 },
-    //                                           std::tuple{ radians(-45.0f), SpriteIds::WHITE_RETINA_CROSSHAIR127 } })
-    //                                           {
-    //     render_evt.sprites->draw_scaled_rotated_with_origin(512.0f,
-    //                                                         512.0f,
-    //                                                         size,
-    //                                                         size,
-    //                                                         3.0f,
-    //                                                         rotation,
-    //                                                         sprite_id,
-    //                                                         static_cast<uint32_t>(color_palette::flat::emerald50));
-    // }
 }
 
 void

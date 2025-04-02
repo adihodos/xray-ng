@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -105,50 +106,74 @@ class SpriteSystem
     tl::optional<SpriteAtlasEntry> get_sprite_by_name(const std::string_view sprite) const noexcept;
     tl::optional<SpriteAtlasEntry> get_sprite_by_id(const SpriteHandleType id) const noexcept;
 
-    void draw(const float x,
-              const float y,
-              const float width,
-              const float height,
-              const SpriteHandleType sprite_handle,
-              const uint32_t color);
+    void draw(const SpriteEntry& sprite, const float x, const float y, const uint32_t color)
+    {
+        draw_sprite(sprite, x + sprite.F32Size.width * 0.5f, y + sprite.F32Size.height * 0.5f, color);
+    }
 
-    void draw_scaled_rotated(const float x,
+    void draw_with_origin(const SpriteEntry& sprite, const float ox, const float oy, const uint32_t color)
+    {
+        draw_sprite(sprite, ox, oy, color);
+    }
+
+    void draw_scaled_rotated(const SpriteEntry& sprite,
+                             const float x,
                              const float y,
-                             const float width,
-                             const float height,
                              const float scale,
                              const float rotation,
-                             const SpriteHandleType sprite_handle,
                              const uint32_t color)
     {
-        draw_scaled_rotated_with_origin(
-            x + width * 0.5f, y + height * 0.5f, width, height, scale, rotation, sprite_handle, color);
+        draw_sprite(sprite,
+                    x + sprite.F32Size.width * 0.5f,
+                    y + sprite.F32Size.height * 0.5f,
+                    scale,
+                    std::cos(rotation),
+                    std::sin(rotation),
+                    color);
     }
 
-    void draw_with_origin(const float ox,
-                          const float oy,
-                          const float width,
-                          const float height,
-                          const SpriteHandleType sprite_handle,
-                          const uint32_t color)
-    {
-        const float hw = width * 0.5f;
-        const float hh = height * 0.5f;
-        draw(ox - hw, oy - hh, width, height, sprite_handle, color);
-    }
-
-    void draw_scaled_rotated_with_origin(const float ox,
+    void draw_scaled_rotated_with_origin(const SpriteEntry& sprite,
+                                         const float ox,
                                          const float oy,
-                                         const float width,
-                                         const float height,
                                          const float scale,
                                          const float rotation,
-                                         const SpriteHandleType sprite_handle,
-                                         const uint32_t color);
+                                         const uint32_t color)
+    {
+        draw_sprite(sprite, ox, oy, scale, std::cos(rotation), std::sin(rotation), color);
+    }
+
+    void draw_scaled_rotated_with_origin(const SpriteEntry& sprite,
+                                         const float ox,
+                                         const float oy,
+                                         const float scale,
+                                         const float cos_rotation,
+                                         const float sine_rotation,
+                                         const uint32_t color)
+    {
+        draw_sprite(sprite, ox, oy, scale, cos_rotation, sine_rotation, color);
+    }
 
     void render(const SpriteSystemRenderContext& rctx);
 
   private:
+    void draw_sprite(const SpriteEntry& sprite, const float ox, const float oy, const uint32_t color);
+    // void draw_sprite(const SpriteAtlasEntry& sprite, const float ox, const float oy, const uint32_t color);
+    // void draw_sprite(const SpriteAtlasEntry& sprite,
+    //                  const float ox,
+    //                  const float oy,
+    //                  const float scale,
+    //                  const float cos_rotation,
+    //                  const float sine_rotation,
+    //                  const uint32_t color);
+
+    void draw_sprite(const SpriteEntry& sprite,
+                     const float ox,
+                     const float oy,
+                     const float scale,
+                     const float cos_rotation,
+                     const float sine_rotation,
+                     const uint32_t color);
+
     void add_sprite_quad(const std::span<const SpriteVertex> quad);
     SpriteVertex* vertex_ptr() const noexcept { return _mapped_vb + _cursor.frame * MAX_SPRITES + _cursor.vertex; }
     uint16_t* index_ptr() const noexcept { return _mapped_ib + _cursor.frame * MAX_INDICES + _cursor.index; }

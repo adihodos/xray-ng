@@ -196,6 +196,7 @@ template<typename T>
 constexpr const scalar3<T> scalar3<T>::stdc::one;
 
 using vec3f = scalar3<scalar_lowp>;
+using vec3f32 = scalar3<scalar_lowp>;
 using vec3d = scalar3<scalar_mediump>;
 using vec3i8 = scalar3<int8_t>;
 using vec3ui8 = scalar3<uint8_t>;

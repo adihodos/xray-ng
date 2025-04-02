@@ -4,8 +4,8 @@ project(
   VERSION 0.5.0.0
   LANGUAGES C CXX)
 
-# cmake_policy(SET CMP0091 NEW)
-# set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# cmake_policy(SET CMP0091 NEW) set(CMAKE_MSVC_RUNTIME_LIBRARY
+# "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
@@ -166,7 +166,7 @@ if(TARGET Linux)
     xray-set-compile-options-lib
     INTERFACE
       $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables;-fsanitize=address>
-      $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
+      $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer;-O2>
   )
 
   target_link_options(
@@ -180,13 +180,16 @@ endif()
 target_compile_options(
   xray-set-compile-options-lib
   INTERFACE
-  "$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>")
+    "$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>")
 
 target_compile_definitions(
-  xray-set-compile-options-lib INTERFACE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD> 
-  $<$<PLATFORM_ID:Windows>:YY_NO_UNISTD_H>
-  XRAY_MATH_ENABLE_FMT_SUPPORT
-  "$<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE>")
+  xray-set-compile-options-lib
+  INTERFACE
+    $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
+    $<$<PLATFORM_ID:Windows>:YY_NO_UNISTD_H>
+    XRAY_MATH_ENABLE_FMT_SUPPORT
+    "$<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE>"
+)
 
 add_subdirectory(third_party/stb)
 add_subdirectory(third_party/opengl/src)

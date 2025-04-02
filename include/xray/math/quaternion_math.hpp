@@ -30,14 +30,12 @@
 
 #include <cmath>
 
-#include "xray/math/math_base.hpp"
-#include "xray/math/math_std.hpp"
 #include "xray/math/quaternion.hpp"
+#include "xray/math/math_base.hpp"
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar2_math.hpp"
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar4x4.hpp"
-#include "xray/xray.hpp"
 
 namespace xray {
 namespace math {
@@ -60,7 +58,8 @@ operator!=(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs)
 }
 
 template<typename real_type>
-inline quaternion<real_type>
+    requires std::is_arithmetic_v<real_type>
+inline constexpr quaternion<real_type>
 operator+(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs) noexcept
 {
     quaternion<real_type> result{ lhs };
@@ -68,7 +67,8 @@ operator+(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs) no
 }
 
 template<typename real_type>
-inline quaternion<real_type>
+    requires std::is_arithmetic_v<real_type>
+inline constexpr quaternion<real_type>
 operator-(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs) noexcept
 {
     quaternion<real_type> result{ lhs };
@@ -76,14 +76,16 @@ operator-(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs) no
 }
 
 template<typename real_type>
-inline quaternion<real_type>
+    requires std::is_arithmetic_v<real_type>
+inline constexpr quaternion<real_type>
 operator-(const quaternion<real_type>& quat) noexcept
 {
     return { -quat.w, -quat.x, -quat.y, -quat.z };
 }
 
 template<typename real_type>
-quaternion<real_type>
+    requires std::is_arithmetic_v<real_type>
+constexpr quaternion<real_type>
 operator*(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs) noexcept
 {
     quaternion<real_type> result;
@@ -97,7 +99,8 @@ operator*(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs) no
 }
 
 template<typename real_type>
-inline quaternion<real_type>
+    requires std::is_arithmetic_v<real_type>
+inline constexpr quaternion<real_type>
 operator*(const quaternion<real_type>& lhs, const real_type scalar) noexcept
 {
     quaternion<real_type> result{ lhs };
@@ -105,14 +108,16 @@ operator*(const quaternion<real_type>& lhs, const real_type scalar) noexcept
 }
 
 template<typename real_type>
-inline quaternion<real_type>
+    requires std::is_arithmetic_v<real_type>
+inline constexpr quaternion<real_type>
 operator*(const real_type scalar, const quaternion<real_type>& rhs) noexcept
 {
     return rhs * scalar;
 }
 
 template<typename real_type>
-inline quaternion<real_type>
+    requires std::is_arithmetic_v<real_type>
+inline constexpr quaternion<real_type>
 operator/(const quaternion<real_type>& lhs, const real_type scalar) noexcept
 {
     quaternion<real_type> result{ lhs };
@@ -120,20 +125,23 @@ operator/(const quaternion<real_type>& lhs, const real_type scalar) noexcept
 }
 
 template<typename real_type>
-inline quaternion<real_type>
+    requires std::is_arithmetic_v<real_type>
+inline constexpr quaternion<real_type>
 conjugate(const quaternion<real_type>& q) noexcept
 {
     return { q.w, -q.x, -q.y, -q.z };
 }
 
 template<typename real_type>
-inline real_type
+    requires std::is_arithmetic_v<real_type>
+inline constexpr real_type
 length_squared(const quaternion<real_type>& q) noexcept
 {
     return q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
 }
 
 template<typename real_type>
+    requires std::is_floating_point_v<real_type>
 inline real_type
 length(const quaternion<real_type>& q) noexcept
 {
@@ -141,6 +149,7 @@ length(const quaternion<real_type>& q) noexcept
 }
 
 template<typename real_type>
+    requires std::is_floating_point_v<real_type>
 quaternion<real_type>
 normalize(const quaternion<real_type>& q) noexcept
 {
@@ -150,11 +159,12 @@ normalize(const quaternion<real_type>& q) noexcept
         return quaternion<real_type>::stdc::identity;
     }
 
-    const real_type scale_factor = real_type{ 1 } / len_sq;
+    const real_type scale_factor = real_type{ 1 } / std::sqrt(len_sq);
     return { q.w * scale_factor, q.x * scale_factor, q.y * scale_factor, q.z * scale_factor };
 }
 
 template<typename real_type>
+    requires std::is_floating_point_v<real_type>
 quaternion<real_type>
 invert(const quaternion<real_type>& q) noexcept
 {
@@ -169,6 +179,7 @@ invert(const quaternion<real_type>& q) noexcept
 }
 
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 inline real_type
 dot_product(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs)
 {
@@ -179,6 +190,7 @@ dot_product(const quaternion<real_type>& lhs, const quaternion<real_type>& rhs)
 /// \brief Multiplication with vector. Returns another vector that is
 /// the original vector rotated by the quaternion.
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 scalar3<real_type>
 operator*(const quaternion<real_type>& q, const scalar3<real_type>& v) noexcept
 {
@@ -193,12 +205,15 @@ operator*(const quaternion<real_type>& q, const scalar3<real_type>& v) noexcept
     const real_type y_val = v.y;
     const real_type z_val = v.z;
 
-    return { vmul * x_val + dotp * q.x + cross_mul * (q.y * z_val - q.z * y_val),
-             vmul * y_val + dotp * q.y + cross_mul * (q.z * x_val - q.x * z_val),
-             vmul * z_val + dotp * q.z + cross_mul * (q.x * y_val - q.y * x_val) };
+    return {
+        vmul * x_val + dotp * q.x + cross_mul * (q.y * z_val - q.z * y_val),
+        vmul * y_val + dotp * q.y + cross_mul * (q.z * x_val - q.x * z_val),
+        vmul * z_val + dotp * q.z + cross_mul * (q.x * y_val - q.y * x_val),
+    };
 }
 
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 scalar4x4<real_type>
 rotation_matrix(const quaternion<real_type>& q) noexcept
 {
@@ -223,34 +238,36 @@ rotation_matrix(const quaternion<real_type>& q) noexcept
 
     zz = q.z * zs;
 
-    return { //
-             // 1st row
-             real_type(1) - (yy + zz),
-             xy - wz,
-             xz + wy,
-             real_type{},
-             //
-             // 2nd row
-             xy + wz,
-             real_type(1) - (xx + zz),
-             yz - wx,
-             real_type{},
-             //
-             // 3rd row
-             xz - wy,
-             yz + wx,
-             real_type(1) - (xx + yy),
-             real_type{},
-             //
-             // 4th row
-             real_type{},
-             real_type{},
-             real_type{},
-             real_type{ 1 }
+    return {
+        //
+        // 1st row
+        real_type(1) - (yy + zz),
+        xy - wz,
+        xz + wy,
+        real_type{},
+        //
+        // 2nd row
+        xy + wz,
+        real_type(1) - (xx + zz),
+        yz - wx,
+        real_type{},
+        //
+        // 3rd row
+        xz - wy,
+        yz + wx,
+        real_type(1) - (xx + yy),
+        real_type{},
+        //
+        // 4th row
+        real_type{},
+        real_type{},
+        real_type{},
+        real_type{ 1 },
     };
 }
 
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 inline bool
 is_zero_length(const quaternion<real_type>& q) noexcept
 {
@@ -258,6 +275,7 @@ is_zero_length(const quaternion<real_type>& q) noexcept
 }
 
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 inline bool
 is_unit_length(const quaternion<real_type>& q) noexcept
 {
@@ -265,12 +283,14 @@ is_unit_length(const quaternion<real_type>& q) noexcept
 }
 
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 inline bool
 is_identity(const quaternion<real_type>& q) noexcept
 {
     return is_equal(real_type(1), q.w) && is_zero(q.x * q.x + q.y * q.y + q.z * q.z);
 }
 
+/// \brief Convert screen coordinates into a quaternion representing a rotation.
 template<typename RealType>
     requires std::is_floating_point_v<RealType>
 quaternion<RealType>

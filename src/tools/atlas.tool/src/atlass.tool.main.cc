@@ -129,49 +129,11 @@ struct SpriteIds {{
 int
 main(int argc, char** argv)
 {
-    // using namespace lyra;
-    // bool show_help = false;
-    // struct Config
-    // {
-    //     int seed = 0;
-    //     std::string name;
-    //     std::vector<std::string> tests;
-    //     bool flag = false;
-    //     double value = 0;
-    //     int choice = 5;
-    //     std::string color = "red";
-    // } config;
-    // auto parser =
-    //     help(show_help).description("This is a combined sample CLI parser. It takes varied options"
-    //                                 "and arguments.") |
-    //     opt(config.seed, "time|value")["--rng-seed"]["-r"]("Set a specific seed for random numbers.").required() |
-    //     opt(config.name, "name")["-n"]["--name"]("The name to use.") |
-    //     opt(config.flag)["-f"]["--flag"]("A flag to set.") |
-    //     opt([&](double value) { config.value = value; }, "number")["-d"]["--double"]("Just some number.") |
-    //     arg(config.tests, "test name|tags|pattern")("Which test or tests to use.").required() |
-    //     opt(config.choice, "1-10")["-c"]["--choice"]("A choice from 1 to 10.").choices([](int value) -> bool {
-    //         return 1 <= value && value <= 10;
-    //     });
-    // parser.add_argument(opt(config.color, "red|green|blue")
-    //                         .name("-k")
-    //                         .name("--color")
-    //                         .help("A primary color.")
-    //                         .choices("red", "green", "blue"));
-    //
-    // auto result = parser.parse({ argc, argv });
-    //
-    // if (!result) {
-    //     std::cerr << result.message() << "\n\n";
-    // }
-    // if (show_help || !result) {
-    //     std::cout << parser << "\n";
-    // }
-
-    // std::filesystem::path
     fs::path input_dir_path;
     fs::path output_dir_path;
     std::string atlas_texture_prefix;
     std::string atlas_name;
+    std::string hpp_file;
     bool show_help{ false };
 
     constexpr const std::string_view usage_example = R"#(
@@ -187,7 +149,8 @@ Example usage:
                    "Output directory with the atlas definition and KTX2 texture files")
                    .required() |
                lyra::opt{ atlas_texture_prefix, "prefix" }["-p"]["--prefix"]("Atlas texture file prefix").required() |
-               lyra::arg{ atlas_name, "name" }("Atlas name").required();
+               lyra::arg{ atlas_name, "name" }("Atlas name").required() |
+               lyra::opt{ hpp_file, "header file" }["-H"]["--hpp"]("Header file name");
 
     auto arg_parse_result = cli.parse({ argc, argv });
     if (!arg_parse_result) {
@@ -258,7 +221,7 @@ Example usage:
     std::string sprite_ids{};
     sprite_ids.reserve(2048);
 
-    for (const TpSheet_Def& sheet : atlas_defs) {
+    for (const auto& [sheet_index, sheet] : lz::enumerate(atlas_defs)) {
         const fs::path image_path = input_dir_path / sheet.meta.image;
         fmt::println("image: {} -> {}x{}", image_path, sheet.meta.size.w, sheet.meta.size.h);
 
@@ -274,7 +237,7 @@ Example usage:
             auto make_cpp_conformat_name = [](const std::string_view& sv) {
                 return lz::chain(sv)
                     .map([](char c) {
-                        if (isspace(c) || !isalnum(c))
+                        if (isspace(c) || !isalnum(c) || c == '.')
                             return '_';
 
                         return static_cast<char>(toupper(c));
@@ -282,21 +245,7 @@ Example usage:
                     .toString();
             };
 
-            fmt::format_to(std::back_inserter(sprite_ids),
-                           "static constexpr const xray::rendering::SpriteHandleType {0} {{ {1} }};\n",
-                           make_cpp_conformat_name(tex.filename),
-                           hashed_name);
-
-            // auto [itr, was_inseted] = atlas_definition.frames.emplace(hashed_name,
-            //                                                           xray::rendering::TextureRegion{
-            //                                                               .layer =
-            //                                                               static_cast<uint32_t>(layer_index), .x =
-            //                                                               sprite.region.x, .y = sprite.region.y,
-            //                                                               .width = sprite.region.w,
-            //                                                               .height = sprite.region.h,
-            //                                                           });
-
-            atlas_definition.frames.emplace_back(TpSheet_AtlasEntry{
+            const TpSheet_AtlasEntry se{
                 .layer = 0,
                 .x = tex.frame.x,
                 .y = tex.frame.y,
@@ -323,7 +272,49 @@ Example usage:
                         .x = static_cast<float>(tex.frame.x + tex.frame.w) / SHEET_WIDTH,
                         .y = static_cast<float>(tex.frame.y + tex.frame.h) / SHEET_HEIGHT,
                     },
-            });
+            };
+
+            fmt::format_to(std::back_inserter(sprite_ids),
+                           // "static constexpr const  {0} {{ {1} }};\n",
+                           R"#(
+    static constexpr const xray::rendering::SpriteEntry {sprite_name} {{
+        .Handle = xray::rendering::SpriteHandleType{{ {sprite_handle} }},
+        .U16Size = {{ .width = {sprite_width}, .height = {sprite_height} }},
+        .F32Size = {{ .width = {f32_width}.0f, .height = {f32_height}.0f }},
+        .Texture = {{
+            .layer = {layer},
+            .bottom_left = {{ {blx}, {bly} }},
+            .top_left = {{ {tlx}, {tly} }},
+            .top_right = {{ {trx}, {try} }},
+            .bottom_right = {{ {brx}, {bry} }},
+        }},
+    }};)#",
+                           fmt::arg("sprite_name", make_cpp_conformat_name(tex.filename)),
+                           fmt::arg("sprite_handle", hashed_name),
+                           fmt::arg("sprite_width", tex.sourceSize.w),
+                           fmt::arg("sprite_height", tex.sourceSize.h),
+                           fmt::arg("f32_width", static_cast<float>(tex.sourceSize.w)),
+                           fmt::arg("f32_height", static_cast<float>(tex.sourceSize.h)),
+                           fmt::arg("layer", sheet_index),
+                           fmt::arg("blx", se.bottom_left.x),
+                           fmt::arg("bly", se.bottom_left.y),
+                           fmt::arg("tlx", se.top_left.x),
+                           fmt::arg("tly", se.top_left.y),
+                           fmt::arg("trx", se.top_right.x),
+                           fmt::arg("try", se.top_right.y),
+                           fmt::arg("brx", se.bottom_right.x),
+                           fmt::arg("bry", se.bottom_right.y));
+
+            // auto [itr, was_inseted] = atlas_definition.frames.emplace(hashed_name,
+            //                                                           xray::rendering::TextureRegion{
+            //                                                               .layer =
+            //                                                               static_cast<uint32_t>(layer_index), .x =
+            //                                                               sprite.region.x, .y = sprite.region.y,
+            //                                                               .width = sprite.region.w,
+            //                                                               .height = sprite.region.h,
+            //                                                           });
+
+            atlas_definition.frames.emplace_back(se);
 
             // if (!was_inseted) {
             //     fmt::println("WARNING: sprite {} name collision!", sprite.filename);
@@ -396,7 +387,7 @@ Example usage:
                                                  fmt::arg("date_time_gen", date_time_gen.str()),
                                                  fmt::arg("sprite_ids_list", sprite_ids));
 
-    const fs::path hpp_file_path = (output_dir_path / atlas_name).concat(".hpp");
+    const fs::path hpp_file_path = (output_dir_path / (hpp_file.empty() ? atlas_name : hpp_file)).concat(".hpp");
     FILE* hpp = fopen(hpp_file_path.generic_string().c_str(), "wt");
     if (!hpp) {
         fmt::println("Failed to write HPP file {}", hpp_file_path.generic_string());

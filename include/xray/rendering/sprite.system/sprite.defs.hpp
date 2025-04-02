@@ -15,6 +15,32 @@ namespace xray::rendering {
 using SpriteHandleType =
     strong::type<uint64_t, struct SpriteHandleTypeTag, strong::equality, strong::formattable, strong::hashable>;
 
+struct SpriteEntry
+{
+    SpriteHandleType Handle;
+
+    struct
+    {
+        uint16_t width;
+        uint16_t height;
+    } U16Size;
+
+    struct
+    {
+        float width;
+        float height;
+    } F32Size;
+
+    struct
+    {
+        uint8_t layer;
+        xray::math::vec2f bottom_left;
+        xray::math::vec2f top_left;
+        xray::math::vec2f top_right;
+        xray::math::vec2f bottom_right;
+    } Texture;
+};
+
 struct SpriteAtlasEntry
 {
     uint32_t layer;

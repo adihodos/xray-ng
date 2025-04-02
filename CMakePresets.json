@@ -37,7 +37,7 @@
       "description": "Sets release build type",
       "inherits": "x64-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
@@ -62,7 +62,7 @@
       "description": "Sets release build type",
       "inherits": "linux-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
@@ -96,6 +96,12 @@
       "name": "default-build-linux",
       "displayName": "Default (Linux)",
       "configurePreset": "linux-debug",
+      "description": "Vanilla build"
+    },
+    {
+      "name": "default-build-linux-release",
+      "displayName": "Release (Linux)",
+      "configurePreset": "linux-release",
       "description": "Vanilla build"
     },
     {

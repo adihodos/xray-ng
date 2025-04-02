@@ -58,11 +58,18 @@ struct SpacecraftData
 {
     JPH::Vec3 direction{ JPH::Vec3::sAxisZ() };
     JPH::Vec3 up{ JPH::Vec3::sAxisY() };
+    JPH::Vec3 right{JPH::Vec3::sAxisX() };
     JPH::Quat rotation{ JPH::Quat::sIdentity() };
     JPH::Vec3 position;
     JPH::Vec3 linear_velocity;
     JPH::Vec3 angular_velocity;
     float throttle{};
+    float roll_angle{};
+    float roll{};
+    float pitch_angle{};
+    float yaw_angle{};
+    float compass_bearing{};
+
 };
 
 struct Starfury
@@ -108,13 +115,13 @@ class GameSimulation
 
   private:
     void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
-    void draw_hud(const RenderEvent& render_evt);
-    void draw_hud_text(xray::ui::user_interface* ui, const RenderEvent& re);
+    void draw_hud(xray::ui::user_interface* ui, const RenderEvent& re);
 
     void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
     void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
     void handle_mouse_button_event(const xray::ui::mouse_button_event& mbe);
     void handle_mouse_motion_event(const xray::ui::mouse_motion_event& mme);
+    void update_ship_data();
 
     void process_gamepad_state();
     void process_keyboard_state();

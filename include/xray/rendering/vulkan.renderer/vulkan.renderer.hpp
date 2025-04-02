@@ -187,6 +187,11 @@ struct FrameRenderData
     uint32_t max_frames;
     VkCommandBuffer cmd_buf;
     VkExtent2D fbsize;
+    struct
+    {
+        float width;
+        float height;
+    } fb_f32;
 };
 
 struct RenderBufferingSetup

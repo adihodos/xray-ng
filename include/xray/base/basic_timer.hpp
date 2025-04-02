@@ -42,7 +42,7 @@ template<typename precise_type>
 class basic_timer
 {
   public:
-    using underlying_clock_type = std::chrono::high_resolution_clock;
+    using underlying_clock_type = std::chrono::steady_clock;
     static_assert(underlying_clock_type::is_steady == true, "Underlying clock type must be a steady clock type!");
     using timepoint_type = typename underlying_clock_type::time_point;
 

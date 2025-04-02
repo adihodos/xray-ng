@@ -299,6 +299,7 @@ template<typename T>
 constexpr const scalar4<T> scalar4<T>::stdc::one;
 
 using vec4f = scalar4<float>;
+using vec4f32 = scalar4<float>;
 using vec4d = scalar4<double>;
 using vec4ui8 = scalar4<uint8_t>;
 using vec4i8 = scalar4<int8_t>;

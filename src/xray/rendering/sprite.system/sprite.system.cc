@@ -140,47 +140,96 @@ SpriteSystem::get_sprite_by_id(const SpriteHandleType id) const noexcept
     return itr_entry == std::cend(_sprites_table) ? tl::nullopt : tl::optional<SpriteAtlasEntry>{ itr_entry->second };
 }
 
-void
-SpriteSystem::draw(const float x,
-                   const float y,
-                   const float width,
-                   const float height,
-                   const SpriteHandleType hashed_name,
-                   const uint32_t color)
-{
-    const auto& itr_entry = _sprites_table.find(hashed_name);
-    if (itr_entry == std::cend(_sprites_table)) {
-        return;
-    }
+// void
+// SpriteSystem::draw(const float x,
+//                    const float y,
+//                    const float width,
+//                    const float height,
+//                    const SpriteHandleType hashed_name,
+//                    const uint32_t color)
+// {
+//     const auto& itr_entry = _sprites_table.find(hashed_name);
+//     if (itr_entry == std::cend(_sprites_table)) {
+//         return;
+//     }
+//
+//     using namespace xray::math;
+//
+//     const SpriteVertex sprite_vertices[] = {
+//         SpriteVertex{
+//             .pos = vec2f32{ x, y + height },
+//             .uv = itr_entry->second.bottom_left,
+//             .texid = itr_entry->second.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = vec2f32{ x + width, y + height },
+//             .uv = itr_entry->second.bottom_right,
+//             .texid = itr_entry->second.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = vec2f32{ x + width, y },
+//             .uv = itr_entry->second.top_right,
+//             .texid = itr_entry->second.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = vec2f32{ x, y },
+//             .uv = itr_entry->second.top_left,
+//             .texid = itr_entry->second.layer,
+//             .color = color,
+//         },
+//     };
+//
+//     add_sprite_quad(sprite_vertices);
+// }
 
+void
+SpriteSystem::draw_sprite(const SpriteEntry& sprite, const float ox, const float oy, const uint32_t color)
+{
     using namespace xray::math;
+
+    const vec2f32 org = vec2f32{ ox, oy };
+    const float hw = static_cast<float>(sprite.F32Size.width) * 0.5f;
+    const float hh = static_cast<float>(sprite.F32Size.height) * 0.5f;
+
+    //
+    // generate vertices from origin @ (ox, oy)
+    const vec2f32 v0 = org + vec2f32{ -hw, hh };
+    const vec2f32 v1 = org + vec2f32{ hw, hh };
+    const vec2f32 v2 = org + vec2f32{ hw, -hh };
+    const vec2f32 v3 = org + vec2f32{ -hw, -hh };
 
     const SpriteVertex sprite_vertices[] = {
         SpriteVertex{
-            .pos = vec2f32{ x, y + height },
-            .uv = itr_entry->second.bottom_left,
-            .texid = itr_entry->second.layer,
+            .pos = v0,
+            .uv = sprite.Texture.bottom_left,
+            .texid = sprite.Texture.layer,
             .color = color,
         },
 
         SpriteVertex{
-            .pos = vec2f32{ x + width, y + height },
-            .uv = itr_entry->second.bottom_right,
-            .texid = itr_entry->second.layer,
+            .pos = v1,
+            .uv = sprite.Texture.bottom_right,
+            .texid = sprite.Texture.layer,
             .color = color,
         },
 
         SpriteVertex{
-            .pos = vec2f32{ x + width, y },
-            .uv = itr_entry->second.top_right,
-            .texid = itr_entry->second.layer,
+            .pos = v2,
+            .uv = sprite.Texture.top_right,
+            .texid = sprite.Texture.layer,
             .color = color,
         },
 
         SpriteVertex{
-            .pos = vec2f32{ x, y },
-            .uv = itr_entry->second.top_left,
-            .texid = itr_entry->second.layer,
+            .pos = v3,
+            .uv = sprite.Texture.top_left,
+            .texid = sprite.Texture.layer,
             .color = color,
         },
     };
@@ -188,26 +237,69 @@ SpriteSystem::draw(const float x,
     add_sprite_quad(sprite_vertices);
 }
 
-void
-SpriteSystem::draw_scaled_rotated_with_origin(const float ox,
-                                              const float oy,
-                                              const float width,
-                                              const float height,
-                                              const float scale,
-                                              const float rotation,
-                                              const SpriteHandleType sprite_handle,
-                                              const uint32_t color)
-{
-    const auto& itr_entry = _sprites_table.find(sprite_handle);
-    if (itr_entry == std::cend(_sprites_table)) {
-        return;
-    }
+// void
+// SpriteSystem::draw_sprite(const SpriteAtlasEntry& sprite, const float ox, const float oy, const uint32_t color)
+// {
+//     using namespace xray::math;
+//
+//     const vec2f32 org = vec2f32{ ox, oy };
+//     const float hw = static_cast<float>(sprite.width) * 0.5f;
+//     const float hh = static_cast<float>(sprite.height) * 0.5f;
+//
+//     //
+//     // generate vertices from origin @ (ox, oy)
+//     const vec2f32 v0 = org + vec2f32{ -hw, hh };
+//     const vec2f32 v1 = org + vec2f32{ hw, hh };
+//     const vec2f32 v2 = org + vec2f32{ hw, -hh };
+//     const vec2f32 v3 = org + vec2f32{ -hw, -hh };
+//
+//     const SpriteVertex sprite_vertices[] = {
+//         SpriteVertex{
+//             .pos = v0,
+//             .uv = sprite.bottom_left,
+//             .texid = sprite.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = v1,
+//             .uv = sprite.bottom_right,
+//             .texid = sprite.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = v2,
+//             .uv = sprite.top_right,
+//             .texid = sprite.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = v3,
+//             .uv = sprite.top_left,
+//             .texid = sprite.layer,
+//             .color = color,
+//         },
+//     };
+//
+//     add_sprite_quad(sprite_vertices);
+// }
 
+void
+SpriteSystem::draw_sprite(const SpriteEntry& sprite,
+                          const float ox,
+                          const float oy,
+                          const float scale,
+                          const float cos_theta,
+                          const float sin_theta,
+                          const uint32_t color)
+{
     using namespace xray::math;
 
     const vec2f32 t = vec2f32{ ox, oy };
-    const float hw = width * 0.5f;
-    const float hh = height * 0.5f;
+    const float hw = static_cast<float>(sprite.F32Size.width) * 0.5f;
+    const float hh = static_cast<float>(sprite.F32Size.height) * 0.5f;
 
     //
     // generate vertices from origin @ (0, 0)
@@ -225,9 +317,6 @@ SpriteSystem::draw_scaled_rotated_with_origin(const float ox,
 
     //
     // rotate
-    const float sin_theta = std::sin(rotation);
-    const float cos_theta = std::cos(rotation);
-
     v0 = vec2f32{ v0.x * cos_theta - v0.y * sin_theta, v0.x * sin_theta + v0.y * cos_theta };
     v1 = vec2f32{ v1.x * cos_theta - v1.y * sin_theta, v1.x * sin_theta + v1.y * cos_theta };
     v2 = vec2f32{ v2.x * cos_theta - v2.y * sin_theta, v2.x * sin_theta + v2.y * cos_theta };
@@ -243,35 +332,111 @@ SpriteSystem::draw_scaled_rotated_with_origin(const float ox,
     const SpriteVertex sprite_vertices[] = {
         SpriteVertex{
             .pos = v0,
-            .uv = itr_entry->second.bottom_left,
-            .texid = itr_entry->second.layer,
+            .uv = sprite.Texture.bottom_left,
+            .texid = sprite.Texture.layer,
             .color = color,
         },
 
         SpriteVertex{
             .pos = v1,
-            .uv = itr_entry->second.bottom_right,
-            .texid = itr_entry->second.layer,
+            .uv = sprite.Texture.bottom_right,
+            .texid = sprite.Texture.layer,
             .color = color,
         },
 
         SpriteVertex{
             .pos = v2,
-            .uv = itr_entry->second.top_right,
-            .texid = itr_entry->second.layer,
+            .uv = sprite.Texture.top_right,
+            .texid = sprite.Texture.layer,
             .color = color,
         },
 
         SpriteVertex{
             .pos = v3,
-            .uv = itr_entry->second.top_left,
-            .texid = itr_entry->second.layer,
+            .uv = sprite.Texture.top_left,
+            .texid = sprite.Texture.layer,
             .color = color,
         },
     };
 
     add_sprite_quad(sprite_vertices);
 }
+
+// void
+// SpriteSystem::draw_sprite(const SpriteAtlasEntry& sprite,
+//                           const float ox,
+//                           const float oy,
+//                           const float scale,
+//                           const float cos_theta,
+//                           const float sin_theta,
+//                           const uint32_t color)
+// {
+//     using namespace xray::math;
+//
+//     const vec2f32 t = vec2f32{ ox, oy };
+//     const float hw = static_cast<float>(sprite.width) * 0.5f;
+//     const float hh = static_cast<float>(sprite.height) * 0.5f;
+//
+//     //
+//     // generate vertices from origin @ (0, 0)
+//     vec2f32 v0 = vec2f32{ -hw, hh };
+//     vec2f32 v1 = vec2f32{ hw, hh };
+//     vec2f32 v2 = vec2f32{ hw, -hh };
+//     vec2f32 v3 = vec2f32{ -hw, -hh };
+//
+//     //
+//     // scale
+//     v0 = v0 * scale;
+//     v1 = v1 * scale;
+//     v2 = v2 * scale;
+//     v3 = v3 * scale;
+//
+//     //
+//     // rotate
+//     v0 = vec2f32{ v0.x * cos_theta - v0.y * sin_theta, v0.x * sin_theta + v0.y * cos_theta };
+//     v1 = vec2f32{ v1.x * cos_theta - v1.y * sin_theta, v1.x * sin_theta + v1.y * cos_theta };
+//     v2 = vec2f32{ v2.x * cos_theta - v2.y * sin_theta, v2.x * sin_theta + v2.y * cos_theta };
+//     v3 = vec2f32{ v3.x * cos_theta - v3.y * sin_theta, v3.x * sin_theta + v3.y * cos_theta };
+//
+//     //
+//     // translate back to origin
+//     v0 = v0 + t;
+//     v1 = v1 + t;
+//     v2 = v2 + t;
+//     v3 = v3 + t;
+//
+//     const SpriteVertex sprite_vertices[] = {
+//         SpriteVertex{
+//             .pos = v0,
+//             .uv = sprite.bottom_left,
+//             .texid = sprite.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = v1,
+//             .uv = sprite.bottom_right,
+//             .texid = sprite.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = v2,
+//             .uv = sprite.top_right,
+//             .texid = sprite.layer,
+//             .color = color,
+//         },
+//
+//         SpriteVertex{
+//             .pos = v3,
+//             .uv = sprite.top_left,
+//             .texid = sprite.layer,
+//             .color = color,
+//         },
+//     };
+//
+//     add_sprite_quad(sprite_vertices);
+// }
 
 void
 SpriteSystem::render(const SpriteSystemRenderContext& rctx)
