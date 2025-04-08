@@ -7,6 +7,7 @@
 #include <concurrencpp/concurrencpp.h>
 #include <Lz/Lz.hpp>
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 #include <imgui/IconsFontAwesome.h>
 
 #include <tracy/Tracy.hpp>
@@ -30,11 +31,14 @@
 #include "xray/base/variant.helpers.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
+
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/debug_draw.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
 #include "xray/rendering/sprite.system/sprite.system.hpp"
+#include "xray/rendering/shapes.system/shapes.system.hpp"
+
 #include "xray/scene/scene.definition.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/user_interface.hpp"
@@ -57,7 +61,6 @@
 #include "xray/math/quaternion_math.hpp"
 #include "xray/math/scalar2_string_cast.hpp"
 #include "xray/math/scalar3_string_cast.hpp"
-#include "xray/math/transforms_r2.hpp"
 #include "xray/math/transforms_r4.hpp"
 #include "xray/math/objects/aabb3_math.hpp"
 #include "xray/math/scalar4x4_string_cast.hpp"
@@ -77,7 +80,7 @@ using namespace xray::ui;
 using namespace xray::math;
 using namespace xray::scene;
 
-// XR_DISABLE_OPTIMIZATIONS
+XR_DISABLE_OPTIMIZATIONS
 
 tl::optional<vec2f32>
 world_to_screen(const xray::math::vec3f32 wpoint,
@@ -604,13 +607,6 @@ B5::GameSimulation::loop_event(const RenderEvent& render_event)
                                             0.1f,
                                             100.0f);
 
-    // const auto m0 = orthographic_symmetric(static_cast<float>(render_event.frame_data->fbsize.width),
-    //                                        static_cast<float>(render_event.frame_data->fbsize.height),
-    //                                        0.1f,
-    //                                        100.0f);
-    //
-    // XR_LOG_INFO("Ortho: {}\nOrtho symmetric {}", frame_global_data->ortho, m0);
-
     if (_uistate.draw_world_axis) {
         render_event.dbg_draw->draw_coord_sys(vec3f::stdc::zero,
                                               vec3f::stdc::unit_x,
@@ -1001,6 +997,62 @@ angles_from_rotation(const JPH::Quat& rotation)
 }
 
 void
+draw_text_symmetric_rotated(ImFont& font,
+                            ImDrawList& draw_list,
+                            const float size,
+                            const vec2f32 origin,
+                            const float distance,
+                            const uint32_t color,
+                            const std::string_view text,
+                            const float cos_theta,
+                            const float sin_theta)
+{
+    const ImVec2 text_size =
+        font.CalcTextSizeA(size, std::numeric_limits<float>::max(), 0.0f, text.data(), text.data() + text.length());
+
+    const vec2f32 direction{ normalize(vec2f32{ cos_theta, sin_theta }) };
+
+    const ImVec4 text_bounding_boxes[] = {
+        ImVec4{
+            origin.x - direction.x * distance - text_size.x,
+            origin.y - direction.y * distance - text_size.y * 0.5f,
+            origin.x - direction.x * distance + text_size.x,
+            origin.y - direction.y * distance + text_size.y * 0.5f,
+        },
+
+        // ImVec4{
+        //     origin.x + direction.x * distance,
+        //     origin.y + direction.y * distance - text_size.y * 0.5f,
+        //     origin.x + direction.x * distance + text_size.x,
+        //     origin.y + direction.y * distance + text_size.y * 0.5f,
+        // },
+    };
+
+    for (const ImVec4& text_bbox : text_bounding_boxes) {
+        const uint32_t vtx_start = draw_list._VtxCurrentIdx;
+
+        font.RenderText(&draw_list,
+                        size,
+                        ImVec2{ text_bbox.x, text_bbox.y },
+                        color,
+                        text_bbox,
+                        text.data(),
+                        text.data() + text.length());
+
+        const uint32_t vtx_end = draw_list._VtxCurrentIdx;
+
+        const ImVec2 bbox_center{ (text_bbox.x + text_bbox.z) * 0.5f, (text_bbox.y + text_bbox.w) * 0.5f };
+        ImGui::ShadeVertsTransformPos(&draw_list,
+                                      static_cast<int32_t>(vtx_start),
+                                      static_cast<int32_t>(vtx_end),
+                                      bbox_center,
+                                      cos_theta,
+                                      sin_theta,
+                                      bbox_center);
+    }
+}
+
+void
 B5::GameSimulation::draw_hud(xray::ui::user_interface* ui, const RenderEvent& re)
 {
     ImGui::SetNextWindowPos({ 0.0f, 0.0f });
@@ -1290,61 +1342,103 @@ B5::GameSimulation::draw_hud(xray::ui::user_interface* ui, const RenderEvent& re
         }
     };
 
-    if (_inputstate.last_mouse_down) {
-        //
-        // dont draw pitch ladder in free look
-        return;
-    }
-
     //
     // Pitch ladder
-    const vec2f32 midpoint{ re.frame_data->fbsize.width / 2, re.frame_data->fbsize.height / 2 };
-    const float roll_angle = sd->roll_angle;
+    auto draw_pitch_ladder = [spr = re.sprites, draw_list, hud_color, hud_font_small, hud_cfg](
+                                 const float pitch_angle_rad, const float roll_angle, const vec2f32 hud_origin) {
+        const float pitch_angle = degrees(pitch_angle_rad);
+        const float pitch_angle_start = pitch_angle - (hud_cfg->pitch_ladder.range * 0.5f);
+        const float pitch_angle_end = pitch_angle + (hud_cfg->pitch_ladder.range * 0.5f);
 
-    const uint32_t debug_color = static_cast<uint32_t>(color_palette::web::orange_red);
-    draw_list->AddLine({ 0.0f, midpoint.y }, { (float)re.frame_data->fbsize.width, midpoint.y }, debug_color, 8.0f);
-    draw_list->AddLine({ midpoint.x, 0.0f }, { midpoint.x, (float)re.frame_data->fbsize.height }, debug_color, 8.0f);
+        const float cos_theta = std::cos(roll_angle);
+        const float sin_theta = std::sin(roll_angle);
 
-    constexpr const float mid_spacing = 128.0f;
-    const float cos_theta = std::cos(sd->roll_angle);
-    const float sin_theta = std::sin(sd->roll_angle);
-    const vec2f32 horizon_line_direction = normalize(vec2f32{ cos_theta, sin_theta });
+        const int32_t markers_count =
+            static_cast<int32_t>(hud_cfg->pitch_ladder.range) / static_cast<int32_t>(hud_cfg->pitch_ladder.increment) +
+            1;
 
-    const JPH::Vec3 boresight_world =
-        JPH::Vec3{ re.cam->origin().x, re.cam->origin().y, re.cam->origin().z } + sd->rotation.RotateAxisZ();
+        const float ladder_length = (markers_count - 1) * hud_cfg->pitch_ladder.spacing;
+        const vec2f32 rvec{ normalize(vec2f32{ cos_theta, sin_theta }) };
 
-    world_to_screen(vec3f32{ boresight_world.GetX(), boresight_world.GetY(), boresight_world.GetZ() },
-                    re.cam->projection_view(),
-                    re.frame_data->fb_f32.width,
-                    re.frame_data->fb_f32.height)
-        .map([sprites = re.sprites, &re, hud_color](const vec2f32 boresight) {
-            sprites->draw_with_origin(SpriteIds::HUD_SYMBOLOGY_BORESIGHT, boresight.x, boresight.y, hud_color);
-        });
+        for (int32_t marker_idx = 0; marker_idx < markers_count; ++marker_idx) {
+            //
+            // find next multiple of angle_increment
+            const float current_angle =
+                std::floor((static_cast<float>(marker_idx) * hud_cfg->pitch_ladder.increment + pitch_angle_start) /
+                           hud_cfg->pitch_ladder.increment) *
+                hud_cfg->pitch_ladder.increment;
 
-    ImGui::PushClipRect({ hud_cfg->speedometer.xmargin, hud_cfg->speedometer.ymargin },
-                        { re.frame_data->fb_f32.width + hud_cfg->altimeter.xmargin,
-                          re.frame_data->fb_f32.height - hud_cfg->altimeter.ymargin },
-                        true);
+            const float yoffset =
+                (0.5f - (current_angle - pitch_angle_start) / hud_cfg->pitch_ladder.range) * ladder_length;
+            const vec2f32 marker_origin = hud_origin + vec2f32{ -sin_theta * yoffset, cos_theta * yoffset };
 
-    const vec2f32 horizon_perp{ -horizon_line_direction.y, horizon_line_direction.x };
-    re.sprites->draw_scaled_rotated_with_origin(
-        SpriteIds::HUD_SYMBOLOGY_HORIZON_INDICATOR, midpoint.x, midpoint.y, 1.0f, cos_theta, sin_theta, hud_color);
+            const SpriteEntry& sprite = is_zero(current_angle)
+                                            ? SpriteIds::HUD_SYMBOLOGY_HORIZON_INDICATOR
+                                            : (current_angle > 0.0f ? SpriteIds::HUD_SYMBOLOGY_PITCH_LADDER_POSITIVE
+                                                                    : SpriteIds::HUD_SYMBOLOGY_PITCH_LADDER_NEGATIVE);
 
-    const float ladder_interval = 128.0f;
-    const vec2f32 pos0 = midpoint + horizon_perp * ladder_interval;
-    // XR_LOG_INFO("LADDER POS: {}, cos: {:3.3f}, sin: {:3.3f}", pos0, cos_theta, sin_theta);
+            spr->draw_scaled_rotated_with_origin(
+                is_zero(current_angle) ? SpriteIds::HUD_SYMBOLOGY_HORIZON_INDICATOR
+                                       : (current_angle > 0.0f ? SpriteIds::HUD_SYMBOLOGY_PITCH_LADDER_POSITIVE
+                                                               : SpriteIds::HUD_SYMBOLOGY_PITCH_LADDER_NEGATIVE),
+                marker_origin.x,
+                marker_origin.y,
+                1.0f,
+                cos_theta,
+                sin_theta,
+                hud_color);
 
-    re.sprites->draw_scaled_rotated_with_origin(
-        SpriteIds::HUD_SYMBOLOGY_PITCH_LADDER_POSITIVE, pos0.x, pos0.y, 1.0f, cos_theta, sin_theta, hud_color);
+            if (!is_zero(current_angle)) {
+                char scratch_buffer[32];
+                format_to_n(scratch_buffer, "{:3.0f}", std::abs(current_angle));
 
-    const vec2f32 pos1 = midpoint - horizon_perp * ladder_interval;
-    re.sprites->draw_scaled_rotated_with_origin(
-        SpriteIds::HUD_SYMBOLOGY_PITCH_LADDER_POSITIVE, pos1.x, pos1.y, 1.0f, cos_theta, sin_theta, hud_color);
+                draw_text_symmetric_rotated(*hud_font_small->font,
+                                            *draw_list,
+                                            hud_font_small->pixel_size,
+                                            marker_origin,
+                                            sprite.F32Size.width * 0.5f,
+                                            hud_color,
+                                            scratch_buffer,
+                                            cos_theta,
+                                            sin_theta);
+            }
+        }
+    };
 
-    ImGui::PopClipRect();
+    //
+    // pitch ladder and boresight drawn only if not in freelook
+    if (!_inputstate.last_mouse_down) {
+        const vec2f32 midpoint{ re.frame_data->fbsize.width / 2, re.frame_data->fbsize.height / 2 };
+        const float roll_angle = sd->roll_angle;
 
-    format_to_n(scratch_buff, "Roll: {:3.2f}\nPitch {:3.2f}\nYaw: {:3.2f}", roll_angle, sd->pitch_angle, sd->yaw_angle);
-    draw_list->AddText({ midpoint.x, midpoint.y + 128.0f }, hud_color, scratch_buff);
+        // const uint32_t debug_color = static_cast<uint32_t>(color_palette::web::orange_red);
+        // draw_list->AddLine({ 0.0f, midpoint.y }, { (float)re.frame_data->fbsize.width, midpoint.y },
+        // debug_color, 8.0f); draw_list->AddLine(
+        //     { midpoint.x, 0.0f }, { midpoint.x, (float)re.frame_data->fbsize.height }, debug_color, 8.0f);
+
+        const JPH::Vec3 boresight_world =
+            JPH::Vec3{ re.cam->origin().x, re.cam->origin().y, re.cam->origin().z } + sd->rotation.RotateAxisZ();
+
+        world_to_screen(vec3f32{ boresight_world.GetX(), boresight_world.GetY(), boresight_world.GetZ() },
+                        re.cam->projection_view(),
+                        re.frame_data->fb_f32.width,
+                        re.frame_data->fb_f32.height)
+            .map([sprites = re.sprites, &re, hud_color](const vec2f32 boresight) {
+                sprites->draw_with_origin(SpriteIds::HUD_SYMBOLOGY_BORESIGHT, boresight.x, boresight.y, hud_color);
+            });
+
+        draw_pitch_ladder(sd->pitch_angle, sd->roll_angle, midpoint);
+
+        const uint32_t shape_color = static_cast<uint32_t>(color_palette::web::crimson);
+        re.shapes_sys->draw_shape(
+            ShapeKind::Disc, midpoint.x, midpoint.y, 256.0f, 8.0f, 2.0f, RadiansF32{ 0.0f }, shape_color);
+
+        re.shapes_sys->draw_shape(
+            ShapeKind::Disc, midpoint.x, midpoint.y, 128.0f, 8.0f, 2.0f, RadiansF32{ 0.0f }, shape_color);
+
+        re.shapes_sys->draw_shape(
+            ShapeKind::Chevron, 256.0f, 256.0f, 64.0f, 4.0f, 2.0f, RadiansF32{ DegreesF32{ 90.0f } }, shape_color);
+    }
 
     ImGui::Dummy({ static_cast<float>(re.frame_data->fbsize.width), static_cast<float>(re.frame_data->fbsize.height) });
 }

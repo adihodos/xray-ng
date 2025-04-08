@@ -57,6 +57,7 @@ struct FrameRenderData;
 class VulkanRenderer;
 class DebugDrawSystem;
 class SpriteSystem;
+class ShapesDrawingSystem;
 } // namespace rendering
 #endif
 
@@ -76,6 +77,7 @@ struct RenderEvent
     FrameGlobalData* g_ubo_data;
     xray::rendering::DebugDrawSystem* dbg_draw;
     xray::rendering::SpriteSystem* sprites;
+    xray::rendering::ShapesDrawingSystem* shapes_sys;
     xray::scene::SceneDefinition* sdef;
     xray::scene::SceneResources* sres;
     float delta;
@@ -101,4 +103,4 @@ struct InitContext
     concurrencpp::runtime* co_runtime;
 };
 
-}
+} // namespace B5

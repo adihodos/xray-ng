@@ -48,6 +48,9 @@ set(project_sources
     ${proj_inc_dir}/sprite.system/sprite.system.hpp
     ${proj_inc_dir}/sprite.system/sprite.defs.hpp
     ${proj_src_dir}/sprite.system/sprite.system.cc
+    ${proj_inc_dir}/shapes.system/shape.defs.hpp
+    ${proj_inc_dir}/shapes.system/shapes.system.hpp
+    ${proj_src_dir}/shapes.system/shapes.system.cc
     ${proj_inc_dir}/texture_loader.hpp
     ${proj_src_dir}/texture_loader.cc)
 

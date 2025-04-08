@@ -33,7 +33,7 @@ struct FrameGlobalData_t {
     LightingSetup lights;
 };
 
-layout (std140, set = 0, binding  = 0, row_major) uniform FrameGlobal {
+layout(std140, set = 0, binding = 0, row_major) uniform FrameGlobal {
     FrameGlobalData_t data[];
 } g_FrameGlobal[];
 
@@ -47,11 +47,11 @@ struct InstanceRenderInfo_t {
     uint mtl_buffer;
 };
 
-layout (set = 1, binding = 0, row_major) readonly buffer InstancesGlobal {
+layout(set = 1, binding = 0, row_major) readonly buffer InstancesGlobal {
     InstanceRenderInfo_t data[];
 } g_InstanceGlobal[];
 
-layout (set = 1, binding = 0) readonly buffer GlobalUIRenderData {
+layout(set = 1, binding = 0) readonly buffer GlobalUIRenderData {
     UIData data[];
 } g_UIRenderDataGlobal[];
 
@@ -61,7 +61,7 @@ struct TerrainInstanceData {
     uint heightmap;
 };
 
-layout (set = 1, binding = 0, row_major) readonly buffer GlobalTerrainInstances {
+layout(set = 1, binding = 0, row_major) readonly buffer GlobalTerrainInstances {
     TerrainInstanceData data[];
 } g_TerrainInstancesGlobal[];
 
@@ -99,48 +99,64 @@ struct PBRMaterial {
     float roughness_factor;
 };
 
-layout (set = 1, binding = 0) readonly buffer VerticesGlobal {
+struct ShapeSetup {
+    vec3 position;
+    float size;
+    float cos_theta;
+    float sin_theta;
+    float line_width;
+    float antialias;
+    uint fg_color;
+    uint bg_color;
+    uint kind;
+};
+
+layout(set = 1, binding = 0) readonly buffer ShapesGlobal {
+    ShapeSetup data[];
+} g_ShapesBufferGlobal[];
+
+layout(set = 1, binding = 0) readonly buffer VerticesGlobal {
     VertexPTC data[];
 } g_VertexBufferGlobal[];
 
-layout (set = 1, binding = 0) readonly buffer VerticesPBRGlobal {
+layout(set = 1, binding = 0) readonly buffer VerticesPBRGlobal {
     VertexPBR data[];
 } g_VertexBufferPBRGlobal[];
 
-layout (set = 1, binding = 0) readonly buffer IndicesGlobal {
+layout(set = 1, binding = 0) readonly buffer IndicesGlobal {
     uint data[];
 } g_IndexBufferGlobal[];
 
-layout (set = 1, binding = 0) readonly buffer PBRMaterialGlobal {
+layout(set = 1, binding = 0) readonly buffer PBRMaterialGlobal {
     PBRMaterial data[];
 } g_PBRMaterialGlobal[];
 
-layout (set = 1, binding = 0) readonly buffer MaterialADSColoredGlobal {
+layout(set = 1, binding = 0) readonly buffer MaterialADSColoredGlobal {
     MaterialADSColored data[];
 } g_MaterialADSColoredGlobal[];
 
-layout (set = 1, binding = 0) readonly buffer MaterialADSTexturedGlobal {
+layout(set = 1, binding = 0) readonly buffer MaterialADSTexturedGlobal {
     MaterialADSTextured data[];
 } g_MaterialADSTexturedGlobal[];
 
-layout (set = 1, binding = 0) readonly buffer DirectionalLightsGlobal {
+layout(set = 1, binding = 0) readonly buffer DirectionalLightsGlobal {
     DirectionalLight lights[];
 } g_DirectionalLights[];
 
-layout (set = 1, binding = 0) readonly buffer PointLightsGlobal {
+layout(set = 1, binding = 0) readonly buffer PointLightsGlobal {
     PointLight lights[];
 } g_PointLights[];
 
-layout (set = 1, binding = 0) readonly buffer SpotLightsGlobal {
+layout(set = 1, binding = 0) readonly buffer SpotLightsGlobal {
     SpotLight lights[];
 } g_SpotLights[];
 
-layout (set = 2, binding = 0) uniform sampler1D g_Textures1DGlobal[];
-layout (set = 2, binding = 0) uniform sampler2D g_Textures2DGlobal[];
-layout (set = 2, binding = 0) uniform sampler2DArray g_Textures2DArrayGlobal[];
-layout (set = 2, binding = 0) uniform samplerCube g_TexturesCubeGlobal[];
+layout(set = 2, binding = 0) uniform sampler1D g_Textures1DGlobal[];
+layout(set = 2, binding = 0) uniform sampler2D g_Textures2DGlobal[];
+layout(set = 2, binding = 0) uniform sampler2DArray g_Textures2DArrayGlobal[];
+layout(set = 2, binding = 0) uniform samplerCube g_TexturesCubeGlobal[];
 
-layout (push_constant) uniform PushConstantsGlobal {
+layout(push_constant) uniform PushConstantsGlobal {
     uint data;
 } g_GlobalPushConst;
 

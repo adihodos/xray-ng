@@ -35,7 +35,6 @@
 #include "xray/math/math_base.hpp"
 #include "xray/math/math_std.hpp"
 #include "xray/math/scalar3.hpp"
-#include "xray/xray.hpp"
 
 namespace xray {
 namespace math {
@@ -460,6 +459,24 @@ make_frame_vectors(const scalar3<T>& s) noexcept
 
     return frame_vectors<T>{ .u = s, .v = v, .w = cross(s, v) };
 }
+
+template<typename T>
+    requires std::is_floating_point_v<T>
+frame_vectors<T>
+orthonormal_basis(const scalar3<T>& n) noexcept
+{
+    const T sign = std::copysign(T(1.0), n.z);
+    const float a = T(-1.0) / (sign + n.z);
+    const float b = n.x * n.y * a;
+
+    return frame_vectors<T>{
+        .u = n,
+        .v = { T(1.0) + sign * n.x * n.x * a, sign * b, -sign * n.x },
+        .w = { b, sign + n.y * n.y * a, -n.y },
+    };
+}
+
+using OrthoNormalFrameF32 = frame_vectors<float>;
 
 /// @}
 
