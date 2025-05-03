@@ -69,7 +69,9 @@ SpriteSystem::from_file(const std::filesystem::path& path,
 
     rfl::Result<TextureAtlasData> atlas_data = rfl::libconfig::read<TextureAtlasData>(path);
     if (!atlas_data) {
-        return tl::make_unexpected(SpriteAtlasError{ .what = atlas_data.error().what() });
+        return tl::make_unexpected(SpriteAtlasError{
+            .what = atlas_data.error().has_value() ? atlas_data.error()->what() : "unknown",
+        });
     }
 
     auto job = renderer.create_job(QueueType::Transfer);
@@ -79,7 +81,7 @@ SpriteSystem::from_file(const std::filesystem::path& path,
                                               VulkanImageLoadInfo{
                                                   .tag_name = "sprite.atlas",
                                                   .cmd_buf = job->buffer,
-                                                  .path = cfg_sys.texture_path(atlas_data->texture_file),
+                                                  .path = cfg_sys.texture_path(atlas_data.value().texture_file),
                                                   .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT,
                                                   .final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                                   .tiling = VK_IMAGE_TILING_OPTIMAL,
@@ -90,7 +92,7 @@ SpriteSystem::from_file(const std::filesystem::path& path,
     //
     // once the libconfig bug is fixed this should not be needed anymore
     std::unordered_map<SpriteHandleType, SpriteAtlasEntry> sprites;
-    for (const SpriteAtlasEntry& atlas_entry : atlas_data->frames) {
+    for (const SpriteAtlasEntry& atlas_entry : atlas_data.value().frames) {
         [[maybe_unused]] const auto [itr, was_inserted] = sprites.emplace(atlas_entry.hashed_name, atlas_entry);
     }
 
