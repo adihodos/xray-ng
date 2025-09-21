@@ -1,6 +1,6 @@
 #include "xray/xray.hpp"
 
-XR_DISABLE_OPTIMIZATIONS
+XR_DISABLE_OPTIMIZATIONS()
 
 #include <cstddef>
 #include <span>

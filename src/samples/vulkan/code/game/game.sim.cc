@@ -23,6 +23,7 @@
 #include <Jolt/Math/Vec3.h>
 #include <Jolt/Math/Real.h>
 
+#include "xray/xray.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/fnv_hash.hpp"
@@ -80,7 +81,7 @@ using namespace xray::ui;
 using namespace xray::math;
 using namespace xray::scene;
 
-XR_DISABLE_OPTIMIZATIONS
+XR_DISABLE_OPTIMIZATIONS()
 
 tl::optional<vec2f32>
 world_to_screen(const xray::math::vec3f32 wpoint,

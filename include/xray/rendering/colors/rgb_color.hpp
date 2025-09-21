@@ -38,6 +38,28 @@
 namespace xray {
 namespace rendering {
 
+//
+// RGBA8
+// RGBAF32
+// BGRA8
+// BGRAF32
+// ARGB
+
+struct Red
+{};
+struct Green
+{};
+struct Blue
+{};
+struct Alpha
+{};
+
+template<typename T>
+struct RGBABase
+{
+    T components[4];
+};
+
 ///
 /// \brief Represents a 4 component (red, green, blue, alpha)
 ///       normalized color vector (128 bits).

@@ -34,7 +34,7 @@
 #include "bindless.pipeline.config.hpp"
 #include "system.memory.hpp"
 
-XR_DISABLE_OPTIMIZATIONS
+XR_DISABLE_OPTIMIZATIONS()
 
 using namespace std;
 using namespace xray::base;

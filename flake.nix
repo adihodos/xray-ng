@@ -29,7 +29,6 @@
             nvimpager
             helix
 
-            cling
             gcc
             gdb
             seer
@@ -40,14 +39,13 @@
             ninja
             gef
             gf
-            glogg
             lnav
             renderdoc
             cmake
             cmakeCurses
             cmake-format
+            cmake-language-server
             pkg-config
-            libsForQt5.qmake
             evtest
             evtest-qt
 
@@ -70,8 +68,6 @@
             glslang
             bashInteractive
             python3
-
-            qtcreator
 
             # (python311.withPackages (python-pkgs: [
             #   # select Python packages here

@@ -18,6 +18,8 @@ set(project_sources
     ${proj_src_dir}/system.physics.debug.renderer.cc
     ${proj_src_dir}/flight.cam.hpp
     ${proj_src_dir}/flight.cam.cc
+	${proj_src_dir}/blue.noise.poisson.disk.sampler.hpp
+	${proj_src_dir}/blue.noise.poisson.disk.sampler.cc
     ${proj_src_dir}/terrain.hpp
     ${proj_src_dir}/terrain.cc)
 
@@ -39,7 +41,8 @@ if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
 endif()
 
 add_executable(build-info-tool ${proj_src_dir}/build-info-tool.cc)
-# set_property(TARGET build-info-tool PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# set_property(TARGET build-info-tool PROPERTY MSVC_RUNTIME_LIBRARY
+# "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_compile_features(build-info-tool PRIVATE cxx_std_20)
 target_compile_definitions(
   build-info-tool PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_WINDOWS>
@@ -67,12 +70,12 @@ add_custom_command(
 # Running build-info-tool (custom target) :::" VERBATIM)
 
 add_executable(
-  ${PROJECT_NAME}
-  WIN32
+  ${PROJECT_NAME} WIN32
   ${project_sources} "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
   ${shader_files} ${config_files})
 
-# set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
+# "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_dependencies(${PROJECT_NAME} build-info-tool)
 
@@ -94,9 +97,8 @@ target_include_directories(
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC Tracy::TracyClient
-  PRIVATE xray-set-compile-options-lib
-          xray-demo-common-core
+  PUBLIC Tracy::TracyClient xray-set-compile-options-lib
+  PRIVATE xray-demo-common-core
           xray-base
           xray-rendering
           xray-physics

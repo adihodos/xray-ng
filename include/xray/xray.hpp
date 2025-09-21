@@ -220,10 +220,13 @@
 #endif /* !XRAY_COMPILER_IS_MSVC */
 
 #if defined(XRAY_COMPILER_IS_GCC) || defined(XRAY_COMPILER_IS_MINGW)
-#define XR_DISABLE_OPTIMIZATIONS _Pragma("GCC optimize(0)")
+#define XR_DISABLE_OPTIMIZATIONS() _Pragma("GCC optimize(0)")
 #elif defined(XRAY_COMPILER_IS_CLANG)
+#define XR_DISABLE_OPTIMIZATIONS() _Pragma("clang optimize off")
 #elif defined(XRAY_COMPILER_IS_MSVC)
-#define XR_DISABLE_OPTIMIZATIONS __pragma(optimize("", off))
+#define XR_DISABLE_OPTIMIZATIONS() __pragma(optimize("", off))
+#else
+#error "Unsupported compiler"
 #endif
 
 #define XR_U32_OFFSETOF(type_name, member_name) static_cast<uint32_t>(offsetof(type_name, member_name))

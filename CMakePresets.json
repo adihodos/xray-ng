@@ -10,8 +10,8 @@
       "name": "base",
       "description": "For more information: http://aka.ms/cmakepresetsvs",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/build/${presetName}/install",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -34,6 +34,15 @@
     {
       "name": "x64-release",
       "displayName": "x64 Release",
+      "description": "Sets release build type",
+      "inherits": "x64-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "x64-release-debug-info",
+      "displayName": "x64 Release With Debug Info",
       "description": "Sets release build type",
       "inherits": "x64-debug",
       "cacheVariables": {
@@ -62,13 +71,22 @@
       "description": "Sets release build type",
       "inherits": "linux-debug",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-release-with-debug-info",
+      "displayName": "Linux RelWithDebInfo",
+      "description": "Sets release with debug info build type",
+      "inherits": "linux-debug",
+      "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
       "name": "linux-debug-clang",
       "displayName": "Linux Debug (Clang)",
-      "description": "Sets GCC",
+      "description": "Sets debug build using Clang",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
@@ -84,10 +102,19 @@
     {
       "name": "linux-release-clang",
       "displayName": "Linux Release (Clang)",
-      "description": "Sets release build type",
+      "description": "Sets release build type using Clang",
       "inherits": "linux-debug-clang",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-release-with-debug-info-clang",
+      "displayName": "Linux RelDebInfo (Clang)",
+      "description": "Sets release with debug information build type using Clang",
+      "inherits": "linux-debug-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     }
   ],
@@ -105,9 +132,22 @@
       "description": "Vanilla build"
     },
     {
+      "name": "default-build-linux-release-debug-info",
+      "displayName": "Release With Debug Info (Linux)",
+      "configurePreset": "linux-release-with-debug-info",
+      "description": "Vanilla build"
+    },
+
+    {
       "name": "default-build-linux-clang",
       "displayName": "Default (Linux + Clang)",
       "configurePreset": "linux-debug-clang",
+      "description": "Vanilla build using Clang"
+    },
+    {
+      "name": "default-build-linux-clang-release-with-debug-info",
+      "displayName": "Release With Debug Info (Linux + Clang)",
+      "configurePreset": "linux-release-with-debug-info-clang",
       "description": "Vanilla build using Clang"
     },
     {

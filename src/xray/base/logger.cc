@@ -27,6 +27,12 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/base/logger.hpp"
+
+#include <chrono>
+
+#include <fmt/chrono.h>
+#include "xray/base/xray.fmt.hpp"
+
 #include "spdlog/spdlog.h"
 #include "spdlog/async.h"
 #include "spdlog/sinks/basic_file_sink.h"
@@ -73,10 +79,15 @@ void
 xray::base::setup_logging(const LogLevel log_lvl)
 {
     spdlog::init_thread_pool(8192, 1);
-    const std::string log_pattern{"[%H:%M:%S %z] [%n] [%^-%L-%$] [thread %t] %v"};
+    const std::string log_pattern{ "[%H:%M:%S %z] [%n] [%^-%L-%$] [thread %t] %v" };
     auto stdout_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
     stdout_sink->set_pattern(log_pattern);
-    auto rotating_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("xray.log", true);
+
+    const auto local_time = std::chrono::system_clock::now();
+    char temp_buffer[1024];
+    format_to_n(temp_buffer, "xray.{:%d-%m-%Y-%H-%M-%S}.log", local_time);
+
+    auto rotating_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(temp_buffer, true);
     rotating_sink->set_pattern(log_pattern);
     std::vector<spdlog::sink_ptr> sinks{ stdout_sink, rotating_sink };
 

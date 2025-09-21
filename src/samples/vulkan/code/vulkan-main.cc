@@ -64,8 +64,6 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/unique_pointer.hpp"
 #include "xray/base/xray.misc.hpp"
-#include "xray/base/memory.arena.hpp"
-#include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/containers/arena.string.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
@@ -100,8 +98,12 @@
 #include "system.memory.hpp"
 #include "events.hpp"
 #include "hud.config.hpp"
+#include "blue.noise.poisson.disk.sampler.hpp"
+#include "xray/math/scalar2_string_cast.hpp"
 
 #include "xray/ui/window.hpp"
+
+XR_DISABLE_OPTIMIZATIONS()
 
 using namespace xray;
 using namespace xray::base;
@@ -1718,6 +1720,16 @@ main(int argc, char** argv)
 
     auto arena_large_perm = B5::GlobalMemorySystem::instance()->grab_large_arena();
     auto arena_temp = B5::GlobalMemorySystem::instance()->grab_medium_arena();
+    {
+		ScratchPadArena scratch_pad{arena_temp.arena};
+		BlueNoisePoissonDiskSampler disk_sampler{*scratch_pad.arena, 1024, 1024, 8, 32};
+        disk_sampler.generate_points();
+        xray::base::containers::vector<uint32_t> pixels{ scratch_pad };
+        pixels.reserve(disk_sampler.sampled_point().size());
+        for (const auto point : disk_sampler.sampled_point()) {
+			XR_LOG_INFO("{}", point);
+        }
+    }
 
     B5::GameMain::create(&arena_large_perm.arena, &arena_temp.arena)
         .map([&](B5::GameMain runner) {

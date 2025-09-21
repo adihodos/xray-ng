@@ -161,26 +161,35 @@ set(cxx_is_gcc "$<COMPILE_LANG_AND_ID:CXX,GNU>")
 set(cxx_is_clang "$<COMPILE_LANG_AND_ID:CXX,Clang>")
 set(cxx_is_gcc_like "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU>")
 
-if(TARGET Linux)
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
   target_compile_options(
     xray-set-compile-options-lib
     INTERFACE
-      $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables;-fsanitize=address>
-      $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer;-O2>
+      $<$<CONFIG:RelWithDebInfo,Debug>:-fasynchronous-unwind-tables>
+      $<$<CONFIG:RelWithDebInfo,Debug>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
   )
 
-  target_link_options(
-    xray-set-compile-options-lib PUBLIC
-    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>-fsanitize=address>)
+  option(ENABLE_ASAN "Enable address sanitizer" OFF)
+  if(ENABLE_ASAN)
+    target_compile_options(
+      xray-set-compile-options-lib
+      INTERFACE $<$<CONFIG:RelWithDebInfo,Debug>:-fsanitize=address)
+    target_link_options(xray-set-compile-options-lib INTERFACE
+                        $<$<CONFIG:RelWithDebInfo,Debug>:-fsanitize=address)
+  endif()
 
-  target_compile_definitions(xray-set-compile-options-lib
-                             INTERFACE "${cxx_stdlib_dbg_flags}")
 endif()
+
+target_compile_definitions(
+  xray-set-compile-options-lib
+  INTERFACE
+    $<$<AND:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<CONFIG:RelWithDebInfo,Debug>>:_GLIBCXX_ASSERTIONS>
+)
 
 target_compile_options(
   xray-set-compile-options-lib
   INTERFACE
-    "$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>")
+    $<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>)
 
 target_compile_definitions(
   xray-set-compile-options-lib
@@ -188,7 +197,7 @@ target_compile_definitions(
     $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
     $<$<PLATFORM_ID:Windows>:YY_NO_UNISTD_H>
     XRAY_MATH_ENABLE_FMT_SUPPORT
-    "$<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE>"
+    $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE>
 )
 
 add_subdirectory(third_party/stb)
