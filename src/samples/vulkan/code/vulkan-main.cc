@@ -162,7 +162,7 @@ task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*)
 
     FontsLoadBundle font_pkgs;
 
-    for (auto&& font_def : hud_config->font_list) {
+    for (auto&& font_def : hud_config.value().font_list) {
         const fs::path font_file_path = xr_app_config->font_root() / font_def.path;
         if (!fs::exists(font_file_path) || !fs::is_regular_file(font_file_path)) {
             XR_LOG_ERR("Font file {} does not exist", font_file_path);

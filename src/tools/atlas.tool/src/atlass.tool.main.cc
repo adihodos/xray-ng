@@ -169,11 +169,11 @@ Example usage:
         if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".json") {
             rfl::Result<TpSheet_Def> atlas_result = rfl::json::load<TpSheet_Def>(dir_entry.path().generic_string());
             if (!atlas_result) {
-                fmt::println("Failed to load atlas {}, error {}", dir_entry.path(), atlas_result.error().what());
+                fmt::println("Failed to load atlas {}, error {}", dir_entry.path(), atlas_result.error()->what());
                 return EXIT_FAILURE;
             }
 
-            if (atlas_result->frames.empty()) {
+            if (atlas_result.value().frames.empty()) {
                 fmt::println("Warning: atlas {} has no frames, ignoring ...", dir_entry.path());
                 continue;
             }
@@ -371,7 +371,7 @@ Example usage:
     const fs::path config_file_path = (output_dir_path / atlas_name).concat(".conf");
     if (const rfl::Result<rfl::Nothing> res = rfl::libconfig::save(config_file_path.generic_string(), atlas_definition);
         !res) {
-        fmt::println("Failed to write atlas {} definition ({})", config_file_path, res.error().what());
+        fmt::println("Failed to write atlas {} definition ({})", config_file_path, res.error()->what());
         return EXIT_FAILURE;
     }
 
