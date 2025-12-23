@@ -54,7 +54,9 @@ read(const std::filesystem::path& path)
     config_t cfg;
     config_init(&cfg);
     if (config_read_file(&cfg, path.string().c_str()) != CONFIG_TRUE) {
-        return rfl::Error{ std::string{ config_error_text(&cfg) } + std::to_string(config_error_line(&cfg)) };
+        return rfl::Unexpected{
+            rfl::Error{ std::string{ config_error_text(&cfg) } + std::to_string(config_error_line(&cfg)) },
+        };
     }
 
     return read<T, Ps...>(config_root_setting(&cfg));

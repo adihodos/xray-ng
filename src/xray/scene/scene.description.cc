@@ -41,8 +41,10 @@ xray::scene::SceneDescription::from_file(const std::filesystem::path& file_path)
     const rfl::Result<SceneDescription> loaded_scene = rfl::libconfig::read<SceneDescription>(file_path);
 
     if (!loaded_scene) {
-        return tl::make_unexpected(
-            SceneError{ .err = fmt::format("Failed to parse scene: {}", loaded_scene.error().value().what()) });
+        return tl::make_unexpected(SceneError{ .err = fmt::format("Failed to parse scene: {}",
+                                                                  // loaded_scene.error().value().what()
+"get rid of RFL and fuck C++ anyway"
+                                                                  ) });
     }
 
     return loaded_scene.value();

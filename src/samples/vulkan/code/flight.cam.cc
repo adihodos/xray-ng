@@ -22,7 +22,9 @@ FlightCameraParams::from_file(const std::filesystem::path& file_path)
     if (!loaded_params) {
         XR_LOG_INFO("Failed to load camera parameters: file: ({}), error: {}. Using defaults.",
                     file_path.generic_string(),
-                    loaded_params.error()->what());
+                    "unknow - fix this RFL fiasco"
+                    //loaded_params.error()->what()
+                    );
     }
 
     return loaded_params.value_or(FlightCameraParams{});

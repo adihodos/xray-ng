@@ -10,7 +10,10 @@
 #if __has_feature(address_sanitizer) // for clang
 // GCC and MSVC already set this
 // https://learn.microsoft.com/en-us/cpp/sanitizers/asan-building?view=msvc-160
+#ifndef __SANITIZE_ADDRESS__
 #define __SANITIZE_ADDRESS__
+#endif
+
 #endif
 #endif
 

@@ -70,7 +70,9 @@ SpriteSystem::from_file(const std::filesystem::path& path,
     rfl::Result<TextureAtlasData> atlas_data = rfl::libconfig::read<TextureAtlasData>(path);
     if (!atlas_data) {
         return tl::make_unexpected(SpriteAtlasError{
-            .what = atlas_data.error().has_value() ? atlas_data.error()->what() : "unknown",
+            .what = "unknown - fuck this shit"
+			// atlas_data.get_err().what(),
+			// .error() ? atlas_data.error().what() : "unknown",
         });
     }
 

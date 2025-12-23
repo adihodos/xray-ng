@@ -30,19 +30,20 @@
             helix
 
             gcc
+            # clang
+            # clang-tools
             gdb
             seer
             libgit2
             libgit2.dev
             openssl
-            #pwndbg
+
             ninja
             gef
             gf
             lnav
             renderdoc
             cmake
-            cmakeCurses
             cmake-format
             cmake-language-server
             pkg-config
@@ -57,8 +58,8 @@
             vulkan-utility-libraries
             vulkan-caps-viewer
             vulkan-validation-layers
-            ktx-tools
-            tracy-x11
+            # ktx-tools
+            tracy
 
             shaderc
             shaderc.bin

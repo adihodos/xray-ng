@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.30)
 project(
   xray-ng
   VERSION 0.5.0.0
@@ -15,11 +15,14 @@ enable_testing()
 include(FetchContent)
 include(cmake/CPM.cmake)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
+set(CMAKE_EXPORT_COMPILE_COMMANDS
+    ON
+    CACHE INTERNAL "Export compilation commands for code completion (clangd)")
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 cpmaddpackage("gh:adihodos/concurrencpp#fix-compile-error")
-cpmaddpackage("gh:fmtlib/fmt#10.2.1")
+cpmaddpackage("gh:fmtlib/fmt#12.1.0")
 cpmaddpackage("gh:TartanLlama/optional@1.1.0")
 cpmaddpackage("gh:TartanLlama/expected@1.1.0")
 cpmaddpackage("gh:vimpunk/mio#master")
@@ -27,7 +30,7 @@ cpmaddpackage("gh:iboB/itlib#master")
 cpmaddpackage("gh:getml/reflect-cpp#main")
 cpmaddpackage("gh:max0x7ba/atomic_queue#master")
 cpmaddpackage("gh:serge-sans-paille/frozen#master")
-cpmaddpackage("gh:bfgroup/Lyra#develop")
+# cpmaddpackage("gh:bfgroup/Lyra#develop")
 
 cpmaddpackage(
   NAME
@@ -92,13 +95,12 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   gabime/spdlog
   GIT_TAG
-  v1.14.1
+  v1.16.0
   OPTIONS
   "SPDLOG_FMT_EXTERNAL ON"
   OPTIONS
   "SPDLOG_NO_EXCEPTIONS ON")
 
-cpmaddpackage("gh:ryanhaining/cppitertools#master")
 cpmaddpackage("gh:rollbear/strong_type@15")
 # cpmaddpackage("gh:wolfpld/tracy#master")
 
@@ -133,7 +135,7 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   KhronosGroup/SPIRV-Reflect
   GIT_TAG
-  vulkan-sdk-1.3.280.0
+  vulkan-sdk-1.4.328
   OPTIONS
   "SPIRV_REFLECT_STATIC_LIB ON"
   "SPIRV_REFLECT_EXECUTABLE OFF")
@@ -142,9 +144,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/lib")
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS
-    ON
-    CACHE INTERNAL "Export compilation commands for code completion (clangd)")
 
 set_property(
   DIRECTORY
@@ -169,15 +168,19 @@ if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
       $<$<CONFIG:RelWithDebInfo,Debug>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
   )
 
-  option(ENABLE_ASAN "Enable address sanitizer" OFF)
-  if(ENABLE_ASAN)
-    target_compile_options(
-      xray-set-compile-options-lib
-      INTERFACE $<$<CONFIG:RelWithDebInfo,Debug>:-fsanitize=address)
-    target_link_options(xray-set-compile-options-lib INTERFACE
-                        $<$<CONFIG:RelWithDebInfo,Debug>:-fsanitize=address)
-  endif()
+endif()
 
+# cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON -B build.asan -S .
+option(ENABLE_ASAN "Enable address sanitizer" OFF)
+if(ENABLE_ASAN)
+  target_compile_options(
+    xray-set-compile-options-lib
+	INTERFACE $<$<AND:$<COMPILE_LANG_AND_ID:CXX,MSVC>,$<CONFIG:RelWithDebInfo,Debug>>:/fsanitize=address>
+    INTERFACE $<$<AND:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<CONFIG:RelWithDebInfo,Debug>>:-fsanitize=address>
+  )
+  target_link_options(xray-set-compile-options-lib INTERFACE
+    INTERFACE $<$<AND:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<CONFIG:RelWithDebInfo,Debug>>:-fsanitize=address>
+  )
 endif()
 
 target_compile_definitions(
