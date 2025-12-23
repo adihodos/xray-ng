@@ -46,14 +46,12 @@ namespace xray::base {
 inline bool is_power_of_two(uintptr_t x) noexcept { return (x & (x - 1)) == 0; }
 
 inline uintptr_t align_forward(uintptr_t ptr, size_t align) {
-	uintptr_t p, a, modulo;
-
 	assert(is_power_of_two(align));
 
-	p = ptr;
-	a = (uintptr_t)align;
+	uintptr_t p = ptr;
+	uintptr_t a = (uintptr_t)align;
 	// Same as (p % a) but faster as 'a' is a power of two
-	modulo = p & (a - 1);
+	uintptr_t modulo = p & (a - 1);
 
 	if (modulo != 0) {
 		// If 'p' address is not aligned, push the address to the
@@ -100,7 +98,7 @@ struct MemoryArena {
 		return static_cast<T*>(alloc_align(items * sizeof(T), alignof(T)));
 	}
 
-	[[nodiscard]] void* alloc_align(size_t size, size_t align) noexcept {
+	[[nodiscard]] void* alloc_align(const size_t size, const size_t align) noexcept {
 		// Align 'curr_offset' forward to the specified alignment
 		uintptr_t curr_ptr = (uintptr_t)this->buf + (uintptr_t)this->curr_offset;
 		uintptr_t offset   = align_forward(curr_ptr, align);
@@ -128,12 +126,11 @@ struct MemoryArena {
 		return nullptr;
 	}
 
-	void free(void* ptr, std::size_t n) noexcept {
-		// details::unpoison_memory_region(ptr, n);
+	void free(void* ptr, const std::size_t n) noexcept {
 		details::poison_memory_region(ptr, n);
 	}
 
-	[[nodiscard]] void* resize_align(void* old_memory, size_t old_size, size_t new_size, size_t align) noexcept {
+	[[nodiscard]] void* resize_align(void* old_memory, const size_t old_size, const size_t new_size, const size_t align) noexcept {
 		std::byte* old_mem = static_cast<std::byte*>(old_memory);
 
 		assert(is_power_of_two(align));

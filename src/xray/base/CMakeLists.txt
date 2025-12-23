@@ -41,10 +41,18 @@ set(project_sources
     ${proj_src_dir}/config_settings.cc
     ${proj_src_dir}/logger.cc
     ${proj_src_dir}/perf_stats_collector.cc
+
     ${proj_src_dir}/file_system_watcher.cc
     ${proj_src_dir}/serialization/rfl.libconfig/config.writer.cc)
 
-add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_headers})
+  set(PRJ_SOURCES
+    ${proj_inc_dir}/memory.pool.hpp
+    ${proj_src_dir}/memory.pool.cc
+    ${proj_inc_dir}/memory.os.hpp
+    ${proj_src_dir}/memory.os.cc
+  )  
+
+add_library(${PROJECT_NAME} STATIC ${PRJ_SOURCES} ${project_sources} ${project_headers})
 
 target_include_directories(
   ${PROJECT_NAME}

@@ -33,6 +33,7 @@
             # clang
             clang-tools
             gdb
+            nnd
             seer
             libgit2
             libgit2.dev
