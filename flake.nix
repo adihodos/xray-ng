@@ -31,7 +31,7 @@
 
             gcc
             # clang
-            # clang-tools
+            clang-tools
             gdb
             seer
             libgit2
