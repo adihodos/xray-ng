@@ -27,87 +27,100 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "xray/scene/scene.definition.hpp"
-#include <Lz/Lz.hpp>
+
+#include <Lz/concatenate.hpp>
+#include <Lz/algorithm/for_each.hpp>
+
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
-xray::scene::SceneResources
-xray::scene::SceneResources::from_scene(SceneDefinition* sdef, xray::rendering::VulkanRenderer* r)
-{
-    using namespace std;
-    using namespace xray::rendering;
+xray::scene::SceneResources xray::scene::SceneResources::from_scene(
+	SceneDefinition* sdef, xray::rendering::VulkanRenderer* r
+) {
+	using namespace std;
+	using namespace xray::rendering;
 
-    BindlessSystem* bsys = &r->bindless_sys();
+	BindlessSystem* bsys = &r->bindless_sys();
 
-    auto def_sampler = bsys->get_sampler(
-        VkSamplerCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .magFilter = VK_FILTER_LINEAR,
-            .minFilter = VK_FILTER_LINEAR,
-            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .mipLodBias = 0.0f,
-            .anisotropyEnable = false,
-            .maxAnisotropy = 1.0f,
-            .compareEnable = false,
-            .compareOp = VK_COMPARE_OP_NEVER,
-            .minLod = 0.0f,
-            .maxLod = VK_LOD_CLAMP_NONE,
-            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-            .unnormalizedCoordinates = false,
-        },
-        *r);
+	auto def_sampler = bsys->get_sampler(
+		VkSamplerCreateInfo{
+			.sType					 = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.pNext					 = nullptr,
+			.flags					 = 0,
+			.magFilter				 = VK_FILTER_LINEAR,
+			.minFilter				 = VK_FILTER_LINEAR,
+			.mipmapMode				 = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+			.addressModeU			 = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+			.addressModeV			 = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+			.addressModeW			 = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+			.mipLodBias				 = 0.0f,
+			.anisotropyEnable		 = false,
+			.maxAnisotropy			 = 1.0f,
+			.compareEnable			 = false,
+			.compareOp				 = VK_COMPARE_OP_NEVER,
+			.minLod					 = 0.0f,
+			.maxLod					 = VK_LOD_CLAMP_NONE,
+			.borderColor			 = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+			.unnormalizedCoordinates = false,
+		},
+		*r
+	);
 
-    //
-    // color texture added 1st so need to add 1 to slot
-    vector<BindlessImageResourceHandleEntryPair> materials_tex{};
-    for (uint32_t idx = 0, count = static_cast<uint32_t>(sdef->materials_nongltf.textures.size()); idx < count; ++idx) {
-        materials_tex.push_back(bsys->add_image(std::move(sdef->materials_nongltf.textures[idx]),
-                                                *def_sampler,
-                                                sdef->materials_nongltf.image_slot_start + 1 + idx));
-    }
+	//
+	// color texture added 1st so need to add 1 to slot
+	vector<BindlessImageResourceHandleEntryPair> materials_tex{};
+	for (uint32_t idx = 0, count = static_cast<uint32_t>(sdef->materials_nongltf.textures.size()); idx < count; ++idx) {
+		materials_tex.push_back(bsys->add_image(
+			std::move(sdef->materials_nongltf.textures[idx]),
+			*def_sampler,
+			sdef->materials_nongltf.image_slot_start + 1 + idx
+		));
+	}
 
-    vector<BindlessImageResourceHandleEntryPair> materials_gltf{};
-    for (uint32_t idx = 0, count = static_cast<uint32_t>(sdef->materials_gltf.images.size()); idx < count; ++idx) {
-        materials_gltf.push_back(bsys->add_image(std::move(sdef->materials_gltf.images[idx]),
-                                                 *def_sampler,
-                                                 sdef->materials_gltf.reserved_image_slot_start + idx));
-    }
+	vector<BindlessImageResourceHandleEntryPair> materials_gltf{};
+	for (uint32_t idx = 0, count = static_cast<uint32_t>(sdef->materials_gltf.images.size()); idx < count; ++idx) {
+		materials_gltf.push_back(bsys->add_image(
+			std::move(sdef->materials_gltf.images[idx]),
+			*def_sampler,
+			sdef->materials_gltf.reserved_image_slot_start + idx
+		));
+	}
 
-    XR_LOG_INFO("Image slot start (color texture) {}", sdef->materials_nongltf.image_slot_start);
-    const uint32_t sbo_chunks = r->buffering_setup().buffers;
+	XR_LOG_INFO("Image slot start (color texture) {}", sdef->materials_nongltf.image_slot_start);
+	const uint32_t sbo_chunks = r->buffering_setup().buffers;
 
-    SceneResources scene_resources{
-        //
-        // null texture always goes to 0 in the bindless setup
-        .null_tex = bsys->add_image(std::move(sdef->materials_nongltf.null_tex), *def_sampler, 0),
-        .color_tex = bsys->add_image(
-            std::move(sdef->materials_nongltf.color_texture), *def_sampler, sdef->materials_nongltf.image_slot_start),
-        .materials_tex = std::move(materials_tex),
-        .materials_gltf = std::move(materials_gltf),
-        .sbo_color_materials = bsys->add_storage_buffer(std::move(sdef->materials_nongltf.sbo_materials_colored),
-                                                        sdef->materials_nongltf.sbo_slot_start + 0),
-        .sbo_texture_materials = bsys->add_storage_buffer(std::move(sdef->materials_nongltf.sbo_materials_textured),
-                                                          sdef->materials_nongltf.sbo_slot_start + 1),
-        .sbo_pbr_materials = bsys->add_storage_buffer(std::move(sdef->materials_gltf.sbo_materials), tl::nullopt),
-        .sbo_instances = bsys->add_chunked_storage_buffer(std::move(sdef->instances_buffer), sbo_chunks, tl::nullopt),
-        .sbo_directional_lights =
-            bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[0]), sbo_chunks, tl::nullopt),
-        .sbo_point_lights = bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[1]), sbo_chunks, tl::nullopt),
-        .sbo_spot_lights = bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[2]), sbo_chunks, tl::nullopt),
-        .pipelines = std::move(sdef->pipelines),
-    };
+	SceneResources scene_resources{
+		//
+		// null texture always goes to 0 in the bindless setup
+		.null_tex  = bsys->add_image(std::move(sdef->materials_nongltf.null_tex), *def_sampler, 0),
+		.color_tex = bsys->add_image(
+			std::move(sdef->materials_nongltf.color_texture), *def_sampler, sdef->materials_nongltf.image_slot_start
+		),
+		.materials_tex		 = std::move(materials_tex),
+		.materials_gltf		 = std::move(materials_gltf),
+		.sbo_color_materials = bsys->add_storage_buffer(
+			std::move(sdef->materials_nongltf.sbo_materials_colored), sdef->materials_nongltf.sbo_slot_start + 0
+		),
+		.sbo_texture_materials = bsys->add_storage_buffer(
+			std::move(sdef->materials_nongltf.sbo_materials_textured), sdef->materials_nongltf.sbo_slot_start + 1
+		),
+		.sbo_pbr_materials = bsys->add_storage_buffer(std::move(sdef->materials_gltf.sbo_materials), tl::nullopt),
+		.sbo_instances = bsys->add_chunked_storage_buffer(std::move(sdef->instances_buffer), sbo_chunks, tl::nullopt),
+		.sbo_directional_lights =
+			bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[0]), sbo_chunks, tl::nullopt),
+		.sbo_point_lights = bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[1]), sbo_chunks, tl::nullopt),
+		.sbo_spot_lights  = bsys->add_chunked_storage_buffer(std::move(sdef->sbos_lights[2]), sbo_chunks, tl::nullopt),
+		.pipelines		  = std::move(sdef->pipelines),
+	};
 
-    //
-    // transfer ownership to graphics queue
-    r->queue_image_ownership_transfer(scene_resources.null_tex.first);
-    r->queue_image_ownership_transfer(scene_resources.color_tex.first);
+	//
+	// transfer ownership to graphics queue
+	r->queue_image_ownership_transfer(scene_resources.null_tex.first);
+	r->queue_image_ownership_transfer(scene_resources.color_tex.first);
 
-    lz::chain(lz::concat(scene_resources.materials_tex, scene_resources.materials_gltf))
-        .forEach([r](const BindlessImageResourceHandleEntryPair& e) { r->queue_image_ownership_transfer(e.first); });
+	lz::for_each(
+		lz::concat(scene_resources.materials_tex, scene_resources.materials_gltf),
+		[r](const BindlessImageResourceHandleEntryPair& e) { r->queue_image_ownership_transfer(e.first); }
+	);
 
-    return scene_resources;
+	return scene_resources;
 }

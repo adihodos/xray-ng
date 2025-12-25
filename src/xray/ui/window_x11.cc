@@ -37,7 +37,6 @@
 #include <system_error>
 
 #include <tl/expected.hpp>
-#include <Lz/Lz.hpp>
 #include <fmt/format.h>
 #include <fmt/std.h>
 

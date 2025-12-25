@@ -41,12 +41,19 @@
 #include <fmt/std.h>
 #include <fmt/ranges.h>
 #include <concurrencpp/concurrencpp.h>
-#include <Lz/Lz.hpp>
 #include <swl/variant.hpp>
 #include <mio/mmap.hpp>
 #include <rfl/json.hpp>
 #include <rfl.hpp>
 #include <itlib/small_vector.hpp>
+
+#include <Lz/zip.hpp>
+#include <Lz/map.hpp>
+#include <Lz/filter.hpp>
+#include <Lz/algorithm/for_each.hpp>
+#include <Lz/algorithm/accumulate.hpp>
+#include <Lz/algorithm/transform.hpp>
+#include <Lz/procs/to.hpp>
 
 #include <noise/noise.h>
 #include <noise/noiseutils.h>
@@ -699,8 +706,8 @@ task_create_gltf_resources(
 		// set materials buffer offset for this GLTF
 		this_gltf.materials_buffer.x = static_cast<uint32_t>(pbr_materials.size());
 
-		lz::chain(this_gltf_materials.materials)
-			.transformTo(back_inserter(pbr_materials), [total_image_count](const ExtractedMaterialDefinition& emdef) {
+		lz::transform(this_gltf_materials.materials,
+			back_inserter(pbr_materials), [total_image_count](const ExtractedMaterialDefinition& emdef) {
 				return PBRMaterialDefinition{
 					.base_color_factor = emdef.base_color_factor,
 					.base_color		   = emdef.base_color + total_image_count,
@@ -777,9 +784,9 @@ task_create_procedural_geometry_render_resources(
 	timer_highp exec_timer{};
 
 	const size_t vertex_bytes =
-		lz::chain(params.vertex_data).map([](const std::span<const uint8_t> sv) { return sv.size_bytes(); }).sum();
+		lz::accumulate(params.vertex_data | lz::map([](const std::span<const uint8_t> sv) { return sv.size_bytes(); }),0 );
 	const size_t index_bytes =
-		lz::chain(params.index_data).map([](const std::span<const uint32_t> si) { return si.size_bytes(); }).sum();
+		lz::accumulate(params.index_data | lz::map([](const std::span<const uint32_t> si) { return si.size_bytes(); }), 0 );
 
 	std::array<char, 256> scratch_buffer;
 	auto out = fmt::format_to_n(
@@ -1185,8 +1192,8 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 	};
 
 	const auto terrain_ranges =
-		lz::chain(scenedes->terrain_ranges)
-			.map([](const TerrainRange& range) {
+		scenedes->terrain_ranges |
+		lz::map([](const TerrainRange& range) {
 				return HeightRangeWithColor{
 					range.height,
 					vec4ui8{
@@ -1196,8 +1203,7 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 						static_cast<uint8_t>(range.color.a * 255.0f),
 					},
 				};
-			})
-			.toVector(MemoryArenaAllocator<HeightRangeWithColor>{scratchpad.arena}, std::execution::seq);
+		}) | lz::to<containers::vector<HeightRangeWithColor>>(MemoryArenaAllocator<HeightRangeWithColor>{scratchpad.arena});
 
 	//
 	// procedurally generated shapes
@@ -1371,9 +1377,8 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 	auto non_gltf_materials = co_await non_gltf_materials_task_result;
 	XR_COR_PROPAGATE_ERROR(non_gltf_materials);
 
-	lz::chain(scene_entities)
-		.filter([](const EntityDrawableComponent& e) { return e.material_id.has_value(); })
-		.forEach([m = &*non_gltf_materials](EntityDrawableComponent& e) {
+	lz::for_each(scene_entities | lz::filter([](const EntityDrawableComponent& e) { return e.material_id.has_value(); }),
+		[m = &*non_gltf_materials](EntityDrawableComponent& e) {
 			const uint32_t mtl_id = swl::visit(
 				VariantVisitor{
 					[](ColorMaterialType cm) { return cm.value_of(); },

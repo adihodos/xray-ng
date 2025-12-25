@@ -11,7 +11,6 @@
 // #include <oneapi/tbb/parallel_for_each.h>
 // #include <oneapi/tbb/parallel_reduce.h>
 
-#include <Lz/Lz.hpp>
 #include <itlib/small_vector.hpp>
 
 #include "xray/base/basic_timer.hpp"

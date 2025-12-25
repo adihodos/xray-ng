@@ -50,6 +50,8 @@ set(project_sources
     ${proj_src_dir}/memory.pool.cc
     ${proj_inc_dir}/memory.os.hpp
     ${proj_src_dir}/memory.os.cc
+    ${proj_inc_dir}/thread.local.context.hpp
+    ${proj_src_dir}/thread.local.context.cc
   )  
 
 add_library(${PROJECT_NAME} STATIC ${PRJ_SOURCES} ${project_sources} ${project_headers})

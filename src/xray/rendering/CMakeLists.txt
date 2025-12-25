@@ -3,7 +3,7 @@ project(xray-rendering)
 set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
-find_package(Vulkan REQUIRED COMPONENTS glslc shaderc_combined SPIRV-Tools)
+find_package(Vulkan REQUIRED COMPONENTS glslc glslang shaderc_combined SPIRV-Tools)
 
 set(project_sources
     ${proj_inc_dir}/colors/color_cast_rgb_hsv.hpp
@@ -151,10 +151,9 @@ target_link_libraries(
          strong_type::strong_type
          concurrencpp::concurrencpp
          cpp-lazy::cpp-lazy
+         Vulkan::glslang
+         # Vulkan::SPIRV-Tools
          Vulkan::shaderc_combined
-         Vulkan::SPIRV-Tools
-         # Vulkan::glslang
-         Vulkan::SPIRV-Tools
          ktx
          stb::stb
          spirv-reflect-static
