@@ -706,8 +706,10 @@ task_create_gltf_resources(
 		// set materials buffer offset for this GLTF
 		this_gltf.materials_buffer.x = static_cast<uint32_t>(pbr_materials.size());
 
-		lz::transform(this_gltf_materials.materials,
-			back_inserter(pbr_materials), [total_image_count](const ExtractedMaterialDefinition& emdef) {
+		lz::transform(
+			this_gltf_materials.materials,
+			back_inserter(pbr_materials),
+			[total_image_count](const ExtractedMaterialDefinition& emdef) {
 				return PBRMaterialDefinition{
 					.base_color_factor = emdef.base_color_factor,
 					.base_color		   = emdef.base_color + total_image_count,
@@ -716,7 +718,8 @@ task_create_gltf_resources(
 					.metallic_factor   = emdef.metallic_factor,
 					.roughness_factor  = emdef.roughness_factor,
 				};
-			});
+			}
+		);
 
 		//
 		// set materials count
@@ -783,10 +786,12 @@ task_create_procedural_geometry_render_resources(
 ) {
 	timer_highp exec_timer{};
 
-	const size_t vertex_bytes =
-		lz::accumulate(params.vertex_data | lz::map([](const std::span<const uint8_t> sv) { return sv.size_bytes(); }),0 );
-	const size_t index_bytes =
-		lz::accumulate(params.index_data | lz::map([](const std::span<const uint32_t> si) { return si.size_bytes(); }), 0 );
+	const size_t vertex_bytes = lz::accumulate(
+		params.vertex_data | lz::map([](const std::span<const uint8_t> sv) { return sv.size_bytes(); }), 0
+	);
+	const size_t index_bytes = lz::accumulate(
+		params.index_data | lz::map([](const std::span<const uint32_t> si) { return si.size_bytes(); }), 0
+	);
 
 	std::array<char, 256> scratch_buffer;
 	auto out = fmt::format_to_n(
@@ -1192,18 +1197,18 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 	};
 
 	const auto terrain_ranges =
-		scenedes->terrain_ranges |
-		lz::map([](const TerrainRange& range) {
-				return HeightRangeWithColor{
-					range.height,
-					vec4ui8{
-						static_cast<uint8_t>(range.color.r * 255.0f),
-						static_cast<uint8_t>(range.color.g * 255.0f),
-						static_cast<uint8_t>(range.color.b * 255.0f),
-						static_cast<uint8_t>(range.color.a * 255.0f),
-					},
-				};
-		}) | lz::to<containers::vector<HeightRangeWithColor>>(MemoryArenaAllocator<HeightRangeWithColor>{scratchpad.arena});
+		scenedes->terrain_ranges | lz::map([](const TerrainRange& range) {
+			return HeightRangeWithColor{
+				range.height,
+				vec4ui8{
+					static_cast<uint8_t>(range.color.r * 255.0f),
+					static_cast<uint8_t>(range.color.g * 255.0f),
+					static_cast<uint8_t>(range.color.b * 255.0f),
+					static_cast<uint8_t>(range.color.a * 255.0f),
+				},
+			};
+		}) |
+		lz::to<containers::vector<HeightRangeWithColor>>(MemoryArenaAllocator<HeightRangeWithColor>{scratchpad.arena});
 
 	//
 	// procedurally generated shapes
@@ -1377,7 +1382,8 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 	auto non_gltf_materials = co_await non_gltf_materials_task_result;
 	XR_COR_PROPAGATE_ERROR(non_gltf_materials);
 
-	lz::for_each(scene_entities | lz::filter([](const EntityDrawableComponent& e) { return e.material_id.has_value(); }),
+	lz::for_each(
+		scene_entities | lz::filter([](const EntityDrawableComponent& e) { return e.material_id.has_value(); }),
 		[m = &*non_gltf_materials](EntityDrawableComponent& e) {
 			const uint32_t mtl_id = swl::visit(
 				VariantVisitor{
@@ -1394,7 +1400,8 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 				e.material_id = TexturedMaterialType{itr_color->hashed_name};
 				return;
 			}
-		});
+		}
+	);
 
 	auto pipeline_resources = co_await pipelines_task_result;
 	XR_COR_PROPAGATE_ERROR(pipeline_resources);
@@ -1514,9 +1521,6 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 	using namespace xray::base;
 
 	unique_pointer<concurrencpp::runtime> cor_runtime{base::make_unique<concurrencpp::runtime>()};
-
-	static ConfigSystem app_cfg{"config/app_config.conf"};
-	xr_app_config = &app_cfg;
 
 	//
 	// start font loading
@@ -1772,6 +1776,7 @@ void GameMain::loop_event(const xray::ui::window_loop_event& loop_event) {
 
 }  // namespace B5
 
+
 int
 #if defined(XRAY_OS_IS_WINDOWS)
 	WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
@@ -1782,7 +1787,8 @@ main(int argc, char** argv)
 	TracySetProgramName("XrayNG");
 
 	xray::base::setup_logging(LogLevel::Debug);
-
+	xr_app_config = ConfigSystem::instance();
+	
 	// void* addr = xray::base::os_reserve_mem(
 	// 	xray::base::round_up<size_t>(xray::base::megabytes(2), xray::base::os_get_page_size())
 	// );
@@ -1815,7 +1821,7 @@ main(int argc, char** argv)
 		// xray::base::containers::vector<uint32_t> pixels{scratch_pad};
 		// pixels.reserve(disk_sampler.sampled_point().size());
 		// for (const auto point : disk_sampler.sampled_point()) {
-			// XR_LOG_INFO("{}", point);
+		// XR_LOG_INFO("{}", point);
 		// }
 	}
 

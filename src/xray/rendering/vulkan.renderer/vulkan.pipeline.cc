@@ -39,6 +39,8 @@
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
+XR_DISABLE_OPTIMIZATIONS()
+
 using namespace std;
 
 template <typename T>

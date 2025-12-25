@@ -11,7 +11,7 @@ set(proj_src_dir "${PROJECT_SOURCE_DIR}/src")
 
 set(project_sources ${proj_src_dir}/atlass.tool.main.cc)
 add_executable(${PROJECT_NAME} ${project_sources})
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 target_link_libraries(
   ${PROJECT_NAME}
   xray-set-compile-options-lib
@@ -44,7 +44,7 @@ target_link_libraries(
 # set_target_options(${PROJECT_NAME} "${compiler_defs}" "${compiler_opts}")
 
 # list(APPEND compiler_definitions ) list(APPEND xr_compiler_features
-# "cxx_std_20=PUBLIC" "c_std_11=PUBLIC")
+# "cxx_std_23=PUBLIC" "c_std_11=PUBLIC")
 #
 # if (NOT XRAY_USE_DIRECTX11) list(APPEND compiler_definitions
 # "XRAY_RENDERER_OPENGL") else() message("Using DirectX11") list(APPEND

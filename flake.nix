@@ -30,10 +30,16 @@
             helix
 
             gcc
-            clang
-            libcxx
-            libcxx.dev
+            # llvmPackages_latest.lldb
+            # llvmPackages_latest.libllvm
+            # llvmPackages_latest.libcxx
+            # llvmPackages_latest.clang
             clang-tools
+            # clang
+            
+            # clang
+            # libcxx
+            # libcxx.dev
             gdb
             nnd
             seer

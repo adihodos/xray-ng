@@ -43,7 +43,7 @@ endif()
 add_executable(build-info-tool ${proj_src_dir}/build-info-tool.cc)
 # set_property(TARGET build-info-tool PROPERTY MSVC_RUNTIME_LIBRARY
 # "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-target_compile_features(build-info-tool PRIVATE cxx_std_20)
+target_compile_features(build-info-tool PRIVATE cxx_std_23)
 target_compile_definitions(
   build-info-tool PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_WINDOWS>
                           $<$<PLATFORM_ID:Linux>:PLATFORM_LINUX>)
@@ -89,7 +89,7 @@ set_target_properties(
              "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib"
              VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
 
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 target_compile_definitions(${PROJECT_NAME} PRIVATE TRACY_ENABLE)
 target_include_directories(
   ${PROJECT_NAME} PRIVATE ${proj_inc_dir} ${proj_src_dir}
@@ -162,7 +162,7 @@ add_custom_command(
           ${target_output_directory}/config
   COMMAND
     build-info-tool $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args}>
-    # $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}
+    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}>
   BYPRODUCTS $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_byproducts}>
   COMMENT "::: Overwrite config step :::")
 

@@ -62,7 +62,7 @@ target_include_directories(
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   PRIVATE)
 
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
 target_compile_definitions(
   ${PROJECT_NAME}

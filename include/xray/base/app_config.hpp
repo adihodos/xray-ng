@@ -42,62 +42,68 @@ namespace base {
 
 ///
 ///  \brief  Simple path management.
-class ConfigSystem
-{
-  public:
-    using path_type = std::filesystem::path;
+class ConfigSystem {
+public:
+	using path_type = std::filesystem::path;
 
-    explicit ConfigSystem(const char* cfg_path);
+	struct FileSystem {
+		path_type ExePathAbsolute;
+		path_type RootPathAbsolute;
+		path_type GameRootPathAbsolute;
+		path_type ShaderPath;
+		path_type ModelPath;
+	} FileSys;
 
-    const path_type& root_directory() const noexcept { return paths_.root_path; }
+	const path_type& root_directory() const noexcept { return paths_.root_path; }
 
-    path_type model_path(const char* name) const { return paths_.model_path / name; }
-    path_type model_path(const std::filesystem::path& name) const { return paths_.model_path / name; }
+	path_type model_path(const char* name) const { return paths_.model_path / name; }
+	path_type model_path(const std::filesystem::path& name) const { return paths_.model_path / name; }
 
-    path_type shader_path(const char* name) const { return paths_.shader_path / name; }
+	path_type shader_path(const char* name) const { return paths_.shader_path / name; }
 
-    path_type texture_path(const char* name) const { return paths_.texture_path / name; }
-    path_type texture_path(const std::filesystem::path& name) const { return paths_.texture_path / name; }
+	path_type texture_path(const char* name) const { return paths_.texture_path / name; }
+	path_type texture_path(const std::filesystem::path& name) const { return paths_.texture_path / name; }
 
-    path_type config_path(const char* name) const { return paths_.config_path / name; }
+	path_type config_path(const char* name) const { return paths_.config_path / name; }
 
-    path_type camera_config_path(const char* name) const { return paths_.camera_cfg_path / name; }
+	path_type camera_config_path(const char* name) const { return paths_.camera_cfg_path / name; }
 
-    path_type objects_config_path(const char* name) const { return paths_.objects_cfg_path / name; }
+	path_type objects_config_path(const char* name) const { return paths_.objects_cfg_path / name; }
 
-    const path_type font_path(const char* name) const noexcept { return paths_.fonts_path / name; }
+	const path_type font_path(const char* name) const noexcept { return paths_.fonts_path / name; }
 
-    const path_type& engine_config_path() const noexcept { return paths_.engine_ini_file; }
+	const path_type& engine_config_path() const noexcept { return paths_.engine_ini_file; }
 
-    const path_type& font_root() const noexcept { return paths_.fonts_path; }
-    const path_type& model_root() const noexcept { return paths_.model_path; }
-    const path_type& shader_root() const noexcept { return paths_.shader_path; }
-    const path_type& config_root() const noexcept { return paths_.config_path; }
+	const path_type& font_root() const noexcept { return paths_.fonts_path; }
+	const path_type& model_root() const noexcept { return paths_.model_path; }
+	const path_type& shader_root() const noexcept { return paths_.shader_path; }
+	const path_type& config_root() const noexcept { return paths_.config_path; }
 
-    static ConfigSystem* instance() noexcept { return _unique_instance; }
+	static ConfigSystem* instance() noexcept {
+		static ConfigSystem s_unique_instance{};
+		return &s_unique_instance;
+	}
 
-  private:
-    static ConfigSystem* _unique_instance;
+private:
+	ConfigSystem();
 
-    struct paths_data_t
-    {
-        std::filesystem::path root_path;
-        std::filesystem::path shader_path;
-        std::filesystem::path model_path;
-        std::filesystem::path texture_path;
-        std::filesystem::path config_path;
-        std::filesystem::path camera_cfg_path;
-        std::filesystem::path objects_cfg_path;
-        std::filesystem::path fonts_path;
-        std::filesystem::path engine_ini_file;
-    } paths_;
+	struct paths_data_t {
+		std::filesystem::path root_path;
+		std::filesystem::path shader_path;
+		std::filesystem::path model_path;
+		std::filesystem::path texture_path;
+		std::filesystem::path config_path;
+		std::filesystem::path camera_cfg_path;
+		std::filesystem::path objects_cfg_path;
+		std::filesystem::path fonts_path;
+		std::filesystem::path engine_ini_file;
+	} paths_;
 
-  private:
-    ConfigSystem() = default;
-    XRAY_NO_COPY(ConfigSystem);
+private:
+	XRAY_NO_COPY(ConfigSystem);
 };
 
 /// @}
 
-} // namespace base
-} // namespace xray
+}  // namespace base
+}  // namespace xray

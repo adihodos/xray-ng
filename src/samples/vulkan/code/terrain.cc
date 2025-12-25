@@ -20,6 +20,7 @@
 #include <Lz/take.hpp>
 
 #include "xray/xray.hpp"
+#include "xray/base/app_config.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/containers/arena.unordered_set.hpp"
 #include "xray/base/memory.arena.unique.ptr.hpp"
@@ -394,7 +395,13 @@ tl::expected<TerrainSlabTextures, VulkanError> create_terrain_slab_render_resour
 	auto wait_token_images = renderer->submit_job(std::move(*terrain_images_job));
 	XR_VK_PROPAGATE_ERROR(wait_token_images);
 
-	format_to_n(scratch_buffer, "mt.colormap_{}_{}.png", coords.x, coords.y);
+	format_to_n(
+		scratch_buffer,
+		"{}/mt.colormap_{}_{}.png",
+		xray::base::ConfigSystem::instance()->FileSys.RootPathAbsolute.generic_string(),
+		coords.x,
+		coords.y
+	);
 	stbi_write_png(
 		scratch_buffer,
 		terrain_params.size,
@@ -673,12 +680,8 @@ void copy_render_resources(
 	auto texture_list =
 		std::initializer_list<VkImage>{textures.heightmap.second.handle, textures.colormap.second.handle};
 
-	for (auto&& [copy_data, buffer_copy, mem_barriers, texture] : lz::zip(
-			 copies,
-			 buffer_image_copies,
-			 mem_barrier_chunks,
-			 texture_list
-		 )) {
+	for (auto&& [copy_data, buffer_copy, mem_barriers, texture] :
+		 lz::zip(copies, buffer_image_copies, mem_barrier_chunks, texture_list)) {
 		auto [copy_dst, copy_bytes, copy_src] = copy_data;
 		memcpy(reinterpret_cast<void*>(copy_dst), reinterpret_cast<const void*>(copy_src), copy_bytes);
 

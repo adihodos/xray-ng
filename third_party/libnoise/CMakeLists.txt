@@ -44,7 +44,7 @@ list(
   "${proj_src_dir}/module/voronoi.cpp")
 
 add_library(noise STATIC ${SOURCES} ${SOURCES_MODEL} ${SOURCES_MODULE})
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<INSTALL_INTERFACE:include>
                          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>

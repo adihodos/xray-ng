@@ -32,68 +32,71 @@
 
 #include <fmt/chrono.h>
 #include "xray/base/xray.fmt.hpp"
+#include "xray/base/app_config.hpp"
 
 #include "spdlog/spdlog.h"
 #include "spdlog/async.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
-void
-xray::base::log(const LogLevel level, fmt::string_view format, fmt::format_args args)
-{
-    static thread_local char scratch_buffer[4096];
-    const auto [itr, cch] = fmt::vformat_to_n(std::begin(scratch_buffer), std::size(scratch_buffer) - 1, format, args);
-    *itr = 0;
+void xray::base::log(const LogLevel level, fmt::string_view format, fmt::format_args args) {
+	static thread_local char scratch_buffer[4096];
+	const auto [itr, cch] = fmt::vformat_to_n(std::begin(scratch_buffer), std::size(scratch_buffer) - 1, format, args);
+	*itr				  = 0;
 
-    constexpr const spdlog::level::level_enum log_levels[] = {
-        spdlog::level::trace, spdlog::level::debug, spdlog::level::info,
-        spdlog::level::warn,  spdlog::level::err,   spdlog::level::critical,
-    };
+	constexpr const spdlog::level::level_enum log_levels[] = {
+		spdlog::level::trace,
+		spdlog::level::debug,
+		spdlog::level::info,
+		spdlog::level::warn,
+		spdlog::level::err,
+		spdlog::level::critical,
+	};
 
-    spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer);
+	spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer);
 }
 
-void
-xray::base::log_file_line(const LogLevel level,
-                          const char* file,
-                          const int32_t line,
-                          fmt::string_view format,
-                          fmt::format_args args)
-{
-    static thread_local char scratch_buffer[4096];
-    const auto [itr, cch] =
-        fmt::format_to_n(std::begin(scratch_buffer), std::size(scratch_buffer) - 1, "{}:{}\n", file, line);
+void xray::base::log_file_line(
+	const LogLevel level, const char* file, const int32_t line, fmt::string_view format, fmt::format_args args
+) {
+	static thread_local char scratch_buffer[4096];
+	const auto [itr, cch] =
+		fmt::format_to_n(std::begin(scratch_buffer), std::size(scratch_buffer) - 1, "{}:{}\n", file, line);
 
-    const auto [itr1, cch1] = fmt::vformat_to_n(itr, std::cend(scratch_buffer) - itr - 1, format, args);
-    *itr1 = 0;
+	const auto [itr1, cch1] = fmt::vformat_to_n(itr, std::cend(scratch_buffer) - itr - 1, format, args);
+	*itr1					= 0;
 
-    constexpr const spdlog::level::level_enum log_levels[] = {
-        spdlog::level::trace, spdlog::level::debug, spdlog::level::info,
-        spdlog::level::warn,  spdlog::level::err,   spdlog::level::critical,
-    };
+	constexpr const spdlog::level::level_enum log_levels[] = {
+		spdlog::level::trace,
+		spdlog::level::debug,
+		spdlog::level::info,
+		spdlog::level::warn,
+		spdlog::level::err,
+		spdlog::level::critical,
+	};
 
-    spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer);
+	spdlog::log(log_levels[static_cast<size_t>(level)], scratch_buffer);
 }
 
-void
-xray::base::setup_logging(const LogLevel log_lvl)
-{
-    spdlog::init_thread_pool(8192, 1);
-    const std::string log_pattern{ "[%H:%M:%S %z] [%n] [%^-%L-%$] [thread %t] %v" };
-    auto stdout_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
-    stdout_sink->set_pattern(log_pattern);
+void xray::base::setup_logging(const LogLevel log_lvl) {
+	spdlog::init_thread_pool(8192, 1);
+	const std::string log_pattern{"[%H:%M:%S %z] [%n] [%^-%L-%$] [thread %t] %v"};
+	auto stdout_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+	stdout_sink->set_pattern(log_pattern);
 
-    const auto local_time = std::chrono::system_clock::now();
-    char temp_buffer[1024];
-    format_to_n(temp_buffer, "xray.{:%d-%m-%Y-%H-%M-%S}.log", local_time);
+	const auto local_time = std::chrono::system_clock::now();
+	char temp_buffer[1024];
+	format_to_n(temp_buffer, "xray.{:%d-%m-%Y-%H-%M-%S}.log", local_time);
 
-    auto rotating_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(temp_buffer, true);
-    rotating_sink->set_pattern(log_pattern);
-    std::vector<spdlog::sink_ptr> sinks{ stdout_sink, rotating_sink };
+	const auto log_file_path = ConfigSystem::instance()->FileSys.RootPathAbsolute / temp_buffer;
 
-    // auto logger = std::make_shared<spdlog::async_logger>(
-    //     "xray-logger", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
-    auto logger = std::make_shared<spdlog::logger>("xray-logger", sinks.begin(), sinks.end());
-    spdlog::set_default_logger(logger);
-    spdlog::set_level(static_cast<spdlog::level::level_enum>(log_lvl));
+	auto rotating_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_file_path.generic_string(), true);
+	rotating_sink->set_pattern(log_pattern);
+	std::vector<spdlog::sink_ptr> sinks{stdout_sink, rotating_sink};
+
+	// auto logger = std::make_shared<spdlog::async_logger>(
+	//     "xray-logger", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
+	auto logger = std::make_shared<spdlog::logger>("xray-logger", sinks.begin(), sinks.end());
+	spdlog::set_default_logger(logger);
+	spdlog::set_level(static_cast<spdlog::level::level_enum>(log_lvl));
 }

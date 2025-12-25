@@ -28,7 +28,7 @@ target_include_directories(
   PUBLIC $<INSTALL_INTERFACE:include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   PRIVATE)
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 target_compile_definitions(${PROJECT_NAME}
   PRIVATE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>)
 

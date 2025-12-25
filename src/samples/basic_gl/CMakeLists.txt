@@ -159,7 +159,7 @@ source_group(configuration FILES ${config_files})
 
 add_executable(${PROJECT_NAME} ${project_sources} ${shader_files}
                                ${config_files})
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${proj_inc_dir}
                                                    ${proj_src_dir})

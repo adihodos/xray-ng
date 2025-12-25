@@ -8,6 +8,7 @@
 #include <tuple>
 #include <vector>
 #include <mutex>
+#include <stacktrace>
 
 #include <itlib/small_vector.hpp>
 #include <fmt/core.h>
@@ -36,11 +37,13 @@
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_to_string.hpp>
 
+#include "xray/base/xray.misc.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/variant.helpers.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/rangeless/fn.hpp"
 #include "xray/base/memory.arena.hpp"
+#include "xray/base/containers/arena.string.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatch.hpp"
@@ -121,36 +124,90 @@ std::string_view format_vk_func_fail(
 	return string_view{scratch_buffer.data(), static_cast<size_t>(cch)};
 }
 
-VkBool32 log_vk_debug_output(
-	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+namespace r_details {
+thread_local std::byte kTisButALocalScratch[xray::base::kilobytes(128)];
+
+VkBool32 r_vk_debug_msg_output(
+	VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
 	VkDebugUtilsMessageTypeFlagsEXT messageTypes,
 	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 	void* pUserData
 ) {
-	array<char, 2048> msg_buf;
-	const auto [iter, cch] = fmt::format_to_n(
-		msg_buf.data(),
-		msg_buf.size() - 1,
-		"[vulkan]: {} :: {:#x} - {}",
-		pCallbackData->pMessageIdName ? pCallbackData->pMessageIdName : "unknown",
-		pCallbackData->messageIdNumber,
-		pCallbackData->pMessage ? pCallbackData->pMessage : "unknown"
-	);
+	xray::base::MemoryArena scratch_arena{kTisButALocalScratch};
+	xray::base::containers::string dbg_str{scratch_arena};
 
-	if (cch > 0) {
-		msg_buf[cch] = 0;
+	dbg_str = "[vkdebug]";
+	struct SeverityFlagWithName {
+		VkDebugUtilsMessageSeverityFlagBitsEXT flag;
+		const char* name;
+		xray::base::LogLevel log_level;
+	};
 
-		if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-			XR_LOG_WARN("{}", msg_buf.data());
-		} else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-			XR_LOG_ERR("{}", msg_buf.data());
-		} else {
-			XR_LOG_INFO("{}", msg_buf.data());
+	constexpr SeverityFlagWithName severity_flags_names[] = {
+		{VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, "VERBOSE", xray::base::LogLevel::Trace},
+		{VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, "INFO", xray::base::LogLevel::Debug},
+		{VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT, "WARNING", xray::base::LogLevel::Warn},
+		{VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, "ERROR", xray::base::LogLevel::Err},
+	};
+
+	LogLevel log_level = xray::base::LogLevel::Trace;
+	for (const auto [flag, name, level] : severity_flags_names) {
+		if (message_severity & flag) {
+			fmt::format_to(std::back_inserter(dbg_str), "[{}]", name);
+			log_level = level;
 		}
 	}
 
+	struct MessageTypeFlagWithName {
+		VkDebugUtilsMessageTypeFlagsEXT flag;
+		const char* name;
+	};
+
+	constexpr MessageTypeFlagWithName msg_type_flags_names[] = {
+		{VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT, "GENERAL"},
+		{VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT, "VALIDATION"},
+		{VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT, "PERFORMANCE"},
+		{VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT, "ADDRESS BINDING"},
+	};
+
+	for (const auto [flag, name] : msg_type_flags_names) {
+		if (messageTypes & flag) {
+			fmt::format_to(std::back_inserter(dbg_str), "[{}]", name);
+		}
+	}
+
+	std::format_to(
+		std::back_inserter(dbg_str),
+		"[{}][{}]: {}\n",
+		pCallbackData->pMessageIdName,
+		pCallbackData->messageIdNumber,
+		pCallbackData->pMessage
+	);
+
+	xray::base::log_fwd(log_level, "{}", dbg_str);
+
+	const uint32_t kSeverityStackTraces = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
+		// | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+		;
+
+	if (message_severity & kSeverityStackTraces) {
+		using stacktrace_allocator_type = xray::base::MemoryArenaAllocator<std::stacktrace_entry>;
+		using vk_stacktrace				= std::basic_stacktrace<stacktrace_allocator_type>;
+		const auto stack_trace =
+			vk_stacktrace::current(xray::base::MemoryArenaAllocator<std::stacktrace_entry>{scratch_arena});
+
+		dbg_str.clear();
+		for (const std::stacktrace_entry& e : stack_trace) {
+			fmt::format_to(
+				std::back_inserter(dbg_str), "{}:{} {}\n", e.source_file(), e.source_line(), e.description()
+			);
+		}
+		xray::base::log_fwd(log_level, "{}", dbg_str);
+	}
 	return VK_FALSE;
 }
+
+}  // namespace r_details
 
 small_vec_4<VkExtensionProperties> enumerate_instance_extensions() {
 	uint32_t exts_count{};
@@ -660,7 +717,7 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(const WindowPlatformData& wi
 						   VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT,
 		.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 					   VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-		.pfnUserCallback = log_vk_debug_output,
+		.pfnUserCallback = r_details::r_vk_debug_msg_output,
 		.pUserData		 = nullptr,
 	};
 

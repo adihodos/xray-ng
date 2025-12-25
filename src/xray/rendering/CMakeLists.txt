@@ -98,7 +98,7 @@ set(vk-project-sources
 add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl}
   ${vk-project-sources})
 
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
 target_include_directories(
   ${PROJECT_NAME}
@@ -159,5 +159,5 @@ target_link_libraries(
   ktx
   stb::stb
   spirv-reflect-static
-  $<$<PLATFORM_ID:Linux>:Xinerama>
+  $<$<PLATFORM_ID:Linux>:stdc++exp;Xinerama>
   PRIVATE tinygltf Tracy::TracyClient)
