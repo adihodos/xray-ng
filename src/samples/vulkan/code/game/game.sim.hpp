@@ -33,17 +33,17 @@ struct GamepadAxisEvent;
 struct GamepadButtonEvent;
 struct mouse_button_event;
 struct mouse_motion_event;
-};
+};	// namespace xray::ui
 
 namespace xray::scene {
 class GltfGeometryEntry;
 struct EntityDrawableComponent;
-};
+};	// namespace xray::scene
 
 namespace xray::rendering {
 struct GeometryWithRenderData;
 struct GeneratedGeometryWithRenderData;
-};
+};	// namespace xray::rendering
 
 namespace B5 {
 
@@ -54,175 +54,159 @@ class Terrain;
 
 namespace simulation_details {
 
-struct SpacecraftData
-{
-    JPH::Vec3 direction{ JPH::Vec3::sAxisZ() };
-    JPH::Vec3 up{ JPH::Vec3::sAxisY() };
-    JPH::Vec3 right{JPH::Vec3::sAxisX() };
-    JPH::Quat rotation{ JPH::Quat::sIdentity() };
-    JPH::Vec3 position;
-    JPH::Vec3 linear_velocity;
-    JPH::Vec3 angular_velocity;
-    float throttle{};
-    float roll_angle{};
-    float roll{};
-    float pitch_angle{};
-    float yaw_angle{};
-    float compass_bearing{};
-
+struct SpacecraftData {
+	JPH::Vec3 direction{JPH::Vec3::sAxisZ()};
+	JPH::Vec3 up{JPH::Vec3::sAxisY()};
+	JPH::Vec3 right{JPH::Vec3::sAxisX()};
+	JPH::Quat rotation{JPH::Quat::sIdentity()};
+	JPH::Vec3 position;
+	JPH::Vec3 linear_velocity;
+	JPH::Vec3 angular_velocity;
+	float throttle{};
+	float roll_angle{};
+	float roll{};
+	float pitch_angle{};
+	float yaw_angle{};
+	float compass_bearing{};
 };
 
-struct Starfury
-{
-    uint32_t entity{};
-    uint32_t geometry{};
-    JPH::BodyID phys_body_id{};
-    JPH::Body* phys_body{};
-    SpacecraftData data;
+struct Starfury {
+	uint32_t entity{};
+	uint32_t geometry{};
+	JPH::BodyID phys_body_id{};
+	JPH::Body* phys_body{};
+	SpacecraftData data;
 };
 
-struct GameWorldState
-{
-    explicit GameWorldState(xray::base::MemoryArena& arena)
-        : ent_gltf{ arena }
-        , ent_basic{ arena }
-        , ent_physics_bodies{ arena }
-    {
-    }
+struct GameWorldState {
+	explicit GameWorldState(xray::base::MemoryArena& arena);
+	~GameWorldState();
 
-    xray::base::containers::vector<xray::scene::EntityDrawableComponent> ent_gltf;
-    xray::base::containers::vector<xray::scene::EntityDrawableComponent> ent_basic;
-    xray::base::containers::vector<JPH::BodyID> ent_physics_bodies;
-    Starfury ent_player;
+	xray::base::containers::vector<xray::scene::EntityDrawableComponent> ent_gltf;
+	xray::base::containers::vector<xray::scene::EntityDrawableComponent> ent_basic;
+	xray::base::containers::vector<JPH::BodyID> ent_physics_bodies;
+	Starfury ent_player;
 };
 
-}
+}  // namespace simulation_details
 
-class GameSimulation
-{
-  private:
-    struct PrivateConstructionToken
-    {
-        explicit PrivateConstructionToken() = default;
-    };
+class GameSimulation {
+private:
+	struct PrivateConstructionToken {
+		explicit PrivateConstructionToken() = default;
+	};
 
-  public:
-    void event_handler(const xray::ui::window_event& evt);
-    void loop_event(const RenderEvent&);
+public:
+	void event_handler(const xray::ui::window_event& evt);
+	void loop_event(const RenderEvent&);
 
-    static xray::base::unique_pointer<GameSimulation> create(const InitContext& init_ctx);
-    const xray::scene::camera& camera() const noexcept { return _simstate.camera; }
+	static xray::base::unique_pointer<GameSimulation> create(const InitContext& init_ctx);
+	const xray::scene::camera& camera() const noexcept { return _simstate.camera; }
 
-  private:
-    void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
-    void draw_hud(xray::ui::user_interface* ui, const RenderEvent& re);
+private:
+	void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);
+	void draw_hud(xray::ui::user_interface* ui, const RenderEvent& re);
 
-    void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
-    void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
-    void handle_mouse_button_event(const xray::ui::mouse_button_event& mbe);
-    void handle_mouse_motion_event(const xray::ui::mouse_motion_event& mme);
-    void update_ship_data();
+	void handle_gamepad_axis_event(const xray::ui::GamepadAxisEvent& e);
+	void handle_gamepad_button_event(const xray::ui::GamepadButtonEvent& e);
+	void handle_mouse_button_event(const xray::ui::mouse_button_event& mbe);
+	void handle_mouse_motion_event(const xray::ui::mouse_motion_event& mme);
+	void update_ship_data();
 
-    void process_gamepad_state();
-    void process_keyboard_state();
+	void process_gamepad_state();
+	void process_keyboard_state();
 
-    struct SimState
-    {
-        float angle{};
-        xray::scene::camera camera{};
-        xray::scene::ArcballCamera arcball_cam{};
-        xray::scene::FlightCamera flight_cam{
-            xray::math::RadiansF32{ 65.0_DEG2RADF32 },
-            4.0f / 3.0f,
-            0.1f,
-            1000.0f,
-        };
-        std::bitset<8> lights_sync{ 0 };
-        FlightCamera flightcam;
+	struct SimState {
+		float angle{};
+		xray::scene::camera camera{};
+		xray::scene::ArcballCamera arcball_cam{};
+		xray::scene::FlightCamera flight_cam{
+			xray::math::RadiansF32{65.0_DEG2RADF32},
+			4.0f / 3.0f,
+			0.1f,
+			1000.0f,
+		};
+		std::bitset<8> lights_sync{0};
+		FlightCamera flightcam;
 
-        SimState() = default;
-        SimState(const InitContext& init_context);
-    } _simstate{};
+		SimState() = default;
+		SimState(const InitContext& init_context);
+	} _simstate{};
 
-    xray::base::unique_pointer<PhysicsSystem> _physics;
+	xray::base::unique_pointer<PhysicsSystem> _physics;
 
-    struct UIState
-    {
-        bool ui_opened{ false };
-        static constexpr const size_t MAX_LIGHTS = 64;
-        bool use_arcball_cam{ false };
+	struct UIState {
+		bool ui_opened{false};
+		static constexpr const size_t MAX_LIGHTS = 64;
+		bool use_arcball_cam{false};
 #ifdef JPH_DEBUG_RENDERER
-        JPH::BodyManager::DrawSettings phys_draw{
-            .mDrawShape = false,
-        };
+		JPH::BodyManager::DrawSettings phys_draw{
+			.mDrawShape = false,
+		};
 #endif
-        bool draw_bbox{ false };
-        bool draw_world_axis{ true };
-        bool draw_sphere{ false };
-        bool draw_nodes_spheres{ false };
-        bool draw_nodes_bbox{ false };
-        bool draw_ship{ true };
-        std::bitset<32> shapes_draw{ 0x0 };
-        std::bitset<MAX_LIGHTS> dbg_directional_lights{ 0 };
-        std::bitset<MAX_LIGHTS> toggle_directional_lights{ std::bitset<MAX_LIGHTS>{}.set() };
-        std::bitset<MAX_LIGHTS> dbg_point_lights{ 0 };
-        std::bitset<MAX_LIGHTS> toggle_point_lights{ std::bitset<MAX_LIGHTS>{}.set() };
-    } _uistate{};
+		bool draw_bbox{false};
+		bool draw_world_axis{true};
+		bool draw_sphere{false};
+		bool draw_nodes_spheres{false};
+		bool draw_nodes_bbox{false};
+		bool draw_ship{true};
+		std::bitset<32> shapes_draw{0x0};
+		std::bitset<MAX_LIGHTS> dbg_directional_lights{0};
+		std::bitset<MAX_LIGHTS> toggle_directional_lights{std::bitset<MAX_LIGHTS>{}.set()};
+		std::bitset<MAX_LIGHTS> dbg_point_lights{0};
+		std::bitset<MAX_LIGHTS> toggle_point_lights{std::bitset<MAX_LIGHTS>{}.set()};
+	} _uistate{};
 
-    xray::base::MemoryArena _arena_perm;
-    xray::base::MemoryArena _arena_temp;
-    simulation_details::GameWorldState _world;
-    xray::base::unique_arena_ptr<Terrain> _terrain;
+	xray::base::MemoryArena _arena_perm;
+	xray::base::MemoryArena _arena_temp;
+	simulation_details::GameWorldState _world;
+	xray::base::unique_arena_ptr<Terrain> _terrain;
 
-    xray::ui::user_interface* _ui{};
+	xray::ui::user_interface* _ui{};
 
-    enum class ForceType
-    {
-        Impulse,
-        Torque
-    };
+	enum class ForceType { Impulse, Torque };
 
-    struct KeyStateData
-    {
-        xray::math::vec3f force_axis;
-        ForceType force;
-    };
+	struct KeyStateData {
+		xray::math::vec3f force_axis;
+		ForceType force;
+	};
 
-    struct InputStateTracker
-    {
-        xray::base::containers::vector<xray::ui::GamepadAxisEvent> last_axis_events;
-        xray::base::containers::vector<xray::ui::GamepadAxisInfo> axis_info;
-        std::bitset<256> keyboard{ 0 };
-        frozen::unordered_map<xray::ui::KeySymbol, KeyStateData, 10> keys_mapping{
-            { xray::ui::KeySymbol::key_w, KeyStateData{ xray::math::vec3f::stdc::unit_z, ForceType::Impulse } },
-            { xray::ui::KeySymbol::key_s, KeyStateData{ -xray::math::vec3f::stdc::unit_z, ForceType::Impulse } },
-            { xray::ui::KeySymbol::key_a, KeyStateData{ -xray::math::vec3f::stdc::unit_x, ForceType::Impulse } },
-            { xray::ui::KeySymbol::key_d, KeyStateData{ xray::math::vec3f::stdc::unit_x, ForceType::Impulse } },
-            { xray::ui::KeySymbol::key_q, KeyStateData{ xray::math::vec3f::stdc::unit_z, ForceType::Torque } },
-            { xray::ui::KeySymbol::key_e, KeyStateData{ -xray::math::vec3f::stdc::unit_z, ForceType::Torque } },
-            { xray::ui::KeySymbol::up, KeyStateData{ xray::math::vec3f::stdc::unit_x, ForceType::Torque } },
-            { xray::ui::KeySymbol::down, KeyStateData{ -xray::math::vec3f::stdc::unit_x, ForceType::Torque } },
-            { xray::ui::KeySymbol::left, KeyStateData{ -xray::math::vec3f::stdc::unit_y, ForceType::Torque } },
-            { xray::ui::KeySymbol::right, KeyStateData{ xray::math::vec3f::stdc::unit_y, ForceType::Torque } },
-        };
+	struct InputStateTracker {
+		xray::base::containers::vector<xray::ui::GamepadAxisEvent> last_axis_events;
+		xray::base::containers::vector<xray::ui::GamepadAxisInfo> axis_info;
+		std::bitset<256> keyboard{0};
+		frozen::unordered_map<xray::ui::KeySymbol, KeyStateData, 10> keys_mapping{
+			{xray::ui::KeySymbol::key_w, KeyStateData{xray::math::vec3f::stdc::unit_z, ForceType::Impulse}},
+			{xray::ui::KeySymbol::key_s, KeyStateData{-xray::math::vec3f::stdc::unit_z, ForceType::Impulse}},
+			{xray::ui::KeySymbol::key_a, KeyStateData{-xray::math::vec3f::stdc::unit_x, ForceType::Impulse}},
+			{xray::ui::KeySymbol::key_d, KeyStateData{xray::math::vec3f::stdc::unit_x, ForceType::Impulse}},
+			{xray::ui::KeySymbol::key_q, KeyStateData{xray::math::vec3f::stdc::unit_z, ForceType::Torque}},
+			{xray::ui::KeySymbol::key_e, KeyStateData{-xray::math::vec3f::stdc::unit_z, ForceType::Torque}},
+			{xray::ui::KeySymbol::up, KeyStateData{xray::math::vec3f::stdc::unit_x, ForceType::Torque}},
+			{xray::ui::KeySymbol::down, KeyStateData{-xray::math::vec3f::stdc::unit_x, ForceType::Torque}},
+			{xray::ui::KeySymbol::left, KeyStateData{-xray::math::vec3f::stdc::unit_y, ForceType::Torque}},
+			{xray::ui::KeySymbol::right, KeyStateData{xray::math::vec3f::stdc::unit_y, ForceType::Torque}},
+		};
 
-        xray::math::vec2f32 screen_size_inv;
-        tl::optional<xray::math::vec2f32> last_mouse_down{};
+		xray::math::vec2f32 screen_size_inv;
+		tl::optional<xray::math::vec2f32> last_mouse_down{};
 
-        InputStateTracker(xray::base::MemoryArena* arena,
-                          std::span<const xray::ui::GamepadAxisInfo> ai,
-                          xray::math::vec2f32 scr_size);
+		InputStateTracker(
+			xray::base::MemoryArena* arena, std::span<const xray::ui::GamepadAxisInfo> ai, xray::math::vec2f32 scr_size
+		);
 
-    } _inputstate;
+	} _inputstate;
 
-  public:
-    GameSimulation(PrivateConstructionToken,
-                   const InitContext& init_context,
-                   xray::base::unique_pointer<PhysicsSystem> phys,
-                   Terrain terrain,
-                   std::span<std::byte> arena_perm,
-                   std::span<std::byte> arena_temp);
-    ~GameSimulation();
+public:
+	GameSimulation(
+		PrivateConstructionToken,
+		const InitContext& init_context,
+		xray::base::unique_pointer<PhysicsSystem> phys,
+		Terrain terrain,
+		std::span<std::byte> arena_perm,
+		std::span<std::byte> arena_temp
+	);
+	~GameSimulation();
 };
 
-}
+}  // namespace B5

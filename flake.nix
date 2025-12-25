@@ -30,7 +30,9 @@
             helix
 
             gcc
-            # clang
+            clang
+            libcxx
+            libcxx.dev
             clang-tools
             gdb
             nnd
@@ -70,20 +72,6 @@
             glslang
             bashInteractive
             python3
-
-            # (python311.withPackages (python-pkgs: [
-            #   # select Python packages here
-            #   python-pkgs.pwndbg
-            #   #python-pkgs.pandas
-            # ]))
-
-            #(vscode-with-extensions.override {
-            #  vscodeExtensions = with vscode-extensions; [
-            #    ms-vscode.cpptools
-            #    vadimcn.vscode-lldb
-            #    mkhl.direnv
-            #  ];
-            #})
 
             # libs
             zlib

@@ -115,6 +115,11 @@ tl::optional<vec2f32> world_to_screen(
 	};
 }
 
+B5::simulation_details::GameWorldState::GameWorldState(xray::base::MemoryArena& arena)
+	: ent_gltf{arena}, ent_basic{arena}, ent_physics_bodies{arena} {}
+
+B5::simulation_details::GameWorldState::~GameWorldState() {}
+
 B5::GameSimulation::SimState::SimState(const InitContext& init_context)
 	: arcball_cam{xray::math::vec3f::stdc::zero, 1.0f, {init_context.surface_width, init_context.surface_height}},
 	  flightcam{
