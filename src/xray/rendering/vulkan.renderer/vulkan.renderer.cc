@@ -43,6 +43,7 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/rangeless/fn.hpp"
 #include "xray/base/memory.arena.hpp"
+#include "xray/base/thread.local.context.hpp"
 #include "xray/base/containers/arena.string.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
@@ -101,7 +102,27 @@ inline bool operator==(const VkExtensionProperties& ea, const VkExtensionPropert
 
 namespace xray::rendering {
 
-#define PFN_LIST_ENTRY(fnproto, name) fnproto vkfn::name{nullptr};
+struct VulkanInstanceExtensionTag {};
+struct VulkanDeviceExtensionTag {};
+
+template <typename VkFnProto, typename VkProcAddrHolder>
+VkFnProto load_vulkan_proc(VkProcAddrHolder proc_provider, const char* proc_name) {
+	using provider_type = std::remove_cvref_t<decltype(proc_provider)>;
+	if constexpr (std::is_same_v<VkInstance, provider_type>) {
+		auto inst_proc_addr = reinterpret_cast<VkFnProto>(vkGetInstanceProcAddr(proc_provider, proc_name));
+		XR_LOG_INFO("Request for instance proc {} resolved @ {:p}", proc_name, fmt::ptr(inst_proc_addr));
+		return inst_proc_addr;
+	} else if constexpr (std::is_same_v<VkDevice, provider_type>) {
+		auto device_proc_addr = reinterpret_cast<VkFnProto>(vkGetDeviceProcAddr(proc_provider, proc_name));
+		XR_LOG_INFO("Request for device proc {} resolved @ {:p}", proc_name, fmt::ptr(device_proc_addr));
+		return device_proc_addr;
+	} else {
+		static_assert(false && "Wrong argument passed for proc address resolver.");
+	}
+}
+
+#define PFN_LIST_ENTRY(fnproto, name, tag) fnproto vkfn::name{nullptr};
+#include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatched.functions.hpp"
 FUNCTION_POINTERS_LIST
 #undef PFN_LIST_ENTRY
 
@@ -124,7 +145,8 @@ std::string_view format_vk_func_fail(
 	return string_view{scratch_buffer.data(), static_cast<size_t>(cch)};
 }
 
-namespace r_details {
+namespace details {
+
 thread_local std::byte kTisButALocalScratch[xray::base::kilobytes(128)];
 
 VkBool32 r_vk_debug_msg_output(
@@ -136,7 +158,7 @@ VkBool32 r_vk_debug_msg_output(
 	xray::base::MemoryArena scratch_arena{kTisButALocalScratch};
 	xray::base::containers::string dbg_str{scratch_arena};
 
-	dbg_str = "[vkdebug]";
+	dbg_str = "[Vulkan]";
 	struct SeverityFlagWithName {
 		VkDebugUtilsMessageSeverityFlagBitsEXT flag;
 		const char* name;
@@ -207,20 +229,7 @@ VkBool32 r_vk_debug_msg_output(
 	return VK_FALSE;
 }
 
-}  // namespace r_details
-
-small_vec_4<VkExtensionProperties> enumerate_instance_extensions() {
-	uint32_t exts_count{};
-	small_vec_4<VkExtensionProperties> exts_props{};
-
-	vkEnumerateInstanceExtensionProperties(nullptr, &exts_count, nullptr);
-	if (exts_count != 0) {
-		exts_props.resize(exts_count);
-		vkEnumerateInstanceExtensionProperties(nullptr, &exts_count, exts_props.data());
-	}
-
-	return exts_props;
-}
+}  // namespace details
 
 itlib::small_vector<VkPhysicalDevice, 4> enumerate_physical_devices(VkInstance instance) {
 	uint32_t phys_devs_count{};
@@ -654,50 +663,72 @@ struct SwapchainStateCreationInfo {
 
 tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainStateCreationInfo& create_info);
 
-tl::optional<VulkanRenderer> VulkanRenderer::create(const WindowPlatformData& win_data, const RendererConfig& cfg) {
-	const itlib::small_vector<VkExtensionProperties, 4> supported_extensions{enumerate_instance_extensions()};
-	for (const VkExtensionProperties& e : supported_extensions) {
-		XR_LOG_INFO("extension: {} - {:#0x}", e.extensionName, e.specVersion);
+tl::optional<VulkanRenderer> VulkanRenderer::create(
+	xray::base::MemoryArena& arena, const WindowPlatformData& win_data, const RendererConfig& cfg
+) {
+	using namespace xray::base;
+	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({&arena});
+
+	uint32_t instance_version{};
+	vkEnumerateInstanceVersion(&instance_version);
+
+	XR_LOG_INFO(
+		"Vulkan version {}.{}.{}.{}\n",
+		VK_API_VERSION_VARIANT(instance_version),
+		VK_API_VERSION_MAJOR(instance_version),
+		VK_API_VERSION_MINOR(instance_version),
+		VK_API_VERSION_PATCH(instance_version)
+	);
+
+	//
+	// output present extensions info
+	{
+		uint32_t property_count{};
+		vkEnumerateInstanceExtensionProperties(nullptr, &property_count, nullptr);
+
+		if (property_count) {
+			base::containers::vector<VkExtensionProperties> ext_props{property_count, *scratch_pad.arena};
+			vkEnumerateInstanceExtensionProperties(nullptr, &property_count, ext_props.data());
+
+			for (const VkExtensionProperties& ext : ext_props) {
+				XR_LOG_INFO("extension: {} - {:#0x}", ext.extensionName, ext.specVersion);
+			}
+		}
 	}
 
-	const small_vec_4<const char*> extensions_list{[&supported_extensions]() {
-		small_vec_4<const char*> exts_list{
-			VK_KHR_SURFACE_EXTENSION_NAME,
-#if defined(XRAY_OS_IS_WINDOWS)
-			VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-#else
-			VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
-			VK_KHR_XCB_SURFACE_EXTENSION_NAME,
-#endif
-			VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-			VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
-		};
-
-		static constexpr const initializer_list<const char*> display_extensions_list = {
-			VK_KHR_DISPLAY_EXTENSION_NAME, VK_KHR_DISPLAY_SWAPCHAIN_EXTENSION_NAME
-		};
-
-#if 0
-        lz::chain(display_extensions_list)
-            .filter([&supported_extensions](const char* ext_name) {
-                return supported_extensions % fn::exists_where([ext_name](const VkExtensionProperties& e) {
-                           return strcmp(e.extensionName, ext_name) == 0;
-                       });
-            })
-            .copyTo(std::back_inserter(exts_list));
-#else
-		for (const char* ext : display_extensions_list) {
-			const bool is_supported = supported_extensions % fn::exists_where([ext](const VkExtensionProperties& e) {
-										  return strcmp(e.extensionName, ext) == 0;
-									  });
-			if (is_supported) exts_list.push_back(ext);
+	//
+	// output layers info
+	{
+		uint32_t layer_count{};
+		vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
+		if (layer_count != 0) {
+			base::containers::vector<VkLayerProperties> layer_props{layer_count, *scratch_pad.arena};
+			vkEnumerateInstanceLayerProperties(&layer_count, layer_props.data());
+			for (const VkLayerProperties& layer_prop : layer_props) {
+				XR_LOG_INFO("Layer: {}, desc {}\n", layer_prop.layerName, layer_prop.description);
+			}
 		}
+	}
+
+	//
+	// TODO: add device buffer address support
+	const char* const extensions_list[] = {
+		VK_KHR_SURFACE_EXTENSION_NAME,
+		VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
+#if defined(XRAY_OS_IS_WINDOWS)
+		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+#else
+		VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+		VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+		// VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+	};
 
-		return exts_list;
-	}()};
+	//
+	// Layers and validation features are controlled through vk_layer_settings.txt
 
-	const VkApplicationInfo app_info = {
+	const VkApplicationInfo app_info{
 		.sType				= VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext				= nullptr,
 		.pApplicationName	= "xray-ng-app",
@@ -707,9 +738,7 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(const WindowPlatformData& wi
 		.apiVersion			= VK_API_VERSION_1_3,
 	};
 
-	constexpr const char* const kRequiredLayers[] = {"VK_LAYER_KHRONOS_validation"};
-
-	const VkDebugUtilsMessengerCreateInfoEXT dbg_utils_msg_create_ext = {
+	const VkDebugUtilsMessengerCreateInfoEXT dbg_utils_msg_create_ext{
 		.sType			 = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 		.pNext			 = nullptr,
 		.flags			 = 0,
@@ -717,7 +746,7 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(const WindowPlatformData& wi
 						   VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT,
 		.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 					   VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-		.pfnUserCallback = r_details::r_vk_debug_msg_output,
+		.pfnUserCallback = details::r_vk_debug_msg_output,
 		.pUserData		 = nullptr,
 	};
 
@@ -726,30 +755,34 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(const WindowPlatformData& wi
 		.pNext					 = &dbg_utils_msg_create_ext,
 		.flags					 = 0,
 		.pApplicationInfo		 = &app_info,
-		.enabledLayerCount		 = static_cast<uint32_t>(std::size(kRequiredLayers)),
-		.ppEnabledLayerNames	 = kRequiredLayers,
+		.enabledLayerCount		 = 0,
+		.ppEnabledLayerNames	 = nullptr,
 		.enabledExtensionCount	 = static_cast<uint32_t>(std::size(extensions_list)),
-		.ppEnabledExtensionNames = extensions_list.data(),
+		.ppEnabledExtensionNames = extensions_list,
 	};
 
 	xrUniqueVkInstance vkinstance{VK_NULL_HANDLE, VkResourceDeleter_VkInstance{NotOwnedVulkanResource{}}};
-	WRAP_VULKAN_FUNC(vkCreateInstance, &instance_create_info, nullptr, raw_ptr_ptr(vkinstance));
+	vkCreateInstance(&instance_create_info, nullptr, raw_ptr_ptr(vkinstance));
 
 	if (!vkinstance) return tl::nullopt;
 
 	XR_LOG_INFO("Vulkan instance created.");
 
+	//
+	// Load instance extensions
+
 #define XRAY_MK1(tok) XRAY_STRINGIZE_a(tok)
 #define XRAY_MK0(a, b) XRAY_MK1(a##b)
 #define XR_MAKE_VK_FUNC(name) XRAY_MK0(vk, name)
 
-#define PFN_LIST_ENTRY(fnproto, name)                                                                              \
-	do {                                                                                                           \
-		vkfn::name = reinterpret_cast<fnproto>(vkGetInstanceProcAddr(raw_ptr(vkinstance), XR_MAKE_VK_FUNC(name))); \
-		XR_LOG_INFO("Querying function pointer {} -> {:#x}", #fnproto, (uintptr_t)vkfn::name);                     \
-		assert(vkfn::name != nullptr);                                                                             \
+#define PFN_LIST_ENTRY(fnproto, name, tag)                                                      \
+	do {                                                                                        \
+		if (std::is_same_v<tag, VulkanInstanceExtensionTag>) {                                  \
+			vkfn::name = load_vulkan_proc<fnproto>(raw_ptr(vkinstance), XR_MAKE_VK_FUNC(name)); \
+		}                                                                                       \
 	} while (0);
 
+#include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatched.functions.hpp"
 	FUNCTION_POINTERS_LIST
 #undef PFN_LIST_ENTRY
 #undef FUNCTION_POINTERS_LIST
@@ -949,7 +982,6 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(const WindowPlatformData& wi
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
 		VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
-		VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
 		VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
 	};
 
@@ -976,6 +1008,20 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(const WindowPlatformData& wi
 	};
 
 	if (!logical_device) return tl::nullopt;
+
+//
+// Load device extensions
+#define PFN_LIST_ENTRY(fnproto, name, tag)                                                          \
+	do {                                                                                            \
+		if (std::is_same_v<tag, VulkanDeviceExtensionTag>) {                                        \
+			vkfn::name = load_vulkan_proc<fnproto>(raw_ptr(logical_device), XR_MAKE_VK_FUNC(name)); \
+		}                                                                                           \
+	} while (0);
+
+#include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatched.functions.hpp"
+	FUNCTION_POINTERS_LIST
+#undef PFN_LIST_ENTRY
+#undef FUNCTION_POINTERS_LIST
 
 	array<VkQueue, 2> queues{};
 	vkGetDeviceQueue(raw_ptr(logical_device), queue_graphics, 0, &queues[0]);
@@ -2164,43 +2210,43 @@ tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainState
 }
 
 void VulkanRenderer::dbg_set_object_name(
-	const uint64_t object, const VkDebugReportObjectTypeEXT object_type, const char* name
+	const uint64_t object, const VkObjectType object_type, const char* name
 ) const noexcept {
-	const VkDebugMarkerObjectNameInfoEXT obj_name{
-		.sType		 = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-		.pNext		 = nullptr,
-		.objectType	 = object_type,
-		.object		 = object,
-		.pObjectName = name,
+	const VkDebugUtilsObjectNameInfoEXT obj_name{
+		.sType		  = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+		.pNext		  = nullptr,
+		.objectType	  = object_type,
+		.objectHandle = object,
+		.pObjectName  = name,
 	};
-	WRAP_VULKAN_FUNC(vkfn::DebugMarkerSetObjectNameEXT, raw_ptr(_render_state.dev_logical), &obj_name);
+	vkfn::SetDebugUtilsObjectNameEXT(raw_ptr(_render_state.dev_logical), &obj_name);
 }
 
 [[nodiscard]] DebugMarkerEndScoped VulkanRenderer::dbg_marker_begin(
 	VkCommandBuffer cmd_buf, const char* name, const rgb_color color
 ) noexcept {
-	const VkDebugMarkerMarkerInfoEXT debug_marker{
-		.sType		 = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
-		.pNext		 = nullptr,
-		.pMarkerName = name,
-		.color		 = {color.r, color.g, color.b, color.a},
+	const VkDebugUtilsLabelEXT debug_label{
+		.sType		= VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+		.pNext		= nullptr,
+		.pLabelName = name,
+		.color		= {color.r, color.g, color.b, color.a},
 	};
 
-	vkfn::CmdDebugMarkerBeginEXT(cmd_buf, &debug_marker);
+	vkfn::CmdBeginDebugUtilsLabelEXT(cmd_buf, &debug_label);
 	return DebugMarkerEndScoped{cmd_buf};
 }
 
-void VulkanRenderer::dbg_marker_end(VkCommandBuffer cmd_buf) noexcept { vkfn::CmdDebugMarkerEndEXT(cmd_buf); }
+void VulkanRenderer::dbg_marker_end(VkCommandBuffer cmd_buf) noexcept { vkfn::CmdEndDebugUtilsLabelEXT(cmd_buf); }
 
 void VulkanRenderer::dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept {
-	const VkDebugMarkerMarkerInfoEXT debug_marker{
-		.sType		 = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
-		.pNext		 = nullptr,
-		.pMarkerName = name,
-		.color		 = {color.r, color.g, color.b, color.a},
+	const VkDebugUtilsLabelEXT debug_marker{
+		.sType		= VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+		.pNext		= nullptr,
+		.pLabelName = name,
+		.color		= {color.r, color.g, color.b, color.a},
 	};
 
-	vkfn::CmdDebugMarkerInsertEXT(cmd_buf, &debug_marker);
+	vkfn::CmdInsertDebugUtilsLabelEXT(cmd_buf, &debug_marker);
 }
 
 tl::expected<QueuedJob, xray::rendering::VulkanError> xray::rendering::VulkanRenderer::create_job(

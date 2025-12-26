@@ -1544,7 +1544,7 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 
 	const RendererConfig rcfg{RendererConfig::from_file(xr_app_config->config_root() / "renderer.conf")};
 
-	tl::optional<VulkanRenderer> opt_renderer{VulkanRenderer::create(main_window.platform_data(), rcfg)};
+	tl::optional<VulkanRenderer> opt_renderer{VulkanRenderer::create(*arena_perm, main_window.platform_data(), rcfg)};
 	if (!opt_renderer) {
 		return tl::make_unexpected(MiscError{.what = "Failed to create Vulkan renderer"});
 	}
@@ -1776,7 +1776,6 @@ void GameMain::loop_event(const xray::ui::window_loop_event& loop_event) {
 
 }  // namespace B5
 
-
 int
 #if defined(XRAY_OS_IS_WINDOWS)
 	WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
@@ -1788,7 +1787,7 @@ main(int argc, char** argv)
 
 	xray::base::setup_logging(LogLevel::Debug);
 	xr_app_config = ConfigSystem::instance();
-	
+
 	// void* addr = xray::base::os_reserve_mem(
 	// 	xray::base::round_up<size_t>(xray::base::megabytes(2), xray::base::os_get_page_size())
 	// );
