@@ -60,7 +60,6 @@
             vulkan-headers
             vulkan-loader
             vulkan-tools-lunarg
-            vulkan-validation-layers
             vulkan-utility-libraries
             vulkan-caps-viewer
             vulkan-validation-layers

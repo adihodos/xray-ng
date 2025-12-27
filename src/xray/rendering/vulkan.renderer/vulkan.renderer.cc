@@ -10,12 +10,14 @@
 #include <mutex>
 #include <stacktrace>
 
-#include <itlib/small_vector.hpp>
 #include <fmt/core.h>
 #include <tl/optional.hpp>
 #include <swl/variant.hpp>
 #include <mio/mmap.hpp>
 
+#include <Lz/algorithm/find_if.hpp>
+#include <Lz/algorithm/transform.hpp>
+#include <Lz/algorithm/index_of_if.hpp>
 #include <Lz/filter.hpp>
 #include <Lz/map.hpp>
 #include <Lz/procs/to.hpp>
@@ -46,6 +48,7 @@
 #include "xray/base/thread.local.context.hpp"
 #include "xray/base/containers/arena.string.hpp"
 #include "xray/base/containers/arena.vector.hpp"
+#include "xray/base/containers/arena.unorderered_map.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatch.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
@@ -53,18 +56,16 @@
 #include "xray/rendering/vulkan.renderer/vulkan.pretty.print.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 
+#define XRAY_MK1(tok) XRAY_STRINGIZE_a(tok)
+#define XRAY_MK0(a, b) XRAY_MK1(a##b)
+#define XR_MAKE_VK_FUNC(name) XRAY_MK0(vk, name)
+
 using namespace xray::base;
 using namespace std;
 
 namespace fn = rangeless::fn;
 using fn::operators::operator%;
 using fn::operators::operator%=;
-
-template <typename T>
-using small_vec_2 = itlib::small_vector<T, 2>;
-
-template <typename T>
-using small_vec_4 = itlib::small_vector<T, 4>;
 
 template <typename T>
 struct variant_type_is_not_handled {};
@@ -101,6 +102,67 @@ inline bool operator==(const VkExtensionProperties& ea, const VkExtensionPropert
 }
 
 namespace xray::rendering {
+
+namespace details {
+
+template <typename StructType>
+concept VulkanChainableType = requires(StructType chained_struct) {
+	{ chained_struct.pNext };
+	{ std::is_same_v<decltype(chained_struct.pNext), void*> };
+};
+
+template <VulkanChainableType... VulkanChainedStructs>
+void chain_structs(VulkanChainedStructs&... chained_structs) {
+	void* next_chained = nullptr;
+	(
+		[&next_chained](auto&& current_struct) {
+			current_struct.pNext = next_chained;
+			next_chained		 = &current_struct;
+		}(std::forward<VulkanChainedStructs>(chained_structs)),
+		...
+	);
+}
+
+bool vk_renderer_check_physical_device_presentation_surface_support(
+	const WindowPlatformData& win_data, VkInstance instance, VkPhysicalDevice device, const uint32_t queue_index
+) {
+#if defined(XRAY_OS_IS_WINDOWS)
+	auto get_win32_presentation_support = reinterpret_cast<PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR>(
+		vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceWin32PresentationSupportKHR")
+	);
+
+	assert(get_win32_presentation_support != nullptr);
+	return get_win32_presentation_support(device, queue_index);
+#else
+	if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
+		PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR get_physical_device_xlib_presentation_support_khr =
+			reinterpret_cast<PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR>(
+				vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXlibPresentationSupportKHR")
+			);
+
+		assert(get_physical_device_xlib_presentation_support_khr != nullptr);
+		return get_physical_device_xlib_presentation_support_khr(
+				   device, queue_index, reinterpret_cast<Display*>(xlib->display), xlib->visual
+			   ) == VK_TRUE;
+	}
+
+	if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
+		PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR get_physical_device_xcb_presentation_support_khr =
+			reinterpret_cast<PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR>(
+				vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXcbPresentationSupportKHR")
+			);
+
+		assert(get_physical_device_xcb_presentation_support_khr != nullptr);
+		return get_physical_device_xcb_presentation_support_khr(
+				   device, queue_index, reinterpret_cast<xcb_connection_t*>(xcb->connection), xcb->visual
+			   ) == VK_TRUE;
+	}
+
+	XR_LOG_ERR("Unsupported Windowing system ...");
+	return false;
+#endif
+}
+}  // namespace details
 
 struct VulkanInstanceExtensionTag {};
 struct VulkanDeviceExtensionTag {};
@@ -230,100 +292,6 @@ VkBool32 r_vk_debug_msg_output(
 }
 
 }  // namespace details
-
-itlib::small_vector<VkPhysicalDevice, 4> enumerate_physical_devices(VkInstance instance) {
-	uint32_t phys_devs_count{};
-	itlib::small_vector<VkPhysicalDevice, 4> phys_devices{};
-
-	vkEnumeratePhysicalDevices(instance, &phys_devs_count, nullptr);
-	if (phys_devs_count) {
-		phys_devices.resize(phys_devs_count);
-		vkEnumeratePhysicalDevices(instance, &phys_devs_count, phys_devices.data());
-	}
-
-	return phys_devices;
-}
-
-detail::PhysicalDeviceData::PhysicalDeviceData(VkPhysicalDevice dev) : device{dev} {
-	properties.base.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-	properties.base.pNext = &properties.vk11;
-
-	properties.vk11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES;
-	properties.vk11.pNext = &properties.vk12;
-
-	properties.vk12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
-	properties.vk12.pNext = &properties.vk13;
-
-	properties.vk13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES;
-	properties.vk13.pNext = &properties.descriptor_indexing;
-
-	properties.descriptor_indexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
-	properties.descriptor_indexing.pNext = nullptr;
-
-	features.base.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	features.base.pNext = &features.vk11;
-
-	features.vk11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-	features.vk11.pNext = &features.vk12;
-
-	features.vk12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-	features.vk12.pNext = &features.vk13;
-
-	features.vk13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-	features.vk13.pNext = &features.dyn_state3;
-
-	features.dyn_state3.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
-	features.dyn_state3.pNext = nullptr;
-
-	vkGetPhysicalDeviceFeatures2(device, &features.base);
-	vkGetPhysicalDeviceProperties2(device, &properties.base);
-	vkGetPhysicalDeviceMemoryProperties(device, &memory);
-
-	uint32_t queue_fams{};
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_fams, nullptr);
-	queue_props.resize(queue_fams);
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_fams, queue_props.data());
-}
-
-detail::PhysicalDeviceData::PhysicalDeviceData(const PhysicalDeviceData& rhs) {
-	memcpy(&this->features, &rhs.features, sizeof(this->features));
-	memcpy(&this->properties, &rhs.properties, sizeof(this->properties));
-	memcpy(&this->memory, &rhs.memory, sizeof(this->memory));
-
-	features.base.pNext = &features.vk11;
-	features.vk11.pNext = &features.vk12;
-	features.vk12.pNext = &features.vk13;
-	features.vk13.pNext = &features.dyn_state3;
-
-	properties.base.pNext = &properties.vk11;
-	properties.vk11.pNext = &properties.vk12;
-	properties.vk12.pNext = &properties.vk13;
-	properties.vk13.pNext = &properties.descriptor_indexing;
-	queue_props			  = rhs.queue_props;
-	device				  = rhs.device;
-}
-
-detail::PhysicalDeviceData& detail::PhysicalDeviceData::operator=(const PhysicalDeviceData& rhs) {
-	if (this != &rhs) {
-		memcpy(&this->features, &rhs.features, sizeof(this->features));
-		memcpy(&this->properties, &rhs.properties, sizeof(this->properties));
-		memcpy(&this->memory, &rhs.memory, sizeof(this->memory));
-
-		features.base.pNext = &features.vk11;
-		features.vk11.pNext = &features.vk12;
-		features.vk12.pNext = &features.vk13;
-		features.vk13.pNext = &features.dyn_state3;
-
-		properties.base.pNext = &properties.vk11;
-		properties.vk11.pNext = &properties.vk12;
-		properties.vk12.pNext = &properties.vk13;
-		properties.vk13.pNext = &properties.descriptor_indexing;
-		queue_props			  = rhs.queue_props;
-		device				  = rhs.device;
-	}
-
-	return *this;
-}
 
 struct PresentToWindowSurface {
 	WindowPlatformData window_data;
@@ -663,12 +631,544 @@ struct SwapchainStateCreationInfo {
 
 tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainStateCreationInfo& create_info);
 
-tl::optional<VulkanRenderer> VulkanRenderer::create(
-	xray::base::MemoryArena& arena, const WindowPlatformData& win_data, const RendererConfig& cfg
+struct QueueFamilyIndices {
+	uint32_t graphics;
+	uint32_t compute;
+	uint32_t transfer;
+};
+
+tl::optional<QueueFamilyIndices> vk_renderer_pick_queue_families(
+	xray::base::MemoryArena& arena, VkPhysicalDevice phys_device, VkSurfaceKHR surface
 ) {
-	using namespace xray::base;
 	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({&arena});
 
+	uint32_t queue_families_count{};
+	vkGetPhysicalDeviceQueueFamilyProperties2(phys_device, &queue_families_count, nullptr);
+	if (queue_families_count == 0) {
+		return tl::nullopt;
+	}
+
+	base::containers::vector<VkQueueFamilyProperties2> queue_family_props{*scratch_pad.arena};
+	queue_family_props.resize(queue_families_count);
+
+	vkGetPhysicalDeviceQueueFamilyProperties2(phys_device, &queue_families_count, queue_family_props.data());
+	if (queue_families_count == 0) {
+		return tl::nullopt;
+	}
+
+	tl::optional<uint32_t> q_graphics{};
+	tl::optional<uint32_t> q_compute{};
+	tl::optional<uint32_t> q_transfer{};
+
+	for (size_t queue_index = 0; queue_index < queue_family_props.size(); ++queue_index) {
+		if (q_graphics && q_compute && q_transfer) {
+			break;
+		}
+
+		const auto& queue_props	 = queue_family_props[queue_index];
+		uint32_t max_queue_count = queue_props.queueFamilyProperties.queueCount;
+		if (!q_graphics && (queue_props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+			VkBool32 has_wsi_support	= VK_FALSE;
+			const VkResult query_result = vkGetPhysicalDeviceSurfaceSupportKHR(
+				phys_device, static_cast<uint32_t>(queue_index), surface, &has_wsi_support
+			);
+			if (query_result == VK_SUCCESS && has_wsi_support) {
+				q_graphics = static_cast<uint32_t>(queue_index);
+				max_queue_count -= 1;
+			}
+		}
+
+		if (max_queue_count == 0) {
+			continue;
+		}
+
+		if (!q_compute && (queue_props.queueFamilyProperties.queueFlags & VK_QUEUE_COMPUTE_BIT)) {
+			q_compute = static_cast<uint32_t>(queue_index);
+			max_queue_count -= 1;
+		}
+
+		if (max_queue_count == 0) {
+			continue;
+		}
+
+		if (!q_transfer && (queue_props.queueFamilyProperties.queueFlags & VK_QUEUE_TRANSFER_BIT)) {
+			q_transfer = static_cast<uint32_t>(queue_index);
+			max_queue_count -= 1;
+		}
+	}
+
+	if (q_graphics && q_compute && q_transfer) {
+		return QueueFamilyIndices{
+			.graphics = *q_graphics,
+			.compute  = *q_compute,
+			.transfer = *q_transfer,
+		};
+	}
+
+	return tl::nullopt;
+}
+
+tl::optional<PresentToSurface> vk_renderer_create_surface(const WindowPlatformData& win_data, VkInstance instance) {
+#if defined(XRAY_OS_IS_WINDOWS)
+	if (const WindowPlatformDataWin32* wp = swl::get_if<WindowPlatformDataWin32>(&win_data)) {
+		const VkWin32SurfaceCreateInfoKHR create_info{
+			.sType	   = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+			.pNext	   = nullptr,
+			.flags	   = 0,
+			.hinstance = reinterpret_cast<HINSTANCE>(wp->module),
+			.hwnd	   = reinterpret_cast<HWND>(wp->window),
+		};
+
+		xrUniqueVkSurfaceKHR surface{
+			[&]() {
+				VkSurfaceKHR surface{};
+				WRAP_VULKAN_FUNC(vkCreateWin32SurfaceKHR, instance, &create_info, nullptr, &surface);
+				return surface;
+			}(),
+			VkResourceDeleter_VkSurfaceKHR{instance},
+		};
+
+		if (!surface) return tl::nullopt;
+
+		return tl::make_optional<PresentToSurface>(PresentToWindowSurface{*wp, std::move(surface)});
+	}
+
+#else
+	if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
+		return create_xlib_surface(*xlib, instance);
+	}
+
+	if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
+		return create_xcb_surface(*xcb, instance);
+	}
+#endif
+	return tl::nullopt;
+}
+
+struct R_PhysicalDeviceSetup {
+	VkPhysicalDevice physical;
+	VkPhysicalDeviceProperties2 properties;
+	VkPhysicalDeviceDescriptorIndexingProperties descriptor_indexing_properties;
+	VkPhysicalDeviceVulkan11Properties p_vk11;
+	VkPhysicalDeviceVulkan12Properties p_vk12;
+	VkPhysicalDeviceVulkan13Properties p_vk13;
+	VkPhysicalDeviceMemoryProperties2 memory_properties;
+	VkSurfaceCapabilitiesKHR surface_caps;
+	VkPhysicalDeviceFeatures2 f_device;
+	VkPhysicalDeviceDescriptorBufferFeaturesEXT f_descriptor_buffer;
+	VkPhysicalDeviceVulkan11Features f_vk11;
+	VkPhysicalDeviceVulkan12Features f_vk12;
+	VkPhysicalDeviceVulkan13Features f_vk13;
+	QueueFamilyIndices queue_indices;
+	VkPresentModeKHR present_mode;
+	VkSurfaceFormatKHR surface_format;
+};
+
+tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
+	xray::base::MemoryArena& arena, VkInstance instance, VkSurfaceKHR surface
+) {
+	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({&arena});
+
+	uint32_t phys_devs_count{};
+
+	vkEnumeratePhysicalDevices(instance, &phys_devs_count, nullptr);
+	if (phys_devs_count == 0) {
+		return tl::nullopt;
+	}
+
+	base::containers::vector<VkPhysicalDevice> phys_devices{*scratch_pad.arena};
+	phys_devices.resize(phys_devs_count);
+	vkEnumeratePhysicalDevices(instance, &phys_devs_count, phys_devices.data());
+	if (phys_devs_count == 0) {
+		return tl::nullopt;
+	}
+
+	VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptor_buffer_features{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT,
+	};
+	VkPhysicalDeviceVulkan13Features vk13features{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+	};
+
+	VkPhysicalDeviceVulkan12Features vk12features{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+	};
+
+	VkPhysicalDeviceVulkan11Features vk11features{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+	};
+
+	VkPhysicalDeviceFeatures2 phys_device_features{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+	};
+
+	details::chain_structs(descriptor_buffer_features, vk13features, vk12features, vk11features, phys_device_features);
+	VkSurfaceCapabilitiesKHR surface_caps{};
+
+	VkPhysicalDeviceVulkan11Properties p_vk11{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES,
+	};
+	VkPhysicalDeviceVulkan12Properties p_vk12{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES,
+	};
+	VkPhysicalDeviceVulkan13Properties p_vk13{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES,
+	};
+
+	VkPhysicalDeviceDescriptorIndexingProperties descriptor_indexing_properties{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES,
+	};
+
+	VkPhysicalDeviceProperties2 phys_dev_properties{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+	};
+
+	details::chain_structs(p_vk13, p_vk12, p_vk11, descriptor_indexing_properties, phys_dev_properties);
+
+	for (VkPhysicalDevice phys_device : phys_devices) {
+		vkGetPhysicalDeviceProperties2(phys_device, &phys_dev_properties);
+		XR_LOG_INFO("Checking device {} ...", phys_dev_properties.properties.deviceName);
+
+		if (phys_dev_properties.properties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+			XR_LOG_INFO("Rejecting {}, not a discrete GPU", phys_dev_properties.properties.deviceName);
+			continue;
+		}
+
+		vkGetPhysicalDeviceFeatures2(phys_device, &phys_device_features);
+
+		const bool is_suitable_device = descriptor_buffer_features.descriptorBuffer != 0 and
+										phys_device_features.features.multiDrawIndirect != 0 and
+										vk11features.shaderDrawParameters != 0 and
+										vk12features.drawIndirectCount != 0 and vk12features.descriptorIndexing != 0 and
+										vk12features.descriptorBindingPartiallyBound != 0 and
+										vk12features.descriptorBindingVariableDescriptorCount != 0;
+
+		if (!is_suitable_device) {
+			XR_LOG_INFO("Rejecting {}, missing some required features", phys_dev_properties.properties.deviceName);
+			continue;
+		}
+
+		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys_device, surface, &surface_caps) != VK_SUCCESS) {
+			continue;
+		}
+
+		if (!(surface_caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) {
+			continue;
+		}
+
+		const tl::optional<VkSurfaceFormatKHR> surface_format = [&]() -> tl::optional<VkSurfaceFormatKHR> {
+			uint32_t surface_fmts_count{};
+			vkGetPhysicalDeviceSurfaceFormatsKHR(phys_device, surface, &surface_fmts_count, nullptr);
+			if (surface_fmts_count == 0) {
+				XR_LOG_INFO("No supported surface format found ...");
+				return tl::nullopt;
+			}
+
+			ScratchPadArena scratch_scope{scratch_pad.arena};
+			containers::vector<VkSurfaceFormatKHR> surface_format_list{*scratch_scope.arena};
+			surface_format_list.resize(surface_fmts_count);
+			vkGetPhysicalDeviceSurfaceFormatsKHR(phys_device, surface, &surface_fmts_count, surface_format_list.data());
+
+			containers::string dbg_str{*scratch_scope.arena};
+			dbg_str.reserve(2048);
+			for (const VkSurfaceFormatKHR& fmt : surface_format_list) {
+				fmt::format_to(
+					std::back_inserter(dbg_str), " :: {}", vk::to_string(static_cast<vk::Format>(fmt.format))
+				);
+			}
+
+			XR_LOG_INFO("Supporte surface format list: {}", dbg_str);
+
+			constexpr const VkFormat required_format_list[] = {
+				VK_FORMAT_R8G8B8A8_UNORM,
+				VK_FORMAT_B8G8R8A8_UNORM,
+			};
+
+			for (const VkFormat req_fmt : required_format_list) {
+				const auto fmt_pos = lz::index_of_if(surface_format_list, [req_fmt](const VkSurfaceFormatKHR& s_fmt) {
+					return s_fmt.format == req_fmt;
+				});
+				if (fmt_pos != lz::npos) {
+					return surface_format_list[fmt_pos];
+				}
+			}
+
+			return tl::nullopt;
+		}();
+
+		if (!surface_format) {
+			return tl::nullopt;
+		}
+
+		const tl::optional<VkPresentModeKHR> present_mode = [&]() -> tl::optional<VkPresentModeKHR> {
+			uint32_t present_modes_count{};
+			vkGetPhysicalDeviceSurfacePresentModesKHR(phys_device, surface, &present_modes_count, nullptr);
+			if (present_modes_count == 0) {
+				XR_LOG_INFO("No presentation modes supported");
+				return tl::nullopt;
+			}
+
+			ScratchPadArena scratch_scope{scratch_pad.arena};
+			containers::vector<VkPresentModeKHR> present_modes{*scratch_scope.arena};
+			present_modes.resize(present_modes_count);
+
+			vkGetPhysicalDeviceSurfacePresentModesKHR(phys_device, surface, &present_modes_count, present_modes.data());
+
+			containers::string dbg_str{*scratch_scope.arena};
+			dbg_str.reserve(2048);
+			dbg_str.append("present modes");
+
+			for (const VkPresentModeKHR pres_mode : present_modes) {
+				fmt::format_to(
+					std::back_inserter(dbg_str), " :: {}", vk::to_string(static_cast<vk::PresentModeKHR>(pres_mode))
+				);
+			}
+
+			constexpr const VkPresentModeKHR preferred_presentation_modes[] = {
+				VK_PRESENT_MODE_FIFO_KHR,
+				VK_PRESENT_MODE_MAILBOX_KHR,
+				VK_PRESENT_MODE_IMMEDIATE_KHR,
+				VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+			};
+			const auto best_preferred_supported_mode =
+				ranges::find_first_of(preferred_presentation_modes, present_modes);
+
+			if (best_preferred_supported_mode == cend(preferred_presentation_modes)) {
+				XR_LOG_CRITICAL("None of the preferred presentation modes is suppored!");
+				return tl::nullopt;
+			}
+
+			return tl::optional{*best_preferred_supported_mode};
+		}();
+
+		if (!present_mode) {
+			return tl::nullopt;
+		}
+
+		XR_LOG_INFO(
+			"best present mode is {:#x} -> {}",
+			static_cast<uint32_t>(*present_mode),
+			vk::to_string(static_cast<vk::PresentModeKHR>(*present_mode))
+		);
+
+		const tl::optional<QueueFamilyIndices> queue_families =
+			vk_renderer_pick_queue_families(arena, phys_device, surface);
+		if (!queue_families) {
+			return tl::nullopt;
+		}
+
+		VkPhysicalDeviceMemoryProperties2 memory_properties{
+			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
+		};
+
+		vkGetPhysicalDeviceMemoryProperties2(phys_device, &memory_properties);
+
+		//
+		// list device extensions
+		{
+			uint32_t extensions_count{};
+			vkEnumerateDeviceExtensionProperties(phys_device, nullptr, &extensions_count, nullptr);
+			if (extensions_count != 0) {
+				containers::vector<VkExtensionProperties> device_exts_list{
+					*scratch_pad.arena
+
+				};
+
+				device_exts_list.resize(extensions_count);
+				vkEnumerateDeviceExtensionProperties(phys_device, nullptr, &extensions_count, device_exts_list.data());
+
+				containers::string dbg_str{*scratch_pad.arena};
+				dbg_str.reserve(2048);
+
+				for (const VkExtensionProperties& ext_props : device_exts_list) {
+					fmt::format_to(
+						back_inserter(dbg_str), "{} - {:#x}, ", ext_props.extensionName, ext_props.specVersion
+					);
+				}
+				XR_LOG_INFO("Found device extensions: {}", dbg_str);
+			}
+		}
+
+		return tl::optional<R_PhysicalDeviceSetup>{
+			tl::in_place,
+			phys_device,
+			phys_dev_properties,
+			descriptor_indexing_properties,
+			p_vk11,
+			p_vk12,
+			p_vk13,
+			memory_properties,
+			surface_caps,
+			phys_device_features,
+			descriptor_buffer_features,
+			vk11features,
+			vk12features,
+			vk13features,
+			*queue_families,
+			*present_mode,
+			*surface_format,
+		};
+	}
+
+	return tl::nullopt;
+}
+
+struct RQueue_t {
+	uint32_t index{};
+	VkQueue handle{};
+	VkCommandPool cmd_pool{};
+};
+
+struct R_LogicalDeviceSetup {
+	VkDevice device_handle;
+	std::array<RQueue_t, 3> queues;
+};
+
+tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
+	xray::base::MemoryArena& arena, const R_PhysicalDeviceSetup& physical
+) {
+	ScratchPadArena scratch_pad		   = ThreadLocalContext::acquire_scratchpad({&arena});
+	constexpr float queue_priorities[] = {1.0f, 1.0f, 1.0f};
+
+	struct QueueCreationData {
+		VkDeviceQueueCreateInfo create_info;
+		uint32_t queue_index;
+	};
+
+	struct QueueRetrievalData {
+		uint32_t family_index;
+		uint32_t queue_index;
+	};
+
+	containers::vector<QueueRetrievalData> queue_retrieve_data{*scratch_pad.arena};
+	queue_retrieve_data.reserve(3);
+
+	containers::unordered_map<uint32_t, QueueCreationData> queue_create_list{*scratch_pad.arena};
+
+	const uint32_t queue_indices[] = {
+		physical.queue_indices.graphics, physical.queue_indices.transfer, physical.queue_indices.compute
+	};
+
+	for (const uint32_t queue_family_index : queue_indices) {
+		auto itr = queue_create_list.find(queue_family_index);
+		if (itr != end(queue_create_list)) {
+			itr->second.queue_index += 1;
+			itr->second.create_info.queueCount += 1;
+		} else {
+			queue_create_list[queue_family_index] = QueueCreationData{
+				.create_info =
+					VkDeviceQueueCreateInfo{
+						.sType			  = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+						.pNext			  = nullptr,
+						.flags			  = 0,
+						.queueFamilyIndex = queue_family_index,
+						.queueCount		  = 1,
+						.pQueuePriorities = queue_priorities,
+					},
+				.queue_index = 0,
+			};
+		}
+
+		queue_retrieve_data.push_back(
+			QueueRetrievalData{
+				.family_index = queue_family_index,
+				.queue_index  = queue_create_list[queue_family_index].queue_index,
+			}
+		);
+	}
+
+	containers::vector<VkDeviceQueueCreateInfo> queue_create_infos{*scratch_pad.arena};
+	queue_create_infos.reserve(queue_create_list.size());
+
+	for (const auto& [q_family_index, q_create_info] : queue_create_list) {
+		queue_create_infos.push_back(q_create_info.create_info);
+	}
+
+	auto phys_features		 = physical.f_device;
+	auto f_11				 = physical.f_vk11;
+	auto f_12				 = physical.f_vk12;
+	auto f_13				 = physical.f_vk13;
+	auto f_descriptor_buffer = physical.f_descriptor_buffer;
+
+	details::chain_structs(f_descriptor_buffer, f_13, f_12, f_11, phys_features);
+
+	static constexpr initializer_list<const char*> device_extensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+		VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
+		VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
+		VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
+	};
+
+	const VkDeviceCreateInfo device_create_info = {
+		.sType					 = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.pNext					 = &phys_features,
+		.flags					 = 0,
+		.queueCreateInfoCount	 = static_cast<uint32_t>(size(queue_create_infos)),
+		.pQueueCreateInfos		 = queue_create_infos.data(),
+		.enabledLayerCount		 = 0,
+		.ppEnabledLayerNames	 = nullptr,
+		.enabledExtensionCount	 = static_cast<uint32_t>(size(device_extensions)),
+		.ppEnabledExtensionNames = device_extensions.begin(),
+		.pEnabledFeatures		 = nullptr,
+	};
+
+	VkDevice logical_device{};
+	if (vkCreateDevice(physical.physical, &device_create_info, nullptr, &logical_device) != VK_SUCCESS) {
+		return tl::nullopt;
+	}
+
+	//
+	// Load device extensions
+#define PFN_LIST_ENTRY(fnproto, name, tag)                                                 \
+	do {                                                                                   \
+		if (std::is_same_v<tag, VulkanDeviceExtensionTag>) {                               \
+			vkfn::name = load_vulkan_proc<fnproto>(logical_device, XR_MAKE_VK_FUNC(name)); \
+		}                                                                                  \
+	} while (0);
+
+#include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatched.functions.hpp"
+	FUNCTION_POINTERS_LIST
+#undef PFN_LIST_ENTRY
+#undef FUNCTION_POINTERS_LIST
+
+	//
+	// setup queues
+	const array<uint32_t, 3> queue_flags{
+		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+	};
+
+	array<RQueue_t, 3> queues{};
+
+	for (size_t i = 0; i < 3; ++i) {
+		const QueueRetrievalData& qrd = queue_retrieve_data[i];
+		RQueue_t& q_out				  = queues[i];
+
+		vkGetDeviceQueue(logical_device, qrd.family_index, qrd.queue_index, &q_out.handle);
+
+		const VkCommandPoolCreateInfo cmd_pool_create_info = {
+			.sType			  = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+			.pNext			  = nullptr,
+			.flags			  = queue_flags[i],
+			.queueFamilyIndex = static_cast<uint32_t>(qrd.family_index),
+		};
+
+		if (vkCreateCommandPool(logical_device, &cmd_pool_create_info, nullptr, &q_out.cmd_pool) != VK_SUCCESS) {
+			return tl::nullopt;
+		}
+	}
+
+	return tl::optional<R_LogicalDeviceSetup>{tl::in_place, logical_device, queues};
+}
+
+struct R_InstanceState {
+	VkInstance instance;
+	VkDebugUtilsMessengerEXT debug;
+};
+
+tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena& arena) {
 	uint32_t instance_version{};
 	vkEnumerateInstanceVersion(&instance_version);
 
@@ -679,6 +1179,8 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 		VK_API_VERSION_MINOR(instance_version),
 		VK_API_VERSION_PATCH(instance_version)
 	);
+
+	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({&arena});
 
 	//
 	// output present extensions info
@@ -722,12 +1224,10 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 		VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 #endif
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-		// VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 	};
 
 	//
 	// Layers and validation features are controlled through vk_layer_settings.txt
-
 	const VkApplicationInfo app_info{
 		.sType				= VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext				= nullptr,
@@ -761,25 +1261,20 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 		.ppEnabledExtensionNames = extensions_list,
 	};
 
-	xrUniqueVkInstance vkinstance{VK_NULL_HANDLE, VkResourceDeleter_VkInstance{NotOwnedVulkanResource{}}};
-	vkCreateInstance(&instance_create_info, nullptr, raw_ptr_ptr(vkinstance));
+	VkInstance vkinstance{};
+	if (vkCreateInstance(&instance_create_info, nullptr, &vkinstance) != VK_SUCCESS) {
+		return tl::nullopt;
+	}
 
-	if (!vkinstance) return tl::nullopt;
-
-	XR_LOG_INFO("Vulkan instance created.");
+	XR_LOG_INFO("Vulkan instance created @ {:p}", fmt::ptr(vkinstance));
 
 	//
 	// Load instance extensions
-
-#define XRAY_MK1(tok) XRAY_STRINGIZE_a(tok)
-#define XRAY_MK0(a, b) XRAY_MK1(a##b)
-#define XR_MAKE_VK_FUNC(name) XRAY_MK0(vk, name)
-
-#define PFN_LIST_ENTRY(fnproto, name, tag)                                                      \
-	do {                                                                                        \
-		if (std::is_same_v<tag, VulkanInstanceExtensionTag>) {                                  \
-			vkfn::name = load_vulkan_proc<fnproto>(raw_ptr(vkinstance), XR_MAKE_VK_FUNC(name)); \
-		}                                                                                       \
+#define PFN_LIST_ENTRY(fnproto, name, tag)                                             \
+	do {                                                                               \
+		if (std::is_same_v<tag, VulkanInstanceExtensionTag>) {                         \
+			vkfn::name = load_vulkan_proc<fnproto>(vkinstance, XR_MAKE_VK_FUNC(name)); \
+		}                                                                              \
 	} while (0);
 
 #include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatched.functions.hpp"
@@ -787,457 +1282,109 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 #undef PFN_LIST_ENTRY
 #undef FUNCTION_POINTERS_LIST
 
-	xrUniqueVkDebugUtilsMessengerEXT dbg_msgr{
-		[instance = raw_ptr(vkinstance), &dbg_utils_msg_create_ext]() {
-			VkDebugUtilsMessengerEXT msg{};
-			WRAP_VULKAN_FUNC(vkfn::CreateDebugUtilsMessengerEXT, instance, &dbg_utils_msg_create_ext, nullptr, &msg);
-			return msg;
-		}(),
-		VkResourceDeleter_VkDebugUtilsMessengerEXT{raw_ptr(vkinstance)}
-	};
+	VkDebugUtilsMessengerEXT dbg_msgr{};
+	vkfn::CreateDebugUtilsMessengerEXT(vkinstance, &dbg_utils_msg_create_ext, nullptr, &dbg_msgr);
+	if (!dbg_msgr) {
+		XR_LOG_ERR("Failed to create debug messenger. No Vulkan debugging output will be visible.");
+	}
 
-	const itlib::small_vector<VkPhysicalDevice, 4> phys_devices{enumerate_physical_devices(raw_ptr(vkinstance))};
+	return tl::optional<R_InstanceState>{tl::in_place, vkinstance, dbg_msgr};
+}
 
-	auto check_physical_device_presentation_surface_support = [](const WindowPlatformData& win_data,
-																 VkInstance instance,
-																 VkPhysicalDevice device,
-																 const uint32_t queue_index) {
-#if defined(XRAY_OS_IS_WINDOWS)
-		auto get_win32_presentation_support = reinterpret_cast<PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR>(
-			vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceWin32PresentationSupportKHR")
-		);
+tl::optional<VulkanRenderer> VulkanRenderer::create(
+	xray::base::MemoryArena& arena, const WindowPlatformData& win_data, const RendererConfig& cfg
+) {
+	using namespace xray::base;
+	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({&arena});
 
-		assert(get_win32_presentation_support != nullptr);
-		return get_win32_presentation_support(device, queue_index);
-#else
-		if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
-			PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR get_physical_device_xlib_presentation_support_khr =
-				reinterpret_cast<PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR>(
-					vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXlibPresentationSupportKHR")
-				);
+	tl::optional<R_InstanceState> instance = vk_renderer_setup_instance(arena);
 
-			assert(get_physical_device_xlib_presentation_support_khr != nullptr);
-			return get_physical_device_xlib_presentation_support_khr(
-					   device, queue_index, reinterpret_cast<Display*>(xlib->display), xlib->visual
-				   ) == VK_TRUE;
-		}
-
-		if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
-			PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR get_physical_device_xcb_presentation_support_khr =
-				reinterpret_cast<PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR>(
-					vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXcbPresentationSupportKHR")
-				);
-
-			assert(get_physical_device_xcb_presentation_support_khr != nullptr);
-			return get_physical_device_xcb_presentation_support_khr(
-					   device, queue_index, reinterpret_cast<xcb_connection_t*>(xcb->connection), xcb->visual
-				   ) == VK_TRUE;
-		}
-#endif
-	};
-
-	const std::vector<tuple<detail::PhysicalDeviceData, size_t, size_t>> phys_devices_data =
-
-		phys_devices |
-		lz::map(
-			[instance = raw_ptr(vkinstance), &win_data, check_physical_device_presentation_surface_support](
-				VkPhysicalDevice phys_device
-			) -> tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> {
-				const detail::PhysicalDeviceData pdd{phys_device};
-
-				XR_LOG_INFO("Checking device {} suitability ...", pdd.properties.base.properties.deviceName);
-				for (size_t qid = 0, max_queues = pdd.queue_props.size(); qid < max_queues; ++qid) {
-					const VkQueueFamilyProperties* q = &pdd.queue_props[qid];
-					XR_LOG_INFO(
-						"Queue family {}, queue count {}, queue flags {}",
-						qid,
-						q->queueCount,
-						vk::to_string(static_cast<vk::QueueFlags>(q->queueFlags))
-					);
-				}
-
-				constexpr const uint32_t suitable_device_types[] = {
-					VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
-					VK_PHYSICAL_DEVICE_TYPE_CPU,
-					VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
-				};
-
-				const bool is_requested_device_type{
-					suitable_device_types % fn::exists_where([device_type = pdd.properties.base.properties.deviceType](
-																 const uint32_t required
-															 ) { return required == device_type; })
-				};
-
-				if (!is_requested_device_type) {
-					XR_LOG_INFO(
-						"Rejecting device {}, unsuitable type {:#x}",
-						pdd.properties.base.properties.deviceName,
-						static_cast<uint32_t>(pdd.properties.base.properties.deviceType)
-					);
-					return tl::nullopt;
-				}
-
-				tl::optional<uint32_t> graphics_queue_idx;
-				for (uint32_t idx = 0, count = static_cast<uint32_t>(pdd.queue_props.size()); idx < count; ++idx) {
-					if (pdd.queue_props[idx].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-						graphics_queue_idx = idx;
-						break;
-					}
-				}
-
-				if (!graphics_queue_idx) {
-					XR_LOG_INFO(
-						"Rejecting device {}, no graphics queue support.", pdd.properties.base.properties.deviceName
-					);
-					return tl::nullopt;
-				}
-
-				// surface presentation support
-
-				if (!check_physical_device_presentation_surface_support(
-						win_data, instance, pdd.device, *graphics_queue_idx
-					)) {
-					XR_LOG_INFO(
-						"Rejecting device {}, no surface presentation support (queue family index {})",
-						pdd.properties.base.properties.deviceName,
-						*graphics_queue_idx
-					);
-					return tl::nullopt;
-				}
-
-				tl::optional<uint32_t> transfer_queue_idx{};
-				for (uint32_t idx = 0, count = static_cast<uint32_t>(pdd.queue_props.size()); idx < count; ++idx) {
-					if (pdd.queue_props[idx].queueFlags & VK_QUEUE_TRANSFER_BIT && idx != *graphics_queue_idx) {
-						transfer_queue_idx = idx;
-						break;
-					}
-				}
-
-				if (!transfer_queue_idx) {
-					XR_LOG_INFO(
-						"Rejecting device {}, no graphics + transfer on different queues support.",
-						pdd.properties.base.properties.deviceName
-					);
-					return tl::nullopt;
-				}
-
-				small_vec_4<VkExtensionProperties> device_extensions{[dev = pdd.device]() {
-					uint32_t extensions_count{};
-					WRAP_VULKAN_FUNC(vkEnumerateDeviceExtensionProperties, dev, nullptr, &extensions_count, nullptr);
-					small_vec_4<VkExtensionProperties> device_extensions{extensions_count};
-					WRAP_VULKAN_FUNC(
-						vkEnumerateDeviceExtensionProperties, dev, nullptr, &extensions_count, device_extensions.data()
-					);
-
-					return device_extensions;
-				}()};
-
-				device_extensions % fn::for_each([](const VkExtensionProperties& ext_props) {
-					XR_LOG_INFO("{} - {:#x}", ext_props.extensionName, ext_props.specVersion);
-				});
-
-				return tl::make_optional(make_tuple(pdd, *graphics_queue_idx, *transfer_queue_idx));
-			}
-		) |
-		lz::filter([](tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> data) {
-			return data.has_value();
-		}) |
-		lz::map([](tl::optional<tuple<detail::PhysicalDeviceData, size_t, size_t>> data) { return *data; }) |
-		lz::to<std::vector<tuple<detail::PhysicalDeviceData, size_t, size_t>>>();
-
-	if (phys_devices_data.empty()) {
-		XR_LOG_ERR("No suitable physical devices present in the system");
+	//
+	// surface
+	tl::optional<PresentToSurface> present_to_surface = vk_renderer_create_surface(win_data, instance->instance);
+	if (!present_to_surface) {
 		return tl::nullopt;
 	}
 
-	const auto& [phys_device, queue_graphics, queue_transfer] = phys_devices_data.front();
-	const float queue_priorities[]							  = {1.0f, 1.0f};
+	VkSurfaceKHR surface = swl::visit(
+		VariantVisitor{
+			[](const PresentToWindowSurface& win) { return raw_ptr(win.surface); },
+			[](const PresentToDisplaySurface& display) { return raw_ptr(display.display_surface); },
+		},
+		*present_to_surface
+	);
+
+	//
+	// physical device
+	tl::optional<R_PhysicalDeviceSetup> phys_device =
+		vk_renderer_pick_physical_device(arena, instance->instance, surface);
+	if (!phys_device) {
+		XR_LOG_INFO("No suitable device present in the system.");
+		return tl::nullopt;
+	}
 
 	XR_LOG_INFO(
 		"Using device {}, vendor {:#x}",
-		phys_device.properties.base.properties.deviceName,
-		phys_device.properties.base.properties.vendorID
+		phys_device->properties.properties.deviceName,
+		phys_device->properties.properties.vendorID
 	);
 
-	const VkDeviceQueueCreateInfo queue_create_info[] = {
-		VkDeviceQueueCreateInfo{
-			.sType			  = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-			.pNext			  = nullptr,
-			.flags			  = 0,
-			.queueFamilyIndex = static_cast<uint32_t>(queue_graphics),
-			.queueCount		  = 1,
-			.pQueuePriorities = &queue_priorities[0],
-		},
-		VkDeviceQueueCreateInfo{
-			.sType			  = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-			.pNext			  = nullptr,
-			.flags			  = 0,
-			.queueFamilyIndex = static_cast<uint32_t>(queue_transfer),
-			.queueCount		  = 1,
-			.pQueuePriorities = &queue_priorities[1],
-		},
-	};
-
-	static constexpr initializer_list<const char*> device_extensions = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-		VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
-		VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
-	};
-
-	const VkDeviceCreateInfo device_create_info = {
-		.sType					 = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.pNext					 = &phys_device.features.base,
-		.flags					 = 0,
-		.queueCreateInfoCount	 = static_cast<uint32_t>(size(queue_create_info)),
-		.pQueueCreateInfos		 = queue_create_info,
-		.enabledLayerCount		 = 0,
-		.ppEnabledLayerNames	 = nullptr,
-		.enabledExtensionCount	 = static_cast<uint32_t>(size(device_extensions)),
-		.ppEnabledExtensionNames = device_extensions.begin(),
-		.pEnabledFeatures		 = nullptr,
-	};
-
-	xrUniqueVkDevice logical_device{
-		[physical_device = phys_device.device, &device_create_info]() {
-			VkDevice logical_device{};
-			WRAP_VULKAN_FUNC(vkCreateDevice, physical_device, &device_create_info, nullptr, &logical_device);
-			return logical_device;
-		}(),
-		VkResourceDeleter_VkDevice{NotOwnedVulkanResource{}}
-	};
-
+	tl::optional<R_LogicalDeviceSetup> logical_device = vk_renderer_setup_logical_device(arena, *phys_device);
 	if (!logical_device) return tl::nullopt;
 
-//
-// Load device extensions
-#define PFN_LIST_ENTRY(fnproto, name, tag)                                                          \
-	do {                                                                                            \
-		if (std::is_same_v<tag, VulkanDeviceExtensionTag>) {                                        \
-			vkfn::name = load_vulkan_proc<fnproto>(raw_ptr(logical_device), XR_MAKE_VK_FUNC(name)); \
-		}                                                                                           \
-	} while (0);
+	tl::optional<detail::SwapchainState> swapchain_state = [&]() -> tl::optional<detail::SwapchainState> {
+		const uint32_t swapchain_image_count = [&]() {
+			if (phys_device->surface_caps.maxImageCount == 0) {
+				//
+				// no limit for the maximum number of images
+				return phys_device->surface_caps.minImageCount + 1;
+			}
+			return min(phys_device->surface_caps.minImageCount + 1, phys_device->surface_caps.maxImageCount);
+		}();
 
-#include "xray/rendering/vulkan.renderer/vulkan.dynamic.dispatched.functions.hpp"
-	FUNCTION_POINTERS_LIST
-#undef PFN_LIST_ENTRY
-#undef FUNCTION_POINTERS_LIST
-
-	array<VkQueue, 2> queues{};
-	vkGetDeviceQueue(raw_ptr(logical_device), queue_graphics, 0, &queues[0]);
-	vkGetDeviceQueue(raw_ptr(logical_device), queue_transfer, 0, &queues[1]);
-	XR_LOG_INFO(
-		"Queue ids: graphics {}, transfer {}", static_cast<const void*>(queues[0]), static_cast<const void*>(queues[1])
-	);
-
-	XR_LOG_INFO("Device created successfully");
-
-	tl::optional<PresentToSurface> present_to_surface{
-		[&win_data, instance = raw_ptr(vkinstance)]() -> tl::optional<PresentToSurface> {
+		const VkExtent3D swapchain_dimensions = swl::visit(
+			VariantVisitor{
 #if defined(XRAY_OS_IS_WINDOWS)
-			if (const WindowPlatformDataWin32* wp = swl::get_if<WindowPlatformDataWin32>(&win_data)) {
-				const VkWin32SurfaceCreateInfoKHR create_info{
-					.sType	   = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-					.pNext	   = nullptr,
-					.flags	   = 0,
-					.hinstance = reinterpret_cast<HINSTANCE>(wp->module),
-					.hwnd	   = reinterpret_cast<HWND>(wp->window),
-				};
-
-				xrUniqueVkSurfaceKHR surface{
-					[&]() {
-						VkSurfaceKHR surface{};
-						WRAP_VULKAN_FUNC(vkCreateWin32SurfaceKHR, instance, &create_info, nullptr, &surface);
-						return surface;
-					}(),
-					VkResourceDeleter_VkSurfaceKHR{instance},
-				};
-
-				if (!surface) return tl::nullopt;
-
-				XR_LOG_INFO("Surface created: {:#x}", reinterpret_cast<uintptr_t>(raw_ptr(surface)));
-				return tl::make_optional<PresentToSurface>(PresentToWindowSurface{*wp, std::move(surface)});
-			}
-
-#else
-			if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
-				return create_xlib_surface(*xlib, instance);
-			}
-
-			if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
-				return create_xcb_surface(*xcb, instance);
-			}
-#endif
-			return tl::nullopt;
-		}()
-	};
-
-	if (!present_to_surface) {
-		XR_LOG_CRITICAL("Cannot create a surface of any kind (display/window)");
-		return tl::nullopt;
-	}
-
-	struct SurfaceInfo {
-		VkSurfaceCapabilitiesKHR caps;
-		VkSurfaceFormatKHR format;
-		VkPresentModeKHR present_mode;
-		VkFormat depth_stencil_format;
-	};
-
-	struct SwapchainStateWithSurfaceInfo {
-		detail::SwapchainState swapchain_state;
-		SurfaceInfo surface_info;
-	};
-
-	tl::optional<SwapchainStateWithSurfaceInfo> swapchain_state = present_to_surface.and_then(
-		[pd = &phys_device,
-		 &win_data,
-		 vkdev = raw_ptr(logical_device)](const PresentToSurface& ps) -> tl::optional<SwapchainStateWithSurfaceInfo> {
-			VkSurfaceKHR surface = swl::visit(
-				VariantVisitor{
-					[](const PresentToWindowSurface& win) { return raw_ptr(win.surface); },
-					[](const PresentToDisplaySurface& display) { return raw_ptr(display.display_surface); },
-				},
-				ps
-			);
-
-			VkSurfaceCapabilitiesKHR surface_caps;
-			if (const VkResult res =
-					WRAP_VULKAN_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, pd->device, surface, &surface_caps);
-				res != VK_SUCCESS) {
-				return tl::nullopt;
-			}
-
-			XR_LOG_INFO("Surface capabilities: {}", surface_caps);
-
-			small_vec_4<VkSurfaceFormatKHR> supported_surface_fmts{[device = pd->device, surface]() {
-				small_vec_4<VkSurfaceFormatKHR> fmts;
-				uint32_t fmts_count{};
-				WRAP_VULKAN_FUNC(vkGetPhysicalDeviceSurfaceFormatsKHR, device, surface, &fmts_count, nullptr);
-				if (fmts_count) {
-					fmts.resize(fmts_count);
-					WRAP_VULKAN_FUNC(vkGetPhysicalDeviceSurfaceFormatsKHR, device, surface, &fmts_count, fmts.data());
+				[](const WindowPlatformDataWin32& win32) {
+					return VkExtent3D{.width = win32.width, .height = win32.height, .depth = 1};
 				}
-
-				return fmts;
-			}()};
-
-			for (const VkSurfaceFormatKHR& fmt : supported_surface_fmts) {
-				XR_LOG_INFO("{}", vk::to_string(static_cast<vk::Format>(fmt.format)));
-			}
-
-			const small_vec_4<VkPresentModeKHR> supported_presentation_modes{[device = pd->device, surface]() {
-				uint32_t present_modes_count{};
-				WRAP_VULKAN_FUNC(
-					vkGetPhysicalDeviceSurfacePresentModesKHR, device, surface, &present_modes_count, nullptr
-				);
-
-				small_vec_4<VkPresentModeKHR> present_modes;
-				present_modes.resize(present_modes_count);
-				WRAP_VULKAN_FUNC(
-					vkGetPhysicalDeviceSurfacePresentModesKHR,
-					device,
-					surface,
-					&present_modes_count,
-					present_modes.data()
-				);
-
-				return present_modes;
-			}()};
-
-			XR_LOG_INFO("{}", supported_presentation_modes % fn::transform([](const VkPresentModeKHR pm) {
-								  return fmt::format(
-									  "{:#x} -> {} ",
-									  static_cast<uint32_t>(pm),
-									  vk::to_string(static_cast<vk::PresentModeKHR>(pm))
-								  );
-							  }) % fn::foldl(string{"supported presentation modes: "}, plus<string>{}));
-
-			constexpr const VkPresentModeKHR preferred_presentation_modes[] = {
-				VK_PRESENT_MODE_FIFO_KHR,
-				VK_PRESENT_MODE_MAILBOX_KHR,
-				VK_PRESENT_MODE_IMMEDIATE_KHR,
-				VK_PRESENT_MODE_FIFO_RELAXED_KHR,
-			};
-
-			const auto best_preferred_supported_mode =
-				ranges::find_first_of(preferred_presentation_modes, supported_presentation_modes);
-
-			if (best_preferred_supported_mode == cend(supported_presentation_modes)) {
-				XR_LOG_CRITICAL("None of the preferred presentation modes is suppored!");
-				return tl::nullopt;
-			}
-
-			XR_LOG_INFO(
-				"best preferred supported present mode is {:#x} -> {}",
-				static_cast<uint32_t>(*best_preferred_supported_mode),
-				vk::to_string(static_cast<vk::PresentModeKHR>(*best_preferred_supported_mode))
-			);
-
-			const uint32_t swapchain_image_count = [&surface_caps]() {
-				if (surface_caps.maxImageCount == 0) {
-					//
-					// no limit for the maximum number of images
-					return surface_caps.minImageCount + 1;
-				}
-				return min(surface_caps.minImageCount + 1, surface_caps.maxImageCount);
-			}();
-
-			const VkExtent3D swapchain_dimensions = swl::visit(
-				VariantVisitor{
-#if defined(XRAY_OS_IS_WINDOWS)
-					[](const WindowPlatformDataWin32& win32) {
-						return VkExtent3D{.width = win32.width, .height = win32.height, .depth = 1};
-					}
 #else
-					[](const WindowPlatformDataXcb& xcb) {
-						return VkExtent3D{.width = xcb.width, .height = xcb.height, .depth = 1};
-					},
-					[](const WindowPlatformDataXlib& xlib) {
-						return VkExtent3D{.width = xlib.width, .height = xlib.height, .depth = 1};
-					},
-#endif
+				[](const WindowPlatformDataXcb& xcb) {
+					return VkExtent3D{.width = xcb.width, .height = xcb.height, .depth = 1};
 				},
-				win_data
-			);
+				[](const WindowPlatformDataXlib& xlib) {
+					return VkExtent3D{.width = xlib.width, .height = xlib.height, .depth = 1};
+				},
+#endif
+			},
+			win_data
+		);
 
-			const SwapchainStateCreationInfo swapchain_state_create_info{
-				.device			   = vkdev,
-				.retired_swapchain = nullptr,
-				.surface		   = surface,
-				.surface_caps	   = surface_caps,
-				.fmt			   = supported_surface_fmts[0],
-				.present_mode	   = *best_preferred_supported_mode,
-				.mem_props		   = pd->memory,
-				.image_count	   = swapchain_image_count,
-				.dimensions		   = swapchain_dimensions,
-				.depth_att_format  = VK_FORMAT_D32_SFLOAT_S8_UINT,
-			};
+		const SwapchainStateCreationInfo swapchain_state_create_info{
+			.device			   = logical_device->device_handle,
+			.retired_swapchain = nullptr,
+			.surface		   = surface,
+			.surface_caps	   = phys_device->surface_caps,
+			.fmt			   = phys_device->surface_format,
+			.present_mode	   = phys_device->present_mode,
+			.mem_props		   = phys_device->memory_properties.memoryProperties,
+			.image_count	   = swapchain_image_count,
+			.dimensions		   = swapchain_dimensions,
+			.depth_att_format  = VK_FORMAT_D32_SFLOAT_S8_UINT,
+		};
 
-			return create_swapchain_state(swapchain_state_create_info)
-				.and_then([&swapchain_state_create_info](detail::SwapchainState&& swapchain_state) {
-					return tl::make_optional<SwapchainStateWithSurfaceInfo>(
-						std::move(swapchain_state),
-						SurfaceInfo{
-							.caps				  = swapchain_state_create_info.surface_caps,
-							.format				  = swapchain_state_create_info.fmt,
-							.present_mode		  = swapchain_state_create_info.present_mode,
-							.depth_stencil_format = swapchain_state_create_info.depth_att_format,
-						}
-					);
-				});
-		}
-	);
+		return create_swapchain_state(swapchain_state_create_info);
+	}();
 
 	if (!swapchain_state) {
-		XR_LOG_ERR("Oy blyat ! failed to create rendering state!");
+		XR_LOG_ERR("Failed to create swapchain state!");
 		return tl::nullopt;
 	}
 
 	//
 	// descriptor pool
 	xrUniqueVkDescriptorPool dpool{
-		[device = raw_ptr(logical_device)]() {
+		[device = logical_device->device_handle]() {
 			const VkDescriptorPoolSize pool_sizes[] = {
 				{.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1024},
 				{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1024},
@@ -1257,7 +1404,7 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 			WRAP_VULKAN_FUNC(vkCreateDescriptorPool, device, &pool_create_info, nullptr, &pool);
 			return pool;
 		}(),
-		VkResourceDeleter_VkDescriptorPool{raw_ptr(logical_device)},
+		VkResourceDeleter_VkDescriptorPool{logical_device->device_handle},
 	};
 
 	if (!dpool) {
@@ -1266,67 +1413,39 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 	}
 
 	//
-	// queues
-	vector<detail::Queue> qs{[&]() {
-		const array<uint32_t, 2> queue_flags{
-			VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
-		};
-		const array<size_t, 2> queue_indices{queue_graphics, queue_transfer};
-		vector<detail::Queue> qs;
-
-		for (size_t i = 0; i < 2; ++i) {
-			const VkCommandPoolCreateInfo cmd_pool_create_info = {
-				.sType			  = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-				.pNext			  = nullptr,
-				.flags			  = queue_flags[i],
-				.queueFamilyIndex = static_cast<uint32_t>(queue_indices[i]),
-			};
-
-			VkCommandPool cmd_pool{};
-			WRAP_VULKAN_FUNC(vkCreateCommandPool, raw_ptr(logical_device), &cmd_pool_create_info, nullptr, &cmd_pool);
-
-			qs.emplace_back(
-				static_cast<uint32_t>(queue_indices[i]),
-				queues[i],
-				xrUniqueVkCommandPool{cmd_pool, VkResourceDeleter_VkCommandPool{raw_ptr(logical_device)}}
-			);
-		}
-
-		return qs;
-	}()};
-
-	//
 	// command buffers
 	vector<VkCommandBuffer> command_buffers{[&]() {
 		const VkCommandBufferAllocateInfo cmd_buff_alloc_info = {
 			.sType				= VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 			.pNext				= nullptr,
-			.commandPool		= raw_ptr(qs[0].cmd_pool),
+			.commandPool		= logical_device->queues[to_underlying(QueueType::Graphics)].cmd_pool,
 			.level				= VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_imageviews.size()),
+			.commandBufferCount = static_cast<uint32_t>(swapchain_state->swapchain_imageviews.size()),
 		};
 
-		vector<VkCommandBuffer> cmd_buffers{swapchain_state->swapchain_state.swapchain_imageviews.size()};
-		WRAP_VULKAN_FUNC(vkAllocateCommandBuffers, raw_ptr(logical_device), &cmd_buff_alloc_info, cmd_buffers.data());
+		vector<VkCommandBuffer> cmd_buffers{swapchain_state->swapchain_imageviews.size()};
+		WRAP_VULKAN_FUNC(
+			vkAllocateCommandBuffers, logical_device->device_handle, &cmd_buff_alloc_info, cmd_buffers.data()
+		);
 
 		return cmd_buffers;
 	}()};
 
-	const uint32_t max_frames{static_cast<uint32_t>(swapchain_state->swapchain_state.swapchain_images.size())};
+	const uint32_t max_frames{static_cast<uint32_t>(swapchain_state->swapchain_images.size())};
 
-	auto [swapchain, surface_info] = std::move(*swapchain_state.take());
-
-	auto bindless_sys{BindlessSystem::create(raw_ptr(logical_device), phys_device.properties.descriptor_indexing)};
+	tl::expected<BindlessSystem, VulkanError> bindless_sys{
+		BindlessSystem::create(logical_device->device_handle, phys_device->descriptor_indexing_properties)
+	};
 	if (!bindless_sys) {
 		return tl::nullopt;
 	}
 
-	xrUniqueVkBuffer staging_buffer{nullptr, VkResourceDeleter_VkBuffer{raw_ptr(logical_device)}};
+	xrUniqueVkBuffer staging_buffer{nullptr, VkResourceDeleter_VkBuffer{logical_device->device_handle}};
 	const VkBufferCreateInfo staging_create_info{
 		.sType				   = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.pNext				   = nullptr,
 		.flags				   = 0,
-		.size				   = 512 * 1024 * 1024,
+		.size				   = base::megabytes(512),
 		.usage				   = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		.sharingMode		   = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,
@@ -1334,58 +1453,103 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 	};
 
 	WRAP_VULKAN_FUNC(
-		vkCreateBuffer, raw_ptr(logical_device), &staging_create_info, nullptr, raw_ptr_ptr(staging_buffer)
+		vkCreateBuffer, logical_device->device_handle, &staging_create_info, nullptr, raw_ptr_ptr(staging_buffer)
 	);
 	if (!staging_buffer) return tl::nullopt;
 
 	VkMemoryRequirements staging_mem_rq{};
-	vkGetBufferMemoryRequirements(raw_ptr(logical_device), raw_ptr(staging_buffer), &staging_mem_rq);
+	vkGetBufferMemoryRequirements(logical_device->device_handle, raw_ptr(staging_buffer), &staging_mem_rq);
 
 	const VkMemoryAllocateInfo staging_mem_alloc{
 		.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.pNext			 = nullptr,
 		.allocationSize	 = staging_mem_rq.size,
 		.memoryTypeIndex = vk_find_allocation_memory_type(
-			phys_device.memory, staging_mem_rq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+			phys_device->memory_properties.memoryProperties,
+			staging_mem_rq.memoryTypeBits,
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
 		),
 	};
 
-	xrUniqueVkDeviceMemory staging_mem{nullptr, VkResourceDeleter_VkDeviceMemory{raw_ptr(logical_device)}};
-	WRAP_VULKAN_FUNC(vkAllocateMemory, raw_ptr(logical_device), &staging_mem_alloc, nullptr, raw_ptr_ptr(staging_mem));
+	xrUniqueVkDeviceMemory staging_mem{nullptr, VkResourceDeleter_VkDeviceMemory{logical_device->device_handle}};
+	WRAP_VULKAN_FUNC(
+		vkAllocateMemory, logical_device->device_handle, &staging_mem_alloc, nullptr, raw_ptr_ptr(staging_mem)
+	);
 	if (!staging_mem) return tl::nullopt;
 
-	const VkResult bind_res =
-		WRAP_VULKAN_FUNC(vkBindBufferMemory, raw_ptr(logical_device), raw_ptr(staging_buffer), raw_ptr(staging_mem), 0);
+	const VkResult bind_res = WRAP_VULKAN_FUNC(
+		vkBindBufferMemory, logical_device->device_handle, raw_ptr(staging_buffer), raw_ptr(staging_mem), 0
+	);
 	if (bind_res != VK_SUCCESS) {
 		return tl::nullopt;
 	}
 
 	xrUniqueBufferWithMemory staging{
-		raw_ptr(logical_device), unique_pointer_release(staging_buffer), unique_pointer_release(staging_mem)
+		logical_device->device_handle, unique_pointer_release(staging_buffer), unique_pointer_release(staging_mem)
 	};
 
-	auto mapped_staging_buffer =
-		UniqueMemoryMapping::map_memory(raw_ptr(logical_device), staging.handle<VkDeviceMemory>(), 0, VK_WHOLE_SIZE);
+	auto mapped_staging_buffer = UniqueMemoryMapping::map_memory(
+		logical_device->device_handle, staging.handle<VkDeviceMemory>(), 0, VK_WHOLE_SIZE
+	);
 	if (!mapped_staging_buffer) return tl::nullopt;
+
+	std::vector<detail::Queue> queues{};
+	queues.reserve(3);
+	for (const RQueue_t& r_queue : logical_device->queues) {
+		queues.emplace_back(
+			r_queue.index,
+			r_queue.handle,
+			xrUniqueVkCommandPool{r_queue.cmd_pool, VkResourceDeleter_VkCommandPool{logical_device->device_handle}}
+		);
+	}
 
 	return tl::make_optional<VulkanRenderer>(
 		PrivateConstructionToken{},
+
 		detail::InstanceState{
-			std::move(vkinstance),
-			std::move(dbg_msgr),
+			xrUniqueVkInstance{
+				instance->instance,
+				VkResourceDeleter_VkInstance{NotOwnedVulkanResource{}},
+			},
+			xrUniqueVkDebugUtilsMessengerEXT{
+				instance->debug,
+				VkResourceDeleter_VkDebugUtilsMessengerEXT{instance->instance},
+			},
 		},
+
 		detail::RenderState{
-			phys_device,
-			std::move(logical_device),
+			detail::PhysicalDeviceData{
+				.device = phys_device->physical,
+				.properties =
+					{
+						.base				 = phys_device->properties,
+						.vk11				 = phys_device->p_vk11,
+						.vk12				 = phys_device->p_vk12,
+						.vk13				 = phys_device->p_vk13,
+						.descriptor_indexing = phys_device->descriptor_indexing_properties,
+					},
+				.memory_properties = phys_device->memory_properties,
+			},
+
+			xrUniqueVkDevice{
+				logical_device->device_handle,
+				VkResourceDeleter_VkDevice{NotOwnedVulkanResource{}},
+			},
+
 			std::move(staging),
 			std::move(*mapped_staging_buffer),
-			std::move(qs),
+			std::move(queues),
 			detail::RenderingAttachments{
 				.view_mask = 0,
 				.attachments =
-					{surface_info.format.format, surface_info.depth_stencil_format, surface_info.depth_stencil_format},
+					{
+						phys_device->surface_format.format,
+						VK_FORMAT_D32_SFLOAT_S8_UINT,
+						VK_FORMAT_D32_SFLOAT_S8_UINT,
+					},
 			},
 		},
+
 		detail::PresentationState{
 			0,
 			max_frames,
@@ -1401,12 +1565,12 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 					},
 					std::move(*present_to_surface.take())
 				),
-				surface_info.caps,
-				surface_info.format,
-				surface_info.present_mode,
-				surface_info.depth_stencil_format,
+				phys_device->surface_caps,
+				phys_device->surface_format,
+				phys_device->present_mode,
+				VK_FORMAT_D32_SFLOAT_S8_UINT,
 			},
-			std::move(swapchain),
+			std::move(*swapchain_state.take()),
 			std::move(command_buffers),
 		},
 		detail::DescriptorPoolState{std::move(dpool)},
@@ -1813,7 +1977,7 @@ void VulkanRenderer::handle_swapchain_suboptimal_out_of_date(
 			.surface_caps	   = surface_caps,
 			.fmt			   = _presentation_state.surface_state.format,
 			.present_mode	   = _presentation_state.surface_state.present_mode,
-			.mem_props		   = _render_state.dev_physical.memory,
+			.mem_props		   = _render_state.dev_physical.memory_properties.memoryProperties,
 			.image_count	   = static_cast<uint32_t>(_presentation_state.max_frames),
 			.dimensions =
 				VkExtent3D{
@@ -1911,7 +2075,7 @@ void VulkanRenderer::wait_device_idle() noexcept {
 uint32_t xray::rendering::VulkanRenderer::find_allocation_memory_type(
 	const uint32_t memory_requirements, const VkMemoryPropertyFlags required_flags
 ) const noexcept {
-	return vk_find_allocation_memory_type(_render_state.dev_physical.memory, memory_requirements, required_flags);
+	return vk_find_allocation_memory_type(_render_state.dev_physical.memory_properties.memoryProperties, memory_requirements, required_flags);
 }
 
 tl::expected<UniqueMemoryMapping, VulkanError> UniqueMemoryMapping::map_memory(

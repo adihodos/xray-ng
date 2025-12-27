@@ -79,27 +79,15 @@ struct PresentationState {
 
 struct PhysicalDeviceData {
 	VkPhysicalDevice device;
-	struct {
+	struct Properties {
 		VkPhysicalDeviceProperties2 base;
 		VkPhysicalDeviceVulkan11Properties vk11;
 		VkPhysicalDeviceVulkan12Properties vk12;
 		VkPhysicalDeviceVulkan13Properties vk13;
 		VkPhysicalDeviceDescriptorIndexingProperties descriptor_indexing;
 	} properties;
-	struct {
-		VkPhysicalDeviceFeatures2 base;
-		VkPhysicalDeviceVulkan11Features vk11;
-		VkPhysicalDeviceVulkan12Features vk12;
-		VkPhysicalDeviceVulkan13Features vk13;
-		VkPhysicalDeviceExtendedDynamicState3FeaturesEXT dyn_state3;
-	} features;
 
-	VkPhysicalDeviceMemoryProperties memory;
-	std::vector<VkQueueFamilyProperties> queue_props;
-
-	explicit PhysicalDeviceData(VkPhysicalDevice dev);
-	PhysicalDeviceData(const PhysicalDeviceData& rhs);
-	PhysicalDeviceData& operator=(const PhysicalDeviceData& rhs);
+	VkPhysicalDeviceMemoryProperties2 memory_properties;
 };
 
 struct InstanceState {
@@ -207,6 +195,7 @@ struct StagingBuffer {
 enum class QueueType : uint8_t {
 	Graphics,
 	Transfer,
+	Compute,
 };
 
 struct RendererConfig;

@@ -32,6 +32,7 @@
 #include "xray/xray.hpp"
 
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <vector>
 
@@ -1787,6 +1788,24 @@ main(int argc, char** argv)
 
 	xray::base::setup_logging(LogLevel::Debug);
 	xr_app_config = ConfigSystem::instance();
+
+	XR_LOG_INFO(
+		"cwd {}, executable path: {}, root path: {}, game root: {}",
+		xr_app_config->FileSys.Cwd,
+		xr_app_config->FileSys.ExePathAbsolute,
+		xr_app_config->FileSys.RootPathAbsolute,
+		xr_app_config->FileSys.GameRootPathAbsolute
+	);
+
+	{
+		const auto layer_settings_path =
+			(xr_app_config->FileSys.RootPathAbsolute / "vk_layer_settings.txt").generic_string();
+		const int32_t result = ::setenv("VK_LAYER_SETTINGS_PATH", layer_settings_path.c_str(), true);
+
+		XR_LOG_INFO(
+			"Setting VK_LAYER_SETTINGS_PATH :: {} [{}]", layer_settings_path, result == 0 ? "succeeded" : "failed"
+		);
+	}
 
 	// void* addr = xray::base::os_reserve_mem(
 	// 	xray::base::round_up<size_t>(xray::base::megabytes(2), xray::base::os_get_page_size())

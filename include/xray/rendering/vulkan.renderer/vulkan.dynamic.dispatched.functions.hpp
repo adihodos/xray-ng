@@ -10,5 +10,5 @@
 	PFN_LIST_ENTRY(PFN_vkQueueInsertDebugUtilsLabelEXT, QueueInsertDebugUtilsLabelEXT, VulkanDeviceExtensionTag)   \
 	PFN_LIST_ENTRY(PFN_vkSetDebugUtilsObjectNameEXT, SetDebugUtilsObjectNameEXT, VulkanDeviceExtensionTag)         \
 	PFN_LIST_ENTRY(PFN_vkSetDebugUtilsObjectTagEXT, SetDebugUtilsObjectTagEXT, VulkanDeviceExtensionTag)           \
-	PFN_LIST_ENTRY(PFN_vkSubmitDebugUtilsMessageEXT, SubmitDebugUtilsMessageEXT, VulkanDeviceExtensionTag)         \
+	PFN_LIST_ENTRY(PFN_vkSubmitDebugUtilsMessageEXT, SubmitDebugUtilsMessageEXT, VulkanInstanceExtensionTag)         \
 	PFN_LIST_ENTRY(PFN_vkCmdSetPolygonModeEXT, CmdSetPolygonModeEXT, VulkanDeviceExtensionTag)

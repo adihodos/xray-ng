@@ -49,6 +49,7 @@ public:
 	struct FileSystem {
 		path_type ExePathAbsolute;
 		path_type RootPathAbsolute;
+		path_type Cwd;
 		path_type GameRootPathAbsolute;
 		path_type ShaderPath;
 		path_type ModelPath;

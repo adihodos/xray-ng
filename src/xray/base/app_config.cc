@@ -31,10 +31,13 @@ std::filesystem::path get_process_path() {
 }  // namespace
 
 xray::base::ConfigSystem::ConfigSystem() {
+	namespace fs = std::filesystem;
+
 	//
 	// init default to exe directory
 	FileSys.ExePathAbsolute		 = get_process_path();
 	FileSys.RootPathAbsolute	 = FileSys.ExePathAbsolute.parent_path();
+	FileSys.Cwd					 = fs::current_path();
 	FileSys.GameRootPathAbsolute = FileSys.ExePathAbsolute.parent_path();
 
 	//
@@ -45,8 +48,6 @@ xray::base::ConfigSystem::ConfigSystem() {
 	paths_.fonts_path	   = FileSys.RootPathAbsolute / "assets/fonts";
 	paths_.config_path	   = FileSys.RootPathAbsolute / "config";
 	paths_.camera_cfg_path = FileSys.RootPathAbsolute / "config/camera";
-
-	namespace fs = std::filesystem;
 
 	//
 	// if this file exists it specifies overrides for the folders
