@@ -1,12 +1,13 @@
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 
-#include <itlib/small_vector.hpp>
-
 #include <Lz/map.hpp>
 #include <Lz/procs/to.hpp>
 
 #include "xray/base/variant.helpers.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/thread.local.context.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
@@ -384,7 +385,15 @@ xray::rendering::BindlessSystem::add_chunked_storage_buffer(
 }
 
 void xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& renderer) {
-	itlib::small_vector<VkWriteDescriptorSet, 8> descriptor_writes;
+	const auto writes_count = _writes_ubo.size() + _writes_sbo.size() + _writes_img.size();
+	if (writes_count == 0) {
+		return;
+	}
+
+	using namespace xray::base;
+	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({});
+	containers::vector<VkWriteDescriptorSet> descriptor_writes{*scratch_pad.arena};
+	descriptor_writes.reserve(writes_count);
 
 	for (const WriteDescriptorBufferInfo& wds : _writes_ubo) {
 		descriptor_writes.push_back(
@@ -437,19 +446,17 @@ void xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& re
 		);
 	}
 
-	if (!descriptor_writes.empty()) {
-		WRAP_VULKAN_FUNC(
-			vkUpdateDescriptorSets,
-			renderer.device(),
-			static_cast<uint32_t>(descriptor_writes.size()),
-			descriptor_writes.data(),
-			0,
-			nullptr
-		);
-		_writes_ubo.clear();
-		_writes_img.clear();
-		_writes_sbo.clear();
-	}
+	WRAP_VULKAN_FUNC(
+		vkUpdateDescriptorSets,
+		renderer.device(),
+		static_cast<uint32_t>(descriptor_writes.size()),
+		descriptor_writes.data(),
+		0,
+		nullptr
+	);
+	_writes_ubo.clear();
+	_writes_img.clear();
+	_writes_sbo.clear();
 }
 
 void xray::rendering::BindlessSystem::bind_descriptors(

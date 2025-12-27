@@ -17,8 +17,13 @@ class VulkanImage
 {
   public:
     xrUniqueImageWithMemoryAndView _image;
-    VulkanTextureInfo _info;
+	VulkanTextureInfo _info;
 
+	VulkanImage(xrUniqueImageWithMemoryAndView image, const VulkanTextureInfo& info) noexcept
+		: _image{std::move(image)}, _info{info} {}
+
+	VulkanImage(VulkanImage&&) = default;
+	
     VkImage image() const noexcept { return _image.handle<VkImage>(); }
     VkDeviceMemory memory() const noexcept { return _image.handle<VkDeviceMemory>(); }
     const VulkanTextureInfo& info() const noexcept { return _info; }

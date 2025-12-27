@@ -1,10 +1,13 @@
 #include "xray/rendering/debug_draw.hpp"
 
+#include <cstddef>
 #include <algorithm>
 #include <string_view>
 
-#include <itlib/small_vector.hpp>
 #include <tl/expected.hpp>
+
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 
 #include "xray/math/scalar2.hpp"
 #include "xray/math/scalar3.hpp"
@@ -259,11 +262,15 @@ void DebugDrawSystem::draw_frustrum(const math::MatrixWithInvertedMatrixPair4f& 
 	};
 
 	// NDC -> view space
-	itlib::small_vector<math::vec3f, 8> points{};
+	alignas(math::vec3f) std::byte scratch_buffer[std::size(planes_points) * sizeof(math::vec3f)];
+	base::MemoryArena scratch_pad{scratch_buffer};
+	base::containers::vector<math::vec3f> points{scratch_pad};
+	points.reserve(std::size(planes_points));
+
 	for (const math::vec3f& p : planes_points) {
 		const math::vec4f unprojected = math::mul_point(mtx.inverted, math::vec4f{p});
 		if (std::fabs(p.w) < 1.0e-5) {
-			continue;
+			return;
 		}
 		points.push_back(math::vec3f{p.x / p.w, p.y / p.w, p.z / p.w});
 	}

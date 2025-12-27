@@ -14,10 +14,10 @@ set(project_sources
   ${proj_src_dir}/colors/color_cast_rgb_xyz.cc
   ${proj_inc_dir}/colors/color_palettes.hpp
   ${proj_src_dir}/colors/color_palettes.cc
-  ${proj_inc_dir}/geometry/aabb_visualizer.hpp
-  ${proj_src_dir}/geometry/aabb_visualizer.cc
-  ${proj_inc_dir}/geometry/surface_normal_visualizer.hpp
-  ${proj_src_dir}/geometry/surface_normal_visualizer.cc
+  # ${proj_inc_dir}/geometry/aabb_visualizer.hpp
+  # ${proj_src_dir}/geometry/aabb_visualizer.cc
+  # ${proj_inc_dir}/geometry/surface_normal_visualizer.hpp
+  # ${proj_src_dir}/geometry/surface_normal_visualizer.cc
   ${proj_inc_dir}/geometry/geometry_data.hpp
   ${proj_inc_dir}/geometry/geometry_factory.hpp
   ${proj_src_dir}/geometry/geometry_factory.cc
@@ -38,7 +38,7 @@ set(project_sources
   ${proj_inc_dir}/mesh_loader.hpp
   ${proj_src_dir}/mesh_loader.cc
   ${proj_inc_dir}/mesh.hpp
-  ${proj_src_dir}/mesh.cc
+  # ${proj_src_dir}/mesh.cc
   ${proj_inc_dir}/procedural.hpp
   ${proj_src_dir}/procedural.cc
   ${proj_inc_dir}/geometry/heightmap.generator.hpp
@@ -54,23 +54,23 @@ set(project_sources
   ${proj_inc_dir}/texture_loader.hpp
   ${proj_src_dir}/texture_loader.cc)
 
-set(gl_proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering/opengl")
-set(gl_proj_src_dir "${PROJECT_SOURCE_DIR}/opengl")
+# set(gl_proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/rendering/opengl")
+# set(gl_proj_src_dir "${PROJECT_SOURCE_DIR}/opengl")
 
-set(project_sources_gl
-  ${gl_proj_inc_dir}/gl_handles.hpp
-  ${gl_proj_src_dir}/gl_handles.cc
-  ${gl_proj_inc_dir}/gl_misc.hpp
-  ${gl_proj_inc_dir}/gpu_program.hpp
-  ${gl_proj_src_dir}/gpu_program.cc
-  ${gl_proj_inc_dir}/scoped_opengl_setting.hpp
-  ${gl_proj_inc_dir}/program_pipeline.hpp
-  ${gl_proj_src_dir}/program_pipeline.cc
-  ${gl_proj_inc_dir}/scoped_resource_mapping.hpp
-  ${gl_proj_src_dir}/scoped_resource_mapping.cc
-  ${gl_proj_inc_dir}/scoped_state.hpp
-  ${gl_proj_inc_dir}/shader_base.hpp
-  ${gl_proj_src_dir}/shader_base.cc)
+# set(project_sources_gl
+  # ${gl_proj_inc_dir}/gl_handles.hpp
+  # ${gl_proj_src_dir}/gl_handles.cc
+  # ${gl_proj_inc_dir}/gl_misc.hpp
+  # ${gl_proj_inc_dir}/gpu_program.hpp
+  # ${gl_proj_src_dir}/gpu_program.cc
+  # ${gl_proj_inc_dir}/scoped_opengl_setting.hpp
+  # ${gl_proj_inc_dir}/program_pipeline.hpp
+  # ${gl_proj_src_dir}/program_pipeline.cc
+  # ${gl_proj_inc_dir}/scoped_resource_mapping.hpp
+  # ${gl_proj_src_dir}/scoped_resource_mapping.cc
+  # ${gl_proj_inc_dir}/scoped_state.hpp
+  # ${gl_proj_inc_dir}/shader_base.hpp
+  # ${gl_proj_src_dir}/shader_base.cc)
 
 set(vk-proj-inc-dir
   "${CMAKE_SOURCE_DIR}/include/xray/rendering/vulkan.renderer")
@@ -95,8 +95,7 @@ set(vk-project-sources
   ${vk-proj-inc-dir}/vulkan.renderer.config.hpp
   ${vk-proj-src-dir}/vulkan.renderer.config.cc)
 
-add_library(${PROJECT_NAME} STATIC ${project_sources} ${project_sources_gl}
-  ${vk-project-sources})
+add_library(${PROJECT_NAME} STATIC ${project_sources} ${vk-project-sources})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
@@ -147,7 +146,6 @@ target_link_libraries(
   tl::expected
   xray-base
   mio::mio
-  itlib::itlib
   Vulkan::Vulkan
   swl-variant
   strong_type::strong_type

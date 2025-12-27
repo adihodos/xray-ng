@@ -3,14 +3,15 @@
 #include <cmath>
 #include <system_error>
 
-#include <itlib/small_vector.hpp>
-
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan.hpp>
 #include <ktx.h>
 #include <mio/mmap.hpp>
 
 #include "xray/base/xray.fmt.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/thread.local.context.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
@@ -753,7 +754,12 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 		const uintptr_t staging_buff_offset = renderer.reserve_staging_buffer_memory(textureSize);
 		uintptr_t staging_buff_ptr			= renderer.staging_buffer_memory() + staging_buff_offset;
 
-		itlib::small_vector<VkBufferImageCopy> copy_regions{static_cast<size_t>(numCopyRegions), VkBufferImageCopy{}};
+		base::ScratchPadArena scratch_pad = base::ThreadLocalContext::acquire_scratchpad({});
+		base::containers::vector<VkBufferImageCopy> copy_regions{
+			static_cast<size_t>(numCopyRegions),
+			VkBufferImageCopy{},
+			base::MemoryArenaAllocator<VkBufferImageCopy>{*scratch_pad.arena}
+		};
 
 		{
 			ktx_internal_details::user_cbdata_optimal cbData{

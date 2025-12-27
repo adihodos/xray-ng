@@ -80,5 +80,4 @@ target_link_libraries(
   swl-variant
   tl::optional
   PRIVATE
-  itlib::itlib
-  joboccara::pipes)
+  )

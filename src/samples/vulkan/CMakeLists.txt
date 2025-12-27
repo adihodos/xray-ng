@@ -105,7 +105,6 @@ target_link_libraries(
           xray-scene
           xray-ui
           xray-math
-          itlib::itlib
           cpp-lazy::cpp-lazy
           reflectcpp
           spdlog::spdlog

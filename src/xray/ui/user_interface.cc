@@ -3,6 +3,9 @@
 #include "xray/base/logger.hpp"
 #include "xray/base/xray.fmt.hpp"
 #include "xray/base/pod_zero.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/thread.local.context.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/math/objects/rectangle.hpp"
 #include "xray/math/projection.hpp"
 #include "xray/math/scalar4x4.hpp"
@@ -25,8 +28,6 @@
 
 #include <algorithm>
 #include <concurrencpp/concurrencpp.h>
-
-#include <itlib/small_vector.hpp>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
@@ -270,8 +271,14 @@ xray::ui::user_interface::user_interface(const FontsLoadBundle& font_packages)
     config.MergeMode = false;
     config.FontDataOwnedByAtlas = false;
 
-    itlib::small_vector<ImWchar, 512> glyph_ranges;
-
+	//
+	// TODO: the way glyph_ranges is used here is kinda sussy. Need to investigate.
+	// Shouldn;t the vector be cleared before loading the ranges for each font ?
+	using namespace xray::base;
+	ScratchPadArena scratch_pad{ThreadLocalContext::acquire_scratchpad({})};
+	containers::vector<ImWchar> glyph_ranges{*scratch_pad.arena};
+	glyph_ranges.reserve(1024);
+	
     for (size_t i = 0, count = font_packages.info.size(); i < count; ++i) {
         const font_info& curr_font = font_packages.info[i];
         const mio::mmap_source& mmaped_font_data = font_packages.data[i];
@@ -307,7 +314,7 @@ xray::ui::user_interface::user_interface(const FontsLoadBundle& font_packages)
                                                            static_cast<int32_t>(mmaped_font_data.size()),
                                                            static_cast<float>(font_size),
                                                            &config,
-                                                           glyph_ranges.cbegin() + glyph_range_start);
+                                                           glyph_ranges.data() + glyph_range_start);
 
             if (!font_handle) {
                 XR_LOG_INFO("Failed to load font {}", curr_font.path.string());

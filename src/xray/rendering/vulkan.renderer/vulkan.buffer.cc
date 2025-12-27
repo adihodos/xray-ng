@@ -5,10 +5,11 @@
 #include <Lz/map.hpp>
 #include <Lz/algorithm/accumulate.hpp>
 
-#include <itlib/small_vector.hpp>
-
 #include "xray/base/logger.hpp"
 #include "xray/base/xray.misc.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/thread.local.context.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 
@@ -133,7 +134,10 @@ tl::expected<xray::rendering::VulkanBuffer, xray::rendering::VulkanError> xray::
 			const uintptr_t staging_buffer_offset = renderer.reserve_staging_buffer_memory(initial_data_size);
 			uintptr_t staging_buff_ptr			  = renderer.staging_buffer_memory() + staging_buffer_offset;
 
-			itlib::small_vector<VkBufferCopy> buffer_copies;
+			base::ScratchPadArena scratch_pad{base::ThreadLocalContext::acquire_scratchpad({})};
+			base::containers::vector<VkBufferCopy> buffer_copies{*scratch_pad.arena};
+			buffer_copies.reserve(create_info.initial_data.size());
+			
 			VkDeviceSize bytes_count{};
 
 			for (std::span<const uint8_t> copy_rgn : create_info.initial_data) {

@@ -41,5 +41,4 @@ target_link_libraries(
   xray-rendering
   $<IF:$<CXX_COMPILER_ID:MSVC>,libconfig,config>
   tl::optional
-  PRIVATE
-  joboccara::pipes)
+)

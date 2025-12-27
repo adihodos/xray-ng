@@ -9,9 +9,6 @@
 #include <fmt/core.h>
 #include <fmt/std.h>
 
-#include <itlib/small_vector.hpp>
-#include <itlib/flat_map.hpp>
-#include <itlib/static_vector.hpp>
 #include <tl/optional.hpp>
 #include <swl/variant.hpp>
 #include <mio/mmap.hpp>
@@ -42,12 +39,6 @@
 XR_DISABLE_OPTIMIZATIONS()
 
 using namespace std;
-
-template <typename T>
-using small_vec_2 = itlib::small_vector<T, 2>;
-
-template <typename T>
-using small_vec_4 = itlib::small_vector<T, 4>;
 
 namespace xray::rendering {
 
@@ -764,10 +755,6 @@ tl::expected<GraphicsPipeline, VulkanError> GraphicsPipelineBuilder::create_impl
 
 		using pipeline_layout_definition_table_t =
 			base::containers::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>;
-		// itlib::flat_map<uint32_t,
-		//                 VkDescriptorSetLayoutBinding,
-		//                 less<uint32_t>,
-		//                 itlib::static_vector<pair<uint32_t, VkDescriptorSetLayoutBinding>, 16>>;
 
 		base::containers::vector<VkPushConstantRange> push_constant_ranges{*_arena_perm};
 		pipeline_layout_definition_table_t pipeline_layout_deftable{*_arena_temp};

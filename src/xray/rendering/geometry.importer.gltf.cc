@@ -5,7 +5,6 @@
 
 #define TINYGLTF_IMPLEMENTATION
 #include <tiny_gltf.h>
-#include <itlib/small_vector.hpp>
 #include <mio/mmap.hpp>
 
 #include "xray/base/logger.hpp"

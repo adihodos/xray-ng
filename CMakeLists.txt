@@ -26,21 +26,10 @@ cpmaddpackage("gh:fmtlib/fmt#12.1.0")
 cpmaddpackage("gh:TartanLlama/optional@1.1.0")
 cpmaddpackage("gh:TartanLlama/expected@1.1.0")
 cpmaddpackage("gh:vimpunk/mio#master")
-cpmaddpackage("gh:iboB/itlib#master")
 cpmaddpackage("gh:getml/reflect-cpp#main")
 cpmaddpackage("gh:max0x7ba/atomic_queue#master")
 cpmaddpackage("gh:serge-sans-paille/frozen#master")
 # cpmaddpackage("gh:bfgroup/Lyra#develop")
-
-cpmaddpackage(
-  NAME
-  pipes
-  GITHUB_REPOSITORY
-  adihodos/pipes
-  GIT_TAG
-  master
-  OPTIONS
-  "BUILD_TESTING OFF")
 
 cpmaddpackage(
   NAME
@@ -143,7 +132,6 @@ cpmaddpackage(
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/lib")
-
 
 set_property(
   DIRECTORY

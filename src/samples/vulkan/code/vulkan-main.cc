@@ -46,7 +46,6 @@
 #include <mio/mmap.hpp>
 #include <rfl/json.hpp>
 #include <rfl.hpp>
-#include <itlib/small_vector.hpp>
 
 #include <Lz/zip.hpp>
 #include <Lz/map.hpp>
@@ -68,10 +67,12 @@
 #include "xray/base/unique_pointer.hpp"
 #include "xray/base/memory.os.hpp"
 #include "xray/base/memory.arena.hpp"
+#include "xray/base/thread.local.context.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/containers/arena.string.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
+#include "xray/base/xray.fmt.hpp"
 #include "xray/base/serialization/rfl.libconfig/config.save.hpp"
 #include "xray/base/serialization/rfl.libconfig/config.load.hpp"
 #include "xray/rendering/colors/color_palettes.hpp"
@@ -122,9 +123,6 @@ using namespace std;
 xray::base::ConfigSystem* xr_app_config{nullptr};
 
 namespace B5 {
-
-template <typename T, size_t N = 4>
-using SmallVec = itlib::small_vector<T, N>;
 
 struct HudTextElement {
 	float x;
@@ -794,18 +792,15 @@ task_create_procedural_geometry_render_resources(
 		params.index_data | lz::map([](const std::span<const uint32_t> si) { return si.size_bytes(); }), 0
 	);
 
-	std::array<char, 256> scratch_buffer;
-	auto out = fmt::format_to_n(
-		scratch_buffer.data(), scratch_buffer.size() - 1, "[[{}]] - vertex buffer", params.resource_tag
-	);
-	*out.out = 0;
+	char scratch_buffer[256];
+	xray::base::format_to_n(scratch_buffer, "[[{}]] - vertex buffer", params.resource_tag);
 
 	VulkanRenderer* renderer = co_await params.renderer_result;
 
 	auto vertexbuffer = VulkanBuffer::create(
 		*renderer,
 		VulkanBufferCreateInfo{
-			.name_tag		   = scratch_buffer.data(),
+			.name_tag		   = scratch_buffer,
 			.usage			   = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			.memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			.bytes			   = vertex_bytes,
@@ -814,16 +809,12 @@ task_create_procedural_geometry_render_resources(
 	);
 
 	XR_COR_PROPAGATE_ERROR(vertexbuffer);
-
-	out = fmt::format_to_n(
-		scratch_buffer.data(), scratch_buffer.size() - 1, "[[{}]] - index buffer", params.resource_tag
-	);
-	*out.out = 0;
+	xray::base::format_to_n(scratch_buffer, "[[{}]] - index buffer", params.resource_tag);
 
 	auto indexbuffer = VulkanBuffer::create(
 		*renderer,
 		VulkanBufferCreateInfo{
-			.name_tag		   = scratch_buffer.data(),
+			.name_tag		   = scratch_buffer,
 			.usage			   = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			.memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			.bytes			   = index_bytes,
@@ -833,10 +824,12 @@ task_create_procedural_geometry_render_resources(
 
 	XR_COR_PROPAGATE_ERROR(indexbuffer);
 
-	uintptr_t staging_buff_offset = renderer->reserve_staging_buffer_memory(vertex_bytes + index_bytes);
-	itlib::small_vector<VkBufferCopy> cpy_regions_vtx;
+	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({});
+	containers::vector<VkBufferCopy> cpy_regions_vtx{*scratch_pad.arena};
+	cpy_regions_vtx.reserve(params.vertex_data.size() + params.index_data.size());
 
-	uintptr_t dst_buff_offset = 0;
+	uintptr_t staging_buff_offset = renderer->reserve_staging_buffer_memory(vertex_bytes + index_bytes);
+	uintptr_t dst_buff_offset	  = 0;
 	for (const std::span<const uint8_t> sv : params.vertex_data) {
 		memcpy(
 			reinterpret_cast<void*>(renderer->staging_buffer_memory() + staging_buff_offset), sv.data(), sv.size_bytes()
@@ -980,9 +973,7 @@ concurrencpp::result<tl::expected<NonGltfMaterialsData, ProgramError>> task_crea
 	vector<VulkanImage> loaded_textures;
 	for (const std::filesystem::path& p : texture_files) {
 		char scratch_buffer[512];
-		auto out =
-			fmt::format_to_n(scratch_buffer, std::size(scratch_buffer), "texture_{}", p.filename().generic_string());
-		*out.out = 0;
+		base::format_to_n(scratch_buffer, "texture_{}", p.filename().generic_string());
 
 		//
 		// submit each texture separatly
@@ -1011,11 +1002,15 @@ concurrencpp::result<tl::expected<NonGltfMaterialsData, ProgramError>> task_crea
 
 	//
 	// create the null + color texture
-	tl::expected<SmallVec<VulkanImage, 2>, VulkanError> special_textures =
-		[&]() -> tl::expected<SmallVec<VulkanImage, 2>, VulkanError> {
-		auto transfer_job = renderer->create_job(QueueType::Transfer);
-		XR_VK_PROPAGATE_ERROR(transfer_job);
+	containers::vector<VulkanImage> special_textures{task_mem_arena.arena};
+	special_textures.reserve(2);
 
+	{
+		auto transfer_job = renderer->create_job(QueueType::Transfer);
+		XR_VK_COR_PROPAGATE_ERROR(transfer_job);
+
+		//
+		// reset once we’re done here, since we use a bit of memory
 		ScratchPadArena scratch_pad{&task_mem_arena.arena};
 
 		ScratchPadVector<uint8_t> null_texture_pixels{size_t{256 * 256 * 4}, uint8_t{}, scratch_pad};
@@ -1042,21 +1037,19 @@ concurrencpp::result<tl::expected<NonGltfMaterialsData, ProgramError>> task_crea
 			},
 		};
 
-		SmallVec<VulkanImage, 2> imgs;
-		for (const VulkanImageCreateInfo& im : tex_data) {
-			auto tex = VulkanImage::from_memory(*renderer, im);
-			XR_VK_PROPAGATE_ERROR(tex);
-			imgs.push_back(std::move(*tex));
+		for (size_t i = 0; i < std::size(tex_data); ++i) {
+			const VulkanImageCreateInfo& im = tex_data[i];
+			auto tex						= VulkanImage::from_memory(*renderer, im);
+			XR_VK_COR_PROPAGATE_ERROR(tex);
+
+			special_textures.push_back(std::move(*tex));
 		}
 
 		auto wait_token = renderer->submit_job(*transfer_job);
-		XR_VK_PROPAGATE_ERROR(wait_token);
+		XR_VK_COR_PROPAGATE_ERROR(wait_token);
 
 		pending_jobs.emplace_back(std::move(*wait_token));
-		return imgs;
-	}();
-
-	XR_VK_COR_PROPAGATE_ERROR(special_textures);
+	}
 
 	const uint32_t image_count = static_cast<uint32_t>(texture_files.size() + 1);
 	const uint32_t img_slot	   = renderer->bindless_sys().reserve_image_slots(image_count);
@@ -1139,10 +1132,10 @@ concurrencpp::result<tl::expected<NonGltfMaterialsData, ProgramError>> task_crea
 
 	co_return tl::expected<NonGltfMaterialsData, ProgramError>{
 		tl::in_place,
-		std::move((*special_textures)[0]),
+		std::move(special_textures[0]),
 		std::move(colored_materials),
 		std::move(textured_materials),
-		std::move((*special_textures)[1]),
+		std::move(special_textures[1]),
 		std::move(loaded_textures),
 		std::move(material_sbos[0]),
 		std::move(material_sbos[1]),
@@ -1186,10 +1179,10 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 	//
 	// process procedurally generated geomtry data
 	vector<ProceduralGeometryEntry> procedural_geometries;
-	SmallVec<geometry_data_t> gdata;
+	containers::vector<geometry_data_t> gdata{scratchpad.arena};
 	vector<VkDrawIndexedIndirectCommand> draw_indirect_template;
-	SmallVec<span<const uint8_t>> vertex_span;
-	SmallVec<span<const uint32_t>> index_span;
+	containers::vector<span<const uint8_t>> vertex_span{scratchpad.arena};
+	containers::vector<span<const uint32_t>> index_span{scratchpad.arena};
 	vec2ui32 vtx_idx_accum{};
 
 	struct HeightRangeWithColor {
@@ -1353,7 +1346,7 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 	XR_VK_COR_PROPAGATE_ERROR(instances_buffer);
 
 	vector<VulkanBuffer> sbos_lights;
-	const SmallVec<std::tuple<size_t, string_view>> sbo_lights_data{
+	const std::tuple<size_t, string_view> sbo_lights_data[] = {
 		{container_bytes_size(scenedes->directional_lights), "[[sbo]] directional_lights"},
 		{container_bytes_size(scenedes->point_lights), "[[sbo]] point_lights"},
 		{container_bytes_size(scenedes->spot_lights), "[[sbo]] spot_lights"},
