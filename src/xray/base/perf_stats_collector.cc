@@ -53,7 +53,7 @@ xray::base::stats_thread::run()
         const std::filesystem::path p{ mod_path };
         const auto process_name = p.filename().stem().generic_string();
 
-		ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratch_pad({});
+		ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({});
         containers::string counter_path_buff{*scratch_pad.arena};
 
 		for (uint32_t i = 0; i < counter_type::last; ++i) {

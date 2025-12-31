@@ -177,16 +177,16 @@ target_compile_definitions(
     $<$<AND:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<CONFIG:RelWithDebInfo,Debug>>:_GLIBCXX_ASSERTIONS>
 )
 
-target_compile_options(
-  xray-set-compile-options-lib
-  INTERFACE
-    $<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>)
+# target_compile_options(
+  # xray-set-compile-options-lib
+  # INTERFACE
+    # $<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>)
 
 target_compile_definitions(
   xray-set-compile-options-lib
   INTERFACE
     $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
-    $<$<PLATFORM_ID:Windows>:YY_NO_UNISTD_H>
+    $<$<PLATFORM_ID:Windows>:XRAY_OS_IS_WINDOWS;NOMINMAX;YY_NO_UNISTD_H>
     XRAY_MATH_ENABLE_FMT_SUPPORT
     $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE>
 )

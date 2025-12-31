@@ -1791,12 +1791,21 @@ main(int argc, char** argv)
 	);
 
 	{
+		constexpr const char* const kVkLayerSettingsPathEnvVarName = "VK_LAYER_SETTINGS_PATH";
 		const auto layer_settings_path =
 			(xr_app_config->FileSys.RootPathAbsolute / "vk_layer_settings.txt").generic_string();
-		const int32_t result = ::setenv("VK_LAYER_SETTINGS_PATH", layer_settings_path.c_str(), true);
+
+		const  bool set_env_result = 
+#if defined(XRAY_OS_IS_POSIX_FAMILY)
+			::setenv(kVkLayerSettingsPathEnvVarName, layer_settings_path.c_str(), true) == 0;
+#elif defined(XRAY_OS_IS_WINDOWS)
+		::SetEnvironmentVariableA(kVkLayerSettingsPathEnvVarName, layer_settings_path.c_str()) != 0;
+		#else
+		#error Unsupported OS!
+		#endif
 
 		XR_LOG_INFO(
-			"Setting VK_LAYER_SETTINGS_PATH :: {} [{}]", layer_settings_path, result == 0 ? "succeeded" : "failed"
+			"Setting VK_LAYER_SETTINGS_PATH :: {} [{}]", layer_settings_path, set_env_result == 0 ? "succeeded" : "failed"
 		);
 	}
 

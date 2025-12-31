@@ -209,7 +209,7 @@ std::string_view format_vk_func_fail(
 
 namespace details {
 
-thread_local std::byte kTisButALocalScratch[xray::base::kilobytes(128)];
+thread_local std::byte kTisButALocalScratch[xray::base::megabytes(1)];
 
 VkBool32 r_vk_debug_msg_output(
 	VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -938,7 +938,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 				return tl::nullopt;
 			}
 
-			return tl::optional{*best_preferred_supported_mode};
+			return tl::optional<VkPresentModeKHR>{*best_preferred_supported_mode};
 		}();
 
 		if (!present_mode) {
@@ -1250,13 +1250,34 @@ tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena
 		.pUserData		 = nullptr,
 	};
 
+	const VkValidationFeatureEnableEXT enabled_validation_features[] = {
+		// VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+		// VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+		VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+		// VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT					  ,
+		VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
+	};
+
+	const VkValidationFeaturesEXT validation_features{
+		.sType							= VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+		.pNext							= &dbg_utils_msg_create_ext,
+		.enabledValidationFeatureCount	= static_cast<uint32_t>(std::size(enabled_validation_features)),
+		.pEnabledValidationFeatures		= enabled_validation_features,
+		.disabledValidationFeatureCount = 0,
+		.pDisabledValidationFeatures	= nullptr,
+	};
+
+	constexpr const char* const enabled_layers[] = {
+		"VK_LAYER_KHRONOS_validation",
+	};
+
 	const VkInstanceCreateInfo instance_create_info = {
 		.sType					 = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		.pNext					 = &dbg_utils_msg_create_ext,
+		.pNext					 = &validation_features,
 		.flags					 = 0,
 		.pApplicationInfo		 = &app_info,
-		.enabledLayerCount		 = 0,
-		.ppEnabledLayerNames	 = nullptr,
+		.enabledLayerCount		 = static_cast<uint32_t>(std::size(enabled_layers)),
+		.ppEnabledLayerNames	 = enabled_layers,
 		.enabledExtensionCount	 = static_cast<uint32_t>(std::size(extensions_list)),
 		.ppEnabledExtensionNames = extensions_list,
 	};
@@ -2075,7 +2096,9 @@ void VulkanRenderer::wait_device_idle() noexcept {
 uint32_t xray::rendering::VulkanRenderer::find_allocation_memory_type(
 	const uint32_t memory_requirements, const VkMemoryPropertyFlags required_flags
 ) const noexcept {
-	return vk_find_allocation_memory_type(_render_state.dev_physical.memory_properties.memoryProperties, memory_requirements, required_flags);
+	return vk_find_allocation_memory_type(
+		_render_state.dev_physical.memory_properties.memoryProperties, memory_requirements, required_flags
+	);
 }
 
 tl::expected<UniqueMemoryMapping, VulkanError> UniqueMemoryMapping::map_memory(

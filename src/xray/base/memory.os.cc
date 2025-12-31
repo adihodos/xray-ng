@@ -54,6 +54,53 @@ void os_free_mem(void* addr, const size_t size) noexcept {
 }  // namespace xray::base
 
 #elif defined(XRAY_OS_IS_WINDOWS)
+
+#include <windows.h>
+
+namespace xray::base {
+[[nodiscard]] size_t os_get_page_size() noexcept {
+	static size_t page_size{};
+	if (page_size == 0) {
+		SYSTEM_INFO sys_info;
+		GetSystemInfo(&sys_info);
+		page_size = sys_info.dwPageSize;
+	}
+	return page_size;
+}
+
+[[nodiscard]] void* os_reserve_mem(const size_t size) noexcept {
+	void* addr = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_NOACCESS);
+	return addr;
+}
+
+[[nodiscard]] void* os_commit_mem(void* addr, const size_t size) noexcept {
+	const uintptr_t addr_val = reinterpret_cast<uintptr_t>(addr);
+	assert(addr_val % os_get_page_size() == 0);
+
+	void* result_addr = VirtualAlloc(addr, size, MEM_COMMIT, PAGE_READWRITE);
+	return result_addr;
+}
+
+void os_decommit_mem(void* addr, const size_t size) noexcept {
+	const uintptr_t addr_val = reinterpret_cast<uintptr_t>(addr);
+	assert(addr_val % os_get_page_size() == 0);
+
+	const BOOL result = VirtualFree(addr, 0, MEM_DECOMMIT);
+	assert(result == TRUE);
+}
+
+[[nodiscard]] void* os_alloc_mem(const size_t size) noexcept {
+	void* address = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	assert(address != nullptr);
+	return address;
+}
+
+void os_free_mem(void* addr, const size_t size) noexcept {
+	const BOOL result = VirtualFree(addr, 0, MEM_RELEASE);
+	assert(result == TRUE);
+}
+}  // namespace xray::base
+
 #else
 #error Unsupported system!
 #endif

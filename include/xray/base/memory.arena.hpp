@@ -21,6 +21,9 @@
 #include <sanitizer/asan_interface.h>
 #endif
 
+#include "xray/base/xray.fmt.hpp"
+#include "xray/base/xray.misc.hpp"
+
 namespace xray::base::details {
 
 #if defined(__SANITIZE_ADDRESS__)
@@ -122,15 +125,27 @@ struct MemoryArena {
 
 			return ptr;
 		}
-		// Return NULL if the arena is out of memory (or handle differently)
+
+		char scratch_buffer[2048];
+		format_to_n(
+			scratch_buffer,
+			"Arena OOM: req: size {}, align {}. Allocations: {}, bytes: {}, largest {}, high watermark {}\n",
+			size,
+			align,
+			stats.allocations,
+			stats.allocated,
+			stats.largest_alloc,
+			stats.high_water
+		);
+		os_output_debug_string(scratch_buffer);
 		return nullptr;
 	}
 
-	void free(void* ptr, const std::size_t n) noexcept {
-		details::poison_memory_region(ptr, n);
-	}
+	void free(void* ptr, const std::size_t n) noexcept { details::poison_memory_region(ptr, n); }
 
-	[[nodiscard]] void* resize_align(void* old_memory, const size_t old_size, const size_t new_size, const size_t align) noexcept {
+	[[nodiscard]] void* resize_align(
+		void* old_memory, const size_t old_size, const size_t new_size, const size_t align
+	) noexcept {
 		std::byte* old_mem = static_cast<std::byte*>(old_memory);
 
 		assert(is_power_of_two(align));

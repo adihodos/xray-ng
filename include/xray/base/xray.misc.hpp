@@ -86,4 +86,6 @@ std::span<std::byte> os_virtual_alloc(const size_t block_size) noexcept;
 
 void os_virtual_free(std::span<std::byte> block) noexcept;
 
+void os_output_debug_string(const char* str) noexcept;
+
 }  // namespace xray::base

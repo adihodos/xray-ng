@@ -771,7 +771,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 				.elementSize   = elementSize,
 				.numDimensions = loaded_ktx->numDimensions,
 #if defined(_DEBUG)
-				.regionsArrayEnd = copy_regions.end(),
+				.regionsArrayEnd = copy_regions.data() + copy_regions.size(),
 #endif
 			};
 

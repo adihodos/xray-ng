@@ -6,6 +6,9 @@
 
 #if defined(XRAY_OS_IS_POSIX_FAMILY)
 #include <unistd.h>
+#elif defined(XRAY_OS_IS_WINDOWS)
+#include <tchar.h>
+#include <windows.h>
 #else
 #error Not implemented for this OS
 #endif
@@ -22,7 +25,15 @@ std::filesystem::path get_process_path() {
 		scratch_buffer[bytes_read] = 0;
 		return std::filesystem::path{scratch_buffer};
 	}
-
+#elif defined(XRAY_OS_IS_WINDOWS)
+	TCHAR scratch_buffer[1024];
+	const DWORD bytes_out = GetModuleFileName(nullptr, scratch_buffer, std::size(scratch_buffer) - 1);
+	if (bytes_out != 0) {
+		scratch_buffer[bytes_out] = 0;
+		return std::filesystem::path{scratch_buffer};
+	}
+	#else
+	#error Unsupported OS!
 #endif
 
 	return std::filesystem::current_path();
