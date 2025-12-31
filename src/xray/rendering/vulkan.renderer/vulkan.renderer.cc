@@ -649,7 +649,13 @@ tl::optional<QueueFamilyIndices> vk_renderer_pick_queue_families(
 	}
 
 	base::containers::vector<VkQueueFamilyProperties2> queue_family_props{*scratch_pad.arena};
-	queue_family_props.resize(queue_families_count);
+	queue_family_props.resize(
+		queue_families_count,
+		VkQueueFamilyProperties2{
+			.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
+			.pNext = nullptr,
+		}
+	);
 
 	vkGetPhysicalDeviceQueueFamilyProperties2(phys_device, &queue_families_count, queue_family_props.data());
 	if (queue_families_count == 0) {
@@ -756,6 +762,7 @@ struct R_PhysicalDeviceSetup {
 	VkSurfaceCapabilitiesKHR surface_caps;
 	VkPhysicalDeviceFeatures2 f_device;
 	VkPhysicalDeviceDescriptorBufferFeaturesEXT f_descriptor_buffer;
+	VkPhysicalDeviceExtendedDynamicState3FeaturesEXT f_dynstate3;
 	VkPhysicalDeviceVulkan11Features f_vk11;
 	VkPhysicalDeviceVulkan12Features f_vk12;
 	VkPhysicalDeviceVulkan13Features f_vk13;
@@ -783,6 +790,10 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 		return tl::nullopt;
 	}
 
+	VkPhysicalDeviceExtendedDynamicState3FeaturesEXT f_dynstate3{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT,
+	};
+
 	VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptor_buffer_features{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT,
 	};
@@ -802,7 +813,9 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
 	};
 
-	details::chain_structs(descriptor_buffer_features, vk13features, vk12features, vk11features, phys_device_features);
+	details::chain_structs(
+		f_dynstate3, descriptor_buffer_features, vk13features, vk12features, vk11features, phys_device_features
+	);
 	VkSurfaceCapabilitiesKHR surface_caps{};
 
 	VkPhysicalDeviceVulkan11Properties p_vk11{
@@ -969,10 +982,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 			uint32_t extensions_count{};
 			vkEnumerateDeviceExtensionProperties(phys_device, nullptr, &extensions_count, nullptr);
 			if (extensions_count != 0) {
-				containers::vector<VkExtensionProperties> device_exts_list{
-					*scratch_pad.arena
-
-				};
+				containers::vector<VkExtensionProperties> device_exts_list{*scratch_pad.arena};
 
 				device_exts_list.resize(extensions_count);
 				vkEnumerateDeviceExtensionProperties(phys_device, nullptr, &extensions_count, device_exts_list.data());
@@ -1001,6 +1011,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 			surface_caps,
 			phys_device_features,
 			descriptor_buffer_features,
+			f_dynstate3,
 			vk11features,
 			vk12features,
 			vk13features,
@@ -1089,8 +1100,9 @@ tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
 	auto f_12				 = physical.f_vk12;
 	auto f_13				 = physical.f_vk13;
 	auto f_descriptor_buffer = physical.f_descriptor_buffer;
+	auto f_dynstate3		 = physical.f_dynstate3;
 
-	details::chain_structs(f_descriptor_buffer, f_13, f_12, f_11, phys_features);
+	details::chain_structs(f_dynstate3, f_descriptor_buffer, f_13, f_12, f_11, phys_features);
 
 	static constexpr initializer_list<const char*> device_extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -1620,7 +1632,9 @@ VulkanRenderer::VulkanRenderer(
 	}
 }
 
-FrameRenderData VulkanRenderer::begin_rendering() {
+FrameRenderData VulkanRenderer::begin_rendering(
+	const float red, const float green, const float blue, const float depth, const uint32_t stencil
+) {
 	ZoneScopedN("BeginRendering");
 
 	//
@@ -1685,7 +1699,7 @@ FrameRenderData VulkanRenderer::begin_rendering() {
 		.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		.loadOp				= VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp			= VK_ATTACHMENT_STORE_OP_STORE,
-		.clearValue			= VkClearValue{},
+		.clearValue			= VkClearValue{.color = VkClearColorValue{.float32 = {red, green, blue, 1.0f}}},
 	};
 
 	const VkRenderingAttachmentInfo depth_attachment = {
@@ -1698,7 +1712,7 @@ FrameRenderData VulkanRenderer::begin_rendering() {
 		.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		.loadOp				= VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp			= VK_ATTACHMENT_STORE_OP_DONT_CARE,
-		.clearValue			= VkClearValue{},
+		.clearValue = VkClearValue{.depthStencil = VkClearDepthStencilValue{.depth = depth, .stencil = stencil}},
 	};
 
 	const VkRect2D render_area{
@@ -1724,7 +1738,7 @@ FrameRenderData VulkanRenderer::begin_rendering() {
 			.sType				 = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 			.pNext				 = nullptr,
 			.srcStageMask		 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.srcAccessMask		 = 0,
+			.srcAccessMask		 = VK_ACCESS_2_NONE,
 			.dstStageMask		 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 			.dstAccessMask		 = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 			.oldLayout			 = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -1744,8 +1758,8 @@ FrameRenderData VulkanRenderer::begin_rendering() {
 		VkImageMemoryBarrier2{
 			.sType				 = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 			.pNext				 = nullptr,
-			.srcStageMask		 = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-			.srcAccessMask		 = 0,
+			.srcStageMask		 = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+			.srcAccessMask		 = VK_ACCESS_2_NONE,
 			.dstStageMask		 = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
 			.dstAccessMask		 = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 			.oldLayout			 = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -1783,6 +1797,8 @@ FrameRenderData VulkanRenderer::begin_rendering() {
 
 	//
 	// do any pending ownership transfers
+	// TODO: move this to scratchpad and remove fn
+
 	if (!_ownership_transfers.empty()) {
 		const vector<VkImageMemoryBarrier2> mem_barriers =
 			_ownership_transfers % fn::transform([this](const BindlessResourceHandle_Image img) {
@@ -1792,7 +1808,7 @@ FrameRenderData VulkanRenderer::begin_rendering() {
 					.sType				 = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 					.pNext				 = nullptr,
 					.srcStageMask		 = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-					.srcAccessMask		 = 0,
+					.srcAccessMask		 = VK_ACCESS_2_NONE,
 					.dstStageMask		 = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
 					.dstAccessMask		 = VK_ACCESS_2_SHADER_READ_BIT,
 					.oldLayout			 = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -1855,7 +1871,7 @@ void VulkanRenderer::end_rendering() {
 		.srcStageMask		 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 		.srcAccessMask		 = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 		.dstStageMask		 = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
-		.dstAccessMask		 = VK_ACCESS_2_MEMORY_READ_BIT,
+		.dstAccessMask		 = VK_ACCESS_2_NONE,
 		.oldLayout			 = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.newLayout			 = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		.srcQueueFamilyIndex = 0,
@@ -2017,6 +2033,7 @@ void VulkanRenderer::handle_swapchain_suboptimal_out_of_date(
 					_presentation_state.swapchain_state = std::move(new_swapchain_state);
 					_presentation_state.state_bits &= ~detail::PresentationState::STATE_SWAPCHAIN_SUBOPTIMAL;
 					_presentation_state.surface_state.caps = surface_caps;
+					_presentation_state.frame_index		   = 0;
 
 					if (reacquire == VulkanRenderer::SwapchainReacquireAfterSuboptimal::Always_) {
 						const uint32_t previous_acquired_image{_presentation_state.acquired_image};

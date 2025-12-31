@@ -718,11 +718,8 @@ void B5::GameSimulation::loop_event(const RenderEvent& render_event) {
 
 		const uint32_t color_tex_handle			= destructure_bindless_resource_handle(sres->color_tex.first).first;
 		frame_global_data->global_color_texture = color_tex_handle;
-
-		render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
 	}
 
-	// render_event.renderer->clear_attachments(render_event.frame_data->cmd_buf, 0.0f, 0.0f, 0.0f);
 	const VkViewport viewport{
 		.x		  = 0.0f,
 		.y		  = static_cast<float>(render_event.frame_data->fbsize.height),
@@ -816,7 +813,6 @@ void B5::GameSimulation::loop_event(const RenderEvent& render_event) {
 			++iri;
 			++instance;
 		}
-		render_event.renderer->dbg_marker_end(render_event.frame_data->cmd_buf);
 	}
 
 	const containers::vector<const EntityDrawableComponent*> ents_color_mtl =

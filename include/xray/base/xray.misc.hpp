@@ -83,9 +83,18 @@ inline constexpr T megabytes(const T value) noexcept {
 }
 
 std::span<std::byte> os_virtual_alloc(const size_t block_size) noexcept;
-
 void os_virtual_free(std::span<std::byte> block) noexcept;
 
 void os_output_debug_string(const char* str) noexcept;
 
+bool os_is_debugger_present() noexcept;
+void os_debug_break() noexcept;
+
 }  // namespace xray::base
+
+#define BREAK_IF_DEBUGGER_ATTACHED()                \
+	do {                                            \
+		if (xray::base::os_is_debugger_present()) { \
+			xray::base::os_debug_break();           \
+		}                                           \
+	} while (0)

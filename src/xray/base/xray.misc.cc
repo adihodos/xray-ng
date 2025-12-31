@@ -54,5 +54,28 @@ void os_output_debug_string(const char* str) noexcept {
 #error "unsupported OS"
 #endif
 }
-	
+
+//
+// TODO: maybe move the OS specific implementation into separate files
+bool os_is_debugger_present() noexcept {
+#if defined(XRAY_OS_IS_WINDOWS)
+	return IsDebuggerPresent() == TRUE;
+#elif defined(XRAY_OS_IS_POSIX_FAMILY)
+#error Not implemented!
+#else
+#error Not implemented!
+#endif
+}
+
+void os_debug_break() noexcept {
+#if defined(XRAY_OS_IS_WINDOWS)
+	__debugbreak();
+#elif defined(XRAY_OS_IS_POSIX_FAMILY)
+	// https://stackoverflow.com/questions/3596781/how-to-detect-if-the-current-process-is-being-run-by-gdb
+#error Not implemented!
+#else
+#error Not implemented!
+#endif
+}
+
 }  // namespace xray::base

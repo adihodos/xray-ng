@@ -155,7 +155,6 @@ if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
       $<$<CONFIG:RelWithDebInfo,Debug>:-fasynchronous-unwind-tables>
       $<$<CONFIG:RelWithDebInfo,Debug>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
   )
-
 endif()
 
 # cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON -B build.asan -S .

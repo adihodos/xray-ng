@@ -285,7 +285,10 @@ public:
 		BindlessSystem bindless
 	);
 
-	FrameRenderData begin_rendering();
+	FrameRenderData begin_rendering(
+		const float red, const float green, const float blue, const float depth = 1.0f, const uint32_t stencil = 0
+	);
+	
 	void end_rendering();
 	void clear_attachments(
 		VkCommandBuffer cmd_buf,
@@ -334,9 +337,7 @@ public:
 	// @group Debugging
 	template <typename VkObjectType>
 	void dbg_set_object_name(VkObjectType vkobj, const char* name) const noexcept;
-	void dbg_set_object_name(
-		const uint64_t object, const VkObjectType obj_type, const char* name
-	) const noexcept;
+	void dbg_set_object_name(const uint64_t object, const VkObjectType obj_type, const char* name) const noexcept;
 	[[nodiscard]] DebugMarkerEndScoped dbg_marker_begin(
 		VkCommandBuffer cmd_buf, const char* name, const rgb_color color
 	) noexcept;

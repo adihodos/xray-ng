@@ -138,6 +138,7 @@ struct MemoryArena {
 			stats.high_water
 		);
 		os_output_debug_string(scratch_buffer);
+		BREAK_IF_DEBUGGER_ATTACHED();
 		return nullptr;
 	}
 
@@ -171,6 +172,7 @@ struct MemoryArena {
 			}
 		} else {
 			assert(0 && "Memory is out of bounds of the buffer in this arena");
+			BREAK_IF_DEBUGGER_ATTACHED();
 			return nullptr;
 		}
 	}

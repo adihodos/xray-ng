@@ -493,21 +493,10 @@ tl::expected<B5::Terrain, VulkanError> B5::Terrain::create(const InitContext& ct
 			}
 		);
 
-#if defined(XRAY_COMPILER_IS_MSVC)
-	containers::vector<TerrainDetails> lod_levels{
-		MemoryArenaAllocator<TerrainDetails>(*ctx.temp),
-	};
-	for (const uint32_t lod : lz::range(std::max(params.lods, uint32_t{1}))) {
-		lod_levels.emplace_back(compute_terrain_details_lod(params, lod));
-	}
-
-#else
 	containers::vector<TerrainDetails> lod_levels =
 		lz::range(uint32_t{}, params.lods ? params.lods : 1) |
 		lz::map([&params](uint32_t lod) { return compute_terrain_details_lod(params, lod); }) |
 		lz::to<containers::vector<TerrainDetails>>(MemoryArenaAllocator<TerrainDetails>{*ctx.temp});
-
-#endif
 
 	for (const TerrainDetails& td : lod_levels) {
 		XR_LOG_INFO("Lod vtx: {} idx: {}", td.vertices, td.indices);
@@ -792,42 +781,20 @@ void B5::Terrain::loop_event(const RenderEvent& re) {
 		}
 	);
 
-#if defined(XRAY_COMPILER_IS_MSVC)
-	containers::unordered_set<vec2i32> slabs_to_spawn{MemoryArenaAllocator<vec2i32>{*re.arena_temp}};
-	ranges::copy(
-		slabs_current_frame | views::filter([this](const vec2i32 curr_frame_slab) {
-			return !_renderstate.slabs_visible_last_frame.contains(curr_frame_slab);
-		}),
-		std::inserter(slabs_to_spawn, std::begin(slabs_to_spawn))
-	);
-
-#else
 	auto slabs_to_spawn = slabs_current_frame | lz::filter([this](const vec2i32 curr_frame_slab) {
 							  return !_renderstate.slabs_visible_last_frame.contains(curr_frame_slab);
 						  }) |
 						  lz::to<containers::unordered_set<vec2i32>>(MemoryArenaAllocator<vec2i32>{*re.arena_temp});
-#endif
 
 	for (const vec2i32 spawned : slabs_to_spawn) {
 		XR_LOG_INFO("Spawned: {}", spawned);
 	}
 
-#if defined(XRAY_COMPILER_IS_MSVC)
-	containers::unordered_set<vec2i32> slabs_to_despawn{MemoryArenaAllocator<vec2i32>{*re.arena_temp}};
-	ranges::copy(
-		_renderstate.slabs_visible_last_frame | views::filter([&slabs_current_frame](const vec2i32 last_frame_slab) {
-			return !slabs_current_frame.contains(last_frame_slab);
-		}),
-		std::inserter(slabs_to_despawn, std::begin(slabs_to_despawn))
-	);
-
-#else
 	auto slabs_to_despawn = _renderstate.slabs_visible_last_frame |
 							lz::filter([&slabs_current_frame](const vec2i32 last_frame_slab) {
 								return !slabs_current_frame.contains(last_frame_slab);
 							}) |
 							lz::to<containers::unordered_set<vec2i32>>(MemoryArenaAllocator<vec2i32>{*re.arena_temp});
-#endif
 
 	for (const vec2i32 despawned : slabs_to_despawn) {
 		XR_LOG_INFO("Despawning {}", despawned);
