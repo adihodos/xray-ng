@@ -116,7 +116,7 @@ struct RenderState {
 	std::atomic_uintptr_t staging_buffer_offset;
 	std::vector<Queue> queues;
 	xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_cmd_pool_mutex;
-	xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_submit_mutex;
+	// xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_submit_mutex;
 	RenderingAttachments attachments;
 
 	RenderState(
@@ -134,7 +134,7 @@ struct RenderState {
 		  staging_buffer_offset{0},
 		  queues{std::move(qs)},
 		  queue_cmd_pool_mutex{new xray::base::concurrency::spin_mutex[queues.size()]},
-		  queue_submit_mutex{new xray::base::concurrency::spin_mutex[queues.size()]},
+		  // queue_submit_mutex{new xray::base::concurrency::spin_mutex[queues.size()]},
 		  attachments{std::move(atts)} {}
 
 	RenderState(RenderState&& rhs) noexcept
@@ -145,7 +145,7 @@ struct RenderState {
 		  staging_buffer_offset(rhs.staging_buffer_offset.load()),
 		  queues(std::move(rhs.queues)),
 		  queue_cmd_pool_mutex(std::move(rhs.queue_cmd_pool_mutex)),
-		  queue_submit_mutex(std::move(rhs.queue_submit_mutex)),
+		  // queue_submit_mutex(std::move(rhs.queue_submit_mutex)),
 		  attachments(std::move(rhs.attachments)) {}
 };
 
@@ -369,7 +369,7 @@ public:
 		uint32_t family;
 		VkCommandPool cmdpool;
 		std::reference_wrapper<xray::base::concurrency::spin_mutex> cmdpool_lock;
-		std::reference_wrapper<xray::base::concurrency::spin_mutex> submit_lock;
+		// std::reference_wrapper<xray::base::concurrency::spin_mutex> submit_lock;
 	};
 
 	QueueData queue_data(const QueueType qtype) noexcept {
@@ -378,7 +378,7 @@ public:
 			.family	 = _render_state.queues[static_cast<uint32_t>(qtype)].index,
 			.cmdpool = xray::base::unique_pointer_get_ptr(_render_state.queues[static_cast<uint32_t>(qtype)].cmd_pool),
 			.cmdpool_lock = std::reference_wrapper{_render_state.queue_cmd_pool_mutex[static_cast<uint32_t>(qtype)]},
-			.submit_lock  = std::reference_wrapper{_render_state.queue_submit_mutex[static_cast<uint32_t>(qtype)]},
+			// .submit_lock  = std::reference_wrapper{_render_state.queue_submit_mutex[static_cast<uint32_t>(qtype)]},
 		};
 	}
 

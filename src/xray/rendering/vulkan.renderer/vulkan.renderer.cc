@@ -1863,6 +1863,7 @@ void VulkanRenderer::end_rendering() {
 	ZoneScopedN("EndRendering");
 	vkCmdEndRendering(_presentation_state.command_buffers[_presentation_state.frame_index]);
 
+	const uint32_t acquired_swapchain_image = _presentation_state.acquired_image;
 	//
 	// move rendered image from ATTACHMENT_OPTIMAL to SRC_PRESENT
 	const VkImageMemoryBarrier2 color_attachment_optimal_to_src_present = {
@@ -1876,7 +1877,7 @@ void VulkanRenderer::end_rendering() {
 		.newLayout			 = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		.srcQueueFamilyIndex = 0,
 		.dstQueueFamilyIndex = 0,
-		.image				 = _presentation_state.swapchain_state.swapchain_images[_presentation_state.acquired_image],
+		.image				 = _presentation_state.swapchain_state.swapchain_images[acquired_swapchain_image],
 		.subresourceRange	 = VkImageSubresourceRange{
 			   .aspectMask	   = VK_IMAGE_ASPECT_COLOR_BIT,
 			   .baseMipLevel   = 0,
@@ -1904,6 +1905,8 @@ void VulkanRenderer::end_rendering() {
 
 	WRAP_VULKAN_FUNC(vkEndCommandBuffer, _presentation_state.command_buffers[_presentation_state.frame_index]);
 
+	//
+	// https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html
 	const VkSemaphoreSubmitInfo semaphore_wait_img_available = {
 		.sType		 = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		.pNext		 = nullptr,
@@ -1916,7 +1919,7 @@ void VulkanRenderer::end_rendering() {
 	const VkSemaphoreSubmitInfo semaphore_signal_rendering_done = {
 		.sType		 = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		.pNext		 = nullptr,
-		.semaphore	 = raw_ptr(_presentation_state.swapchain_state.sync.rendering_sem[_presentation_state.frame_index]),
+		.semaphore	 = raw_ptr(_presentation_state.swapchain_state.sync.rendering_sem[acquired_swapchain_image]),
 		.value		 = 0,
 		.stageMask	 = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
 		.deviceIndex = 0,
@@ -1957,9 +1960,8 @@ void VulkanRenderer::end_rendering() {
 
 	const VkSwapchainKHR swap_chains[]			= {raw_ptr(_presentation_state.swapchain_state.swapchain)};
 	const VkSemaphore present_wait_semaphores[] = {
-		raw_ptr(_presentation_state.swapchain_state.sync.rendering_sem[_presentation_state.frame_index])
+		raw_ptr(_presentation_state.swapchain_state.sync.rendering_sem[acquired_swapchain_image])
 	};
-	const uint32_t swapchain_image_index[] = {_presentation_state.acquired_image};
 
 	const VkPresentInfoKHR present_info = {
 		.sType				= VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -1968,7 +1970,7 @@ void VulkanRenderer::end_rendering() {
 		.pWaitSemaphores	= present_wait_semaphores,
 		.swapchainCount		= static_cast<uint32_t>(size(swap_chains)),
 		.pSwapchains		= swap_chains,
-		.pImageIndices		= swapchain_image_index,
+		.pImageIndices		= &acquired_swapchain_image,
 		.pResults			= nullptr,
 	};
 
@@ -2515,7 +2517,7 @@ xray::rendering::VulkanRenderer::submit_job(QueuedJob queued_job) noexcept {
 
 	{
 		QueueData qdata{queue_data(queued_job.queue_type)};
-		std::unique_lock<xray::base::concurrency::spin_mutex> submit_lock{qdata.submit_lock};
+		std::unique_lock<xray::base::concurrency::spin_mutex> submit_lock{qdata.cmdpool_lock};
 		const VkResult submit_result =
 			WRAP_VULKAN_FUNC(vkQueueSubmit, qdata.handle, 1, &submit_info, raw_ptr(wait_fence));
 		XR_VK_CHECK_RESULT(submit_result);
