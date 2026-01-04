@@ -743,6 +743,9 @@ void copy_render_resources(
 }
 
 void B5::Terrain::loop_event(const RenderEvent& re) {
+	//
+	// pending spawn tasks
+	
 	const bool looking_up = are_parallel(re.cam->direction(), vec3f::stdc::unit_y) &&
 							(dot(re.cam->direction(), vec3f::stdc::unit_y) > 0.0f);
 	if (looking_up) return;
