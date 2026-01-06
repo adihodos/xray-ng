@@ -444,15 +444,14 @@ tl::optional<PresentToDisplaySurface> check_display_presentation_support(
 
 		const auto [display_mode_idx, display_plane_caps] =
 			dpy_itr->display_modes %
-			fn::transform(
-				[display_mode_idx = 0u, pd, plane_index = dppd.index](const VkDisplayModePropertiesKHR& dpm) mutable {
-					VkDisplayPlaneCapabilitiesKHR display_plane_capabilities;
-					WRAP_VULKAN_FUNC(
-						vkGetDisplayPlaneCapabilitiesKHR, pd, dpm.displayMode, plane_index, &display_plane_capabilities
-					);
-					return make_tuple(display_mode_idx + 1, display_plane_capabilities);
-				}
-			) %
+			fn::transform([display_mode_idx = 0u, pd, plane_index = dppd.index](const VkDisplayModePropertiesKHR& dpm
+						  ) mutable {
+				VkDisplayPlaneCapabilitiesKHR display_plane_capabilities;
+				WRAP_VULKAN_FUNC(
+					vkGetDisplayPlaneCapabilitiesKHR, pd, dpm.displayMode, plane_index, &display_plane_capabilities
+				);
+				return make_tuple(display_mode_idx + 1, display_plane_capabilities);
+			}) %
 			fn::foldl(
 				tuple<uint32_t, VkDisplayPlaneCapabilitiesKHR>{},
 				[](const tuple<uint32_t, VkDisplayPlaneCapabilitiesKHR>& out,
@@ -489,9 +488,8 @@ tl::optional<PresentToDisplaySurface> check_display_presentation_support(
 	}
 
 	return best_choice.and_then(
-		[&attached_displays,
-		 &display_plane_data,
-		 instance](const DisplayDataDisplayPlaneCapsModeIndex& dddpi) -> tl::optional<PresentToDisplaySurface> {
+		[&attached_displays, &display_plane_data, instance](const DisplayDataDisplayPlaneCapsModeIndex& dddpi
+		) -> tl::optional<PresentToDisplaySurface> {
 			XR_LOG_INFO(
 				"capabilities: min dst pos {}, max dst pos {}, min dst extent {}, max dst extent {}",
 				dddpi.display_plane_caps.minDstPosition,
@@ -1080,12 +1078,10 @@ tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
 			};
 		}
 
-		queue_retrieve_data.push_back(
-			QueueRetrievalData{
-				.family_index = queue_family_index,
-				.queue_index  = queue_create_list[queue_family_index].queue_index,
-			}
-		);
+		queue_retrieve_data.push_back(QueueRetrievalData{
+			.family_index = queue_family_index,
+			.queue_index  = queue_create_list[queue_family_index].queue_index,
+		});
 	}
 
 	containers::vector<VkDeviceQueueCreateInfo> queue_create_infos{*scratch_pad.arena};
@@ -1766,14 +1762,15 @@ FrameRenderData VulkanRenderer::begin_rendering(
 			.newLayout			 = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image			  = raw_ptr(_presentation_state.swapchain_state.depth_stencil_images[acquired_image].image),
-			.subresourceRange = VkImageSubresourceRange{
-				.aspectMask		= VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-				.baseMipLevel	= 0,
-				.levelCount		= 1,
-				.baseArrayLayer = 0,
-				.layerCount		= 1,
-			},
+			.image = raw_ptr(_presentation_state.swapchain_state.depth_stencil_images[acquired_image].image),
+			.subresourceRange =
+				VkImageSubresourceRange{
+					.aspectMask		= VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+					.baseMipLevel	= 0,
+					.levelCount		= 1,
+					.baseArrayLayer = 0,
+					.layerCount		= 1,
+				},
 		},
 	};
 
@@ -1816,13 +1813,14 @@ FrameRenderData VulkanRenderer::begin_rendering(
 					.srcQueueFamilyIndex = _render_state.queues[1].index,
 					.dstQueueFamilyIndex = _render_state.queues[0].index,
 					.image				 = img_data.handle,
-					.subresourceRange	 = VkImageSubresourceRange{
-						   .aspectMask	   = VK_IMAGE_ASPECT_COLOR_BIT,
-						   .baseMipLevel   = 0,
-						   .levelCount	   = img_data.info.levelCount,
-						   .baseArrayLayer = 0,
-						   .layerCount	   = img_data.info.layerCount,
-					   },
+					.subresourceRange =
+						VkImageSubresourceRange{
+							.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+							.baseMipLevel	= 0,
+							.levelCount		= img_data.info.levelCount,
+							.baseArrayLayer = 0,
+							.layerCount		= img_data.info.layerCount,
+						},
 				};
 			}) %
 			fn::to_vector();
@@ -1852,10 +1850,11 @@ FrameRenderData VulkanRenderer::begin_rendering(
 		.max_frames = _presentation_state.max_frames,
 		.cmd_buf	= _presentation_state.command_buffers[_presentation_state.frame_index],
 		.fbsize		= _presentation_state.surface_state.caps.currentExtent,
-		.fb_f32		= {
+		.fb_f32 =
+			{
 				.width	= static_cast<float>(_presentation_state.surface_state.caps.currentExtent.width),
 				.height = static_cast<float>(_presentation_state.surface_state.caps.currentExtent.height),
-		},
+			},
 	};
 }
 
@@ -1878,13 +1877,14 @@ void VulkanRenderer::end_rendering() {
 		.srcQueueFamilyIndex = 0,
 		.dstQueueFamilyIndex = 0,
 		.image				 = _presentation_state.swapchain_state.swapchain_images[acquired_swapchain_image],
-		.subresourceRange	 = VkImageSubresourceRange{
-			   .aspectMask	   = VK_IMAGE_ASPECT_COLOR_BIT,
-			   .baseMipLevel   = 0,
-			   .levelCount	   = VK_REMAINING_MIP_LEVELS,
-			   .baseArrayLayer = 0,
-			   .layerCount	   = VK_REMAINING_ARRAY_LAYERS,
-		   },
+		.subresourceRange =
+			VkImageSubresourceRange{
+				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel	= 0,
+				.levelCount		= VK_REMAINING_MIP_LEVELS,
+				.baseArrayLayer = 0,
+				.layerCount		= VK_REMAINING_ARRAY_LAYERS,
+			},
 	};
 
 	const VkDependencyInfo dependency_info = {
@@ -2211,20 +2211,21 @@ tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainState
 	vector<xrUniqueVkImageView> swapchain_image_views =
 		swapchain_images % fn::transform([&](VkImage image) {
 			const VkImageViewCreateInfo imageview_create_info = {
-				.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-				.pNext			  = nullptr,
-				.flags			  = 0,
-				.image			  = image,
-				.viewType		  = VK_IMAGE_VIEW_TYPE_2D,
-				.format			  = create_info.fmt.format,
-				.components		  = VkComponentMapping{},
-				.subresourceRange = VkImageSubresourceRange{
-					.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-					.baseMipLevel	= 0,
-					.levelCount		= 1,
-					.baseArrayLayer = 0,
-					.layerCount		= 1,
-				},
+				.sType		= VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+				.pNext		= nullptr,
+				.flags		= 0,
+				.image		= image,
+				.viewType	= VK_IMAGE_VIEW_TYPE_2D,
+				.format		= create_info.fmt.format,
+				.components = VkComponentMapping{},
+				.subresourceRange =
+					VkImageSubresourceRange{
+						.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+						.baseMipLevel	= 0,
+						.levelCount		= 1,
+						.baseArrayLayer = 0,
+						.layerCount		= 1,
+					},
 			};
 
 			VkImageView image_view{};
@@ -2307,20 +2308,21 @@ tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainState
 		};
 
 		const VkImageViewCreateInfo depth_stencil_view_create_info = {
-			.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.pNext			  = nullptr,
-			.flags			  = 0,
-			.image			  = raw_ptr(ds_image),
-			.viewType		  = VK_IMAGE_VIEW_TYPE_2D,
-			.format			  = create_info.depth_att_format,
-			.components		  = VkComponentMapping{},
-			.subresourceRange = VkImageSubresourceRange{
-				.aspectMask		= VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-				.baseMipLevel	= 0,
-				.levelCount		= 1,
-				.baseArrayLayer = 0,
-				.layerCount		= 1,
-			},
+			.sType		= VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.pNext		= nullptr,
+			.flags		= 0,
+			.image		= raw_ptr(ds_image),
+			.viewType	= VK_IMAGE_VIEW_TYPE_2D,
+			.format		= create_info.depth_att_format,
+			.components = VkComponentMapping{},
+			.subresourceRange =
+				VkImageSubresourceRange{
+					.aspectMask		= VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+					.baseMipLevel	= 0,
+					.levelCount		= 1,
+					.baseArrayLayer = 0,
+					.layerCount		= 1,
+				},
 		};
 
 		xrUniqueVkImageView ds_image_view{
@@ -2415,9 +2417,8 @@ tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainState
 	);
 }
 
-void VulkanRenderer::dbg_set_object_name(
-	const uint64_t object, const VkObjectType object_type, const char* name
-) const noexcept {
+void VulkanRenderer::dbg_set_object_name(const uint64_t object, const VkObjectType object_type, const char* name)
+	const noexcept {
 	const VkDebugUtilsObjectNameInfoEXT obj_name{
 		.sType		  = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 		.pNext		  = nullptr,
@@ -2455,8 +2456,7 @@ void VulkanRenderer::dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name
 	vkfn::CmdInsertDebugUtilsLabelEXT(cmd_buf, &debug_marker);
 }
 
-tl::expected<QueuedJob, xray::rendering::VulkanError> xray::rendering::VulkanRenderer::create_job(
-	const QueueType qtype
+tl::expected<QueuedJob, xray::rendering::VulkanError> xray::rendering::VulkanRenderer::create_job(const QueueType qtype
 ) noexcept {
 	QueueData qdata{queue_data(qtype)};
 

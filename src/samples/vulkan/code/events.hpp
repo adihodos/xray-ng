@@ -99,7 +99,7 @@ struct InitContext
     xray::scene::SceneDefinition* scene_def;
     xray::scene::SceneResources* scene_res;
     xray::ui::user_interface* ui;
-    xray::ui::window* win;
+    xray::ui::PlatformWindow* win;
     concurrencpp::runtime* co_runtime;
 };
 

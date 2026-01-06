@@ -9,6 +9,7 @@
 #include <unordered_map>
 
 #include <tl/optional.hpp>
+#include <swl/variant.hpp>
 
 #include <vulkan/vulkan_core.h>
 

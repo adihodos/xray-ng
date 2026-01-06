@@ -26,7 +26,6 @@ struct WindowPlatformDataXlib
 
 #elif defined(XRAY_OS_IS_WINDOWS)
 
-// TODO: replace all OS specific types with cstdint ones
 struct WindowPlatformDataWin32
 {
     uintptr_t module;

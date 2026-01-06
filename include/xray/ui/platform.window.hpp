@@ -32,7 +32,7 @@
 
 #include "xray/xray.hpp"
 #if defined(XRAY_OS_IS_POSIX_FAMILY)
-#include "xray/ui/window_x11.hpp"
+#include "xray/ui/platform.window.x11.hpp"
 #else /* defined XRAY_OS_IS_POSIX_FAMILY */
 #include "xray/ui/window_win32.hpp"
 #endif /* !defined XRAY_OS_IS_POSIX_FAMILY */

@@ -21,7 +21,7 @@
       default =
         pkgs.mkShell.override {
           # Override stdenv in order to change compiler:
-          stdenv = pkgs.clangStdenv;
+          # stdenv = pkgs.clangStdenv;
         }
         {
           packages = with pkgs; [
@@ -30,11 +30,11 @@
             helix
 
             # gcc
-            llvmPackages_latest.lldb
-            # llvmPackages_latest.libllvm
-            llvmPackages_latest.libcxx
-            llvmPackages_latest.clang
-            llvmPackages_latest.clang-tools
+            llvmPackages_19.lldb
+            # llvmPackages_19.libllvm
+            llvmPackages_19.libcxx
+            llvmPackages_19.clang
+            llvmPackages_19.clang-tools
             # clang
             
             gdb

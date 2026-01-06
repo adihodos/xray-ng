@@ -24,7 +24,7 @@
 #include "xray/rendering/draw_context.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/key_sym.hpp"
-#include "xray/ui/window.hpp"
+#include "xray/ui/platform.window.hpp"
 
 #include <algorithm>
 #include <concurrencpp/concurrencpp.h>

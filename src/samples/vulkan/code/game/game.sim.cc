@@ -34,10 +34,12 @@
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/fnv_hash.hpp"
 #include "xray/base/xray.fmt.hpp"
+#include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
+#include "xray/base/memory.os.hpp"
 #include "xray/base/memory.arena.hpp"
-#include "xray/base/containers/arena.vector.hpp"
+#include "xray/base/xray.misc.hpp"
 
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
@@ -49,7 +51,7 @@
 #include "xray/scene/scene.definition.hpp"
 #include "xray/ui/events.hpp"
 #include "xray/ui/user_interface.hpp"
-#include "xray/ui/window.hpp"
+#include "xray/ui/platform.window.hpp"
 #include "xray/ui/events.gamepad.hpp"
 #include "xray/ui/events.pretty.print.hpp"
 #include "init_context.hpp"
@@ -237,9 +239,15 @@ xray::base::unique_pointer<B5::GameSimulation> B5::GameSimulation::create(const 
 	auto physics_system = PhysicsSystem::create(init_ctx);
 	if (!physics_system) return nullptr;
 
-	std::span<std::byte> arena_perm = os_virtual_alloc(64 * 1024 * 1024);
+	constexpr size_t kPermArenaSize = megabytes(64);
+	std::span<std::byte> arena_perm = std::span{static_cast<std::byte*>(os_alloc_mem(kPermArenaSize)), kPermArenaSize};
+
 	if (arena_perm.empty()) return nullptr;
-	std::span<std::byte> arena_temp = os_virtual_alloc(32 * 1024 * 1024);
+
+	constexpr size_t kTempArenaSize = megabytes(32);
+	std::span<std::byte> arena_temp =
+		std::span{static_cast<std::byte*>(os_alloc_mem(kTempArenaSize)), kTempArenaSize};
+
 	if (arena_temp.empty()) return nullptr;
 
 	auto terrain = Terrain::create(init_ctx);
@@ -383,7 +391,7 @@ void B5::GameSimulation::user_interface(xray::ui::user_interface* ui, const Rend
 
 		ui->push_font("ZedMonoNerdFontMono-Medium_24");
 
-		_terrain->user_interface(ui, re);
+		// _terrain->user_interface(ui, re);
 
 		if (ImGui::CollapsingHeader("::: Ship :::", ImGuiTreeNodeFlags_DefaultOpen)) {
 			const JPH::Vec3 com_pos = _world.ent_player.phys_body->GetCenterOfMassPosition();
@@ -736,7 +744,7 @@ void B5::GameSimulation::loop_event(const RenderEvent& render_event) {
 	vkCmdSetViewport(render_event.frame_data->cmd_buf, 0, 1, &viewport);
 	vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
 
-	_terrain->loop_event(render_event);
+	// _terrain->loop_event(render_event);
 
 	auto instances_buffer = UniqueMemoryMapping::map_memory(
 		render_event.renderer->device(),

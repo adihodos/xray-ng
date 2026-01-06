@@ -10,6 +10,8 @@ set(project_sources
     ${proj_src_dir}/bindless.pipeline.config.hpp
     ${proj_inc_dir}/game/game.sim.hpp
     ${proj_src_dir}/game/game.sim.cc
+    ${proj_src_dir}/test.bda.hpp
+    ${proj_src_dir}/test.bda.cc
     ${proj_src_dir}/system.memory.hpp
     ${proj_src_dir}/system.memory.cc
     ${proj_src_dir}/system.physics.hpp

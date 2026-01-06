@@ -5,14 +5,16 @@ set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
 if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
   find_package(X11 REQUIRED COMPONENTS xcb Xi Xinerama Xkb xkbcommon)
-  set(platform_sources ${proj_inc_dir}/window_x11.hpp
-    ${proj_src_dir}/window_x11.cc)
+  set(platform_sources
+    ${proj_inc_dir}/platform.window.x11.hpp
+    ${proj_src_dir}/platform.window.x11.cc)
 endif()
 
 if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Windows")
   find_package(GDK REQUIRED)
-  set(platform_sources ${proj_inc_dir}/window_win32.hpp
-    ${proj_src_dir}/window_win32.cc)
+  set(platform_sources
+    ${proj_src_dir}/platform.window.win32.cc
+    ${proj_inc_dir}/platform.window.win32.hpp)
 endif()
 
 find_package(OpenGL REQUIRED)

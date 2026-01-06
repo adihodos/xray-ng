@@ -253,7 +253,7 @@ vec2ui32 make_terrain_grid(
 	return vec2ui32{vertex_count, index_count};
 }
 
-void make_terrain_heightmap_colormap(
+void B5::make_terrain_heightmap_colormap(
 	const xray::rendering::TerrainParams& params,
 	const xray::math::BBoxAA2DF32& bounds,
 	std::span<float> heightmap,
@@ -294,8 +294,10 @@ void make_terrain_heightmap_colormap(
 	noise_gen.final_terrain.SetFrequency(4.0);
 	noise_gen.final_terrain.SetPower(0.125);
 
+	noise_gen.rly_final_terrain.SetSourceModule(0, noise_gen.final_terrain);
+
 	noise_gen.heightmap_builder.SetDestNoiseMap(noise_gen.heightmap);
-	noise_gen.heightmap_builder.SetSourceModule(noise_gen.final_terrain);
+	noise_gen.heightmap_builder.SetSourceModule(noise_gen.rly_final_terrain);
 	noise_gen.heightmap_builder.SetDestSize(slab_size, slab_size);
 	const float terrain_scale = static_cast<float>(slab_size) / WORLD_SIZE;
 	noise_gen.heightmap_builder.SetBounds(
@@ -304,6 +306,7 @@ void make_terrain_heightmap_colormap(
 		bounds.min.y * terrain_scale,
 		bounds.max.y * terrain_scale
 	);
+	// noise_gen.heightmap_builder.EnableSeamless();
 	noise_gen.heightmap_builder.Build();
 	assert(heightmap.size() == params.size * params.size);
 
@@ -456,7 +459,7 @@ concurrencpp::result<tl::expected<TerrainGenTaskResult, VulkanError>> task_gener
 		};
 
 		spawned_tasks.push_back(thread_pool->submit([=, terrain_params = params.terrain, renderer = params.renderer]() {
-			make_terrain_heightmap_colormap(terrain_params, bounds, heightmap, colormap);
+			B5::make_terrain_heightmap_colormap(terrain_params, bounds, heightmap, colormap);
 			return create_terrain_slab_render_resources(terrain_params, slab_center, renderer, heightmap, colormap);
 		}));
 	}
