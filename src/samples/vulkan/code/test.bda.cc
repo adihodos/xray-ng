@@ -5,13 +5,17 @@
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 
 B5::TestBDA::TestBDA(
-	PrivateConstructionToken, xray::ui::PlatformWindow window, xray::rendering::VulkanRenderer vulkan_renderer
+	PrivateConstructionToken,
+	xray::ui::PlatformWindow window,
+	xray::rendering::VulkanRenderer vulkan_renderer,
+	xray::rendering::GraphicsPipeline p_fsquad
 )
-	: m_window{std::move(window)}, m_renderer{std::move(vulkan_renderer)} {}
+	: m_window{std::move(window)}, m_renderer{std::move(vulkan_renderer)}, m_p_fsquad{std::move(p_fsquad)} {}
 
 B5::TestBDA::TestBDA(TestBDA&& rhs) noexcept
 	: m_window{std::move(rhs.m_window)},
 	  m_renderer{std::move(rhs.m_renderer)},
+	  m_p_fsquad{std::move(rhs.m_p_fsquad)},
 	  m_moved_from{std::exchange(rhs.m_moved_from, true)} {}
 
 B5::TestBDA::~TestBDA() {
@@ -59,11 +63,38 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 	const auto slot_null_tex = vulkan_renderer->bindless_sys().reserve_image_slots(1);
 	assert(slot_null_tex == 0);
 
+	tl::expected<GraphicsPipeline, VulkanError> p_fsquad{
+		GraphicsPipelineBuilder{scratch_pad.arena}
+			.add_shader(
+				ShaderStage::Vertex,
+				ShaderBuildOptions{
+					.code_or_file_path = ConfigSystem::instance()->shader_path("core/fullscreen.quad.glsl")
+				}
+			)
+			.add_shader(
+				ShaderStage::Fragment,
+				ShaderBuildOptions{.code_or_file_path = ConfigSystem::instance()->shader_path("bda.test.fs.glsl")}
+			)
+			.rasterization_state({
+				.poly_mode	= VK_POLYGON_MODE_FILL,
+				.cull_mode	= VK_CULL_MODE_NONE,
+				.front_face = VK_FRONT_FACE_CLOCKWISE,
+				.line_width = 1.0f,
+			})
+			.depth_stencil_state(DepthStencilState{.depth_test_enable = false, .depth_write_enable = false})
+			.create_bindless(*vulkan_renderer)
+	};
+
+	if (!p_fsquad) {
+		return tl::nullopt;
+	}
+
 	return tl::optional<TestBDA>{
 		tl::in_place,
 		PrivateConstructionToken{},
 		std::move(*main_window),
 		std::move(*vulkan_renderer),
+		std::move(*p_fsquad),
 	};
 }
 
@@ -91,6 +122,15 @@ void B5::TestBDA::event_handler(const xray::ui::window_event& wnd_evt) {
 void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 	using namespace xray::rendering;
 
-	[[maybe_unused]] const FrameRenderData frame_data{m_renderer.begin_rendering(0.5f, 0.25f, 0.0f)};
+	[[maybe_unused]] const FrameRenderData frame_data{m_renderer.begin_rendering(0.0f, 0.0f, 0.0f)};
+
+	//
+	// flush and bind the global descriptor table
+	m_renderer.bindless_sys().flush_descriptors(m_renderer);
+	m_renderer.bindless_sys().bind_descriptors(m_renderer, frame_data.cmd_buf);
+
+	vkCmdBindPipeline(frame_data.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_p_fsquad.handle());
+	vkCmdDraw(frame_data.cmd_buf, 3, 1, 0, 0);
+
 	m_renderer.end_rendering();
 }

@@ -1102,8 +1102,6 @@ tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
 
 	static constexpr initializer_list<const char*> device_extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-		VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
 		VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
 		VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
 	};
@@ -1259,7 +1257,7 @@ tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena
 	};
 
 	const VkValidationFeatureEnableEXT enabled_validation_features[] = {
-		// VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
 		// VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
 		VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
 		// VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT					  ,

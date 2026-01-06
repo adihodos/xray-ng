@@ -165,7 +165,7 @@ tl::expected<DebugDrawSystem::RenderStateVulkan, VulkanError> DebugDrawSystem::R
     }
     )#";
 
-	auto graphicsPipeline = GraphicsPipelineBuilder{init.arena_perm, init.arena_temp}
+	auto graphicsPipeline = GraphicsPipelineBuilder{init.arena_temp}
 								.add_shader(
 									ShaderStage::Vertex,
 									ShaderBuildOptions{

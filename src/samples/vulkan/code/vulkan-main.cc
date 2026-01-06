@@ -253,7 +253,7 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 		{containers::string{"__FRAG_SHADER__", temp.arena}, containers::string{temp.arena}},
 	};
 	tl::expected<GraphicsPipeline, VulkanError> p_ads_color{
-		GraphicsPipelineBuilder{&perm.arena, &temp.arena}
+		GraphicsPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -291,7 +291,7 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 		{containers::string{"__ADS_TEXTURED__", temp.arena}, containers::string{temp.arena}},
 	};
 	tl::expected<GraphicsPipeline, VulkanError> p_ads_textured{
-		GraphicsPipelineBuilder{&perm.arena, &temp.arena}
+		GraphicsPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -322,7 +322,7 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 	XR_VK_COR_PROPAGATE_ERROR(p_ads_textured);
 
 	tl::expected<GraphicsPipeline, VulkanError> p_pbr_color{
-		GraphicsPipelineBuilder{&perm.arena, &temp.arena}
+		GraphicsPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -353,7 +353,7 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 	XR_VK_COR_PROPAGATE_ERROR(p_pbr_color);
 
 	tl::expected<GraphicsPipeline, VulkanError> p_terrain{
-		GraphicsPipelineBuilder{&perm.arena, &temp.arena}
+		GraphicsPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -384,7 +384,7 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 	XR_VK_COR_PROPAGATE_ERROR(p_terrain);
 
 	tl::expected<GraphicsPipeline, VulkanError> p_sprites{
-		GraphicsPipelineBuilder{&perm.arena, &temp.arena}
+		GraphicsPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -426,7 +426,7 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 	XR_VK_COR_PROPAGATE_ERROR(p_sprites);
 
 	tl::expected<GraphicsPipeline, VulkanError> p_shapes{
-		GraphicsPipelineBuilder{&perm.arena, &temp.arena}
+		GraphicsPipelineBuilder{&perm.arena}
 			.input_assembly_state(InputAssemblyState{
 				.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
 			})
