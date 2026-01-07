@@ -1,4 +1,4 @@
-#include "xray/ui/platform.window.x11.hpp"
+#include "xray/ui/platform.window.hpp"
 
 #include <X11/Xlib.h>
 #include <X11/XKBlib.h>

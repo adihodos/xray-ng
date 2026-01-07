@@ -40,6 +40,7 @@ struct PoolBlockHeaderTag {
 	static constexpr uint32_t kMaxAlign		  = 1 << 8;
 	static constexpr uint32_t kMaxBlockOffset = 1 << 24;
 
+	uintptr_t next_free;
 	struct {
 		uint32_t block_offset : 24;
 		uint32_t pool_offset  : 8;
@@ -48,7 +49,6 @@ struct PoolBlockHeaderTag {
 		uint32_t size  : 24;
 		uint32_t align : 8;
 	} alloc;
-	uintptr_t next_free;
 };
 
 static_assert(sizeof(PoolBlockHeaderTag) == sizeof(uintptr_t) * 2, "MonkaHMMM");

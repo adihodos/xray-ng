@@ -30,9 +30,58 @@
 
 /// \file window.hpp
 
+#pragma once
+
+#include <cstdint>
+#include <span>
+
+#include <tl/expected.hpp>
+
 #include "xray/xray.hpp"
-#if defined(XRAY_OS_IS_POSIX_FAMILY)
-#include "xray/ui/platform.window.x11.hpp"
-#else /* defined XRAY_OS_IS_POSIX_FAMILY */
-#include "xray/ui/window_win32.hpp"
-#endif /* !defined XRAY_OS_IS_POSIX_FAMILY */
+#include "xray/base/unique_pointer.hpp"
+#include "xray/ui/events.hpp"
+#include "xray/ui/window_params.hpp"
+#include "xray/ui/window.common.core.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
+
+namespace xray {
+namespace ui {
+
+struct PlatformWindowError {};
+
+class PlatformWindow {
+public:
+	struct PlatformImpl;
+	WindowCommonCore core{};
+	/// \name Construction and destruction.
+	/// @{
+public:
+	explicit PlatformWindow(xray::base::unique_pointer<PlatformImpl> impl);
+	PlatformWindow(PlatformWindow&&) noexcept;
+	~PlatformWindow();
+
+	/// @}
+
+	static tl::expected<PlatformWindow, PlatformWindowError> create(const window_params_t& win_params);
+
+	xray::rendering::WindowPlatformData platform_data() const noexcept;
+
+	void disable_cursor() noexcept;
+	void enable_cursor() noexcept;
+
+	int32_t width() const noexcept;
+	int32_t height() const noexcept;
+
+	std::span<const GamepadAxisInfo> gamepad_axis_info() const noexcept;
+
+	void message_loop();
+	void quit() noexcept;
+
+private:
+	xray::base::unique_pointer<PlatformImpl> _platform;
+
+	XRAY_NO_COPY(PlatformWindow);
+};
+
+}  // namespace ui
+}  // namespace xray

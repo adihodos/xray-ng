@@ -21,6 +21,7 @@
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.handles.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 
 namespace swl {
 template <typename... Ts>
@@ -32,15 +33,6 @@ struct MemoryArena;
 }
 
 namespace xray::rendering {
-
-#if defined(XRAY_OS_IS_WINDOWS)
-struct WindowPlatformDataWin32;
-using WindowPlatformData = swl::variant<WindowPlatformDataWin32>;
-#else
-struct WindowPlatformDataXcb;
-struct WindowPlatformDataXlib;
-using WindowPlatformData = swl::variant<WindowPlatformDataXcb, WindowPlatformDataXlib>;
-#endif
 
 namespace detail {
 

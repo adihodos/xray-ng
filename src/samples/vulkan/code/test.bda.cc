@@ -82,6 +82,10 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 				.line_width = 1.0f,
 			})
 			.depth_stencil_state(DepthStencilState{.depth_test_enable = false, .depth_write_enable = false})
+			.dynamic_state({
+				VK_DYNAMIC_STATE_VIEWPORT,
+				VK_DYNAMIC_STATE_SCISSOR,
+			})
 			.create_bindless(*vulkan_renderer)
 	};
 
@@ -129,6 +133,22 @@ void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 	m_renderer.bindless_sys().flush_descriptors(m_renderer);
 	m_renderer.bindless_sys().bind_descriptors(m_renderer, frame_data.cmd_buf);
 
+	const VkViewport viewport{
+		.x		  = 0.0f,
+		.y		  = 0.0f,
+		.width	  = frame_data.fb_f32.width,
+		.height	  = frame_data.fb_f32.height,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
+	};
+	vkCmdSetViewport(frame_data.cmd_buf, 0, 1, &viewport);
+
+	const VkRect2D scissor{
+		.offset = VkOffset2D{0, 0},
+		.extent = frame_data.fbsize,
+	};
+	vkCmdSetScissor(frame_data.cmd_buf, 0, 1, &scissor);
+	
 	vkCmdBindPipeline(frame_data.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_p_fsquad.handle());
 	vkCmdDraw(frame_data.cmd_buf, 3, 1, 0, 0);
 

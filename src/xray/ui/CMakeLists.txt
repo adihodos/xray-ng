@@ -6,15 +6,13 @@ set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
   find_package(X11 REQUIRED COMPONENTS xcb Xi Xinerama Xkb xkbcommon)
   set(platform_sources
-    ${proj_inc_dir}/platform.window.x11.hpp
     ${proj_src_dir}/platform.window.x11.cc)
 endif()
 
 if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Windows")
   find_package(GDK REQUIRED)
   set(platform_sources
-    ${proj_src_dir}/platform.window.win32.cc
-    ${proj_inc_dir}/platform.window.win32.hpp)
+    ${proj_src_dir}/platform.window.win32.cc)
 endif()
 
 find_package(OpenGL REQUIRED)
@@ -28,6 +26,7 @@ set(PROJECT_SOURCES_MAIN
   ${proj_src_dir}/user_interface.cc
   ${proj_inc_dir}/user.interface.backend.vulkan.hpp
   ${proj_src_dir}/user.interface.backend.vulkan.cc
+  ${proj_inc_dir}/platform.window.hpp
   # ${proj_inc_dir}/user_interface_backend_opengl.hpp
   # ${proj_src_dir}/user_interface_backend_opengl.cc
   ${proj_inc_dir}/user_interface_render_context.hpp
@@ -60,5 +59,5 @@ target_link_libraries(
   fmt::fmt
   concurrencpp::concurrencpp
   $<$<PLATFORM_ID:Linux>:OpenGL::GL;X11::Xi;X11::Xinerama;X11::xcb;X11::X11_xcb;X11::Xkb;X11::xkbcommon;X11::xkbcommon_X11>
-  $<$<PLATFORM_ID:Windows>:GDK::GDK;windowsapp>
+  $<$<PLATFORM_ID:Windows>:GDK::GDK;gameinput;windowsapp>
 )
