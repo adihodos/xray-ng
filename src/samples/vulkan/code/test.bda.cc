@@ -2,21 +2,27 @@
 
 #include "xray/base/app_config.hpp"
 #include "xray/base/thread.local.context.hpp"
+#include "xray/base/xray.fmt.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 
 B5::TestBDA::TestBDA(
 	PrivateConstructionToken,
 	xray::ui::PlatformWindow window,
 	xray::rendering::VulkanRenderer vulkan_renderer,
-	xray::rendering::GraphicsPipeline p_fsquad
+	xray::rendering::VulkanPipeline p_fsquad,
+	std::vector<xray::rendering::VulkanImage> image
 )
-	: m_window{std::move(window)}, m_renderer{std::move(vulkan_renderer)}, m_p_fsquad{std::move(p_fsquad)} {}
+	: m_window{std::move(window)},
+	  m_renderer{std::move(vulkan_renderer)},
+	  m_p_fsquad{std::move(p_fsquad)},
+	  m_textures{std::move(image)} {}
 
 B5::TestBDA::TestBDA(TestBDA&& rhs) noexcept
 	: m_window{std::move(rhs.m_window)},
 	  m_renderer{std::move(rhs.m_renderer)},
 	  m_p_fsquad{std::move(rhs.m_p_fsquad)},
-	  m_moved_from{std::exchange(rhs.m_moved_from, true)} {}
+	  m_moved_from{std::exchange(rhs.m_moved_from, true)},
+	  m_textures{std::move(rhs.m_textures)} {}
 
 B5::TestBDA::~TestBDA() {
 	if (!m_moved_from) {
@@ -63,8 +69,57 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 	const auto slot_null_tex = vulkan_renderer->bindless_sys().reserve_image_slots(1);
 	assert(slot_null_tex == 0);
 
-	tl::expected<GraphicsPipeline, VulkanError> p_fsquad{
-		GraphicsPipelineBuilder{scratch_pad.arena}
+	const VkPushConstantRange compute_bindless_push_consts[] = {
+		VkPushConstantRange{
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+			.offset		= 0,
+			.size		= static_cast<uint32_t>(2 * sizeof(uint32_t)),
+		},
+	};
+
+	const LayoutBindingsByResourceType compute_bindless_set_layouts[] = {
+		LayoutBindingsByResourceType{
+			.res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.descriptor_count = 16,
+			.stage_flags	  = VK_SHADER_STAGE_ALL,
+			.tag			  = "DS_storage_image",
+		},
+	};
+
+	tl::expected<BindlessSystem, VulkanError> compute_bindless = BindlessSystem::create(
+		*scratch_pad.arena,
+		BindlessSystem::Kind::Compute,
+		vulkan_renderer->device(),
+		vulkan_renderer->physical().properties.descriptor_indexing,
+		compute_bindless_set_layouts,
+		compute_bindless_push_consts
+	);
+
+	if (!compute_bindless) {
+		return tl::nullopt;
+	}
+
+	tl::expected<VulkanPipeline, VulkanError> p_compute =
+		VulkanPipelineBuilder{scratch_pad.arena}
+			.add_shader(
+				ShaderStage::Compute,
+				ShaderBuildOptions{.code_or_file_path = ConfigSystem::instance()->shader_path("bda.compute.glsl")}
+			)
+			.create(
+				*vulkan_renderer,
+				VulkanPipelineKind::Compute,
+				VulkanPipelineTemplate{
+					.layout					= compute_bindless->pipeline_layout(),
+					.descriptor_set_layouts = compute_bindless->descriptor_set_layouts(),
+				}
+			);
+
+	if (!p_compute) {
+		return tl::nullopt;
+	}
+
+	tl::expected<VulkanPipeline, VulkanError> p_fsquad{
+		VulkanPipelineBuilder{scratch_pad.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -86,11 +141,47 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 				VK_DYNAMIC_STATE_VIEWPORT,
 				VK_DYNAMIC_STATE_SCISSOR,
 			})
-			.create_bindless(*vulkan_renderer)
+			.create(
+				*vulkan_renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= vulkan_renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = vulkan_renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			)
 	};
 
 	if (!p_fsquad) {
 		return tl::nullopt;
+	}
+
+	const VkExtent2D fb_size  = vulkan_renderer->surface_state().caps.currentExtent;
+	const uint32_t max_frames = vulkan_renderer->max_inflight_frames();
+	std::vector<VulkanImage> textures;
+	textures.reserve(max_frames);
+
+	char scratch_buffer[1024];
+
+	for (uint32_t idx = 0; idx < max_frames; ++idx) {
+		format_to_n(scratch_buffer, "tex_{}", idx);
+		tl::expected<VulkanImage, VulkanError> image = VulkanImage::from_memory(
+			*vulkan_renderer,
+			xray::rendering::VulkanImageCreateInfo{
+				.tag_name	 = scratch_buffer,
+				.wpkg		 = tl::nullopt,
+				.type		 = VK_IMAGE_TYPE_2D,
+				.usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+				.format		 = VK_FORMAT_R8G8B8A8_UNORM,
+				.width		 = fb_size.width,
+				.height		 = fb_size.height,
+			}
+		);
+
+		if (!image) {
+			return tl::nullopt;
+		}
+
+		textures.push_back(std::move(*image));
 	}
 
 	return tl::optional<TestBDA>{
@@ -99,6 +190,7 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 		std::move(*main_window),
 		std::move(*vulkan_renderer),
 		std::move(*p_fsquad),
+		std::move(textures),
 	};
 }
 
@@ -148,7 +240,7 @@ void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 		.extent = frame_data.fbsize,
 	};
 	vkCmdSetScissor(frame_data.cmd_buf, 0, 1, &scissor);
-	
+
 	vkCmdBindPipeline(frame_data.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_p_fsquad.handle());
 	vkCmdDraw(frame_data.cmd_buf, 3, 1, 0, 0);
 

@@ -85,14 +85,14 @@ namespace xray::rendering {
 
 struct DebugDrawSystem::RenderStateVulkan {
 	VulkanBuffer mVertexBuffer;
-	GraphicsPipeline mGraphicsPipeline;
+	VulkanPipeline mGraphicsPipeline;
 	std::vector<vertex_pc*> mVertexMemoryMappings;
 	VkDevice mDevice;
 	vertex_pc* mBufferPtr{};
 
 	RenderStateVulkan(
 		VulkanBuffer&& vertexBuffer,
-		GraphicsPipeline&& graphicsPipeline,
+		VulkanPipeline&& graphicsPipeline,
 		std::vector<vertex_pc*>&& memoryMappings,
 		VkDevice device
 	)
@@ -165,22 +165,30 @@ tl::expected<DebugDrawSystem::RenderStateVulkan, VulkanError> DebugDrawSystem::R
     }
     )#";
 
-	auto graphicsPipeline = GraphicsPipelineBuilder{init.arena_temp}
-								.add_shader(
-									ShaderStage::Vertex,
-									ShaderBuildOptions{
-										.code_or_file_path = kDebugVertexShader,
-									}
-								)
-								.add_shader(
-									ShaderStage::Fragment,
-									ShaderBuildOptions{
-										.code_or_file_path = kDebugFragmentShaderCode,
-									}
-								)
-								.input_assembly_state(InputAssemblyState{.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST})
-								.dynamic_state({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR})
-								.create_bindless(*init.renderer);
+	auto graphicsPipeline =
+		VulkanPipelineBuilder{init.arena_temp}
+			.add_shader(
+				ShaderStage::Vertex,
+				ShaderBuildOptions{
+					.code_or_file_path = kDebugVertexShader,
+				}
+			)
+			.add_shader(
+				ShaderStage::Fragment,
+				ShaderBuildOptions{
+					.code_or_file_path = kDebugFragmentShaderCode,
+				}
+			)
+			.input_assembly_state(InputAssemblyState{.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST})
+			.dynamic_state({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR})
+			.create(
+				*init.renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= init.renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = init.renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			);
 
 	XR_VK_PROPAGATE_ERROR(graphicsPipeline);
 

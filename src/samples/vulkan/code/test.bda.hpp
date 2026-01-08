@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <vector>
 
 #include <tl/optional.hpp>
 
@@ -11,6 +12,8 @@
 
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.pipeline.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.buffer.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 
 namespace xray::ui {
 class user_interface;
@@ -34,7 +37,8 @@ public:
 		PrivateConstructionToken,
 		xray::ui::PlatformWindow window,
 		xray::rendering::VulkanRenderer vulkan_renderer,
-		xray::rendering::GraphicsPipeline p_fsquad
+		xray::rendering::VulkanPipeline p_fsquad,
+		std::vector<xray::rendering::VulkanImage> images
 	);
 	TestBDA(TestBDA&&) noexcept;
 	~TestBDA();
@@ -50,7 +54,8 @@ public:
 private:
 	xray::ui::PlatformWindow m_window;
 	xray::rendering::VulkanRenderer m_renderer;
-	xray::rendering::GraphicsPipeline m_p_fsquad;
+	xray::rendering::VulkanPipeline m_p_fsquad;
+	std::vector<xray::rendering::VulkanImage> m_textures;
 	//
 	// because C++ sucks and the moves aren’t destructive, this garbage workaraound is needed.
 	bool m_moved_from{false};

@@ -142,10 +142,6 @@ struct RenderState {
 		  attachments(std::move(rhs.attachments)) {}
 };
 
-struct DescriptorPoolState {
-	xrUniqueVkDescriptorPool handle;
-};
-
 }  // namespace detail
 
 struct FrameRenderData {
@@ -274,14 +270,13 @@ public:
 		detail::InstanceState instance_state,
 		detail::RenderState render_state,
 		detail::PresentationState presentation_state,
-		detail::DescriptorPoolState pool_state,
 		BindlessSystem bindless
 	);
 
 	FrameRenderData begin_rendering(
 		const float red, const float green, const float blue, const float depth = 1.0f, const uint32_t stencil = 0
 	);
-	
+
 	void end_rendering();
 	void clear_attachments(
 		VkCommandBuffer cmd_buf,
@@ -293,11 +288,8 @@ public:
 	);
 
 	void wait_device_idle() noexcept;
-
 	VkDevice device() const noexcept { return xray::base::raw_ptr(_render_state.dev_logical); }
-
 	const detail::PhysicalDeviceData& physical() const noexcept { return _render_state.dev_physical; }
-
 	const detail::SurfaceState& surface_state() const noexcept { return _presentation_state.surface_state; }
 
 	std::tuple<uint32_t, std::span<const VkFormat>, VkFormat, VkFormat> pipeline_render_create_info() const noexcept {
@@ -317,14 +309,12 @@ public:
 
 	uint32_t max_inflight_frames() const noexcept { return _presentation_state.max_frames; }
 
-	uint32_t find_allocation_memory_type(
-		const uint32_t memory_requirements, const VkMemoryPropertyFlags required_flags
-	) const noexcept;
+	uint32_t find_allocation_memory_type(const uint32_t memory_requirements, const VkMemoryPropertyFlags required_flags)
+		const noexcept;
 
 	// @group Bindless resource handling
 	const BindlessSystem& bindless_sys() const noexcept { return _bindless; }
 	BindlessSystem& bindless_sys() noexcept { return _bindless; }
-	VkDescriptorPool descriptor_pool() const noexcept { return xray::base::raw_ptr(_dpool_state.handle); }
 	// @endgroup
 
 	// @group Debugging
@@ -411,7 +401,6 @@ private:
 	detail::InstanceState _instance_state;
 	detail::RenderState _render_state;
 	detail::PresentationState _presentation_state;
-	detail::DescriptorPoolState _dpool_state;
 	BindlessSystem _bindless;
 	std::vector<std::filesystem::path> _shader_include_directories;
 	std::vector<BindlessResourceHandle_Image> _ownership_transfers;
@@ -430,6 +419,12 @@ void VulkanRenderer::dbg_set_object_name(VkObjectType vkobj, const char* name) c
 		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_QUEUE, name);
 	} else if constexpr (std::is_same_v<VkImageView, VkObjectType>) {
 		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_IMAGE_VIEW, name);
+	} else if constexpr (std::is_same_v<VkPipeline, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_PIPELINE, name);
+	} else if constexpr (std::is_same_v<VkPipelineLayout, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_PIPELINE_LAYOUT, name);
+	} else if constexpr (std::is_same_v<VkDescriptorSetLayout, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, name);
 	} else {
 		static_assert(false, "Unsupported object type!");
 	}

@@ -211,7 +211,7 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 		containers::string{*ctx.temp},
 	};
 
-	auto lines_pp = GraphicsPipelineBuilder{ctx.temp}
+	auto lines_pp = VulkanPipelineBuilder{ctx.temp}
 						.add_shader(
 							ShaderStage::Vertex,
 							ShaderBuildOptions{
@@ -235,7 +235,14 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 							.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 							.line_width = 1.0f,
 						})
-						.create_bindless(*ctx.renderer);
+						.create(
+							*ctx.renderer,
+							VulkanPipelineKind::Graphics,
+							VulkanPipelineTemplate{
+								.layout					= renderer->bindless_sys().pipeline_layout(),
+								.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+							}
+						);
 
 	if (!lines_pp) return nullptr;
 
@@ -272,7 +279,7 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 		}
 	);
 	if (!gpu_yftris) return nullptr;
-	auto yftris_pp = GraphicsPipelineBuilder{ctx.temp}
+	auto yftris_pp = VulkanPipelineBuilder{ctx.temp}
 						 .add_shader(
 							 ShaderStage::Vertex,
 							 ShaderBuildOptions{
@@ -296,7 +303,14 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 							 .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 							 .line_width = 1.0f,
 						 })
-						 .create_bindless(*ctx.renderer);
+						 .create(
+							 *ctx.renderer,
+							 VulkanPipelineKind::Graphics,
+							 VulkanPipelineTemplate{
+								 .layout				 = renderer->bindless_sys().pipeline_layout(),
+								 .descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+							 }
+						 );
 
 	if (!yftris_pp) return nullptr;
 
@@ -312,7 +326,7 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 	);
 	if (!gpu_filled) return nullptr;
 
-	auto filled_pp = GraphicsPipelineBuilder{ctx.temp}
+	auto filled_pp = VulkanPipelineBuilder{ctx.temp}
 						 .add_shader(
 							 ShaderStage::Vertex,
 							 ShaderBuildOptions{
@@ -336,7 +350,14 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 							 .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 							 .line_width = 1.0f,
 						 })
-						 .create_bindless(*ctx.renderer);
+						 .create(
+							 *ctx.renderer,
+							 VulkanPipelineKind::Graphics,
+							 VulkanPipelineTemplate{
+								 .layout				 = renderer->bindless_sys().pipeline_layout(),
+								 .descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+							 }
+						 );
 
 	if (!filled_pp) return nullptr;
 
@@ -366,7 +387,7 @@ void draw_primitives(
 	size_t& primitive_count,
 	const xray::rendering::VulkanBuffer& gpu_buffer,
 	xray::base::MemoryArena& arena,
-	const xray::rendering::GraphicsPipeline& effect
+	const xray::rendering::VulkanPipeline& effect
 ) {
 	auto [primitive_align, primitive_size] = []() constexpr -> std::pair<size_t, size_t> {
 		if constexpr (std::is_same_v<PrimitiveType, PhysicsEngineDebugRenderer::Line>) {

@@ -1409,37 +1409,6 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 	}
 
 	//
-	// descriptor pool
-	xrUniqueVkDescriptorPool dpool{
-		[device = logical_device->device_handle]() {
-			const VkDescriptorPoolSize pool_sizes[] = {
-				{.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1024},
-				{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1024},
-				{.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 1024},
-			};
-
-			const VkDescriptorPoolCreateInfo pool_create_info = {
-				.sType		   = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-				.pNext		   = nullptr,
-				.flags		   = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-				.maxSets	   = 1024,
-				.poolSizeCount = static_cast<uint32_t>(std::size(pool_sizes)),
-				.pPoolSizes	   = pool_sizes,
-			};
-
-			VkDescriptorPool pool{nullptr};
-			WRAP_VULKAN_FUNC(vkCreateDescriptorPool, device, &pool_create_info, nullptr, &pool);
-			return pool;
-		}(),
-		VkResourceDeleter_VkDescriptorPool{logical_device->device_handle},
-	};
-
-	if (!dpool) {
-		XR_LOG_ERR("Failed to create descriptor pool !");
-		return tl::nullopt;
-	}
-
-	//
 	// command buffers
 	vector<VkCommandBuffer> command_buffers{[&]() {
 		const VkCommandBufferAllocateInfo cmd_buff_alloc_info = {
@@ -1460,9 +1429,56 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 
 	const uint32_t max_frames{static_cast<uint32_t>(swapchain_state->swapchain_images.size())};
 
-	tl::expected<BindlessSystem, VulkanError> bindless_sys{
-		BindlessSystem::create(logical_device->device_handle, phys_device->descriptor_indexing_properties)
+	const VkPushConstantRange graphics_bindless_push_consts[] = {
+		VkPushConstantRange{
+			.stageFlags = VK_SHADER_STAGE_ALL,
+			.offset		= 0,
+			.size		= static_cast<uint32_t>(sizeof(uint32_t)),
+		},
 	};
+
+	const LayoutBindingsByResourceType graphics_bindless_set_layouts[] = {
+		LayoutBindingsByResourceType{
+			.res_type		  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptor_count = 16,
+			.stage_flags	  = VK_SHADER_STAGE_ALL,
+			.tag			  = "DS_uniform_buffer.ubo",
+		},
+		LayoutBindingsByResourceType{
+			.res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptor_count = 512,
+			.stage_flags	  = VK_SHADER_STAGE_ALL,
+			.tag			  = "DS_storage_buffer",
+		},
+		LayoutBindingsByResourceType{
+			.res_type		  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.descriptor_count = 512,
+			.stage_flags	  = VK_SHADER_STAGE_ALL,
+			.tag			  = "DS_combined_sampler",
+		},
+		LayoutBindingsByResourceType{
+			.res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.descriptor_count = 512,
+			.stage_flags	  = VK_SHADER_STAGE_ALL,
+			.tag			  = "DS_storage_image",
+		},
+		LayoutBindingsByResourceType{
+			.res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,
+			.descriptor_count = 512,
+			.stage_flags	  = VK_SHADER_STAGE_ALL,
+			.tag			  = "DS_storage_texel_buffer",
+		},
+	};
+
+	tl::expected<BindlessSystem, VulkanError> bindless_sys{BindlessSystem::create(
+		arena,
+		BindlessSystem::Kind::Graphics,
+		logical_device->device_handle,
+		phys_device->descriptor_indexing_properties,
+		graphics_bindless_set_layouts,
+		graphics_bindless_push_consts
+	)};
+
 	if (!bindless_sys) {
 		return tl::nullopt;
 	}
@@ -1600,7 +1616,6 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 			std::move(*swapchain_state.take()),
 			std::move(command_buffers),
 		},
-		detail::DescriptorPoolState{std::move(dpool)},
 		std::move(*bindless_sys)
 	);
 }
@@ -1610,13 +1625,11 @@ VulkanRenderer::VulkanRenderer(
 	detail::InstanceState instance_state,
 	detail::RenderState render_state,
 	detail::PresentationState presentation_state,
-	detail::DescriptorPoolState dpool,
 	BindlessSystem bindless
 )
 	: _instance_state{std::move(instance_state)},
 	  _render_state{std::move(render_state)},
 	  _presentation_state{std::move(presentation_state)},
-	  _dpool_state{std::move(dpool)},
 	  _bindless{std::move(bindless)} {
 	const char* queue_names[] = {"graphics queue", "transfer queue"};
 	const char* pool_names[]  = {"cmd_pool_graphics", "cmd_pool_transfer"};
@@ -1797,7 +1810,7 @@ FrameRenderData VulkanRenderer::begin_rendering(
 	if (!_ownership_transfers.empty()) {
 		const vector<VkImageMemoryBarrier2> mem_barriers =
 			_ownership_transfers % fn::transform([this](const BindlessResourceHandle_Image img) {
-				const BindlessResourceEntry_Image& img_data = bindless_sys().image_entry(img);
+				const BindlessResourceEntry_Image& img_data = *bindless_sys().image_entry(img);
 
 				return VkImageMemoryBarrier2{
 					.sType				 = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,

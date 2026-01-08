@@ -96,7 +96,7 @@ UserInterfaceRenderBackend_Vulkan::UserInterfaceRenderBackend_Vulkan(
 	PrivateConstructionToken,
 	rendering::VulkanBuffer&& vertex_buffer,
 	rendering::VulkanBuffer&& index_buffer,
-	rendering::GraphicsPipeline&& pipeline,
+	rendering::VulkanPipeline&& pipeline,
 	rendering::BindlessImageResourceHandleEntryPair font_atlas,
 	VkSampler sampler
 )
@@ -153,7 +153,7 @@ tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError> UserInte
 	};
 
 	auto graphics_pipeline =
-		GraphicsPipelineBuilder{arena_perm}
+		VulkanPipelineBuilder{arena_perm}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -175,7 +175,14 @@ tl::expected<UserInterfaceRenderBackend_Vulkan, rendering::VulkanError> UserInte
 			})
 			.depth_stencil_state(DepthStencilState{.depth_test_enable = false, .depth_write_enable = false})
 			.color_blend(enable_blending)
-			.create_bindless(renderer);
+			.create(
+				renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer.bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer.bindless_sys().descriptor_set_layouts(),
+				}
+			);
 	XR_VK_PROPAGATE_ERROR(graphics_pipeline);
 
 	auto resources_job = renderer.create_job(QueueType::Transfer);

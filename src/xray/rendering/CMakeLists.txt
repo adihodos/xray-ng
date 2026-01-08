@@ -140,6 +140,7 @@ cpmaddpackage(
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
+  unordered_dense
   xray-set-compile-options-lib
   xray-glloader
   tl::optional

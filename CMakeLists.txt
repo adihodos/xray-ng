@@ -141,6 +141,9 @@ set_property(
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_library(unordered_dense INTERFACE)
+target_include_directories(unordered_dense INTERFACE ${CMAKE_SOURCE_DIR}/third_party/unordered_dense/include)
+
 # https://dhashe.com/how-to-build-highly-debuggable-c-binaries.html
 add_library(xray-set-compile-options-lib INTERFACE)
 

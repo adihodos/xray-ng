@@ -98,7 +98,7 @@ class PhysicsEngineDebugRenderer : public JPH::DebugRenderer
     {
         std::span<std::byte> arena_mem;
         xray::rendering::VulkanBuffer gpu_buffer;
-        xray::rendering::GraphicsPipeline pipeline;
+        xray::rendering::VulkanPipeline pipeline;
     };
 
     //
@@ -108,18 +108,18 @@ class PhysicsEngineDebugRenderer : public JPH::DebugRenderer
     size_t _lines_count{};
     std::mutex _lines_lock;
     xray::rendering::VulkanBuffer _gpu_lines;
-    xray::rendering::GraphicsPipeline _lines_pp;
+    xray::rendering::VulkanPipeline _lines_pp;
 
     std::mutex _yftris_lock;
     xray::base::MemoryArena _yftris_arena;
     xray::rendering::VulkanBuffer _gpu_yftris;
-    xray::rendering::GraphicsPipeline _yftris_pp;
+    xray::rendering::VulkanPipeline _yftris_pp;
     size_t _yftriangles{};
 
     std::mutex _fill_tris_lock;
     xray::base::MemoryArena _filled_tris_arena;
     xray::rendering::VulkanBuffer _gpu_filled_tris;
-    xray::rendering::GraphicsPipeline _filled_tris_pp;
+    xray::rendering::VulkanPipeline _filled_tris_pp;
     size_t _filled_tris{};
 
   public:

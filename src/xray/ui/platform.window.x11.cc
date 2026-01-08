@@ -1374,7 +1374,7 @@ tl::expected<xray::ui::PlatformWindow, xray::ui::PlatformWindowError> xray::ui::
 	};
 }
 
-xray::ui::PlatformWindow::PlatformWindow(PlatformWindow&& rhs)
+xray::ui::PlatformWindow::PlatformWindow(PlatformWindow&& rhs) noexcept
 	: core{std::move(rhs.core)}, _platform{std::move(rhs._platform)} {
 	// rhs._platform->_kb_grabbed		= false;
 	// rhs._platform->_pointer_grabbed = false;
@@ -1394,7 +1394,7 @@ xray::ui::PlatformWindow::~PlatformWindow() {
 	}
 }
 
-xray::rendering::WindowPlatformDataXlib xray::ui::PlatformWindow::platform_data() const noexcept {
+xray::rendering::WindowPlatformData xray::ui::PlatformWindow::platform_data() const noexcept {
 	return xray::rendering::WindowPlatformDataXlib{
 		.display = reinterpret_cast<uintptr_t>(raw_ptr(_platform->_display)),
 		.window	 = static_cast<uintptr_t>(raw_ptr(_platform->_window)),

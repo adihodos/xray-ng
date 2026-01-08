@@ -252,8 +252,8 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 		{containers::string{"__VERT_SHADER__", temp.arena}, containers::string{temp.arena}},
 		{containers::string{"__FRAG_SHADER__", temp.arena}, containers::string{temp.arena}},
 	};
-	tl::expected<GraphicsPipeline, VulkanError> p_ads_color{
-		GraphicsPipelineBuilder{&perm.arena}
+	tl::expected<VulkanPipeline, VulkanError> p_ads_color{
+		VulkanPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -277,7 +277,14 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 				.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 				.line_width = 1.0f,
 			})
-			.create_bindless(*renderer),
+			.create(
+				*renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			),
 	};
 	XR_VK_COR_PROPAGATE_ERROR(p_ads_color);
 
@@ -290,8 +297,8 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 		{containers::string{"__FRAG_SHADER__", temp.arena}, containers::string{temp.arena}},
 		{containers::string{"__ADS_TEXTURED__", temp.arena}, containers::string{temp.arena}},
 	};
-	tl::expected<GraphicsPipeline, VulkanError> p_ads_textured{
-		GraphicsPipelineBuilder{&perm.arena}
+	tl::expected<VulkanPipeline, VulkanError> p_ads_textured{
+		VulkanPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -317,12 +324,19 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 				.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 				.line_width = 1.0f,
 			})
-			.create_bindless(*renderer),
+			.create(
+				*renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			),
 	};
 	XR_VK_COR_PROPAGATE_ERROR(p_ads_textured);
 
-	tl::expected<GraphicsPipeline, VulkanError> p_pbr_color{
-		GraphicsPipelineBuilder{&perm.arena}
+	tl::expected<VulkanPipeline, VulkanError> p_pbr_color{
+		VulkanPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -348,12 +362,19 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 				.front_face = VK_FRONT_FACE_CLOCKWISE,
 				.line_width = 1.0f,
 			})
-			.create_bindless(*renderer),
+			.create(
+				*renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			),
 	};
 	XR_VK_COR_PROPAGATE_ERROR(p_pbr_color);
 
-	tl::expected<GraphicsPipeline, VulkanError> p_terrain{
-		GraphicsPipelineBuilder{&perm.arena}
+	tl::expected<VulkanPipeline, VulkanError> p_terrain{
+		VulkanPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -379,12 +400,19 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 				.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 				.line_width = 1.0f,
 			})
-			.create_bindless(*renderer),
+			.create(
+				*renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			),
 	};
 	XR_VK_COR_PROPAGATE_ERROR(p_terrain);
 
-	tl::expected<GraphicsPipeline, VulkanError> p_sprites{
-		GraphicsPipelineBuilder{&perm.arena}
+	tl::expected<VulkanPipeline, VulkanError> p_sprites{
+		VulkanPipelineBuilder{&perm.arena}
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -421,12 +449,19 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 				.alphaBlendOp		 = VK_BLEND_OP_ADD,
 				.colorWriteMask		 = 0xF,
 			})
-			.create_bindless(*renderer),
+			.create(
+				*renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			),
 	};
 	XR_VK_COR_PROPAGATE_ERROR(p_sprites);
 
-	tl::expected<GraphicsPipeline, VulkanError> p_shapes{
-		GraphicsPipelineBuilder{&perm.arena}
+	tl::expected<VulkanPipeline, VulkanError> p_shapes{
+		VulkanPipelineBuilder{&perm.arena}
 			.input_assembly_state(InputAssemblyState{
 				.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
 			})
@@ -466,7 +501,14 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 				.alphaBlendOp		 = VK_BLEND_OP_ADD,
 				.colorWriteMask		 = 0xF,
 			})
-			.create_bindless(*renderer),
+			.create(
+				*renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			),
 	};
 	XR_VK_COR_PROPAGATE_ERROR(p_shapes);
 

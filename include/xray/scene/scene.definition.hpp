@@ -151,12 +151,12 @@ struct GltfMaterialsData
 
 struct GraphicsPipelineResources
 {
-    xray::rendering::GraphicsPipeline p_ads_color;
-    xray::rendering::GraphicsPipeline p_ads_textured;
-    xray::rendering::GraphicsPipeline p_pbr_color;
-    xray::rendering::GraphicsPipeline p_terrain;
-    xray::rendering::GraphicsPipeline p_sprites;
-    xray::rendering::GraphicsPipeline p_shapes;
+    xray::rendering::VulkanPipeline p_ads_color;
+    xray::rendering::VulkanPipeline p_ads_textured;
+    xray::rendering::VulkanPipeline p_pbr_color;
+    xray::rendering::VulkanPipeline p_terrain;
+    xray::rendering::VulkanPipeline p_sprites;
+    xray::rendering::VulkanPipeline p_shapes;
 };
 
 struct SceneDefinition

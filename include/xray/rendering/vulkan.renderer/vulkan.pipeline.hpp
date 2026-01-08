@@ -2,6 +2,7 @@
 
 #include "xray/xray.hpp"
 
+#include <cstdint>
 #include <string_view>
 #include <span>
 #include <unordered_map>
@@ -31,11 +32,16 @@ class VulkanRenderer;
 // these unique handle objects, needs redesigning to avoid this and reduce the
 // memory footprint
 
-class GraphicsPipelineBuilder;
+enum class VulkanPipelineKind : uint8_t {
+	Graphics,
+	Compute,
+};
 
-class GraphicsPipeline {
+class VulkanPipelineBuilder;
+
+class VulkanPipeline {
 private:
-	friend class GraphicsPipelineBuilder;
+	friend class VulkanPipelineBuilder;
 	struct BindlessLayout {
 		VkPipelineLayout layout;
 		std::span<const VkDescriptorSetLayout> set_layouts;
@@ -52,7 +58,7 @@ private:
 	pipeline_layout_t _layout{};
 
 public:
-	GraphicsPipeline(xrUniqueVkPipeline p, pipeline_layout_t p_layout)
+	VulkanPipeline(xrUniqueVkPipeline p, pipeline_layout_t p_layout)
 		: _pipeline{std::move(p)}, _layout{std::move(p_layout)} {}
 
 	std::span<const VkDescriptorSetLayout> descriptor_sets_layouts() const noexcept;
@@ -87,70 +93,64 @@ struct DepthStencilState {
 	float max_depth{1.0f};
 };
 
-struct GraphicsPipelineCreateData {
+struct VulkanPipelineCreateData {
 	uint16_t uniform_descriptors{1};
 	uint16_t storage_buffer_descriptors{1};
 	uint16_t combined_image_sampler_descriptors{1};
 	uint16_t image_descriptors{1};
 };
 
-class GraphicsPipelineBuilder {
-public:
-	GraphicsPipelineBuilder(base::MemoryArena* arena_perm) : _arena_perm(arena_perm) {}
+struct VulkanPipelineTemplate {
+	VkPipelineLayout layout;
+	std::span<const VkDescriptorSetLayout> descriptor_set_layouts;
+};
 
-	GraphicsPipelineBuilder& add_shader(const uint32_t stage, ShaderBuildOptions so) {
+class VulkanPipelineBuilder {
+public:
+	VulkanPipelineBuilder(base::MemoryArena* arena_perm, std::string_view tag = {})
+		: _arena_perm(arena_perm), _tag_name{tag} {}
+
+	VulkanPipelineBuilder& add_shader(const uint32_t stage, ShaderBuildOptions so) {
 		_stage_modules.emplace(stage, so);
 		return *this;
 	}
 
-	GraphicsPipelineBuilder& input_assembly_state(const InputAssemblyState ia_state) {
+	VulkanPipelineBuilder& input_assembly_state(const InputAssemblyState ia_state) {
 		_input_assembly = ia_state;
 		return *this;
 	}
 
-	GraphicsPipelineBuilder& rasterization_state(const RasterizationState& raster_state) {
+	VulkanPipelineBuilder& rasterization_state(const RasterizationState& raster_state) {
 		_raster = raster_state;
 		return *this;
 	}
 
-	GraphicsPipelineBuilder& depth_stencil_state(const DepthStencilState& depth_stencil) {
+	VulkanPipelineBuilder& depth_stencil_state(const DepthStencilState& depth_stencil) {
 		_depth_stencil = depth_stencil;
 		return *this;
 	}
 
-	GraphicsPipelineBuilder& color_blend(const VkPipelineColorBlendAttachmentState color_blend) {
+	VulkanPipelineBuilder& color_blend(const VkPipelineColorBlendAttachmentState color_blend) {
 		_colorblend = color_blend;
 		return *this;
 	}
 
-	GraphicsPipelineBuilder& dynamic_state(std::initializer_list<VkDynamicState> dyn_state) {
+	VulkanPipelineBuilder& dynamic_state(std::initializer_list<VkDynamicState> dyn_state) {
 		_dynstate.assign(dyn_state);
 		return *this;
 	}
 
-	GraphicsPipelineBuilder& input_state(const std::span<const VertexInputAttributeDescriptor> vtx_input_atts);
+	VulkanPipelineBuilder& input_state(const std::span<const VertexInputAttributeDescriptor> vtx_input_atts);
 
-	tl::expected<GraphicsPipeline, VulkanError> create(
-		const VulkanRenderer& renderer, const GraphicsPipelineCreateData& pcd
-	) {
-		return create_impl(renderer, PipelineType::Owned, pcd);
-	}
-
-	[[nodiscard]] tl::expected<GraphicsPipeline, VulkanError> create_bindless(const VulkanRenderer& renderer) {
-		return create_impl(renderer, PipelineType::Bindless, GraphicsPipelineCreateData{});
-	}
-
-private:
-	enum class PipelineType {
-		Bindless,
-		Owned,
-	};
-
-	tl::expected<GraphicsPipeline, VulkanError> create_impl(
-		const VulkanRenderer& renderer, const PipelineType pipeline_type, const GraphicsPipelineCreateData& pcd
+	[[nodiscard]] tl::expected<VulkanPipeline, VulkanError> create(
+		const VulkanRenderer& renderer,
+		const VulkanPipelineKind pipeline_kind,
+		const swl::variant<VulkanPipelineCreateData, VulkanPipelineTemplate> create_data
 	);
 
+private:
 	base::MemoryArena* _arena_perm;
+	std::string_view _tag_name;
 	std::unordered_map<uint32_t, ShaderBuildOptions> _stage_modules;
 	bool _optimize_shaders{false};
 	InputAssemblyState _input_assembly{};
