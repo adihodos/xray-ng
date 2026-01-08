@@ -9,20 +9,23 @@ B5::TestBDA::TestBDA(
 	PrivateConstructionToken,
 	xray::ui::PlatformWindow window,
 	xray::rendering::VulkanRenderer vulkan_renderer,
+	xray::rendering::BindlessSystem compute_bindless,
 	xray::rendering::VulkanPipeline p_fsquad,
-	std::vector<xray::rendering::VulkanImage> image
+	std::vector<SharedImage> image
 )
 	: m_window{std::move(window)},
 	  m_renderer{std::move(vulkan_renderer)},
+	  m_compute_bindless{std::move(compute_bindless)},
 	  m_p_fsquad{std::move(p_fsquad)},
 	  m_textures{std::move(image)} {}
 
 B5::TestBDA::TestBDA(TestBDA&& rhs) noexcept
 	: m_window{std::move(rhs.m_window)},
 	  m_renderer{std::move(rhs.m_renderer)},
+	  m_compute_bindless{std::move(rhs.m_compute_bindless)},
 	  m_p_fsquad{std::move(rhs.m_p_fsquad)},
-	  m_moved_from{std::exchange(rhs.m_moved_from, true)},
-	  m_textures{std::move(rhs.m_textures)} {}
+	  m_textures{std::move(rhs.m_textures)},
+	  m_moved_from{std::exchange(rhs.m_moved_from, true)} {}
 
 B5::TestBDA::~TestBDA() {
 	if (!m_moved_from) {
@@ -66,8 +69,8 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 	}
 
 	vulkan_renderer->add_shader_include_directories({ConfigSystem::instance()->shader_root()});
-	const auto slot_null_tex = vulkan_renderer->bindless_sys().reserve_image_slots(1);
-	assert(slot_null_tex == 0);
+	// const auto slot_null_tex = vulkan_renderer->bindless_sys().reserve_image_slots(1);
+	// assert(slot_null_tex == 0);
 
 	const VkPushConstantRange compute_bindless_push_consts[] = {
 		VkPushConstantRange{
@@ -82,7 +85,7 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 			.res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
 			.descriptor_count = 16,
 			.stage_flags	  = VK_SHADER_STAGE_ALL,
-			.tag			  = "DS_storage_image",
+			.tag			  = "Compute_DS_storage_image",
 		},
 	};
 
@@ -157,7 +160,7 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 
 	const VkExtent2D fb_size  = vulkan_renderer->surface_state().caps.currentExtent;
 	const uint32_t max_frames = vulkan_renderer->max_inflight_frames();
-	std::vector<VulkanImage> textures;
+	std::vector<SharedImage> textures;
 	textures.reserve(max_frames);
 
 	char scratch_buffer[1024];
@@ -181,7 +184,10 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 			return tl::nullopt;
 		}
 
-		textures.push_back(std::move(*image));
+		auto img_bindless_graphics = vulkan_renderer->bindless_sys().add_image(*image, nullptr, tl::nullopt);
+		auto img_bindless_compute  = compute_bindless->add_storage_image(*image, tl::nullopt);
+
+		textures.emplace_back(std::move(*image), img_bindless_graphics, img_bindless_compute);
 	}
 
 	return tl::optional<TestBDA>{
@@ -189,6 +195,7 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 		PrivateConstructionToken{},
 		std::move(*main_window),
 		std::move(*vulkan_renderer),
+		std::move(*compute_bindless),
 		std::move(*p_fsquad),
 		std::move(textures),
 	};
@@ -219,6 +226,9 @@ void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 	using namespace xray::rendering;
 
 	[[maybe_unused]] const FrameRenderData frame_data{m_renderer.begin_rendering(0.0f, 0.0f, 0.0f)};
+
+	// tl::expected<QueuedJob, VulkanError> compute_job = m_renderer.create_job(QueueType::Compute);
+	// const QueueData compute_queue					 = m_renderer.queue_data(QueueType::Compute);
 
 	//
 	// flush and bind the global descriptor table

@@ -1456,18 +1456,18 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 			.stage_flags	  = VK_SHADER_STAGE_ALL,
 			.tag			  = "DS_combined_sampler",
 		},
-		LayoutBindingsByResourceType{
-			.res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-			.descriptor_count = 512,
-			.stage_flags	  = VK_SHADER_STAGE_ALL,
-			.tag			  = "DS_storage_image",
-		},
-		LayoutBindingsByResourceType{
-			.res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,
-			.descriptor_count = 512,
-			.stage_flags	  = VK_SHADER_STAGE_ALL,
-			.tag			  = "DS_storage_texel_buffer",
-		},
+		// LayoutBindingsByResourceType{
+		// .res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+		// .descriptor_count = 512,
+		// .stage_flags	  = VK_SHADER_STAGE_ALL,
+		// .tag			  = "DS_storage_image",
+		// },
+		// LayoutBindingsByResourceType{
+		// .res_type		  = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,
+		// .descriptor_count = 512,
+		// .stage_flags	  = VK_SHADER_STAGE_ALL,
+		// .tag			  = "DS_storage_texel_buffer",
+		// },
 	};
 
 	tl::expected<BindlessSystem, VulkanError> bindless_sys{BindlessSystem::create(

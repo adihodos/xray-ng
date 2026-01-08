@@ -32,13 +32,22 @@ private:
 		explicit PrivateConstructionToken() = default;
 	};
 
+	//
+	// images used in both compute and graphics queues and pipelines
+	struct SharedImage {
+		xray::rendering::VulkanImage image;
+		xray::rendering::BindlessImageResourceHandleEntryPair bindless_graphics;
+		xray::rendering::BindlessStorageImageResourceHandleEntryPair bindless_compute;
+	};
+
 public:
 	TestBDA(
 		PrivateConstructionToken,
 		xray::ui::PlatformWindow window,
 		xray::rendering::VulkanRenderer vulkan_renderer,
+		xray::rendering::BindlessSystem compute_bindless,
 		xray::rendering::VulkanPipeline p_fsquad,
-		std::vector<xray::rendering::VulkanImage> images
+		std::vector<SharedImage> images
 	);
 	TestBDA(TestBDA&&) noexcept;
 	~TestBDA();
@@ -54,10 +63,11 @@ public:
 private:
 	xray::ui::PlatformWindow m_window;
 	xray::rendering::VulkanRenderer m_renderer;
+	xray::rendering::BindlessSystem m_compute_bindless;
 	xray::rendering::VulkanPipeline m_p_fsquad;
-	std::vector<xray::rendering::VulkanImage> m_textures;
+	std::vector<SharedImage> m_textures;
 	//
-	// because C++ sucks and the moves aren’t destructive, this garbage workaraound is needed.
+	// because C++ sucks and the moves aren’t destructive, this garbage workaround is needed.
 	bool m_moved_from{false};
 };
 

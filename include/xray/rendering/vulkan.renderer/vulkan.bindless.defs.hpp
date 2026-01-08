@@ -47,13 +47,17 @@ using BindlessResourceHandle_UniformBuffer =
 using BindlessResourceHandle_Image =
 	strong::type<uint32_t, struct Image_tag, strong::equality, strong::formattable, strong::hashable>;
 
+using BindlessResourceHandle_StorageImage =
+	strong::type<uint32_t, struct StorageImage_tag, strong::equality, strong::formattable, strong::hashable>;
+
 template <typename T>
 T bindless_subresource_handle_from_bindless_resource_handle(
 	T bindless_resource, const uint32_t subresource_idx
 ) noexcept
 	requires std::is_same_v<T, BindlessResourceHandle_Image> ||
 			 std::is_same_v<T, BindlessResourceHandle_UniformBuffer> ||
-			 std::is_same_v<T, BindlessResourceHandle_StorageBuffer>
+			 std::is_same_v<T, BindlessResourceHandle_StorageBuffer> ||
+			 std::is_same_v<T, BindlessResourceHandle_StorageImage>
 {
 	const detail::BindlessResourceHandleHelper main_resource{bindless_resource.value_of()};
 	assert(subresource_idx < main_resource.element_count);
@@ -66,7 +70,8 @@ template <typename T>
 std::pair<uint16_t, uint16_t> destructure_bindless_resource_handle(T bindless_resource) noexcept
 	requires std::is_same_v<T, BindlessResourceHandle_Image> ||
 			 std::is_same_v<T, BindlessResourceHandle_UniformBuffer> ||
-			 std::is_same_v<T, BindlessResourceHandle_StorageBuffer>
+			 std::is_same_v<T, BindlessResourceHandle_StorageBuffer> ||
+			 std::is_same_v<T, BindlessResourceHandle_StorageImage>
 {
 	const detail::BindlessResourceHandleHelper r{bindless_resource.value_of()};
 	return std::pair{r.array_start, r.element_count};
@@ -79,6 +84,7 @@ struct BindlessResourceEntry_Image {
 	VkDeviceMemory memory{};
 	VkImageView image_view{};
 	VulkanTextureInfo info{};
+	bool owned{true};
 };
 
 struct BindlessResourceEntry_StorageImage {
@@ -86,18 +92,21 @@ struct BindlessResourceEntry_StorageImage {
 	VkDeviceMemory memory{};
 	VkImageView image_view{};
 	VulkanTextureInfo info{};
+	bool owned{true};
 };
 
 struct BindlessResourceEntry_UniformBuffer {
 	VkBuffer handle{};
 	VkDeviceMemory memory{};
 	VkDeviceSize aligned_chunk_size{};
+	bool owned{true};
 };
 
 struct BindlessResourceEntry_StorageBuffer {
 	VkBuffer handle{};
 	VkDeviceMemory memory{};
 	VkDeviceSize aligned_chunk_size{};
+	bool owned{true};
 };
 
 using BindlessUniformBufferResourceHandleEntryPair =
@@ -107,5 +116,7 @@ using BindlessStorageBufferResourceHandleEntryPair =
 	std::pair<BindlessResourceHandle_StorageBuffer, BindlessResourceEntry_StorageBuffer>;
 
 using BindlessImageResourceHandleEntryPair = std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image>;
+using BindlessStorageImageResourceHandleEntryPair =
+	std::pair<BindlessResourceHandle_StorageImage, BindlessResourceEntry_StorageImage>;
 
 }  // namespace xray::rendering

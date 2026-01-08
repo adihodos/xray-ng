@@ -118,9 +118,21 @@ public:
 	std::span<const VkDescriptorSetLayout> descriptor_set_layouts() const noexcept { return _set_layouts; }
 	std::span<const VkDescriptorSet> descriptor_sets() const noexcept { return _descriptors; }
 
-	std::pair<BindlessResourceHandle_Image, BindlessResourceEntry_Image> add_image(
-		VulkanImage img, VkSampler smp, tl::optional<uint32_t> slot
-	);
+	//
+	// add image, owned
+	BindlessImageResourceHandleEntryPair add_image(VulkanImage&& img, VkSampler smp, tl::optional<uint32_t> slot);
+
+	//
+	// add image, not owned
+	BindlessImageResourceHandleEntryPair add_image(const VulkanImage& img, VkSampler smp, tl::optional<uint32_t> slot);
+
+	//
+	// add storage image, owned
+	BindlessStorageImageResourceHandleEntryPair add_storage_image(VulkanImage&& img, tl::optional<uint32_t> slot);
+
+	//
+	// add storgage image, not owned
+	BindlessStorageImageResourceHandleEntryPair add_storage_image(const VulkanImage& img, tl::optional<uint32_t> slot);
 
 	std::pair<BindlessResourceHandle_UniformBuffer, BindlessResourceEntry_UniformBuffer> add_uniform_buffer(
 		VulkanBuffer ubo
@@ -214,6 +226,14 @@ private:
 
 private:
 	uint32_t reserve_resource_slots(const uint32_t reserve_count, const VulkanResourceType resource_type) noexcept;
+
+	BindlessImageResourceHandleEntryPair add_image(
+		BindlessResourceEntry_Image img_entry, VkSampler smp, tl::optional<uint32_t> slot
+	);
+
+	BindlessStorageImageResourceHandleEntryPair add_storage_image(
+		BindlessResourceEntry_StorageImage img_entry, tl::optional<uint32_t> slot
+	);
 
 	BindlessSystem(
 		UniqueVulkanResourcePack<VkDevice, VkDescriptorPool, VkPipelineLayout> bindless,

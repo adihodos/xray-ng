@@ -70,25 +70,33 @@ xray::rendering::BindlessSystem::~BindlessSystem() {
 			switch (resource_type) {
 				case VulkanResourceType::CombinedImageSampler:
 				case VulkanResourceType::SampledImage: {
-					vkFreeMemory(device, resource.image.memory, nullptr);
-					vkDestroyImage(device, resource.image.handle, nullptr);
-					vkDestroyImageView(device, resource.image.image_view, nullptr);
+					if (resource.image.owned) {
+						vkFreeMemory(device, resource.image.memory, nullptr);
+						vkDestroyImage(device, resource.image.handle, nullptr);
+						vkDestroyImageView(device, resource.image.image_view, nullptr);
+					}
 				} break;
 
 				case VulkanResourceType::StorageImage: {
-					vkFreeMemory(device, resource.storage_image.memory, nullptr);
-					vkDestroyImage(device, resource.storage_image.handle, nullptr);
-					vkDestroyImageView(device, resource.storage_image.image_view, nullptr);
+					if (resource.storage_image.owned) {
+						vkFreeMemory(device, resource.storage_image.memory, nullptr);
+						vkDestroyImage(device, resource.storage_image.handle, nullptr);
+						vkDestroyImageView(device, resource.storage_image.image_view, nullptr);
+					}
 				} break;
 
 				case VulkanResourceType::UniformBuffer: {
-					vkFreeMemory(device, resource.uniform_buffer.ubo.memory, nullptr);
-					vkDestroyBuffer(device, resource.uniform_buffer.ubo.handle, nullptr);
+					if (resource.uniform_buffer.ubo.owned) {
+						vkFreeMemory(device, resource.uniform_buffer.ubo.memory, nullptr);
+						vkDestroyBuffer(device, resource.uniform_buffer.ubo.handle, nullptr);
+					}
 				} break;
 
 				case VulkanResourceType::StorageBuffer: {
-					vkFreeMemory(device, resource.storage_buffer.sbo.memory, nullptr);
-					vkDestroyBuffer(device, resource.storage_buffer.sbo.handle, nullptr);
+					if (resource.storage_buffer.sbo.owned) {
+						vkFreeMemory(device, resource.storage_buffer.sbo.memory, nullptr);
+						vkDestroyBuffer(device, resource.storage_buffer.sbo.handle, nullptr);
+					}
 				} break;
 
 				default: {
@@ -278,9 +286,69 @@ tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError> xray
 	};
 }
 
+xray::rendering::BindlessStorageImageResourceHandleEntryPair xray::rendering::BindlessSystem::add_storage_image(
+	BindlessResourceEntry_StorageImage img_entry, tl::optional<uint32_t> slot
+) {
+	auto itr = _resource_table.find(VulkanResourceType::StorageImage);
+	if (itr == std::end(_resource_table)) {
+		XR_LOG_ERR("Trying to add storage image to this bindless layout but it has not support for it");
+		return std::pair{
+			BindlessResourceHandle_StorageImage{
+				0u,
+			},
+			BindlessResourceEntry_StorageImage{},
+		};
+	}
+
+	BindlessResourceTableEntry* tbl_entry = &itr->second;
+
+	const uint32_t handle = [&]() {
+		if (slot) return *slot;
+
+		return tbl_entry->handle_idx.fetch_add(1);
+	}();
+
+	XR_LOG_INFO("[[bindles]] - img {:#08x} -> {}", (uintptr_t)img_entry.handle, handle);
+
+	if (tbl_entry->handle_idx > tbl_entry->resources.size()) {
+		tbl_entry->resources.resize(
+			tbl_entry->handle_idx,
+			BindlessVulkanResource{
+				.storage_image = {},
+			}
+		);
+	}
+
+	tbl_entry->resources[handle] = BindlessVulkanResource{
+		.storage_image = img_entry,
+	};
+
+	tbl_entry->writes.push_back(BindlessResourceDescriptorWrite{
+		.image =
+			WriteDescriptorImageInfo{
+				.dst_array = handle,
+				.img_info =
+					VkDescriptorImageInfo{
+						.sampler	 = nullptr,
+						.imageView	 = img_entry.image_view,
+						.imageLayout = img_entry.info.imageLayout,
+					},
+			}
+	});
+
+	const BindlessResourceHandle_StorageImage bindless_handle{
+		detail::BindlessResourceHandleHelper{handle, 1}.value,
+	};
+
+	return BindlessStorageImageResourceHandleEntryPair{
+		bindless_handle,
+		tbl_entry->resources[handle].storage_image,
+	};
+}
+
 std::pair<xray::rendering::BindlessResourceHandle_Image, xray::rendering::BindlessResourceEntry_Image>
 xray::rendering::BindlessSystem::add_image(
-	xray::rendering::VulkanImage img, VkSampler smp, const tl::optional<uint32_t> slot
+	BindlessResourceEntry_Image img_entry, VkSampler smp, tl::optional<uint32_t> slot
 ) {
 	auto itr = _resource_table.find(VulkanResourceType::SampledImage);
 	if (itr == std::end(_resource_table)) {
@@ -301,7 +369,7 @@ xray::rendering::BindlessSystem::add_image(
 		return tbl_entry->handle_idx.fetch_add(1);
 	}();
 
-	XR_LOG_INFO("[[bindles]] - img {:#08x} -> {}", (uintptr_t)img.image(), handle);
+	XR_LOG_INFO("[[bindles]] - owned {}, img {:#08x} -> {}", img_entry.owned, (uintptr_t)img_entry.handle, handle);
 
 	if (tbl_entry->handle_idx > tbl_entry->resources.size()) {
 		tbl_entry->resources.resize(
@@ -312,16 +380,8 @@ xray::rendering::BindlessSystem::add_image(
 		);
 	}
 
-	const auto [image, image_memory, image_view] = img.release();
-
 	tbl_entry->resources[handle] = BindlessVulkanResource{
-		.image =
-			BindlessResourceEntry_Image{
-				.handle		= image,
-				.memory		= image_memory,
-				.image_view = image_view,
-				.info		= img._info,
-			},
+		.image = img_entry,
 	};
 
 	if (smp == nullptr) {
@@ -337,18 +397,18 @@ xray::rendering::BindlessSystem::add_image(
 				.img_info =
 					VkDescriptorImageInfo{
 						.sampler	 = smp,
-						.imageView	 = image_view,
-						.imageLayout = img._info.imageLayout,
+						.imageView	 = img_entry.image_view,
+						.imageLayout = img_entry.info.imageLayout,
 					},
 			}
 	});
 
-	const BindlessResourceHandle_Image bindless_ubo_handle{
+	const BindlessResourceHandle_Image bindless_handle{
 		detail::BindlessResourceHandleHelper{handle, 1}.value,
 	};
 
 	return std::pair{
-		bindless_ubo_handle,
+		bindless_handle,
 		tbl_entry->resources[handle].image,
 	};
 }
@@ -460,6 +520,70 @@ xray::rendering::BindlessSystem::add_chunked_storage_buffer(
 	}
 
 	return std::pair{bindless_ubo_handle, tbl_entry->resources[handle].storage_buffer.sbo};
+}
+
+xray::rendering::BindlessImageResourceHandleEntryPair xray::rendering::BindlessSystem::add_image(
+	VulkanImage&& img, VkSampler smp, tl::optional<uint32_t> slot
+) {
+	const auto [image, image_memory, image_view] = img.release();
+	return add_image(
+		BindlessResourceEntry_Image{
+			.handle		= image,
+			.memory		= image_memory,
+			.image_view = image_view,
+			.info		= img._info,
+			.owned		= true,
+		},
+		smp,
+		slot
+	);
+}
+
+xray::rendering::BindlessImageResourceHandleEntryPair xray::rendering::BindlessSystem::add_image(
+	const VulkanImage& img, VkSampler smp, tl::optional<uint32_t> slot
+) {
+	return add_image(
+		BindlessResourceEntry_Image{
+			.handle		= img.image(),
+			.memory		= img.memory(),
+			.image_view = img.view(),
+			.info		= img._info,
+			.owned		= false,
+		},
+		smp,
+		slot
+	);
+}
+
+xray::rendering::BindlessStorageImageResourceHandleEntryPair xray::rendering::BindlessSystem::add_storage_image(
+	VulkanImage&& img, tl::optional<uint32_t> slot
+) {
+	const auto [image, image_memory, image_view] = img.release();
+	return add_storage_image(
+		BindlessResourceEntry_StorageImage{
+			.handle		= image,
+			.memory		= image_memory,
+			.image_view = image_view,
+			.info		= img._info,
+			.owned		= true,
+		},
+		slot
+	);
+}
+
+xray::rendering::BindlessStorageImageResourceHandleEntryPair xray::rendering::BindlessSystem::add_storage_image(
+	const VulkanImage& img, tl::optional<uint32_t> slot
+) {
+	return add_storage_image(
+		BindlessResourceEntry_StorageImage{
+			.handle		= img.image(),
+			.memory		= img.memory(),
+			.image_view = img.view(),
+			.info		= img._info,
+			.owned		= false,
+		},
+		slot
+	);
 }
 
 void xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& renderer) {
