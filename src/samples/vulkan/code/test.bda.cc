@@ -175,6 +175,26 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 
 	tl::expected<QueuedJob, VulkanError> img_layout_job = vulkan_renderer->create_job(QueueType::Graphics);
 
+	const VkPhysicalDeviceImageFormatInfo2 img_fmt_info{
+		.sType	= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
+		.pNext	= nullptr,
+		.format = VK_FORMAT_R8G8B8A8_UINT,
+		.type	= VK_IMAGE_TYPE_2D,
+		.tiling = VK_IMAGE_TILING_OPTIMAL,
+		.usage	= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		.flags	= 0,
+	};
+
+	VkImageFormatProperties2 img_fmt_props{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
+		.pNext = nullptr,
+	};
+
+	const VkResult img_check_res =
+		vkGetPhysicalDeviceImageFormatProperties2(vulkan_renderer->physical().device, &img_fmt_info, &img_fmt_props);
+
+	XR_LOG_INFO("Image format support {}", img_check_res == VK_SUCCESS);
+
 	for (uint32_t idx = 0; idx < max_frames; ++idx) {
 		format_to_n(scratch_buffer, "tex_{}", idx);
 		tl::expected<VulkanImage, VulkanError> image = VulkanImage::from_memory(
@@ -295,6 +315,8 @@ void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 		.layerCount		= 1,
 	};
 
+	static uint32_t coord_offset = 0;
+
 	struct CSPushConstant {
 		U32 packed0;
 		U32 packed1;
@@ -308,7 +330,7 @@ void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 		destructure_bindless_resource_handle(m_textures[frame_idx].bindless_compute.first);
 	const CSPushConstant cs_push_const = {
 		.packed0 = cs_bindless_handle,
-		.packed1 = 0,
+		.packed1 = coord_offset++,
 	};
 
 	vkCmdBindPipeline(compute_job->buffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_p_compute.handle());
@@ -321,7 +343,7 @@ void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 		cs_push_const.as_bytes().data()
 	);
 
-	vkCmdDispatch(compute_job->buffer, 16, 16, 1);
+	vkCmdDispatch(compute_job->buffer, frame_data.fbsize.width / 8, frame_data.fbsize.height / 8, 1);
 	tl::expected<QueueSubmitWaitToken, VulkanError> cs_submit_wait_token =
 		m_renderer.submit_job(std::move(*compute_job));
 

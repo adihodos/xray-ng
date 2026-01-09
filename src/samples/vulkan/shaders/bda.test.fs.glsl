@@ -2,7 +2,6 @@
 
 #include "core/bindless.core.glsl"
 
-
 in VS_OUT_FS_IN {
 	layout (location = 0) vec2 uv;
 } fs_in;
