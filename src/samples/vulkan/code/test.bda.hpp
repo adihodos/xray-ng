@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <vector>
+#include <bitset>
 
 #include <tl/optional.hpp>
 
@@ -47,6 +48,7 @@ public:
 		xray::rendering::VulkanRenderer vulkan_renderer,
 		xray::rendering::BindlessSystem compute_bindless,
 		xray::rendering::VulkanPipeline p_fsquad,
+		xray::rendering::VulkanPipeline p_compute,
 		std::vector<SharedImage> images
 	);
 	TestBDA(TestBDA&&) noexcept;
@@ -65,7 +67,9 @@ private:
 	xray::rendering::VulkanRenderer m_renderer;
 	xray::rendering::BindlessSystem m_compute_bindless;
 	xray::rendering::VulkanPipeline m_p_fsquad;
+	xray::rendering::VulkanPipeline m_p_compute;
 	std::vector<SharedImage> m_textures;
+	std::bitset<16> m_textures_layout_transitions{0};
 	//
 	// because C++ sucks and the moves aren’t destructive, this garbage workaround is needed.
 	bool m_moved_from{false};

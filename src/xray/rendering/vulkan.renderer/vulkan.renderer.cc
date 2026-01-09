@@ -1451,7 +1451,7 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 			.tag			  = "DS_storage_buffer",
 		},
 		LayoutBindingsByResourceType{
-			.res_type		  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.res_type		  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			.descriptor_count = 512,
 			.stage_flags	  = VK_SHADER_STAGE_ALL,
 			.tag			  = "DS_combined_sampler",

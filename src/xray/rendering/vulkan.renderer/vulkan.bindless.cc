@@ -331,7 +331,7 @@ xray::rendering::BindlessStorageImageResourceHandleEntryPair xray::rendering::Bi
 					VkDescriptorImageInfo{
 						.sampler	 = nullptr,
 						.imageView	 = img_entry.image_view,
-						.imageLayout = img_entry.info.imageLayout,
+						.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
 					},
 			}
 	});
@@ -350,7 +350,7 @@ std::pair<xray::rendering::BindlessResourceHandle_Image, xray::rendering::Bindle
 xray::rendering::BindlessSystem::add_image(
 	BindlessResourceEntry_Image img_entry, VkSampler smp, tl::optional<uint32_t> slot
 ) {
-	auto itr = _resource_table.find(VulkanResourceType::SampledImage);
+	auto itr = _resource_table.find(VulkanResourceType::CombinedImageSampler);
 	if (itr == std::end(_resource_table)) {
 		XR_LOG_ERR("Trying to add sampled image to this bindless layout but it has not support for it");
 		return std::pair{
@@ -603,6 +603,7 @@ void xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& re
 
 	for (const auto& [resource_type, resource_entry] : _resource_table) {
 		switch (resource_type) {
+			case VulkanResourceType::CombinedImageSampler:
 			case VulkanResourceType::SampledImage:
 			case VulkanResourceType::StorageImage: {
 				for (const BindlessResourceDescriptorWrite& d_write : resource_entry.writes) {

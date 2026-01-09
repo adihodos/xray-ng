@@ -359,13 +359,14 @@ xray::rendering::VulkanImage::create_image_view(const xray::rendering::VulkanRen
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 			},
-		.subresourceRange = VkImageSubresourceRange{
-			.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-			.baseMipLevel	= 0,
-			.levelCount		= _info.levelCount,
-			.baseArrayLayer = 0,
-			.layerCount		= _info.layerCount,
-		},
+		.subresourceRange =
+			VkImageSubresourceRange{
+				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel	= 0,
+				.levelCount		= _info.levelCount,
+				.baseArrayLayer = 0,
+				.layerCount		= _info.layerCount,
+			},
 	};
 
 	const VkResult create_res =
@@ -423,7 +424,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,
 		.pQueueFamilyIndices   = nullptr,
-		.initialLayout		   = VK_IMAGE_LAYOUT_UNDEFINED,
+		.initialLayout		   = create_info.initial_layout,
 	};
 
 	xrUniqueVkImage image{nullptr, VkResourceDeleter_VkImage{renderer.device()}};
@@ -516,11 +517,12 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 					.layerCount		= create_info.layers,
 				},
 			.imageOffset = {},
-			.imageExtent = {
-				create_info.width,
-				create_info.height,
-				create_info.depth,
-			},
+			.imageExtent =
+				{
+					create_info.width,
+					create_info.height,
+					create_info.depth,
+				},
 		};
 
 		vkCmdCopyBufferToImage(
@@ -568,13 +570,14 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 			},
-		.subresourceRange = VkImageSubresourceRange{
-			.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-			.baseMipLevel	= 0,
-			.levelCount		= 1,
-			.baseArrayLayer = 0,
-			.layerCount		= create_info.layers,
-		},
+		.subresourceRange =
+			VkImageSubresourceRange{
+				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel	= 0,
+				.levelCount		= 1,
+				.baseArrayLayer = 0,
+				.layerCount		= create_info.layers,
+			},
 	};
 
 	const VkResult create_res =
@@ -937,13 +940,14 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 					VK_COMPONENT_SWIZZLE_IDENTITY,
 					VK_COMPONENT_SWIZZLE_IDENTITY,
 				},
-			.subresourceRange = VkImageSubresourceRange{
-				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel	= 0,
-				.levelCount		= numImageLevels,
-				.baseArrayLayer = 0,
-				.layerCount		= numImageLayers,
-			},
+			.subresourceRange =
+				VkImageSubresourceRange{
+					.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel	= 0,
+					.levelCount		= numImageLevels,
+					.baseArrayLayer = 0,
+					.layerCount		= numImageLayers,
+				},
 		};
 
 		const VkResult create_res = WRAP_VULKAN_FUNC(

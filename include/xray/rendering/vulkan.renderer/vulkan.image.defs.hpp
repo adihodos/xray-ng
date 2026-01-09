@@ -38,7 +38,8 @@ struct VulkanImageCreateInfo
     VkImageType type{ VK_IMAGE_TYPE_2D };
     VkImageUsageFlags usage_flags{ VK_IMAGE_USAGE_SAMPLED_BIT };
     VkMemoryPropertyFlags memory_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
-    VkFormat format{ VK_FORMAT_UNDEFINED };
+	VkFormat format{VK_FORMAT_UNDEFINED};
+	VkImageLayout initial_layout{VK_IMAGE_LAYOUT_UNDEFINED};
     bool cubemap{ false };
     bool create_view{ true };
     uint32_t width{};

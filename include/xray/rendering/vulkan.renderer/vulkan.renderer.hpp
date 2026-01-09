@@ -160,20 +160,9 @@ struct RenderBufferingSetup {
 	uint32_t buffers;
 };
 
-struct WorkPackageSetup {
-	WorkPackageHandle pkg;
-	VkCommandBuffer cmdbuf;
-};
-
 struct BufferWithDeviceMemoryPair {
 	StagingBufferHandle buffer;
 	StagingBufferMemoryHandle memory;
-};
-
-struct WorkPackageTrackingInfo {
-	std::vector<BufferWithDeviceMemoryPair> staging_buffers;
-	FenceHandle fence;
-	CommandBufferHandle cmd_buf;
 };
 
 struct StagingBuffer {
