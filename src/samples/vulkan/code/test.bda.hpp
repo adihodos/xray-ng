@@ -70,6 +70,7 @@ private:
 	xray::rendering::VulkanPipeline m_p_compute;
 	std::vector<SharedImage> m_textures;
 	std::bitset<16> m_textures_layout_transitions{0};
+	uint32_t m_face_index{};
 	//
 	// because C++ sucks and the moves aren’t destructive, this garbage workaround is needed.
 	bool m_moved_from{false};

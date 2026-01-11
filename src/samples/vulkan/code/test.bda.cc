@@ -243,7 +243,8 @@ B5::TestBDA::TestBDA(
 	  m_compute_bindless{std::move(compute_bindless)},
 	  m_p_fsquad{std::move(p_fsquad)},
 	  m_p_compute{std::move(p_compute)},
-	  m_textures{std::move(image)} {}
+	  m_textures{std::move(image)},
+	  m_face_index{} {}
 
 B5::TestBDA::TestBDA(TestBDA&& rhs) noexcept
 	: m_window{std::move(rhs.m_window)},
@@ -253,13 +254,16 @@ B5::TestBDA::TestBDA(TestBDA&& rhs) noexcept
 	  m_p_compute{std::move(rhs.m_p_compute)},
 	  m_textures{std::move(rhs.m_textures)},
 	  m_moved_from{std::exchange(rhs.m_moved_from, true)},
-	  m_textures_layout_transitions{std::move(rhs.m_textures_layout_transitions)} {}
+	  m_textures_layout_transitions{std::move(rhs.m_textures_layout_transitions)},
+	  m_face_index{rhs.m_face_index} {}
 
 B5::TestBDA::~TestBDA() {
 	if (!m_moved_from) {
 		m_renderer.wait_device_idle();
 	}
 }
+
+const xray::U32 IMG_SIZE = 1024;
 
 tl::optional<B5::TestBDA> B5::TestBDA::create() {
 	using namespace xray::base;
@@ -332,7 +336,7 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 		VulkanPipelineBuilder{scratch_pad.arena}
 			.add_shader(
 				ShaderStage::Compute,
-				ShaderBuildOptions{.code_or_file_path = ConfigSystem::instance()->shader_path("bda.compute.glsl")}
+				ShaderBuildOptions{.code_or_file_path = ConfigSystem::instance()->shader_path("stars.comp.glsl")}
 			)
 			.create(
 				*vulkan_renderer,
@@ -427,8 +431,8 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 				.type		 = VK_IMAGE_TYPE_2D,
 				.usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
 				.format		 = VK_FORMAT_R8G8B8A8_UNORM,
-				.width		 = fb_size.width,
-				.height		 = fb_size.height,
+				.width		 = IMG_SIZE,
+				.height		 = IMG_SIZE,
 			}
 		);
 
@@ -493,11 +497,19 @@ void B5::TestBDA::run() {
 void B5::TestBDA::event_handler(const xray::ui::window_event& wnd_evt) {
 	using namespace xray::ui;
 
-	if (is_input_event(wnd_evt)) {
-		if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
-			wnd_evt.event.key.type == event_action_type::press) {
-			m_window.quit();
-			return;
+	if (is_input_event(wnd_evt) && (wnd_evt.event.key.type == event_action_type::press)) {
+		using xray::ui::KeySymbol;
+
+		switch (wnd_evt.event.key.keycode) {
+			case KeySymbol::escape: {
+				m_window.quit();
+			} break;
+
+			case KeySymbol::left: {
+				m_face_index = (m_face_index + 1) % 6;
+			};
+			default:
+				break;
 		}
 	}
 }
@@ -553,11 +565,17 @@ void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 		}
 	};
 
+	static_assert(sizeof(CSPushConstant) == sizeof(uint64_t), "This is bad, really really bad ...");
+
+	constexpr U32 seed		= 0xBEEF;
+	constexpr U32 IMG_COUNT = 6;
+
 	const auto [cs_bindless_handle, elements_count] =
 		destructure_bindless_resource_handle(m_textures[frame_idx].bindless_compute.first);
+
 	const CSPushConstant cs_push_const = {
-		.packed0 = cs_bindless_handle,
-		.packed1 = coord_offset++,
+		.packed0 = cs_bindless_handle | (IMG_SIZE << 8) | (m_face_index << 24),
+		.packed1 = seed,
 	};
 
 	vkCmdBindPipeline(frame_data.cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, m_p_compute.handle());
@@ -570,7 +588,7 @@ void B5::TestBDA::loop_event(const xray::ui::window_loop_event&) {
 		cs_push_const.as_bytes().data()
 	);
 
-	vkCmdDispatch(frame_data.cmd_buf, frame_data.fbsize.width / 8, frame_data.fbsize.height / 8, 1);
+	vkCmdDispatch(frame_data.cmd_buf, IMG_SIZE / 8, IMG_SIZE / 8, 1);
 
 	//
 	// transition image to shader read only optimal
