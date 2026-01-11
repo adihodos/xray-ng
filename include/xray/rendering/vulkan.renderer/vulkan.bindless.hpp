@@ -127,6 +127,17 @@ public:
 	BindlessImageResourceHandleEntryPair add_image(const VulkanImage& img, VkSampler smp, tl::optional<uint32_t> slot);
 
 	//
+	// add image, not owned
+	BindlessImageResourceHandleEntryPair add_image(
+		VkImage img,
+		VkImageView img_view,
+		VkDeviceMemory memory,
+		VkSampler smp,
+		const VulkanTextureInfo& img_info,
+		tl::optional<uint32_t> slot
+	);
+
+	//
 	// add storage image, owned
 	BindlessStorageImageResourceHandleEntryPair add_storage_image(VulkanImage&& img, tl::optional<uint32_t> slot);
 

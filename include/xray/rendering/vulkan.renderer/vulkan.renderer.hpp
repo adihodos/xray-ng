@@ -262,11 +262,19 @@ public:
 		BindlessSystem bindless
 	);
 
-	FrameRenderData begin_rendering(
-		const float red, const float green, const float blue, const float depth = 1.0f, const uint32_t stencil = 0
+	FrameRenderData start_frame();
+
+	void begin_rendering(
+		const FrameRenderData&,
+		const float red,
+		const float green,
+		const float blue,
+		const float depth	   = 1.0f,
+		const uint32_t stencil = 0
 	);
 
 	void end_rendering();
+	
 	void clear_attachments(
 		VkCommandBuffer cmd_buf,
 		const float red,

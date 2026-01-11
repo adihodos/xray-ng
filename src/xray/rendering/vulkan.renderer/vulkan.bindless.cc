@@ -540,6 +540,27 @@ xray::rendering::BindlessImageResourceHandleEntryPair xray::rendering::BindlessS
 }
 
 xray::rendering::BindlessImageResourceHandleEntryPair xray::rendering::BindlessSystem::add_image(
+	VkImage img,
+	VkImageView img_view,
+	VkDeviceMemory memory,
+	VkSampler smp,
+	const VulkanTextureInfo& img_info,
+	tl::optional<uint32_t> slot
+) {
+	return add_image(
+		BindlessResourceEntry_Image{
+			.handle		= img,
+			.memory		= memory,
+			.image_view = img_view,
+			.info		= img_info,
+			.owned		= false,
+		},
+		smp,
+		slot
+	);
+}
+
+xray::rendering::BindlessImageResourceHandleEntryPair xray::rendering::BindlessSystem::add_image(
 	const VulkanImage& img, VkSampler smp, tl::optional<uint32_t> slot
 ) {
 	return add_image(

@@ -1639,10 +1639,8 @@ VulkanRenderer::VulkanRenderer(
 	}
 }
 
-FrameRenderData VulkanRenderer::begin_rendering(
-	const float red, const float green, const float blue, const float depth, const uint32_t stencil
-) {
-	ZoneScopedN("BeginRendering");
+FrameRenderData VulkanRenderer::start_frame() {
+	ZoneScopedN("StartFrame");
 
 	//
 	// wait for previously submitted work to finish
@@ -1695,6 +1693,31 @@ FrameRenderData VulkanRenderer::begin_rendering(
 	WRAP_VULKAN_FUNC(
 		vkBeginCommandBuffer, _presentation_state.command_buffers[_presentation_state.frame_index], &cmd_buf_begin_info
 	);
+
+	return FrameRenderData{
+		.id			= _presentation_state.frame_index,
+		.max_frames = _presentation_state.max_frames,
+		.cmd_buf	= _presentation_state.command_buffers[_presentation_state.frame_index],
+		.fbsize		= _presentation_state.surface_state.caps.currentExtent,
+		.fb_f32 =
+			{
+				.width	= static_cast<float>(_presentation_state.surface_state.caps.currentExtent.width),
+				.height = static_cast<float>(_presentation_state.surface_state.caps.currentExtent.height),
+			},
+	};
+}
+
+void VulkanRenderer::begin_rendering(
+	const FrameRenderData& frame_data,
+	const float red,
+	const float green,
+	const float blue,
+	const float depth,
+	const uint32_t stencil
+) {
+	ZoneScopedN("BeginRendering");
+
+	const uint32_t acquired_image{_presentation_state.acquired_image};
 
 	const VkRenderingAttachmentInfo color_attachment = {
 		.sType				= VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -1855,18 +1878,6 @@ FrameRenderData VulkanRenderer::begin_rendering(
 	WRAP_VULKAN_FUNC(
 		vkCmdBeginRendering, _presentation_state.command_buffers[_presentation_state.frame_index], &rendering_info
 	);
-
-	return FrameRenderData{
-		.id			= _presentation_state.frame_index,
-		.max_frames = _presentation_state.max_frames,
-		.cmd_buf	= _presentation_state.command_buffers[_presentation_state.frame_index],
-		.fbsize		= _presentation_state.surface_state.caps.currentExtent,
-		.fb_f32 =
-			{
-				.width	= static_cast<float>(_presentation_state.surface_state.caps.currentExtent.width),
-				.height = static_cast<float>(_presentation_state.surface_state.caps.currentExtent.height),
-			},
-	};
 }
 
 void VulkanRenderer::end_rendering() {

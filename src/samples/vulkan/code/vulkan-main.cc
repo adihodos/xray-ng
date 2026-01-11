@@ -1702,7 +1702,8 @@ void GameMain::loop_event(const xray::ui::window_loop_event& loop_event) {
 	_ui->tick(delta);
 	_ui->new_frame(loop_event.wnd_width, loop_event.wnd_height);
 
-	const FrameRenderData frd{_vkrenderer->begin_rendering(0.0f, 0.0f, 0.0f)};
+	const FrameRenderData frd = _vkrenderer->start_frame();
+		// {_vkrenderer->begin_rendering(0.0f, 0.0f, 0.0f)};
 
 	_debug_draw->new_frame(frd.id);
 
