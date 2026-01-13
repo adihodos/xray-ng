@@ -310,9 +310,9 @@ xray::rendering::BindlessStorageImageResourceHandleEntryPair xray::rendering::Bi
 
 	XR_LOG_INFO("[[bindles]] - img {:#08x} -> {}", (uintptr_t)img_entry.handle, handle);
 
-	if (tbl_entry->handle_idx > tbl_entry->resources.size()) {
+	if (tbl_entry->handle_idx >= tbl_entry->resources.size()) {
 		tbl_entry->resources.resize(
-			tbl_entry->handle_idx,
+			tbl_entry->handle_idx + 1,
 			BindlessVulkanResource{
 				.storage_image = {},
 			}
@@ -371,9 +371,9 @@ xray::rendering::BindlessSystem::add_image(
 
 	XR_LOG_INFO("[[bindles]] - owned {}, img {:#08x} -> {}", img_entry.owned, (uintptr_t)img_entry.handle, handle);
 
-	if (tbl_entry->handle_idx > tbl_entry->resources.size()) {
+	if (tbl_entry->handle_idx >= tbl_entry->resources.size()) {
 		tbl_entry->resources.resize(
-			tbl_entry->handle_idx,
+			tbl_entry->handle_idx + 1,
 			BindlessVulkanResource{
 				.image = {},
 			}
@@ -723,7 +723,7 @@ const xray::rendering::BindlessResourceEntry_Image* xray::rendering::BindlessSys
 ) const noexcept {
 	const uint32_t idx = detail::BindlessResourceHandleHelper{img.value_of()}.array_start;
 
-	auto itr = _resource_table.find(VulkanResourceType::SampledImage);
+	auto itr = _resource_table.find(VulkanResourceType::CombinedImageSampler);
 	if (itr != std::end(_resource_table)) {
 		if (idx < itr->second.resources.size()) {
 			return &itr->second.resources[idx].image;

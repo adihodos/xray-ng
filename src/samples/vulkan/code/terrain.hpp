@@ -123,7 +123,7 @@ public:
 		xray::rendering::TerrainParams terrain_params
 	);
 
-	Terrain(Terrain&&) = default;
+	Terrain(Terrain&&) noexcept = default;
 
 	void loop_event(const RenderEvent& re);
 	void user_interface(xray::ui::user_interface* ui, const RenderEvent& re);

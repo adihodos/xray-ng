@@ -336,7 +336,7 @@ tl::optional<B5::TestBDA> B5::TestBDA::create() {
 		VulkanPipelineBuilder{scratch_pad.arena}
 			.add_shader(
 				ShaderStage::Compute,
-				ShaderBuildOptions{.code_or_file_path = ConfigSystem::instance()->shader_path("stars.comp.glsl")}
+				ShaderBuildOptions{.code_or_file_path = ConfigSystem::instance()->shader_path("clouds.comp.glsl")}
 			)
 			.create(
 				*vulkan_renderer,

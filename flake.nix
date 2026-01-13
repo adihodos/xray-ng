@@ -55,6 +55,7 @@
             pkg-config
             evtest
             evtest-qt
+            tacentview
 
             vulkan-tools
             vulkan-headers

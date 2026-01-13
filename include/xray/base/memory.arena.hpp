@@ -69,6 +69,7 @@ struct MemoryStats {
 	size_t largest_alloc{};
 	size_t high_water{};
 	size_t allocated{};
+	size_t freed{};
 };
 
 struct MemoryArena {
@@ -142,7 +143,10 @@ struct MemoryArena {
 		return nullptr;
 	}
 
-	void free(void* ptr, const std::size_t n) noexcept { details::poison_memory_region(ptr, n); }
+	void free(void* ptr, const std::size_t n) noexcept {
+		this->stats.freed -= 1;
+		details::poison_memory_region(ptr, n);
+	}
 
 	[[nodiscard]] void* resize_align(
 		void* old_memory, const size_t old_size, const size_t new_size, const size_t align

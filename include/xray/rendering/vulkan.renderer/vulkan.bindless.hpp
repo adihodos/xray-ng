@@ -173,7 +173,7 @@ public:
 	tl::expected<VkSampler, VulkanError> default_sampler(const VulkanRenderer& renderer);
 
 	uint32_t reserve_image_slots(const uint32_t num_images) noexcept {
-		return reserve_resource_slots(num_images, VulkanResourceType::SampledImage);
+		return reserve_resource_slots(num_images, VulkanResourceType::CombinedImageSampler);
 	}
 	uint32_t reserve_sbo_slots(const uint32_t slots) noexcept {
 		return reserve_resource_slots(slots, VulkanResourceType::StorageBuffer);

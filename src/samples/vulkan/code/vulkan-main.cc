@@ -59,6 +59,7 @@
 #include <noise/noiseutils.h>
 #include <stb/stb_image_write.h>
 
+#include "xray/base/xray.types.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/basic_timer.hpp"
 #include "xray/base/delegate.hpp"
@@ -231,6 +232,88 @@ auto translate_error(const tl::expected<U, E>& exp) -> ProgramError {
 			return tl::make_unexpected(translate_error(e)); \
 		}                                                   \
 	} while (0)
+
+struct SkyboxData {
+	VulkanImage skybox;
+	VulkanPipeline pipeline;
+};
+
+concurrencpp::result<tl::expected<SkyboxData, VulkanError>> task_load_skybox(
+	concurrencpp::executor_tag,
+	concurrencpp::thread_pool_executor*,
+	concurrencpp::shared_result<VulkanRenderer*> renderer_result
+) {
+	timer_highp exec_timer{};
+	XRAY_SCOPE_EXIT_NOEXCEPT {
+		exec_timer.tick();
+		XR_LOG_INFO("[[TASK]] Load skybox done, time {}", exec_timer.time_since_start());
+	};
+
+	VulkanRenderer* renderer = co_await renderer_result;
+	if (!renderer) {
+		co_return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
+	}
+
+	tl::expected<QueuedJob, VulkanError> cubemap_job = renderer->create_job(QueueType::Transfer);
+	XR_VK_COR_PROPAGATE_ERROR(cubemap_job);
+
+	tl::expected<VulkanImage, VulkanError> cubemap = VulkanImage::from_file(
+		*renderer,
+		VulkanImageLoadInfo{
+			.tag_name	  = "Cubemap001",
+			.cmd_buf	  = cubemap_job->buffer,
+			.path		  = xr_app_config->texture_path("skybox/skybox-ibl/skybox.ktx2"),
+			.usage_flags  = VK_IMAGE_USAGE_SAMPLED_BIT,
+			.final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.tiling		  = VK_IMAGE_TILING_OPTIMAL,
+		}
+	);
+	XR_VK_COR_PROPAGATE_ERROR(cubemap);
+	auto wait_token = renderer->submit_job(std::move(*cubemap_job));
+
+	//
+	// pipeline
+	ScopedSmallArenaType temp = GlobalMemorySystem::instance()->grab_small_arena();
+	tl::expected<VulkanPipeline, VulkanError> p_skybox{
+		VulkanPipelineBuilder{&temp.arena}
+			.add_shader(
+				ShaderStage::Vertex,
+				ShaderBuildOptions{
+					.code_or_file_path = xr_app_config->shader_path("skybox.vert.glsl"),
+					.compile_options   = ShaderBuildOptions::Compile_GenerateDebugInfo,
+				}
+			)
+			.add_shader(
+				ShaderStage::Fragment,
+				ShaderBuildOptions{
+					.code_or_file_path = xr_app_config->shader_path("skybox.frag.glsl"),
+					.compile_options   = ShaderBuildOptions::Compile_GenerateDebugInfo,
+				}
+			)
+			// .dynamic_state({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR})
+			// .rasterization_state({
+			// .poly_mode	= VK_POLYGON_MODE_FILL,
+			// .cull_mode	= VK_CULL_MODE_BACK_BIT,
+			// .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+			// .line_width = 1.0f,
+			// })
+			.create(
+				*renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			),
+	};
+	XR_VK_COR_PROPAGATE_ERROR(p_skybox);
+
+	co_return tl::expected<SkyboxData, VulkanError>{
+		tl::in_place,
+		std::move(*cubemap),
+		std::move(*p_skybox),
+	};
+}
 
 concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_create_graphics_pipelines(
 	concurrencpp::executor_tag,
@@ -536,8 +619,23 @@ task_create_gltf_resources(
 	const std::span<const scene::GltfGeometryDescription> gltf_geometry_defs
 ) {
 	timer_highp exec_timer{};
-
 	auto scratchpad = GlobalMemorySystem::instance()->grab_medium_arena();
+
+	XRAY_SCOPE_EXIT_NOEXCEPT {
+		exec_timer.tick();
+		XR_LOG_INFO("[[TASK]] - gltf geometry resources done, {} ms", exec_timer.time_since_start());
+
+		const MemoryArena* a = &scratchpad.arena;
+		XR_LOG_INFO(
+			"Scratchpad stats: size {}, allocs: {}, largest alloc: {}, highwater: {}, allocated {}, freed {}",
+			a->buf_len,
+			a->stats.allocations,
+			a->stats.largest_alloc,
+			a->stats.high_water,
+			a->stats.allocated,
+			a->stats.freed
+		);
+	};
 
 	vector<GltfGeometryEntry> gltf_geometries;
 	vector<VkDrawIndexedIndirectCommand> indirect_draw_templates;
@@ -782,9 +880,6 @@ task_create_gltf_resources(
 	XR_VK_COR_PROPAGATE_ERROR(pbr_material_sbo);
 	auto sbo_wait_token = renderer->submit_job(std::move(*sbo_transfer_job));
 	XR_VK_COR_PROPAGATE_ERROR(sbo_wait_token);
-
-	exec_timer.tick();
-	XR_LOG_INFO("[[TASK]] - gltf geometry resources done, {} ms", exec_timer.time_since_start());
 
 	co_return tl::expected<tuple<GltfGeometry, GltfMaterialsData>, VulkanError>{
 		tl::in_place,
@@ -1466,7 +1561,9 @@ public:
 		xray::base::unique_pointer<HudConfigDefinition> hud_config,
 		MemoryArena* arena_perm,
 		MemoryArena* arena_temp,
-		xray::base::unique_pointer<GameSimulation> game_sim
+		xray::base::unique_pointer<GameSimulation> game_sim,
+		BindlessImageResourceHandleEntryPair skybox,
+		VulkanPipeline&& p_skybox
 	)
 		: _co_runtime{std::move(co_runtime)},
 		  _window{std::move(window)},
@@ -1482,7 +1579,8 @@ public:
 		  _hud_config{std::move(hud_config)},
 		  _arena_perm{arena_perm},
 		  _arena_temp{arena_temp},
-		  _game_sim{std::move(game_sim)} {
+		  _game_sim{std::move(game_sim)},
+		  _skybox{skybox, std::move(p_skybox)} {
 		hookup_event_delegates();
 	}
 
@@ -1506,6 +1604,11 @@ private:
 	/// @}
 
 private:
+	struct SkyboxState {
+		BindlessImageResourceHandleEntryPair skybox;
+		VulkanPipeline p_skybox;
+	};
+
 	xray::base::unique_pointer<concurrencpp::runtime> _co_runtime;
 	xray::ui::PlatformWindow _window;
 	xray::base::unique_pointer<xray::rendering::VulkanRenderer> _vkrenderer;
@@ -1523,6 +1626,8 @@ private:
 	MemoryArena* _arena_perm{};
 	MemoryArena* _arena_temp{};
 	xray::base::unique_pointer<GameSimulation> _game_sim;
+	SkyboxState _skybox;
+
 	XRAY_NO_COPY(GameMain);
 };
 
@@ -1546,6 +1651,9 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 	concurrencpp::shared_result<VulkanRenderer*> renderer_result{renderer_promise.get_result()};
 	auto main_task_result =
 		main_task(concurrencpp::executor_tag{}, cor_runtime->thread_pool_executor().get(), renderer_result);
+
+	auto task_skybox_result =
+		task_load_skybox(concurrencpp::executor_tag{}, cor_runtime->thread_pool_executor().get(), renderer_result);
 
 	const window_params_t wnd_params{"Vulkan Demo", 4, 5, 24, 8, 32, 0, 1, false};
 	tl::expected<PlatformWindow, PlatformWindowError> main_window{PlatformWindow::create(wnd_params)};
@@ -1643,7 +1751,13 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 		return tl::make_unexpected(MiscError{.what = "game sim creation error"});
 	}
 
-	return tl::expected<GameMain, ProgramError>(
+	tl::expected<SkyboxData, VulkanError> skybox_result = task_skybox_result.get();
+	XR_PROPAGATE_ERROR(skybox_result);
+
+	const BindlessImageResourceHandleEntryPair skybox_bindless =
+		renderer->bindless_sys().add_image(std::move(skybox_result->skybox), nullptr, tl::nullopt);
+
+	return tl::expected<GameMain, ProgramError>{
 		tl::in_place,
 		PrivateConstructToken{},
 		std::move(cor_runtime),
@@ -1660,8 +1774,10 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 		std::move(hud_config),
 		arena_perm,
 		arena_temp,
-		std::move(game_sim)
-	);
+		std::move(game_sim),
+		skybox_bindless,
+		std::move(skybox_result->pipeline),
+	};
 }
 
 void GameMain::run() {
@@ -1703,7 +1819,7 @@ void GameMain::loop_event(const xray::ui::window_loop_event& loop_event) {
 	_ui->new_frame(loop_event.wnd_width, loop_event.wnd_height);
 
 	const FrameRenderData frd = _vkrenderer->start_frame();
-		// {_vkrenderer->begin_rendering(0.0f, 0.0f, 0.0f)};
+	_vkrenderer->begin_rendering(frd, 0.0f, 0.0f, 0.0f);
 
 	_debug_draw->new_frame(frd.id);
 
@@ -1718,6 +1834,23 @@ void GameMain::loop_event(const xray::ui::window_loop_event& loop_event) {
 		frd.id * _global_ubo.second.aligned_chunk_size,
 		_global_ubo.second.aligned_chunk_size
 	);
+
+	//
+	// skybox
+
+	vkCmdBindPipeline(frd.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _skybox.p_skybox.handle());
+	
+	using xray::U32;
+	const U32 push_const = frd.id | (destructure_bindless_resource_handle(_skybox.skybox.first).first << 8);
+	vkCmdPushConstants(
+		frd.cmd_buf,
+		_skybox.p_skybox.layout(),
+		VK_SHADER_STAGE_ALL,
+		0,
+		static_cast<U32>(sizeof(push_const)),
+		&push_const
+	);
+	vkCmdDraw(frd.cmd_buf, 6, 1, 0, 0);
 
 	_game_sim->loop_event(RenderEvent{
 		.loop_event = loop_event,
@@ -1849,10 +1982,10 @@ main(int argc, char** argv)
 
 	XR_LOG_INFO("Alignof {}", alignof(vec4f));
 
-	// auto arena_large_perm = B5::GlobalMemorySystem::instance()->grab_large_arena();
-	// auto arena_temp		  = B5::GlobalMemorySystem::instance()->grab_medium_arena();
+	auto arena_large_perm = B5::GlobalMemorySystem::instance()->grab_large_arena();
+	auto arena_temp		  = B5::GlobalMemorySystem::instance()->grab_medium_arena();
 	{
-		B5::TestBDA::create().map([](B5::TestBDA runner) { runner.run(); });
+		// B5::TestBDA::create().map([](B5::TestBDA runner) { runner.run(); });
 		// const xray::rendering::TerrainParams terrain_params{};
 		// using namespace xray::math;
 		//
@@ -1901,35 +2034,35 @@ main(int argc, char** argv)
 		// }
 	}
 
-	// B5::GameMain::create(&arena_large_perm.arena, &arena_temp.arena)
-	// 	.map([&](B5::GameMain runner) {
-	// 		runner.run();
-	// 		XR_LOG_INFO(
-	// 			"Temp arena stats: high water {}, largest block {}",
-	// 			arena_temp.arena.stats.high_water,
-	// 			arena_temp.arena.stats.largest_alloc
-	// 		);
-	// 		XR_LOG_INFO("Shutting down ...");
-	// 	})
-	// 	.map_error([](B5::ProgramError&& f) {
-	// 		XR_LOG_CRITICAL(
-	// 			"{} ...",
-	// 			swl::visit(
-	// 				xray::base::VariantVisitor{
-	// 					[](const VulkanError& vkerr) {
-	// 						return fmt::format(
-	// 							"Vulkan error {} {}:{} ({:#0x})", vkerr.function, vkerr.file, vkerr.line, vkerr.err_code
-	// 						);
-	// 					},
-	// 					[](const xray::scene::SceneError& serr) { return serr.err; },
-	// 					[](const B5::MiscError& msc) { return msc.what; },
-	// 					[](const GeometryImportError& ge) { return std::string{"geometry error"}; },
-	// 					[](const SpriteAtlasError& se) { return se.what; }
-	// 				},
-	// 				f
-	// 			)
-	// 		);
-	// 	});
+	B5::GameMain::create(&arena_large_perm.arena, &arena_temp.arena)
+		.map([&](B5::GameMain runner) {
+			runner.run();
+			XR_LOG_INFO(
+				"Temp arena stats: high water {}, largest block {}",
+				arena_temp.arena.stats.high_water,
+				arena_temp.arena.stats.largest_alloc
+			);
+			XR_LOG_INFO("Shutting down ...");
+		})
+		.map_error([](B5::ProgramError&& f) {
+			XR_LOG_CRITICAL(
+				"{} ...",
+				swl::visit(
+					xray::base::VariantVisitor{
+						[](const VulkanError& vkerr) {
+							return fmt::format(
+								"Vulkan error {} {}:{} ({:#0x})", vkerr.function, vkerr.file, vkerr.line, vkerr.err_code
+							);
+						},
+						[](const xray::scene::SceneError& serr) { return serr.err; },
+						[](const B5::MiscError& msc) { return msc.what; },
+						[](const GeometryImportError& ge) { return std::string{"geometry error"}; },
+						[](const SpriteAtlasError& se) { return se.what; }
+					},
+					f
+				)
+			);
+		});
 
 	return EXIT_SUCCESS;
 }
