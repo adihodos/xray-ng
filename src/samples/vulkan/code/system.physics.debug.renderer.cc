@@ -239,8 +239,8 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 							*ctx.renderer,
 							VulkanPipelineKind::Graphics,
 							VulkanPipelineTemplate{
-								.layout					= renderer->bindless_sys().pipeline_layout(),
-								.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+								.layout					= ctx.renderer->bindless_sys().pipeline_layout(),
+								.descriptor_set_layouts = ctx.renderer->bindless_sys().descriptor_set_layouts(),
 							}
 						);
 
@@ -307,8 +307,8 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 							 *ctx.renderer,
 							 VulkanPipelineKind::Graphics,
 							 VulkanPipelineTemplate{
-								 .layout				 = renderer->bindless_sys().pipeline_layout(),
-								 .descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+								 .layout				 = ctx.renderer->bindless_sys().pipeline_layout(),
+								 .descriptor_set_layouts = ctx.renderer->bindless_sys().descriptor_set_layouts(),
 							 }
 						 );
 
@@ -354,8 +354,8 @@ xray::base::unique_pointer<PhysicsEngineDebugRenderer> PhysicsEngineDebugRendere
 							 *ctx.renderer,
 							 VulkanPipelineKind::Graphics,
 							 VulkanPipelineTemplate{
-								 .layout				 = renderer->bindless_sys().pipeline_layout(),
-								 .descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+								 .layout				 = ctx.renderer->bindless_sys().pipeline_layout(),
+								 .descriptor_set_layouts = ctx.renderer->bindless_sys().descriptor_set_layouts(),
 							 }
 						 );
 

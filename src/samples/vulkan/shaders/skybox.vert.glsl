@@ -7,14 +7,13 @@ layout (location = 0) out VS_OUT_FS_IN {
 	flat uint cubemap;
 } vs_out;
 
-// indices = [0, 3, 2, 0, 2, 1];
 const vec2 QUAD_VERTICES[] = {
-	{-1.0, 1.0},
+	{1.0, -1.0},
 	{1.0, 1.0},
-	{1.0, -1.0},
 	{-1.0, 1.0},
-	{1.0, -1.0},
-	{-1.0, -1.0}
+	{-1.0, 1.0},
+	{-1.0, -1.0},
+	{1.0, -1.0}
 };
 
 void main() {
@@ -22,4 +21,8 @@ void main() {
 	vs_out.texcoords = mat3(fgd.view) * vec3(QUAD_VERTICES[gl_VertexIndex], 1.0);
 	vs_out.cubemap = g_GlobalPushConst.data >> 8;
 	gl_Position = vec4(QUAD_VERTICES[gl_VertexIndex], 1.0, 1.0);
+
+	// const vec2 uv = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
+	// vs_out.texcoords = mat3(fgd.view) * vec3(uv, 1.0);
+    // gl_Position = vec4(uv * 2.0f + -1.0f, 1.0f, 1.0f);
 }

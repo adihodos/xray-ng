@@ -1277,13 +1277,24 @@ tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena
 		"VK_LAYER_KHRONOS_validation",
 	};
 
+	// const VkInstanceCreateInfo instance_create_info = {
+	// 	.sType					 = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+	// 	.pNext					 = &validation_features,
+	// 	.flags					 = 0,
+	// 	.pApplicationInfo		 = &app_info,
+	// 	.enabledLayerCount		 = static_cast<uint32_t>(std::size(enabled_layers)),
+	// 	.ppEnabledLayerNames	 = enabled_layers,
+	// 	.enabledExtensionCount	 = static_cast<uint32_t>(std::size(extensions_list)),
+	// 	.ppEnabledExtensionNames = extensions_list,
+	// };
+
 	const VkInstanceCreateInfo instance_create_info = {
 		.sType					 = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		.pNext					 = &validation_features,
+		.pNext					 = nullptr,
 		.flags					 = 0,
 		.pApplicationInfo		 = &app_info,
-		.enabledLayerCount		 = static_cast<uint32_t>(std::size(enabled_layers)),
-		.ppEnabledLayerNames	 = enabled_layers,
+		.enabledLayerCount		 = 0,
+		.ppEnabledLayerNames	 = nullptr,
 		.enabledExtensionCount	 = static_cast<uint32_t>(std::size(extensions_list)),
 		.ppEnabledExtensionNames = extensions_list,
 	};

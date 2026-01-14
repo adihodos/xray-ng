@@ -728,21 +728,21 @@ void B5::GameSimulation::loop_event(const RenderEvent& render_event) {
 		frame_global_data->global_color_texture = color_tex_handle;
 	}
 
-	const VkViewport viewport{
-		.x		  = 0.0f,
-		.y		  = static_cast<float>(render_event.frame_data->fbsize.height),
-		.width	  = static_cast<float>(render_event.frame_data->fbsize.width),
-		.height	  = -static_cast<float>(render_event.frame_data->fbsize.height),
-		.minDepth = 0.0f,
-		.maxDepth = 1.0f,
-	};
-
-	const VkRect2D scissor{
-		.offset = VkOffset2D{0, 0},
-		.extent = render_event.frame_data->fbsize,
-	};
-	vkCmdSetViewport(render_event.frame_data->cmd_buf, 0, 1, &viewport);
-	vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
+	// const VkViewport viewport{
+	// 	.x		  = 0.0f,
+	// 	.y		  = static_cast<float>(render_event.frame_data->fbsize.height),
+	// 	.width	  = static_cast<float>(render_event.frame_data->fbsize.width),
+	// 	.height	  = -static_cast<float>(render_event.frame_data->fbsize.height),
+	// 	.minDepth = 0.0f,
+	// 	.maxDepth = 1.0f,
+	// };
+	// 
+	// const VkRect2D scissor{
+	// 	.offset = VkOffset2D{0, 0},
+	// 	.extent = render_event.frame_data->fbsize,
+	// };
+	// vkCmdSetViewport(render_event.frame_data->cmd_buf, 0, 1, &viewport);
+	// vkCmdSetScissor(render_event.frame_data->cmd_buf, 0, 1, &scissor);
 
 	// _terrain->loop_event(render_event);
 
