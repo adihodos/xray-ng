@@ -35,3 +35,6 @@ Physics engine:
 - JoltPhysics integration [x]
 - basic debug rendering [x]
 - support for DrawText3D (will also be usefull everywhere else in the engine)
+
+Solar system:
+https://wgsullivan.wordpress.com/previous-work/opengl-solar-system/
