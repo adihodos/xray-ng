@@ -42,35 +42,38 @@ template<typename precise_type>
 class basic_timer
 {
   public:
-    using timepoint_type = std::chrono::time_point<std::chrono::high_resolution_clock>;
-    basic_timer()
-        : start_{ std::chrono::high_resolution_clock::now() }
-        , end_{ std::chrono::high_resolution_clock::now() }
+    using underlying_clock_type = std::chrono::steady_clock;
+    static_assert(underlying_clock_type::is_steady == true, "Underlying clock type must be a steady clock type!");
+    using timepoint_type = typename underlying_clock_type::time_point;
+
+    basic_timer() noexcept = default;
+
+    void tick() noexcept
     {
+        end_ = current_;
+        current_ = underlying_clock_type::now();
+        interval_ = current_ - end_;
+        delta_time_ = interval_.count();
+        elapsed_since_start_ += time_scale_ * delta_time_;
     }
 
-    void start() { start_ = std::chrono::high_resolution_clock::now(); }
+    precise_type delta_time() const noexcept { return delta_time_ * time_scale_; }
+    precise_type delta_time_unscaled() const noexcept { return delta_time_; }
+    precise_type time_since_start() const noexcept { return elapsed_since_start_; }
+    void set_timescale(const precise_type ts) noexcept { time_scale_ = ts; }
+    void scale(const float s) noexcept { time_scale_ *= s; }
 
-    void end()
-    {
-        end_ = std::chrono::high_resolution_clock::now();
-        interval_ = end_ - start_;
-    }
-
-    void update_and_reset()
-    {
-        end();
-        start();
-    }
-
-    precise_type elapsed_millis() const { return interval_.count(); }
-    timepoint_type ts_start() const noexcept { return start_; }
-    timepoint_type ts_end() const noexcept { return end_; }
+    timepoint_type timepoint_start() const noexcept { return start_; }
+    timepoint_type timepoint_end() const noexcept { return end_; }
 
   private:
-    timepoint_type start_;
-    timepoint_type end_;
-    std::chrono::duration<precise_type, std::milli> interval_;
+    timepoint_type start_{ underlying_clock_type::now() };
+    timepoint_type end_{ start_ };
+    timepoint_type current_{ start_ };
+    std::chrono::duration<precise_type, std::milli> interval_{ 0 };
+    precise_type time_scale_{ 1.0 };
+    precise_type delta_time_{ 0.0 };
+    precise_type elapsed_since_start_{ 0.0 };
 };
 
 using timer_stdp = basic_timer<scalar_lowp>;
@@ -83,10 +86,9 @@ struct scoped_timing_object
     explicit scoped_timing_object(timer_type* timer) noexcept
         : timer_{ timer }
     {
-        timer_->start();
     }
 
-    ~scoped_timing_object() { timer_->end(); }
+    ~scoped_timing_object() { timer_->tick(); }
 
   private:
     timer_type* timer_;

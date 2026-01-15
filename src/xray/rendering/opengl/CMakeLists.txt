@@ -7,7 +7,7 @@ set(project_sources ${proj_inc_dir}/opengl.hpp ${proj_src_dir}/opengl.cc)
 
 add_library(${PROJECT_NAME} STATIC ${project_sources})
 
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
 target_include_directories(
   ${PROJECT_NAME}

@@ -79,22 +79,20 @@ is_equal_impl(const T a, const T b, detail::integral_tag) noexcept
 /// @{
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline bool
 is_zero(const T arith_val) noexcept
 {
-    static_assert(base::std_is_arithmetic<T>, "Duh!!");
-
     return detail::is_zero_impl(
         arith_val,
         base::std_conditional<base::std_is_floating_point<T>, detail::floating_point_tag, detail::integral_tag>{});
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 inline bool
 is_equal(const T a, const T b) noexcept
 {
-    static_assert(base::std_is_arithmetic<T>, "Duh!!");
-
     return detail::is_equal_impl(
         a,
         b,

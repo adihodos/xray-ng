@@ -6,15 +6,22 @@ set(proj_src_dir "${PROJECT_SOURCE_DIR}/code")
 
 set(project_sources
     ${proj_src_dir}/vulkan-main.cc
+    ${proj_inc_dir}/sprite.ids.crosshairs.hpp
     ${proj_src_dir}/bindless.pipeline.config.hpp
     ${proj_inc_dir}/game/game.sim.hpp
     ${proj_src_dir}/game/game.sim.cc
+    ${proj_src_dir}/test.bda.hpp
+    ${proj_src_dir}/test.bda.cc
     ${proj_src_dir}/system.memory.hpp
     ${proj_src_dir}/system.memory.cc
     ${proj_src_dir}/system.physics.hpp
     ${proj_src_dir}/system.physics.cc
     ${proj_src_dir}/system.physics.debug.renderer.hpp
     ${proj_src_dir}/system.physics.debug.renderer.cc
+    ${proj_src_dir}/flight.cam.hpp
+    ${proj_src_dir}/flight.cam.cc
+	${proj_src_dir}/blue.noise.poisson.disk.sampler.hpp
+	${proj_src_dir}/blue.noise.poisson.disk.sampler.cc
     ${proj_src_dir}/terrain.hpp
     ${proj_src_dir}/terrain.cc)
 
@@ -36,12 +43,12 @@ if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
 endif()
 
 add_executable(build-info-tool ${proj_src_dir}/build-info-tool.cc)
-target_compile_features(build-info-tool PRIVATE cxx_std_20)
+# set_property(TARGET build-info-tool PROPERTY MSVC_RUNTIME_LIBRARY
+# "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_compile_features(build-info-tool PRIVATE cxx_std_23)
 target_compile_definitions(
   build-info-tool PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_WINDOWS>
                           $<$<PLATFORM_ID:Linux>:PLATFORM_LINUX>)
-
-# set(windows_libs User32 Secur32 Ws2_32)
 
 target_link_libraries(
   build-info-tool
@@ -65,9 +72,12 @@ add_custom_command(
 # Running build-info-tool (custom target) :::" VERBATIM)
 
 add_executable(
-  ${PROJECT_NAME}
+  ${PROJECT_NAME} WIN32
   ${project_sources} "${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin/build.config.hpp"
   ${shader_files} ${config_files})
+
+# set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
+# "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_dependencies(${PROJECT_NAME} build-info-tool)
 
@@ -81,7 +91,7 @@ set_target_properties(
              "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib"
              VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
 
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 target_compile_definitions(${PROJECT_NAME} PRIVATE TRACY_ENABLE)
 target_include_directories(
   ${PROJECT_NAME} PRIVATE ${proj_inc_dir} ${proj_src_dir}
@@ -89,21 +99,19 @@ target_include_directories(
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC Tracy::TracyClient
-  PRIVATE xray-set-compile-options-lib
-          xray-demo-common-core
+  PUBLIC Tracy::TracyClient xray-set-compile-options-lib
+  PRIVATE xray-demo-common-core
           xray-base
           xray-rendering
           xray-physics
           xray-scene
           xray-ui
           xray-math
-          itlib::itlib
           cpp-lazy::cpp-lazy
           reflectcpp
           spdlog::spdlog
           concurrencpp::concurrencpp
-          $<IF:$<PLATFORM_ID:Windows>,libconfig,config>
+          $<IF:$<CXX_COMPILER_ID:MSVC>,libconfig,config>
           noise
           frozen::frozen
           atomic_queue
@@ -155,7 +163,7 @@ add_custom_command(
           ${target_output_directory}/config
   COMMAND
     build-info-tool $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args}>
-    # $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}
+    $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_cmd_args1}>
   BYPRODUCTS $<$<BOOL:${OVERWRITE_APP_CONFIG}>:${build_tool_byproducts}>
   COMMENT "::: Overwrite config step :::")
 

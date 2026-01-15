@@ -34,6 +34,7 @@
 #include "xray/xray.hpp"
 #include <cassert>
 #include <cstddef>
+#include <type_traits>
 
 namespace xray {
 namespace math {
@@ -42,14 +43,18 @@ namespace math {
 /// @{
 
 template<typename T>
-scalar3x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>
 operator-(const scalar3x3<T>& input_mtx) noexcept
 {
-    return { -input_mtx.a00, -input_mtx.a01, -input_mtx.a02, -input_mtx.a10, -input_mtx.a11,
-             -input_mtx.a12, -input_mtx.a20, -input_mtx.a21, -input_mtx.a22 };
+    return {
+        -input_mtx.a00, -input_mtx.a01, -input_mtx.a02, -input_mtx.a10, -input_mtx.a11,
+        -input_mtx.a12, -input_mtx.a20, -input_mtx.a21, -input_mtx.a22,
+    };
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3x3<T>
 operator+(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
 {
@@ -59,7 +64,8 @@ operator+(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
 }
 
 template<typename T>
-scalar3x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>
 operator-(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
 {
     auto result = m0;
@@ -68,7 +74,8 @@ operator-(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
 }
 
 template<typename T>
-scalar3x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>
 operator*(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
 {
 
@@ -86,7 +93,8 @@ operator*(const scalar3x3<T>& m0, const scalar3x3<T>& m1) noexcept
 }
 
 template<typename T>
-scalar3x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>
 operator*(const scalar3x3<T>& m, const T k) noexcept
 {
     auto result{ m };
@@ -95,14 +103,16 @@ operator*(const scalar3x3<T>& m, const T k) noexcept
 }
 
 template<typename T>
-scalar3x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>
 operator*(const T k, const scalar3x3<T>& m) noexcept
 {
     return m * k;
 }
 
 template<typename T>
-scalar3x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>
 operator/(const scalar3x3<T>& m, const T k) noexcept
 {
     auto result{ m };
@@ -112,6 +122,7 @@ operator/(const scalar3x3<T>& m, const T k) noexcept
 
 /// \brief      Computes the determinant of a matrix.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 T
 determinant(const scalar3x3<T>& m) noexcept
 {
@@ -126,7 +137,8 @@ determinant(const scalar3x3<T>& m) noexcept
 
 /// \brief      Returns the adjoint matrix of the input matrix.
 template<typename T>
-scalar3x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar3x3<T>
 adjoint(const scalar3x3<T>& m) noexcept
 {
     scalar3x3<T> adj{};
@@ -148,6 +160,7 @@ adjoint(const scalar3x3<T>& m) noexcept
 
 /// \brief Compute the inverse of a matrix.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3x3<T>
 invert(const scalar3x3<T>& m) noexcept
 {
@@ -163,6 +176,7 @@ invert(const scalar3x3<T>& m) noexcept
 
 /// \brief      Applies a transformation to a vector in R3.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3<T>
 mul_vec(const scalar3x3<T>& m, const scalar3<T>& v) noexcept
 {
@@ -173,6 +187,7 @@ mul_vec(const scalar3x3<T>& m, const scalar3<T>& v) noexcept
 
 /// \brief      Applies a linear transformation a point in R3;
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3<T>
 mul_point(const scalar3x3<T>& m, const scalar3<T>& p) noexcept
 {
@@ -180,6 +195,7 @@ mul_point(const scalar3x3<T>& m, const scalar3<T>& p) noexcept
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar3x3<T>
 transpose(const scalar3x3<T>& m) noexcept
 {

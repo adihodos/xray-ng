@@ -28,9 +28,9 @@
 
 #pragma once
 
-#include "xray/math/scalar2.hpp"
+#include <type_traits>
 #include "xray/math/scalar2x3.hpp"
-#include "xray/xray.hpp"
+#include "xray/math/scalar2.hpp"
 
 namespace xray {
 namespace math {
@@ -39,7 +39,8 @@ namespace math {
 /// @{
 
 template<typename T>
-scalar2x3<T>&
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>&
 scalar2x3<T>::operator+=(const scalar2x3<T>& rhs) noexcept
 {
     for (size_t i = 0; i < XR_COUNTOF(components); ++i)
@@ -49,7 +50,8 @@ scalar2x3<T>::operator+=(const scalar2x3<T>& rhs) noexcept
 }
 
 template<typename T>
-scalar2x3<T>&
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>&
 scalar2x3<T>::operator-=(const scalar2x3<T>& rhs) noexcept
 {
     for (size_t i = 0; i < XR_COUNTOF(components); ++i)
@@ -59,7 +61,8 @@ scalar2x3<T>::operator-=(const scalar2x3<T>& rhs) noexcept
 }
 
 template<typename T>
-scalar2x3<T>&
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>&
 scalar2x3<T>::operator*=(const T k) noexcept
 {
     for (size_t i = 0; i < XR_COUNTOF(components); ++i)
@@ -69,7 +72,8 @@ scalar2x3<T>::operator*=(const T k) noexcept
 }
 
 template<typename T>
-scalar2x3<T>&
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>&
 scalar2x3<T>::operator/=(const T k) noexcept
 {
     for (size_t i = 0; i < XR_COUNTOF(components); ++i)
@@ -79,14 +83,16 @@ scalar2x3<T>::operator/=(const T k) noexcept
 }
 
 template<typename T>
-scalar2x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>
 operator-(const scalar2x3<T>& lhs) noexcept
 {
     return { -lhs.a00, -lhs.a01, -lhs.a02, -lhs.a10, -lhs.a11, -lhs.a12 };
 }
 
 template<typename T>
-scalar2x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>
 operator+(const scalar2x3<T>& lhs, const scalar2x3<T>& rhs) noexcept
 {
     auto result = lhs;
@@ -95,7 +101,8 @@ operator+(const scalar2x3<T>& lhs, const scalar2x3<T>& rhs) noexcept
 }
 
 template<typename T>
-scalar2x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>
 operator-(const scalar2x3<T>& lhs, const scalar2x3<T>& rhs) noexcept
 {
     auto result = lhs;
@@ -104,7 +111,8 @@ operator-(const scalar2x3<T>& lhs, const scalar2x3<T>& rhs) noexcept
 }
 
 template<typename T>
-scalar2x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>
 operator*(const scalar2x3<T>& lhs, const T k) noexcept
 {
     auto result = lhs;
@@ -113,14 +121,16 @@ operator*(const scalar2x3<T>& lhs, const T k) noexcept
 }
 
 template<typename T>
-scalar2x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>
 operator*(const T k, const scalar2x3<T>& rhs) noexcept
 {
     return rhs * k;
 }
 
 template<typename T>
-scalar2x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>
 operator/(const scalar2x3<T>& lhs, const T k) noexcept
 {
 
@@ -130,16 +140,19 @@ operator/(const scalar2x3<T>& lhs, const T k) noexcept
 }
 
 template<typename T>
-scalar2x3<T>
+    requires std::is_arithmetic_v<T>
+constexpr scalar2x3<T>
 operator*(const scalar2x3<T>& a, const scalar2x3<T>& b) noexcept
 {
-    return { a.a00 * b.a00 + a.a01 * b.a10, a.a00 * b.b01 + a.a01 * b.a11, a.a00 * b.a02 + a.a01 * b.a12 + a.a02,
-
-             a.a10 * b.a00 + a.a11 * b.a10, a.a10 * b.a01 + a.a11 * b.a11, a.a10 * b.a02 + a.a11 * b.a12 + a.a12 };
+    return {
+        a.a00 * b.a00 + a.a01 * b.a10, a.a00 * b.b01 + a.a01 * b.a11, a.a00 * b.a02 + a.a01 * b.a12 + a.a02,
+        a.a10 * b.a00 + a.a11 * b.a10, a.a10 * b.a01 + a.a11 * b.a11, a.a10 * b.a02 + a.a11 * b.a12 + a.a12,
+    };
 }
 
 /// \brief Multiply scalar2 object as a point.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar2<T>
 mul_point(const scalar2x3<T>& xf, const scalar2<T>& pt) noexcept
 {
@@ -148,6 +161,7 @@ mul_point(const scalar2x3<T>& xf, const scalar2<T>& pt) noexcept
 
 /// \brief Multiply scalar2 object as a vector (translation has no effect).
 template<typename T>
+    requires std::is_arithmetic_v<T>
 scalar2<T>
 mul_vec(const scalar2x3<T>& xf, const scalar2<T>& pt) noexcept
 {

@@ -11,6 +11,6 @@ layout (location = 1) in VS_OUT_FS_IN {
 layout (location = 0) out vec4 FinalFragColor;
 
 void main() {
-    FinalFragColor = texture(g_Textures2DGlobal[fs_in.textureid], fs_in.uv.st) * fs_in.color;
+    FinalFragColor = vec4(fs_in.color.rgb, texture(g_Textures2DGlobal[fs_in.textureid], fs_in.uv.st).r);
 }
 

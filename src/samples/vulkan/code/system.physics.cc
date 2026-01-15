@@ -52,7 +52,7 @@ class BPLayerInterfaceImpl final : public JPH::BroadPhaseLayerInterface
         mObjectToBroadPhase[PhysicsSystem::ObjectLayers::MOVING] = PhysicsSystem::BroadPhaseLayers::MOVING;
     }
 
-    virtual uint GetNumBroadPhaseLayers() const override { return PhysicsSystem::BroadPhaseLayers::NUM_LAYERS; }
+    virtual JPH::uint GetNumBroadPhaseLayers() const override { return PhysicsSystem::BroadPhaseLayers::NUM_LAYERS; }
 
     virtual JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer inLayer) const override
     {
@@ -292,12 +292,14 @@ tl::expected<PhysicsSystem, PhysicsSystemError>
 PhysicsSystem::create(const InitContext& ctx)
 {
     auto phys_sys_state = xray::base::make_unique<PhysicsSystemState>();
-#if defined(JPH_RENAME_CLASS)
-    auto debug_renderer = PhysicsEngineDebugRenderer::create(ctx);
-    if (!debug_renderer)
-        return tl::make_unexpected(PhysicsError{});
 
+#if defined(JPH_DEBUG_RENDERER)
+    auto debug_renderer = PhysicsEngineDebugRenderer::create(ctx);
+    if (!debug_renderer) {
+        return tl::make_unexpected(PhysicsError{});
+    }
 #endif
+
     return tl::expected<PhysicsSystem, PhysicsSystemError>
     {
         tl::in_place, PhysicsSystem::PrivateConstructionToken{}, std::move(phys_sys_state),

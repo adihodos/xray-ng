@@ -29,38 +29,43 @@
             nvimpager
             helix
 
-            cling
-            gcc
+            # gcc
+            llvmPackages_19.lldb
+            # llvmPackages_19.libllvm
+            llvmPackages_19.libcxx
+            llvmPackages_19.clang
+            llvmPackages_19.clang-tools
+            # clang
+            
             gdb
+            nnd
             seer
             libgit2
             libgit2.dev
             openssl
-            #pwndbg
+
             ninja
             gef
             gf
-            glogg
             lnav
             renderdoc
             cmake
-            cmakeCurses
             cmake-format
+            cmake-language-server
             pkg-config
-            libsForQt5.qmake
             evtest
             evtest-qt
+            tacentview
 
             vulkan-tools
             vulkan-headers
             vulkan-loader
             vulkan-tools-lunarg
-            vulkan-validation-layers
             vulkan-utility-libraries
             vulkan-caps-viewer
             vulkan-validation-layers
-            ktx-tools
-            tracy-x11
+            # ktx-tools
+            tracy
 
             shaderc
             shaderc.bin
@@ -70,22 +75,6 @@
             glslang
             bashInteractive
             python3
-
-            qtcreator
-
-            # (python311.withPackages (python-pkgs: [
-            #   # select Python packages here
-            #   python-pkgs.pwndbg
-            #   #python-pkgs.pandas
-            # ]))
-
-            #(vscode-with-extensions.override {
-            #  vscodeExtensions = with vscode-extensions; [
-            #    ms-vscode.cpptools
-            #    vadimcn.vscode-lldb
-            #    mkhl.direnv
-            #  ];
-            #})
 
             # libs
             zlib

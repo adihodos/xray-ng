@@ -63,21 +63,24 @@ struct FlightCamera
     math::vec3f position;
     math::mat4f view_matrix;
     math::mat4f inverse_of_view_matrix;
-    float near;
-    float far;
+    float near_point;
+    float far_point;
     float aspect;
     math::RadiansF32 fovy;
     math::mat4f projection_matrix;
     math::mat4f inverse_of_projection_matrix;
 
-    FlightCamera(const math::RadiansF32 fovy, const float aspect, const float near, const float far) noexcept
+    FlightCamera(const math::RadiansF32 fovy,
+                 const float aspect,
+                 const float near_point,
+                 const float far_point) noexcept
     {
-        const auto [projection, inverse_projection] = math::perspective_symmetric(aspect, fovy, near, far);
+        const auto [projection, inverse_projection] = math::perspective_symmetric(aspect, fovy, near_point, far_point);
 
         this->projection_matrix = projection;
         this->inverse_of_projection_matrix = inverse_projection;
-        this->near = near;
-        this->far = far;
+        this->near_point = near_point;
+        this->far_point = far_point;
         this->aspect = aspect;
         this->fovy = fovy;
         this->position = math::vec3f::stdc::zero;

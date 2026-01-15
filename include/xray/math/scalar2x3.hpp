@@ -28,9 +28,7 @@
 
 #pragma once
 
-#include "xray/base/array_dimension.hpp"
-#include "xray/base/shims/stl_type_traits_shims.hpp"
-#include "xray/xray.hpp"
+#include <type_traits>
 #include "xray/xray_types.hpp"
 
 namespace xray {
@@ -44,10 +42,9 @@ namespace math {
 ///             It uses a vector on the right convention for multiplying
 ///             points/vectors.
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar2x3
 {
-
-    static_assert(base::std_is_arithmetic<T>, "template parameter must be an arithmetic type !");
 
     union
     {
@@ -69,7 +66,25 @@ struct scalar2x3
   public:
     scalar2x3() noexcept = default;
 
-    constexpr scalar2x3(const T e00, const T e01, const T e02, const T e10, const T e11, const T e12) noexcept;
+    constexpr scalar2x3(const T e00, const T e01, const T e02, const T e10, const T e11, const T e12) noexcept
+        : a00{ e00 }
+        , a01{ e01 }
+        , a02{ e02 }
+        , a10{ e10 }
+        , a11{ e11 }
+        , a12{ e12 }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, T>
+    constexpr scalar2x3(const U e00, const U e01, const U e02, const U e10, const U e11, const U e12) noexcept
+        : scalar2x3{ static_cast<T>(e00), static_cast<T>(e01), static_cast<T>(e02),
+                     static_cast<T>(e10), static_cast<T>(e11), static_cast<T>(e12) }
+    {
+    }
+
+    constexpr scalar2x3(const T (&array)[6]) noexcept { memcpy(this->components, array, 6 * sizeof(T)); }
 
     /// @}
 
@@ -77,13 +92,13 @@ struct scalar2x3
     /// @{
 
   public:
-    scalar2x3<T>& operator+=(const scalar2x3<T>& rhs) noexcept;
+    constexpr scalar2x3<T>& operator+=(const scalar2x3<T>& rhs) noexcept;
 
-    scalar2x3<T>& operator-=(const scalar2x3<T>& rhs) noexcept;
+    constexpr scalar2x3<T>& operator-=(const scalar2x3<T>& rhs) noexcept;
 
-    scalar2x3<T>& operator*=(const T k) noexcept;
+    constexpr scalar2x3<T>& operator*=(const T k) noexcept;
 
-    scalar2x3<T>& operator/=(const T k) noexcept;
+    constexpr scalar2x3<T>& operator/=(const T k) noexcept;
 
     /// @}
 
@@ -95,6 +110,7 @@ struct scalar2x3
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct scalar2x3<T>::stdc
 {
     ///< Null 2x3 matrix.
@@ -104,25 +120,14 @@ struct scalar2x3<T>::stdc
     static constexpr const scalar2x3<T> identity{ T(1), T(0), T(0), T(0), T(1), T(0) };
 };
 
-template<typename T>
-constexpr const scalar2x3<T> scalar2x3<T>::stdc::null;
-
-template<typename T>
-constexpr const scalar2x3<T> scalar2x3<T>::stdc::identity;
+//template<typename T>
+//constexpr const scalar2x3<T> scalar2x3<T>::stdc::null;
+//
+//template<typename T>
+//constexpr const scalar2x3<T> scalar2x3<T>::stdc::identity;
 
 using float2x3 = scalar2x3<scalar_lowp>;
 using double2x3 = scalar2x3<scalar_mediump>;
-
-template<typename T>
-constexpr scalar2x3<T>::scalar2x3(const T e00, const T e01, const T e02, const T e10, const T e11, const T e12) noexcept
-    : a00{ e00 }
-    , a01{ e01 }
-    , a02{ e02 }
-    , a10{ e10 }
-    , a11{ e11 }
-    , a12{ e12 }
-{
-}
 
 ///  @}
 

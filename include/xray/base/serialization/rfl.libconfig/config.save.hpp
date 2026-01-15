@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <filesystem>
 
 #include <libconfig.h>
 #include <rfl/Result.hpp>
@@ -27,6 +28,13 @@ save(const std::string& _fname, const auto& _obj)
 
     config_write_file(&cfg, _fname.c_str());
     return Nothing{};
+}
+
+template<class... Ps>
+Result<Nothing>
+save(const std::filesystem::path& _fname, const auto& _obj)
+{
+    return save(_fname.generic_string(), _obj);
 }
 
 } // namespace toml

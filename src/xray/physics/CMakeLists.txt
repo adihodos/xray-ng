@@ -4,9 +4,9 @@ set(proj_inc_dir "${CMAKE_SOURCE_DIR}/include/xray/physics")
 set(proj_src_dir "${PROJECT_SOURCE_DIR}")
 
 set(project_sources
-    ${proj_inc_dir}/constants.hpp
-    ${proj_inc_dir}/particle.hpp
-    ${proj_src_dir}/particle.cc
+  ${proj_inc_dir}/constants.hpp
+  ${proj_inc_dir}/particle.hpp
+  ${proj_src_dir}/particle.cc
 )
 
 source_group(physics FILES ${project_sources})
@@ -23,7 +23,7 @@ target_include_directories(
 
 target_compile_features(
   ${PROJECT_NAME}
-  PUBLIC cxx_std_20
+  PUBLIC cxx_std_23
 )
 
 target_compile_definitions(
@@ -34,6 +34,8 @@ target_compile_definitions(
 
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC xray-math
+  PUBLIC
+  xray-set-compile-options-lib
+  xray-math
 )
 

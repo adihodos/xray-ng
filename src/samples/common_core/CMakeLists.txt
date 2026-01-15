@@ -10,7 +10,7 @@ set(project_sources
 
 source_group(code FILES ${project_sources})
 add_library(${PROJECT_NAME} STATIC ${project_sources})
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 target_include_directories(
   ${PROJECT_NAME}
   PUBLIC ${proj_inc_dir}

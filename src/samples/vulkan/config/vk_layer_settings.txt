@@ -19,7 +19,7 @@ khronos_validation.thread_safety = true
 # khronos_validation.debug_action = VK_DBG_LAYER_ACTION_LOG_MSG
 
 # Comma-delineated list of options specifying the types of messages to be reported
-khronos_validation.report_flags = debug,error,perf,info,warn
+khronos_validation.report_flags = error,perf,info,warn,verbose
 
 # Enable limiting of duplicate messages.
 khronos_validation.enable_message_limit = true

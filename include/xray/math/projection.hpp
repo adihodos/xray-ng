@@ -49,6 +49,7 @@ template<typename T>
 MatrixWithInvertedMatrixPair<T>
 perspective(const T rmin, const T rmax, const T umin, const T umax, const T dmin, const T dmax)
 {
+    // clang-format off
     return MatrixWithInvertedMatrixPair<T>{
         .transform =
             scalar4x4<T>{ // 1st row
@@ -94,6 +95,7 @@ perspective(const T rmin, const T rmax, const T umin, const T umax, const T dmin
                           (dmin - dmax) / (dmax * dmin),
                           T{ 1 } / dmin }
     };
+    // clang-format on
 }
 
 template<typename T>
@@ -104,52 +106,73 @@ perspective_symmetric(const T aspect_ratio, const Radians<T> fov, const T near_p
     const auto dmin{ near_plane };
     const auto dmax{ far_plane };
 
+    //
+    // clang-format off
     return MatrixWithInvertedMatrixPair<T>{
-
         .transform =
-            scalar4x4<T>{ // 1st row
-                          d / aspect_ratio,
-                          T{},
-                          T{},
-                          T{},
-                          // 2nd row
-                          T{},
-                          d,
-                          T{},
-                          T{},
-                          // 3rd row
-                          T{},
-                          T{},
-                          dmax / (dmax - dmin),
-                          (-dmax * dmin) / (dmax - dmin),
-                          // 4th row
-                          T{},
-                          T{},
-                          T{ 1 },
-                          T{ 0 } },
+            scalar4x4<T>{
+                //
+                // 1st row
+                d / aspect_ratio,
+                T{},
+                T{},
+                T{},
+
+                //
+                // 2nd row
+                T{},
+                d,
+                T{},
+                T{},
+
+                //
+                // 3rd row
+                T{},
+                T{},
+                dmax / (dmax - dmin),
+                (-dmax * dmin) / (dmax - dmin),
+
+                //
+                // 4th row
+                T{},
+                T{},
+                T{ 1 },
+                T{ 0 },
+            },
 
         .inverted =
-            scalar4x4<T>{ // 1st row
-                          aspect_ratio / d,
-                          T{},
-                          T{},
-                          T{},
-                          // 2nd row
-                          T{},
-                          T{ 1 } / d,
-                          T{},
-                          T{},
-                          // 3rd row
-                          T{},
-                          T{},
-                          T{},
-                          T{ 1 },
-                          // 4th row
-                          T{},
-                          T{},
-                          (dmin - dmax) / (dmax * dmin),
-                          T{ 1 } / dmin }
+            scalar4x4<T>{
+                //
+                // 1st row
+                aspect_ratio / d,
+                T{},
+                T{},
+                T{},
+
+                //
+                // 2nd row
+                T{},
+                T{ 1 } / d,
+                T{},
+                T{},
+
+                //
+                // 3rd row
+                T{},
+                T{},
+                T{},
+                T{ 1 },
+
+                //
+                // 4th row
+                T{},
+                T{},
+                (dmin - dmax) / (dmax * dmin),
+                T{ 1 } / dmin,
+            },
     };
+    //
+    // clang-format on
 }
 
 template<typename T>
@@ -163,46 +186,71 @@ template<typename T>
 MatrixWithInvertedMatrixPair<T>
 view_matrix(const scalar3<T> right, const scalar3<T> up, const scalar3<T> dir, const scalar3<T> origin) noexcept
 {
-
     assert(are_orthogonal(right, up) && "Right and up vector must be orthogonal !");
     assert(are_orthogonal(right, dir) && "Right and direction vector must be orthogonal !");
     assert(are_orthogonal(dir, up) && "Direction and up vector must be orthogonal !");
 
     return MatrixWithInvertedMatrixPair<T> {
-
-		.transform = { // 1st row
+        .transform = { 
+            //
+            // 1st row
              right.x,
              right.y,
              right.z,
              -dot(right, origin),
+
+             //
              // 2nd row
              up.x,
              up.y,
              up.z,
              -dot(up, origin),
+
+             //
              // 3rd row
              dir.x,
              dir.y,
              dir.z,
              -dot(dir, origin),
+
+             //
              // 4th row
              T{},
              T{},
              T{},
-             T{ 1 }
-		},
-		
-		.inverted = {
-			// 1st row
-			right.x, up.x, dir.x, origin.x,
-			// 2nd row
-			right.y, up.y, dir.y, origin.y,
-			// 3rd row
-			right.z, up.z, dir.z, origin.z,
-			// 4th row
-			T{}, T{}, T{}, T{1}
-		}
-	};
+             T{ 1 },
+        },
+
+        .inverted = {
+            //
+            // 1st row
+            right.x, 
+            up.x, 
+            dir.x, 
+            origin.x,
+
+            //
+            // 2nd row
+            right.y, 
+            up.y, 
+            dir.y, 
+            origin.y,
+
+            //
+            // 3rd row
+            right.z, 
+            up.z, 
+            dir.z, 
+            origin.z,
+
+            //
+            // 4th row
+            T{}, 
+            T{}, 
+            T{}, 
+            T{1},
+        },
+    };
 }
 
 template<typename T>
@@ -226,12 +274,35 @@ orthographic(const T left, const T right, const T top, const T bottom, const T d
 {
     // TODO: convert to MatrixWithInvertedMatrixPair
     // clang-format off
-	return scalar4x4<T> {
-		T{2} / (right - left), T{}, T{}, -(right + left) / (right - left),
-		T{}, T{2} / (top - bottom), T{}, -(top + bottom) / (top - bottom),
-		T{}, T{}, T{1} / (dmax - dmin), -dmin / (dmax - dmin),
-		T{}, T{}, T{}, T{1}
-	};
+    return scalar4x4<T>{
+        //
+        // 1st row
+        T{ 2 } / (right - left),
+        T{},
+        T{},
+        -(right + left) / (right - left),
+
+        //
+        // 2nd row
+        T{},
+        T{ 2 } / (top - bottom),
+        T{},
+        -(top + bottom) / (top - bottom),
+
+        //
+        // 3rd row
+        T{},
+        T{},
+        T{ 1 } / (dmax - dmin),
+        -dmin / (dmax - dmin),
+
+        //
+        // 4th row
+        T{},
+        T{},
+        T{},
+        T{ 1 },
+    };
     // clang-format on
 }
 
@@ -241,12 +312,35 @@ orthographic_symmetric(const T width, const T height, const T dmin, const T dmax
 {
     // TODO: convert to MatrixWithInvertedMatrixPair
     // clang-format off
-	return scalar4x4<T> {
-		T{1} / (width * T{0.5f}), T{}, T{}, T{},
-		T{}, T{1} / (height * 0.5f), T{}, T{},
-		T{}, T{}, T{1} / (dmax - dmin), -dmin / (dmax - dmin),
-		T{}, T{}, T{}, T{1}
-	};
+    return scalar4x4<T>{
+        //
+        // 1st row
+        T{ 2 } / width,
+        T{},
+        T{},
+        T{},
+
+        //
+        // 2nd row
+        T{},
+        T{ 2 } / height,
+        T{},
+        T{},
+
+        //
+        // 3rd row
+        T{},
+        T{},
+        T{ 1 } / (dmax - dmin),
+        -dmin / (dmax - dmin),
+
+        //
+        // 4th row
+        T{},
+        T{},
+        T{},
+        T{ 1 },
+    };
     // clang-format on
 }
 

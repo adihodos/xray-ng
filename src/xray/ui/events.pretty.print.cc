@@ -105,3 +105,23 @@ fmt::formatter<xray::ui::GamepadButton>::format(const xray::ui::GamepadButton va
 #undef GAMEPAD_BUTTON_ENUM_ENTRY
     return formatter<string_view>::format(name, ctx);
 }
+
+auto
+fmt::formatter<xray::ui::event_action_type>::format(const xray::ui::event_action_type value, format_context& ctx) const
+    -> format_context::iterator
+{
+    fmt::string_view name{ "unknown" };
+    using namespace xray::ui;
+
+    switch (value) {
+        default:
+        case event_action_type::press:
+            name = "event_action_type::press";
+            break;
+
+        case event_action_type::release:
+            name = "event_action_type::release";
+            break;
+    }
+    return formatter<string_view>::format(name, ctx);
+}

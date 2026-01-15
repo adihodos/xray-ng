@@ -71,7 +71,8 @@ struct window_event;
 struct font_info
 {
     std::filesystem::path path;
-    float pixel_size;
+    std::vector<uint8_t> sizes;
+    std::vector<std::tuple<uint16_t, uint16_t>> glyph_ranges;
 };
 
 struct imcontext_deleter
@@ -100,7 +101,7 @@ class user_interface
 
     user_interface() noexcept;
     user_interface(const std::span<const font_info> font_list);
-    explicit user_interface(concurrencpp::result<FontsLoadBundle> font_pkg_future);
+    explicit user_interface(const FontsLoadBundle& font_pkg_future);
     ~user_interface() noexcept;
 
     bool input_event(const window_event& evt);
@@ -111,18 +112,6 @@ class user_interface
 
     tl::optional<UserInterfaceRenderContext> draw();
 
-    void set_global_font(const char* name);
-    void push_font(const char* name);
-    void pop_font();
-
-    void set_current() { ImGui::SetCurrentContext(xray::base::raw_ptr(_imcontext)); }
-    static void font_atlas_upload_callback(const uint32_t atlas_id, void* context) noexcept
-    {
-        (static_cast<user_interface*>(context))->font_atlas_upload_done(atlas_id);
-    }
-    UserInterfaceBackendCreateInfo render_backend_create_info() noexcept;
-
-  private:
     struct loaded_font
     {
         loaded_font() = default;
@@ -139,6 +128,18 @@ class user_interface
     };
 
     loaded_font* find_font(const char* name = nullptr);
+    void set_global_font(const char* name);
+    void push_font(const char* name);
+    void pop_font();
+
+    void set_current() { ImGui::SetCurrentContext(xray::base::raw_ptr(_imcontext)); }
+    static void font_atlas_upload_callback(const uint32_t atlas_id, void* context) noexcept
+    {
+        (static_cast<user_interface*>(context))->font_atlas_upload_done(atlas_id);
+    }
+    UserInterfaceBackendCreateInfo render_backend_create_info() noexcept;
+
+  private:
     void init(const std::span<const font_info> font_list);
     void load_fonts(const std::span<const font_info> font_list);
     void font_atlas_upload_done(const uint32_t atlas_id) noexcept { _rendercontext.font_atlas_handle = atlas_id; }

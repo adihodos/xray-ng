@@ -7,6 +7,7 @@ set(project_sources
     ${proj_inc_dir}/imgui/imconfig.h
     ${proj_inc_dir}/imgui/imgui.h
     ${proj_inc_dir}/imgui/imgui_internal.h
+    ${proj_inc_dir}/imgui/IconsFontAwesome.h
     ${proj_src_dir}/imgui.cpp
     ${proj_src_dir}/imgui_draw.cpp
     ${proj_src_dir}/imgui_demo.cpp
@@ -36,7 +37,7 @@ target_include_directories(
 
 target_compile_features(
   ${PROJECT_NAME}
-  PUBLIC cxx_std_20
+  PUBLIC cxx_std_23
 )
 
 target_compile_definitions(

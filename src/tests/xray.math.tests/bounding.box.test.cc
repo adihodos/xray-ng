@@ -1,6 +1,6 @@
 #include "xray/xray.hpp"
 
-XR_DISABLE_OPTIMIZATIONS
+XR_DISABLE_OPTIMIZATIONS()
 
 #include <cstddef>
 #include <span>
@@ -55,7 +55,7 @@ main(int argc, char** argv)
     };
 
     "BOX from point collection"_test = [&]() {
-        constexpr const BBoxAA2DI32 box2{ grid_points };
+        const BBoxAA2DI32 box2{ grid_points };
         boost::ut::expect(box2.min == vec2i32{ -32000, -32000 });
         boost::ut::expect(box2.max == vec2i32{ 32000, 32000 });
         boost::ut::expect(box2.center() == vec2i32{ 0 });
@@ -66,7 +66,7 @@ main(int argc, char** argv)
         constexpr const BBoxAA2DI32 box_b{ { 1, 2 }, { 6, 10 } };
         const auto box_c = box_a ^ box_b;
         boost::ut::expect(box_c.has_value());
-        boost::ut::expect(box_c == tl::optional{ BBoxAA2DI32{ { 1, 2 }, { 4, 8 } } });
+        boost::ut::expect(box_c == tl::optional < BBoxAA2DI32>{ BBoxAA2DI32{ { 1, 2 }, { 4, 8 } } });
 
         constexpr const BBoxAA2DI32 box_d{ { -5, -5 }, { 0, 3 } };
         const auto box_e = box_a ^ box_d;

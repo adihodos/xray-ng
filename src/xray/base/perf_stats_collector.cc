@@ -3,10 +3,12 @@
 #include <filesystem>
 #include <type_traits>
 
-#include <itlib/small_vector.hpp>
 #include <fmt/format.h>
 
 #include "xray/base/logger.hpp"
+#include "xray/base/memory.arena.hpp"
+#include "xray/base/thread.local.context.hpp"
+#include "xray/base/containers/arena.string.hpp"
 
 using namespace xray::base;
 
@@ -27,7 +29,6 @@ xray::base::stats_thread::~stats_thread() noexcept
 void
 xray::base::stats_thread::run()
 {
-
     _proc_stats.values.resize(counter_type::last);
 
 #if defined(XRAY_OS_IS_WINDOWS)
@@ -52,12 +53,12 @@ xray::base::stats_thread::run()
         const std::filesystem::path p{ mod_path };
         const auto process_name = p.filename().stem().generic_string();
 
-        itlib::small_vector<char, 1024> counter_path_buff;
+		ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({});
+        containers::string counter_path_buff{*scratch_pad.arena};
 
-        for (uint32_t i = 0; i < counter_type::last; ++i) {
-            auto itr = fmt::format_to(
+		for (uint32_t i = 0; i < counter_type::last; ++i) {
+            fmt::format_to(
                 std::back_inserter(counter_path_buff), "\\Process({})\\{}", process_name, PERF_COUNTER_NAMES[i]);
-            *itr = 0;
 
             const auto result =
                 PdhAddCounter(raw_handle(_proc_stats.query), counter_path_buff.data(), 0, &_proc_stats.counters[i]);

@@ -30,13 +30,12 @@
 
 /// \file   quaternion.hpp
 
+#include <cmath>
+#include <type_traits>
+
 #include "xray/math/scalar3.hpp"
 #include "xray/math/scalar3_math.hpp"
 #include "xray/math/scalar3x3.hpp"
-#include "xray/xray.hpp"
-#include <cassert>
-#include <cmath>
-#include <cstdint>
 
 namespace xray {
 namespace math {
@@ -50,6 +49,7 @@ namespace math {
  *          two quaternions \a q0 and \a q1, <b> q0 * q1 != q1 * q0 </b>.
  */
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 class quaternion
 {
   public:
@@ -91,13 +91,34 @@ class quaternion
      */
     inline constexpr quaternion(const real_type w, const real_type x, const real_type y, const real_type z) noexcept;
 
-    /**
-     \brief Constructs a quaternion, using the specified array of values for
-            initialization.
-     \param init_data   Pointer to an array of at least 4 components. Must not be
-                        null.
-     */
-    inline quaternion(const real_type* init_data) noexcept;
+    template<typename U>
+        requires std::is_convertible_v<U, real_type>
+    constexpr quaternion(const U w, const U x, const U y, const U z) noexcept
+        : quaternion{
+            static_cast<real_type>(w),
+            static_cast<real_type>(x),
+            static_cast<real_type>(y),
+            static_cast<real_type>(z),
+        }
+    {
+    }
+
+    constexpr quaternion(const real_type (&arr)[4]) noexcept
+        : quaternion{ arr[3], arr[0], arr[1], arr[2] }
+    {
+    }
+
+    template<typename U>
+        requires std::is_convertible_v<U, real_type>
+    constexpr quaternion(const U (&arr)[4]) noexcept
+        : quaternion{
+            static_cast<real_type>(arr[3]),
+            static_cast<real_type>(arr[0]),
+            static_cast<real_type>(arr[1]),
+            static_cast<real_type>(arr[2]),
+        }
+    {
+    }
 
     /**
      \brief Constructs a quaternion from axis-angle format.
@@ -107,11 +128,25 @@ class quaternion
      */
     inline quaternion(const real_type angle, const scalar3<real_type>& axis) noexcept;
 
+    template<typename U>
+        requires std::is_convertible_v<U, real_type>
+    quaternion(const U angle, const scalar3<U>& axis) noexcept
+        : quaternion{ static_cast<real_type>(angle), scalar3<real_type>{ axis } }
+    {
+    }
+
     /**
      \brief Given two vectors v1 and v2, constructs a quaternion that represents
             the rotation of v1 into v2.
      */
     quaternion(const scalar3<real_type>& v1, const scalar3<real_type>& v2) noexcept;
+
+    template<typename U>
+        requires std::is_convertible_v<U, real_type>
+    quaternion(const scalar3<U>& v1, const scalar3<U>& v2) noexcept
+        : quaternion{ scalar3<real_type>{ v1 }, scalar3<real_type>{ v2 } }
+    {
+    }
 
     /**
      \brief Converts the specified rotation matrix to quaternion format.
@@ -120,21 +155,22 @@ class quaternion
     quaternion(const scalar3x3<real_type>& mtx) noexcept;
 
     /// \brief Self assign add.
-    quaternion<real_type>& operator+=(const quaternion<real_type>& rhs) noexcept;
+    constexpr quaternion<real_type>& operator+=(const quaternion<real_type>& rhs) noexcept;
 
     /// \brief Self assing substract.
-    quaternion<real_type>& operator-=(const quaternion<real_type>& rhs) noexcept;
+    constexpr quaternion<real_type>& operator-=(const quaternion<real_type>& rhs) noexcept;
 
     /// \brief Self multiply with scalar.
-    quaternion<real_type>& operator*=(const real_type scalar) noexcept;
+    constexpr quaternion<real_type>& operator*=(const real_type scalar) noexcept;
 
     /// \brief Self divide with scalar.
-    quaternion<real_type>& operator/=(const real_type scalar) noexcept;
+    constexpr quaternion<real_type>& operator/=(const real_type scalar) noexcept;
 
     struct stdc;
 };
 
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 inline constexpr quaternion<real_type>::quaternion(const real_type w_,
                                                    const real_type x_,
                                                    const real_type y_,
@@ -147,12 +183,7 @@ inline constexpr quaternion<real_type>::quaternion(const real_type w_,
 }
 
 template<typename real_type>
-inline quaternion<real_type>::quaternion(const real_type* init_data) noexcept
-{
-    std::memcpy(components, init_data, sizeof(components));
-}
-
-template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 inline quaternion<real_type>::quaternion(const real_type angle, const scalar3<real_type>& axis) noexcept
 {
     const auto lensquared = length_squared(axis);
@@ -171,6 +202,7 @@ inline quaternion<real_type>::quaternion(const real_type angle, const scalar3<re
 }
 
 template<typename real_type>
+    requires std::is_arithmetic_v<real_type>
 quaternion<real_type>::quaternion(const scalar3<real_type>& v1, const scalar3<real_type>& v2) noexcept
 {
     //
@@ -203,7 +235,8 @@ quaternion<real_type>::quaternion(const scalar3<real_type>& v1, const scalar3<re
 }
 
 template<typename real_type>
-quaternion<real_type>&
+    requires std::is_arithmetic_v<real_type>
+constexpr quaternion<real_type>&
 quaternion<real_type>::operator+=(const quaternion<real_type>& rhs) noexcept
 {
     w += rhs.w;
@@ -214,7 +247,8 @@ quaternion<real_type>::operator+=(const quaternion<real_type>& rhs) noexcept
 }
 
 template<typename real_type>
-quaternion<real_type>&
+    requires std::is_arithmetic_v<real_type>
+constexpr quaternion<real_type>&
 quaternion<real_type>::operator-=(const quaternion<real_type>& rhs) noexcept
 {
     w -= rhs.w;
@@ -225,7 +259,8 @@ quaternion<real_type>::operator-=(const quaternion<real_type>& rhs) noexcept
 }
 
 template<typename real_type>
-quaternion<real_type>&
+    requires std::is_arithmetic_v<real_type>
+constexpr quaternion<real_type>&
 quaternion<real_type>::operator*=(const real_type scalar) noexcept
 {
     w *= scalar;
@@ -236,13 +271,15 @@ quaternion<real_type>::operator*=(const real_type scalar) noexcept
 }
 
 template<typename real_type>
-quaternion<real_type>&
+    requires std::is_arithmetic_v<real_type>
+constexpr quaternion<real_type>&
 quaternion<real_type>::operator/=(const real_type scalar) noexcept
 {
     return *this *= (real_type{ 1 } / scalar);
 }
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 struct quaternion<T>::stdc
 {
     static constexpr const quaternion<T> zero{ T{}, T{}, T{}, T{} };
@@ -250,9 +287,11 @@ struct quaternion<T>::stdc
 };
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const quaternion<T> quaternion<T>::stdc::zero;
 
 template<typename T>
+    requires std::is_arithmetic_v<T>
 constexpr const quaternion<T> quaternion<T>::stdc::identity;
 
 using quaternionf = quaternion<float>;

@@ -1,8 +1,13 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.30)
 project(
   xray-ng
   VERSION 0.5.0.0
   LANGUAGES C CXX)
+
+# cmake_policy(SET CMP0091 NEW) set(CMAKE_MSVC_RUNTIME_LIBRARY
+# "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 include(CTest)
 enable_testing()
@@ -10,28 +15,21 @@ enable_testing()
 include(FetchContent)
 include(cmake/CPM.cmake)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
+set(CMAKE_EXPORT_COMPILE_COMMANDS
+    ON
+    CACHE INTERNAL "Export compilation commands for code completion (clangd)")
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 cpmaddpackage("gh:adihodos/concurrencpp#fix-compile-error")
-cpmaddpackage("gh:fmtlib/fmt#10.2.1")
+cpmaddpackage("gh:fmtlib/fmt#12.1.0")
 cpmaddpackage("gh:TartanLlama/optional@1.1.0")
 cpmaddpackage("gh:TartanLlama/expected@1.1.0")
 cpmaddpackage("gh:vimpunk/mio#master")
-cpmaddpackage("gh:iboB/itlib#master")
 cpmaddpackage("gh:getml/reflect-cpp#main")
 cpmaddpackage("gh:max0x7ba/atomic_queue#master")
 cpmaddpackage("gh:serge-sans-paille/frozen#master")
-
-cpmaddpackage(
-  NAME
-  pipes
-  GITHUB_REPOSITORY
-  adihodos/pipes
-  GIT_TAG
-  master
-  OPTIONS
-  "BUILD_TESTING OFF")
+# cpmaddpackage("gh:bfgroup/Lyra#develop")
 
 cpmaddpackage(
   NAME
@@ -65,6 +63,7 @@ if(JoltPhysics_ADDED)
   set(CPP_RTTI_ENABLED "OFF")
   set(OBJECT_LAYER_BITS "16")
   set(CPP_RTTI_ENABLED "ON")
+  set(USE_STATIC_MSVC_RUNTIME_LIBRARY "OFF")
   add_subdirectory(${JoltPhysics_SOURCE_DIR}/Build
                    ${JoltPhysics_SOURCE_DIR}/Build/out)
 endif()
@@ -85,13 +84,12 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   gabime/spdlog
   GIT_TAG
-  v1.14.1
+  v1.16.0
   OPTIONS
   "SPDLOG_FMT_EXTERNAL ON"
   OPTIONS
   "SPDLOG_NO_EXCEPTIONS ON")
 
-cpmaddpackage("gh:ryanhaining/cppitertools#master")
 cpmaddpackage("gh:rollbear/strong_type@15")
 # cpmaddpackage("gh:wolfpld/tracy#master")
 
@@ -126,7 +124,7 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   KhronosGroup/SPIRV-Reflect
   GIT_TAG
-  vulkan-sdk-1.3.280.0
+  vulkan-sdk-1.4.328
   OPTIONS
   "SPIRV_REFLECT_STATIC_LIB ON"
   "SPIRV_REFLECT_EXECUTABLE OFF")
@@ -134,10 +132,6 @@ cpmaddpackage(
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/lib")
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS
-    ON
-    CACHE INTERNAL "Export compilation commands for code completion (clangd)")
 
 set_property(
   DIRECTORY
@@ -147,6 +141,9 @@ set_property(
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_library(unordered_dense INTERFACE)
+target_include_directories(unordered_dense INTERFACE ${CMAKE_SOURCE_DIR}/third_party/unordered_dense/include)
+
 # https://dhashe.com/how-to-build-highly-debuggable-c-binaries.html
 add_library(xray-set-compile-options-lib INTERFACE)
 
@@ -154,102 +151,50 @@ set(cxx_is_gcc "$<COMPILE_LANG_AND_ID:CXX,GNU>")
 set(cxx_is_clang "$<COMPILE_LANG_AND_ID:CXX,Clang>")
 set(cxx_is_gcc_like "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU>")
 
-if(TARGET Linux)
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
   target_compile_options(
     xray-set-compile-options-lib
     INTERFACE
-      $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fasynchronous-unwind-tables;-fsanitize=address>
-      $<$<BOOL:${cxx_is_gcc_like}>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
+      $<$<CONFIG:RelWithDebInfo,Debug>:-fasynchronous-unwind-tables>
+      $<$<CONFIG:RelWithDebInfo,Debug>:-ggdb3;-fno-omit-frame-pointer;-mno-omit-leaf-frame-pointer>
   )
+endif()
 
-  target_link_options(
-    xray-set-compile-options-lib PUBLIC
-    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>-fsanitize=address>)
-
-  target_compile_definitions(xray-set-compile-options-lib
-                             INTERFACE "${cxx_stdlib_dbg_flags}")
-
+# cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON -B build.asan -S .
+option(ENABLE_ASAN "Enable address sanitizer" OFF)
+if(ENABLE_ASAN)
+  target_compile_options(
+    xray-set-compile-options-lib
+	INTERFACE $<$<AND:$<COMPILE_LANG_AND_ID:CXX,MSVC>,$<CONFIG:RelWithDebInfo,Debug>>:/fsanitize=address>
+    INTERFACE $<$<AND:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<CONFIG:RelWithDebInfo,Debug>>:-fsanitize=address>
+  )
+  target_link_options(xray-set-compile-options-lib INTERFACE
+    INTERFACE $<$<AND:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<CONFIG:RelWithDebInfo,Debug>>:-fsanitize=address>
+  )
 endif()
 
 target_compile_definitions(
-  xray-set-compile-options-lib INTERFACE $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
-                                         XRAY_MATH_ENABLE_FMT_SUPPORT)
+  xray-set-compile-options-lib
+  INTERFACE
+    $<$<AND:$<COMPILE_LANG_AND_ID:CXX,GNU>,$<CONFIG:RelWithDebInfo,Debug>>:_GLIBCXX_ASSERTIONS>
+)
 
-# if (MSVC) option(XRAY_USE_DIRECTX11 "DirectX 11" OFF) endif()
+# target_compile_options(
+  # xray-set-compile-options-lib
+  # INTERFACE
+    # $<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8;/execution-charset:utf-8>)
 
-# function(set_target_options target compiler_defs compiler_opts)
-# message("Setting compile options and definitions for target ${target}")
-#
-# foreach (c IN LISTS compiler_defs) message("Compiler definition = ${c}")
-# target_compile_features("${target}" PUBLIC ${compiler_dendforeach()
-#
-# foreach (o IN LISTS compiler_opts) message("Compiler option = ${o}")
-# endforeach()
-#
-# endfunction()
-#
-# list(APPEND compiler_defs "XRAY_RENDERER_OPENGL" "XRAY_DOING_UR_MOM")
-# list(APPEND compiler_opts "cxx_std_23" "c_std_11")
-#
-# set_target_options(${PROJECT_NAME} "${compiler_defs}" "${compiler_opts}")
+target_compile_definitions(
+  xray-set-compile-options-lib
+  INTERFACE
+    $<$<CONFIG:Debug>:XRAY_IS_DEBUG_BUILD>
+    $<$<PLATFORM_ID:Windows>:XRAY_OS_IS_WINDOWS;NOMINMAX;YY_NO_UNISTD_H>
+    XRAY_MATH_ENABLE_FMT_SUPPORT
+    $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE>
+)
 
-# list(APPEND compiler_definitions ) list(APPEND xr_compiler_features
-# "cxx_std_20=PUBLIC" "c_std_11=PUBLIC")
-#
-# if (NOT XRAY_USE_DIRECTX11) list(APPEND compiler_definitions
-# "XRAY_RENDERER_OPENGL") else() message("Using DirectX11") list(APPEND
-# compiler_definitions "XRAY_RENDERER_DIRECTX") list(APPEND compiler_definitions
-# "XRAY_USE_LEFT_HANDED") endif()
-#
-# if (WIN32) # define NOMINMAX so that code that uses STL and windows.h compiles
-# list(APPEND compiler_definitions "NOMINMAX")
-#
-# # Disabled retarded warnings about some functions being deprecated list(APPEND
-# compiler_definitions "_CRT_SECURE_NO_WARNINGS") list(APPEND
-# compiler_definitions "_CRT_NONSTDC_NO_WARNINGS") list(APPEND
-# compiler_definitions "_CRT_SECURE_NO_DEPRECATE")
-#
-# # Compile for Windows 7 and later list(APPEND compiler_definitions
-# "_WIN32_WINNT=0x0601") list(APPEND compiler_definitions "WINVER=0x0601")
-# list(APPEND compiler_definitions "DXGI_1_2_FORMATS") list(APPEND
-# compiler_definitions "_WIN7_PLATFORM_UPDATE")
-#
-# endif()
-#
-# if (NOT XRAY_USE_DIRECTX11 AND NOT XRAY_USE_DIRECTX10)
-# include_directories(third_party/opengl/include) endif()
-#
 add_subdirectory(third_party/stb)
 add_subdirectory(third_party/opengl/src)
 add_subdirectory(third_party/imgui-docking/src)
-
-# if (CMAKE_BUILD_TYPE MATCHES Debug) message(" ---> Debug build <---")
-# list(APPEND compiler_definitions "XRAY_IS_DEBUG_BUILD") endif()
-#
-# # # common macros for all builds list(APPEND compiler_definitions
-# "LIBCONFIG_STATIC") list(APPEND compiler_definitions "KTX_OPENGL=1")
-#
-# include_directories(include)
-# include_directories(third_party/libconfig/include)
-# include_directories(third_party/stb/include)
-# include_directories(third_party/imgui/include)
-# include_directories(third_party/easyloggingpp/include)
-# include_directories(third_party/catch/include)
-# include_directories(third_party/nuklear/include)
-# include_directories(third_party/ktx/include)
-#
-# # include_directories(third_party/tinyobj/include) #
-# include_directories(third_party/tinyobj/src) #
-# add_subdirectory(third_party/tinyobj)
-#
-# add_subdirectory(third_party/libconfig/src)
-# add_subdirectory(third_party/stb/src)
-#
-# include_directories(third_party/ktx/include)
-# include_directories(third_party/ktx/other_include)
-# add_subdirectory(third_party/ktx/lib)
-#
-# include_directories(third_party/libnoise/include)
 add_subdirectory(third_party/libnoise)
-#
 add_subdirectory(src)
