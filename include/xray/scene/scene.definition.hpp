@@ -172,7 +172,9 @@ struct SceneDefinition
     std::vector<DirectionalLight> directional_lights;
     std::vector<PointLight> point_lights;
     std::vector<SpotLight> spot_lights;
-    xray::rendering::TerrainParams terrain_params;
+	xray::rendering::TerrainParams terrain_params;
+
+	const ProceduralGeometryEntry* get_geometry(const std::string_view name) const noexcept;
 };
 
 struct SceneResources

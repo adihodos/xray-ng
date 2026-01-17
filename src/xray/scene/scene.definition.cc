@@ -124,3 +124,14 @@ xray::scene::SceneResources xray::scene::SceneResources::from_scene(
 
 	return scene_resources;
 }
+
+const xray::scene::ProceduralGeometryEntry* xray::scene::SceneDefinition::get_geometry(const std::string_view name
+) const noexcept {
+	for (const ProceduralGeometryEntry& entry : procedural.procedural_geometries) {
+		if (entry.name == name) {
+			return &entry;
+		}
+	}
+
+	return nullptr;
+}

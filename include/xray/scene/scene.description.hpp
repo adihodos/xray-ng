@@ -44,80 +44,73 @@
 
 namespace xray::scene {
 
-struct GltfGeometryDescription
-{
-    std::string name;
-    std::filesystem::path path;
+struct GltfGeometryDescription {
+	std::string name;
+	std::filesystem::path path;
 };
 
-struct ProceduralGeometryDescription
-{
-    std::string name;
-    rfl::Variant<rfl::Field<"grid", rendering::GridParams>,
-                 rfl::Field<"cone", rendering::ConeParams>,
-                 rfl::Field<"torus", rendering::TorusParams>,
-                 rfl::Field<"sphere", rendering::SphereParams>,
-                 rfl::Field<"ring", rendering::RingGeometryParams>,
-                 rfl::Field<"torus_knot", rendering::TorusKnotParams>>
-        gen_params;
+struct ProceduralGeometryDescription {
+	std::string name;
+	rfl::Variant<
+		rfl::Field<"grid", rendering::GridParams>,
+		rfl::Field<"cone", rendering::ConeParams>,
+		rfl::Field<"torus", rendering::TorusParams>,
+		rfl::Field<"sphere", rendering::SphereParams>,
+		rfl::Field<"ring", rendering::RingGeometryParams>,
+		rfl::Field<"torus_knot", rendering::TorusKnotParams>,
+		rfl::Field<"cube", rendering::BoxParams>>
+		gen_params;
 };
 
-struct MaterialColoredDescription
-{
-    std::string name;
-    math::vec4f ambient;
-    math::vec4f diffuse;
-    math::vec4f specular;
+struct MaterialColoredDescription {
+	std::string name;
+	math::vec4f ambient;
+	math::vec4f diffuse;
+	math::vec4f specular;
 };
 
-struct MaterialTexturedDescription
-{
-    std::string name;
-    std::string ambient;
-    std::string diffuse;
-    std::string specular;
+struct MaterialTexturedDescription {
+	std::string name;
+	std::string ambient;
+	std::string diffuse;
+	std::string specular;
 };
 
-using MaterialDescription = rfl::Variant<rfl::Field<"colored", MaterialColoredDescription>,
-                                         rfl::Field<"textured", MaterialTexturedDescription>>;
+using MaterialDescription = rfl::
+	Variant<rfl::Field<"colored", MaterialColoredDescription>, rfl::Field<"textured", MaterialTexturedDescription>>;
 
-struct ProceduralEntityDescription
-{
-    std::string name;
-    std::string material;
-    std::string geometry;
-    std::optional<math::OrientationF32> orientation;
+struct ProceduralEntityDescription {
+	std::string name;
+	std::string material;
+	std::string geometry;
+	std::optional<math::OrientationF32> orientation;
 };
 
-struct GLTFEntityDescription
-{
-    std::string name;
-    std::string gltf;
-    std::optional<math::OrientationF32> orientation;
+struct GLTFEntityDescription {
+	std::string name;
+	std::string gltf;
+	std::optional<math::OrientationF32> orientation;
 };
 
-struct SceneError
-{
-    std::string err;
+struct SceneError {
+	std::string err;
 };
 
-struct SceneDescription
-{
-    std::vector<MaterialDescription> materials;
-    std::vector<GltfGeometryDescription> gltf_geometries;
-    std::vector<ProceduralGeometryDescription> procedural_geometries;
-    std::vector<scene::DirectionalLight> directional_lights;
-    std::vector<scene::PointLight> point_lights;
-    std::vector<scene::SpotLight> spot_lights;
-    std::vector<ProceduralEntityDescription> procedural_entities;
-    std::vector<GLTFEntityDescription> gltf_entities;
-    std::vector<rendering::TerrainRange> terrain_ranges;
-    xray::rendering::TerrainParams terrain_params;
+struct SceneDescription {
+	std::vector<MaterialDescription> materials;
+	std::vector<GltfGeometryDescription> gltf_geometries;
+	std::vector<ProceduralGeometryDescription> procedural_geometries;
+	std::vector<scene::DirectionalLight> directional_lights;
+	std::vector<scene::PointLight> point_lights;
+	std::vector<scene::SpotLight> spot_lights;
+	std::vector<ProceduralEntityDescription> procedural_entities;
+	std::vector<GLTFEntityDescription> gltf_entities;
+	std::vector<rendering::TerrainRange> terrain_ranges;
+	xray::rendering::TerrainParams terrain_params;
 
-    static tl::expected<SceneDescription, SceneError> from_file(const std::filesystem::path& file_path);
+	static tl::expected<SceneDescription, SceneError> from_file(const std::filesystem::path& file_path);
 };
 
-void
-write_test_scene_definition(const std::filesystem::path& scene_file);
+void write_test_scene_definition(const std::filesystem::path& scene_file);
 
-}
+}  // namespace xray::scene

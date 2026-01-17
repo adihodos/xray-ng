@@ -115,6 +115,7 @@ target_link_libraries(
           noise
           frozen::frozen
           atomic_queue
+		  au
           Jolt)
 
 get_target_property(target_output_directory ${PROJECT_NAME}
