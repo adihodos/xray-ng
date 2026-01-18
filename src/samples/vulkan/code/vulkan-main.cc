@@ -111,6 +111,8 @@
 #include "blue.noise.poisson.disk.sampler.hpp"
 #include "test.bda.hpp"
 
+#include "crash.dump.common.hpp"
+
 XR_DISABLE_OPTIMIZATIONS()
 
 using namespace xray;
@@ -2072,6 +2074,77 @@ void make_terrain_heightmap_colormap(
 
 }  // namespace B5
 
+#if defined(XRAY_OS_IS_WINDOWS)
+//
+// adapted from this: https://github.com/sztomi/CrashDumper/tree/master
+namespace xray::crash_handler {
+
+const char* mmf_name = "xray_crash_mmf";
+const char* const kEventsToSignalNames[] = {"xray_crash_event", };
+HANDLE g_events_to_signal[1];
+char* g_mmf;
+constexpr SIZE_T BUF_SIZE = 1024;
+
+LONG WINAPI unhandled_filter(EXCEPTION_POINTERS* excp_ptrs) {
+	// collect the data for the sentinel
+	xray::crash_handler::CrashData d;
+	d.except_ptrs = excp_ptrs;
+	d.thread_id	  = GetCurrentThreadId();
+	d.proc_id	  = GetCurrentProcessId();
+	memcpy(g_mmf, &d, sizeof(d));
+
+	// signal to the sentinel that the mmf has data
+	SetEvent(g_events_to_signal[0]);
+
+	// wait until the sentinel finishes
+	WaitForSingleObject(g_events_to_signal[0], INFINITE);
+
+	// this results in a crash window by the OS
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+bool init_sentinel() {
+	for (USIZE id = 0; id < std::size(kEventsToSignalNames); ++id) {
+		HANDLE event_handle = CreateEventA(nullptr, false, false, kEventsToSignalNames[id]);
+		if (event_handle == nullptr) {
+			os_output_debug_string("Failed to initialize event object.");
+			return false;
+		}
+		g_events_to_signal[id] = event_handle;
+	}
+
+	// create shared memory (through MMF)
+	auto map_file = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, BUF_SIZE, mmf_name);
+	if (!map_file) {
+		os_output_debug_string("Crash handler - could not open MMF");
+		return false;
+	}
+
+	g_mmf = reinterpret_cast<char*>(MapViewOfFile(map_file, FILE_MAP_ALL_ACCESS, 0, 0, BUF_SIZE));
+
+	// start sentinel.exe
+	STARTUPINFOA info = {sizeof(info)};
+	PROCESS_INFORMATION processInfo;
+
+	char temp_buf[1024];
+	//
+	// 1st arg is the crash event name, second is the pid of the process, 3rd is the memory mapping name
+	format_to_n(temp_buf, "crash-sentinel.exe {} {} {}", kEventsToSignalNames[0], GetCurrentProcessId(), mmf_name);
+	if (CreateProcessA(
+			"crash-sentinel.exe", temp_buf, nullptr, nullptr, TRUE, CREATE_NEW_CONSOLE, NULL, NULL, &info, &processInfo
+		) == 0) {
+		return false;
+	}
+
+	os_output_debug_string("Crash handler process launched...");
+
+	SetUnhandledExceptionFilter(unhandled_filter);
+	return true;
+}
+
+}  // namespace xray::crash_handler
+#endif
+
 int
 #if defined(XRAY_OS_IS_WINDOWS)
 	WINAPI
@@ -2080,6 +2153,9 @@ int
 main(int argc, char** argv)
 #endif
 {
+#if defined(XRAY_OS_IS_WINDOWS)
+	xray::crash_handler::init_sentinel();
+#endif
 	TracySetProgramName("XrayNG");
 
 	xray::base::setup_logging(LogLevel::Debug);
@@ -2093,26 +2169,26 @@ main(int argc, char** argv)
 		xr_app_config->FileSys.GameRootPathAbsolute
 	);
 
-	{
-		constexpr const char* const kVkLayerSettingsPathEnvVarName = "VK_LAYER_SETTINGS_PATH";
-		const auto layer_settings_path =
-			(xr_app_config->FileSys.RootPathAbsolute / "vk_layer_settings.txt").generic_string();
-
-		const bool set_env_result =
-#if defined(XRAY_OS_IS_POSIX_FAMILY)
-			::setenv(kVkLayerSettingsPathEnvVarName, layer_settings_path.c_str(), true) == 0;
-#elif defined(XRAY_OS_IS_WINDOWS)
-			::SetEnvironmentVariableA(kVkLayerSettingsPathEnvVarName, layer_settings_path.c_str()) != 0;
-#else
-#error Unsupported OS!
-#endif
-
-		XR_LOG_INFO(
-			"Setting VK_LAYER_SETTINGS_PATH :: {} [{}]",
-			layer_settings_path,
-			set_env_result == 0 ? "succeeded" : "failed"
-		);
-	}
+	// 	{
+	// 		constexpr const char* const kVkLayerSettingsPathEnvVarName = "VK_LAYER_SETTINGS_PATH";
+	// 		const auto layer_settings_path =
+	// 			(xr_app_config->FileSys.RootPathAbsolute / "vk_layer_settings.txt").generic_string();
+	//
+	// 		const bool set_env_result =
+	// #if defined(XRAY_OS_IS_POSIX_FAMILY)
+	// 			::setenv(kVkLayerSettingsPathEnvVarName, layer_settings_path.c_str(), true) == 0;
+	// #elif defined(XRAY_OS_IS_WINDOWS)
+	// 			::SetEnvironmentVariableA(kVkLayerSettingsPathEnvVarName, layer_settings_path.c_str()) != 0;
+	// #else
+	// #error Unsupported OS!
+	// #endif
+	//
+	// 		XR_LOG_INFO(
+	// 			"Setting VK_LAYER_SETTINGS_PATH :: {} [{}]",
+	// 			layer_settings_path,
+	// 			set_env_result == 0 ? "succeeded" : "failed"
+	// 		);
+	// 	}
 
 	// void* addr = xray::base::os_reserve_mem(
 	// 	xray::base::round_up<size_t>(xray::base::megabytes(2), xray::base::os_get_page_size())

@@ -42,6 +42,22 @@ if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
   pkg_check_modules(LIBGIT2 REQUIRED IMPORTED_TARGET libgit2)
 endif()
 
+if(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Windows")
+  add_executable(crash-sentinel ${proj_src_dir}/crash.sentinel.cpp)
+  
+  set_target_properties(
+	crash-sentinel
+	PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+    "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/bin"
+    LIBRARY_OUTPUT_DIRECTORY
+    "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib"
+    ARCHIVE_OUTPUT_DIRECTORY
+    "$<0:>${CMAKE_BINARY_DIR}/${PROJECT_NAME}/lib"
+  )
+
+  target_link_libraries(crash-sentinel PRIVATE xray-set-compile-options-lib fmt::fmt)
+endif()
+
 add_executable(build-info-tool ${proj_src_dir}/build-info-tool.cc)
 # set_property(TARGET build-info-tool PROPERTY MSVC_RUNTIME_LIBRARY
 # "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -79,6 +95,10 @@ add_executable(
 # set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
 # "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+if (WIN32)
+  add_dependencies(${PROJECT_NAME} crash-sentinel)
+endif()
+  
 add_dependencies(${PROJECT_NAME} build-info-tool)
 
 set_target_properties(
