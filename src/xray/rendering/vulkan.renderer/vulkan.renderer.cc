@@ -1499,7 +1499,7 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 		.sType				   = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.pNext				   = nullptr,
 		.flags				   = 0,
-		.size				   = base::megabytes(512),
+		.size				   = base::gigabytes(1),
 		.usage				   = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		.sharingMode		   = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,

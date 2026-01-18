@@ -149,8 +149,9 @@ struct HudConfigurationTextElement {
 	xray::math::vec3f color;
 };
 
-concurrencpp::result<std::tuple<FontsLoadBundle, xray::base::unique_pointer<HudConfigDefinition>>>
-task_load_fonts(concurrencpp::executor_tag, concurrencpp::thread_executor*) {
+concurrencpp::result<std::tuple<FontsLoadBundle, xray::base::unique_pointer<HudConfigDefinition>>> task_load_fonts(
+	concurrencpp::executor_tag, concurrencpp::thread_executor*
+) {
 	XR_LOG_INFO("[[TASK]] Load fonts");
 	timer_highp exec_timer{};
 
@@ -236,6 +237,7 @@ auto translate_error(const tl::expected<U, E>& exp) -> ProgramError {
 struct SkyboxData {
 	VulkanImage skybox;
 	VulkanPipeline pipeline;
+	VulkanPipeline p_quad_skybox;
 };
 
 concurrencpp::result<tl::expected<SkyboxData, VulkanError>> task_load_skybox(
@@ -262,7 +264,7 @@ concurrencpp::result<tl::expected<SkyboxData, VulkanError>> task_load_skybox(
 		VulkanImageLoadInfo{
 			.tag_name	  = "Cubemap001",
 			.cmd_buf	  = cubemap_job->buffer,
-			.path		  = xr_app_config->texture_path("skybox/skybox-ibl/skybox.ktx2"),
+			.path		  = xr_app_config->texture_path("skybox/skybox-ibl/skybox.cubemap.ktx2"),
 			.usage_flags  = VK_IMAGE_USAGE_SAMPLED_BIT,
 			.final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			.tiling		  = VK_IMAGE_TILING_OPTIMAL,
@@ -274,6 +276,40 @@ concurrencpp::result<tl::expected<SkyboxData, VulkanError>> task_load_skybox(
 	//
 	// pipeline
 	ScopedSmallArenaType temp = GlobalMemorySystem::instance()->grab_small_arena();
+
+	tl::expected<VulkanPipeline, VulkanError> p_skybox_quad{
+		VulkanPipelineBuilder{&temp.arena}
+			.add_shader(
+				ShaderStage::Vertex,
+				ShaderBuildOptions{
+					.code_or_file_path = xr_app_config->shader_path("skybox.vert.glsl"),
+					.compile_options   = ShaderBuildOptions::Compile_GenerateDebugInfo,
+				}
+			)
+			.add_shader(
+				ShaderStage::Fragment,
+				ShaderBuildOptions{
+					.code_or_file_path = xr_app_config->shader_path("skybox.frag.glsl"),
+					.compile_options   = ShaderBuildOptions::Compile_GenerateDebugInfo,
+				}
+			)
+			.dynamic_state({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR})
+			.rasterization_state({
+				.poly_mode	= VK_POLYGON_MODE_FILL,
+				.cull_mode	= VK_CULL_MODE_BACK_BIT,
+				.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+				.line_width = 1.0f,
+			})
+			.create(
+				*renderer,
+				VulkanPipelineKind::Graphics,
+				VulkanPipelineTemplate{
+					.layout					= renderer->bindless_sys().pipeline_layout(),
+					.descriptor_set_layouts = renderer->bindless_sys().descriptor_set_layouts(),
+				}
+			),
+	};
+	XR_VK_COR_PROPAGATE_ERROR(p_skybox_quad);
 
 	const std::pair<containers::string, containers::string> shader_defs[] = {
 		{containers::string{"__SKYBOX_REAL_CUBE__", temp.arena}, containers::string{temp.arena}},
@@ -297,12 +333,12 @@ concurrencpp::result<tl::expected<SkyboxData, VulkanError>> task_load_skybox(
 				}
 			)
 			.dynamic_state({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR})
-			// .rasterization_state({
-			// .poly_mode	= VK_POLYGON_MODE_FILL,
-			// .cull_mode	= VK_CULL_MODE_BACK_BIT,
-			// .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-			// .line_width = 1.0f,
-			// })
+			.rasterization_state({
+				.poly_mode	= VK_POLYGON_MODE_FILL,
+				.cull_mode	= VK_CULL_MODE_BACK_BIT,
+				.front_face = VK_FRONT_FACE_CLOCKWISE,
+				.line_width = 1.0f,
+			})
 			.create(
 				*renderer,
 				VulkanPipelineKind::Graphics,
@@ -318,6 +354,7 @@ concurrencpp::result<tl::expected<SkyboxData, VulkanError>> task_load_skybox(
 		tl::in_place,
 		std::move(*cubemap),
 		std::move(*p_skybox),
+		std::move(*p_skybox_quad),
 	};
 }
 
@@ -528,16 +565,18 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 				.line_width = 1.0f,
 			})
 			.depth_stencil_state(DepthStencilState{.depth_test_enable = false, .depth_write_enable = false})
-			.color_blend(VkPipelineColorBlendAttachmentState{
-				.blendEnable		 = true,
-				.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-				.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-				.colorBlendOp		 = VK_BLEND_OP_ADD,
-				.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-				.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-				.alphaBlendOp		 = VK_BLEND_OP_ADD,
-				.colorWriteMask		 = 0xF,
-			})
+			.color_blend(
+				VkPipelineColorBlendAttachmentState{
+					.blendEnable		 = true,
+					.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+					.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+					.colorBlendOp		 = VK_BLEND_OP_ADD,
+					.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+					.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+					.alphaBlendOp		 = VK_BLEND_OP_ADD,
+					.colorWriteMask		 = 0xF,
+				}
+			)
 			.create(
 				*renderer,
 				VulkanPipelineKind::Graphics,
@@ -551,9 +590,11 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 
 	tl::expected<VulkanPipeline, VulkanError> p_shapes{
 		VulkanPipelineBuilder{&perm.arena}
-			.input_assembly_state(InputAssemblyState{
-				.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
-			})
+			.input_assembly_state(
+				InputAssemblyState{
+					.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
+				}
+			)
 			.add_shader(
 				ShaderStage::Vertex,
 				ShaderBuildOptions{
@@ -580,16 +621,18 @@ concurrencpp::result<tl::expected<GraphicsPipelineResources, VulkanError>> task_
 				.line_width = 1.0f,
 			})
 			.depth_stencil_state(DepthStencilState{.depth_test_enable = false, .depth_write_enable = false})
-			.color_blend(VkPipelineColorBlendAttachmentState{
-				.blendEnable		 = true,
-				.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-				.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-				.colorBlendOp		 = VK_BLEND_OP_ADD,
-				.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-				.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-				.alphaBlendOp		 = VK_BLEND_OP_ADD,
-				.colorWriteMask		 = 0xF,
-			})
+			.color_blend(
+				VkPipelineColorBlendAttachmentState{
+					.blendEnable		 = true,
+					.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+					.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+					.colorBlendOp		 = VK_BLEND_OP_ADD,
+					.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+					.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+					.alphaBlendOp		 = VK_BLEND_OP_ADD,
+					.colorWriteMask		 = 0xF,
+				}
+			)
 			.create(
 				*renderer,
 				VulkanPipelineKind::Graphics,
@@ -656,20 +699,24 @@ task_create_gltf_resources(
 		XR_VK_COR_PROPAGATE_ERROR(gltf_geometry);
 
 		const vec2ui32 obj_vtx_idx_count = gltf_geometry->compute_vertex_index_count();
-		indirect_draw_templates.push_back(VkDrawIndexedIndirectCommand{
-			.indexCount	   = obj_vtx_idx_count.y,
-			.instanceCount = 1,
-			.firstIndex	   = global_vertex_index_count.y,
-			.vertexOffset  = (int32_t)global_vertex_index_count.x,
-			.firstInstance = 0,
-		});
+		indirect_draw_templates.push_back(
+			VkDrawIndexedIndirectCommand{
+				.indexCount	   = obj_vtx_idx_count.y,
+				.instanceCount = 1,
+				.firstIndex	   = global_vertex_index_count.y,
+				.vertexOffset  = (int32_t)global_vertex_index_count.x,
+				.firstInstance = 0,
+			}
+		);
 
-		gltf_geometries.push_back(GltfGeometryEntry{
-			.name				= gltf.name,
-			.hashed_name		= GeometryHandleType{FNV::fnv1a(gltf.name)},
-			.vertex_index_count = obj_vtx_idx_count,
-			.buffer_offsets		= global_vertex_index_count,
-		});
+		gltf_geometries.push_back(
+			GltfGeometryEntry{
+				.name				= gltf.name,
+				.hashed_name		= GeometryHandleType{FNV::fnv1a(gltf.name)},
+				.vertex_index_count = obj_vtx_idx_count,
+				.buffer_offsets		= global_vertex_index_count,
+			}
+		);
 
 		mtls_data.push_back(gltf_geometry->extract_materials(0));
 		loaded_gltfs.push_back(std::move(*gltf_geometry));
@@ -729,17 +776,21 @@ task_create_gltf_resources(
 
 		const vec2ui32 bytes_consumed = (*obj_cnt) * vec2ui32{(uint32_t)sizeof(VertexPBR), (uint32_t)sizeof(uint32_t)};
 
-		copy_regions_vertex.push_back(VkBufferCopy{
-			.srcOffset = copy_offset + dst_offsets.x + dst_offsets.y,
-			.dstOffset = dst_offsets.x,
-			.size	   = bytes_consumed.x,
-		});
+		copy_regions_vertex.push_back(
+			VkBufferCopy{
+				.srcOffset = copy_offset + dst_offsets.x + dst_offsets.y,
+				.dstOffset = dst_offsets.x,
+				.size	   = bytes_consumed.x,
+			}
+		);
 
-		copy_regions_index.push_back(VkBufferCopy{
-			.srcOffset = copy_offset + dst_offsets.x + dst_offsets.y + bytes_consumed.x,
-			.dstOffset = dst_offsets.y,
-			.size	   = bytes_consumed.y,
-		});
+		copy_regions_index.push_back(
+			VkBufferCopy{
+				.srcOffset = copy_offset + dst_offsets.x + dst_offsets.y + bytes_consumed.x,
+				.dstOffset = dst_offsets.y,
+				.size	   = bytes_consumed.y,
+			}
+		);
 
 		dst_offsets += bytes_consumed;
 		staging_buffer_ptr += bytes_consumed.x + bytes_consumed.y;
@@ -963,11 +1014,13 @@ task_create_procedural_geometry_render_resources(
 		memcpy(
 			reinterpret_cast<void*>(renderer->staging_buffer_memory() + staging_buff_offset), sv.data(), sv.size_bytes()
 		);
-		cpy_regions_vtx.push_back(VkBufferCopy{
-			.srcOffset = staging_buff_offset,
-			.dstOffset = dst_buff_offset,
-			.size	   = sv.size_bytes(),
-		});
+		cpy_regions_vtx.push_back(
+			VkBufferCopy{
+				.srcOffset = staging_buff_offset,
+				.dstOffset = dst_buff_offset,
+				.size	   = sv.size_bytes(),
+			}
+		);
 
 		staging_buff_offset += sv.size_bytes();
 		dst_buff_offset += sv.size_bytes();
@@ -980,11 +1033,13 @@ task_create_procedural_geometry_render_resources(
 		memcpy(
 			reinterpret_cast<void*>(renderer->staging_buffer_memory() + staging_buff_offset), si.data(), si.size_bytes()
 		);
-		cpy_regions_vtx.push_back(VkBufferCopy{
-			.srcOffset = staging_buff_offset,
-			.dstOffset = idx_buffer_offset,
-			.size	   = si.size_bytes(),
-		});
+		cpy_regions_vtx.push_back(
+			VkBufferCopy{
+				.srcOffset = staging_buff_offset,
+				.dstOffset = idx_buffer_offset,
+				.size	   = si.size_bytes(),
+			}
+		);
 
 		staging_buff_offset += si.size_bytes();
 		idx_buffer_offset += si.size_bytes();
@@ -1375,13 +1430,15 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 		vertex_span.push_back(to_bytes_span(geometry.vertex_span()));
 		index_span.push_back(geometry.index_span());
 
-		draw_indirect_template.push_back(VkDrawIndexedIndirectCommand{
-			.indexCount	   = static_cast<uint32_t>(geometry.index_count),
-			.instanceCount = 1,
-			.firstIndex	   = vtx_idx_accum.y,
-			.vertexOffset  = static_cast<int32_t>(vtx_idx_accum.x),
-			.firstInstance = 0,
-		});
+		draw_indirect_template.push_back(
+			VkDrawIndexedIndirectCommand{
+				.indexCount	   = static_cast<uint32_t>(geometry.index_count),
+				.instanceCount = 1,
+				.firstIndex	   = vtx_idx_accum.y,
+				.vertexOffset  = static_cast<int32_t>(vtx_idx_accum.x),
+				.firstInstance = 0,
+			}
+		);
 
 		procedural_geometries.emplace_back(
 			pg.name,
@@ -1424,15 +1481,17 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 		}
 
 		const uint32_t entity_id = FNV::fnv1a(pe.name);
-		scene_entities.push_back(EntityDrawableComponent{
-			.name		 = pe.name,
-			.hashed_name = FNV::fnv1a(pe.name),
-			.geometry_id = geometry_id,
-			// assume color material for all since the task that creates the materials is not yet ready
-			// it will be fix it later when the task results are ready
-			.material_id = ColorMaterialType{FNV::fnv1a(pe.material)},
-			.orientation = pe.orientation.value_or(OrientationF32{}),
-		});
+		scene_entities.push_back(
+			EntityDrawableComponent{
+				.name		 = pe.name,
+				.hashed_name = FNV::fnv1a(pe.name),
+				.geometry_id = geometry_id,
+				// assume color material for all since the task that creates the materials is not yet ready
+				// it will be fix it later when the task results are ready
+				.material_id = ColorMaterialType{FNV::fnv1a(pe.material)},
+				.orientation = pe.orientation.value_or(OrientationF32{}),
+			}
+		);
 
 		XR_LOG_INFO("Procedural entity {} {}", pe.name, pe.material);
 	}
@@ -1442,13 +1501,15 @@ concurrencpp::result<tl::expected<SceneDefinition, ProgramError>> main_task(
 
 	for (const GLTFEntityDescription& ee : scenedes->gltf_entities) {
 		const uint32_t geometry_id = FNV::fnv1a(ee.gltf);
-		scene_entities.push_back(EntityDrawableComponent{
-			.name		 = ee.name,
-			.hashed_name = FNV::fnv1a(ee.name),
-			.geometry_id = GeometryHandleType{FNV::fnv1a(ee.gltf)},
-			.material_id = tl::nullopt,
-			.orientation = ee.orientation.value_or(OrientationF32{}),
-		});
+		scene_entities.push_back(
+			EntityDrawableComponent{
+				.name		 = ee.name,
+				.hashed_name = FNV::fnv1a(ee.name),
+				.geometry_id = GeometryHandleType{FNV::fnv1a(ee.gltf)},
+				.material_id = tl::nullopt,
+				.orientation = ee.orientation.value_or(OrientationF32{}),
+			}
+		);
 	}
 
 	VulkanRenderer* renderer	   = co_await renderer_result;
@@ -1571,7 +1632,8 @@ public:
 		MemoryArena* arena_temp,
 		xray::base::unique_pointer<GameSimulation> game_sim,
 		BindlessImageResourceHandleEntryPair skybox,
-		VulkanPipeline&& p_skybox
+		VulkanPipeline&& p_skybox,
+		VulkanPipeline&& p_skybox_quad
 	)
 		: _co_runtime{std::move(co_runtime)},
 		  _window{std::move(window)},
@@ -1588,7 +1650,7 @@ public:
 		  _arena_perm{arena_perm},
 		  _arena_temp{arena_temp},
 		  _game_sim{std::move(game_sim)},
-		  _skybox{skybox, std::move(p_skybox)} {
+		  _skybox{skybox, std::move(p_skybox), std::move(p_skybox_quad)} {
 		hookup_event_delegates();
 	}
 
@@ -1615,6 +1677,8 @@ private:
 	struct SkyboxState {
 		BindlessImageResourceHandleEntryPair skybox;
 		VulkanPipeline p_skybox;
+		VulkanPipeline p_skybox_quad;
+		bool use_quad_skybox{false};
 	};
 
 	xray::base::unique_pointer<concurrencpp::runtime> _co_runtime;
@@ -1689,11 +1753,13 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 	ScopedMediumArenaType arena_perm0 = GlobalMemorySystem::instance()->grab_medium_arena();
 	ScopedSmallArenaType arena_temp0  = GlobalMemorySystem::instance()->grab_small_arena();
 
-	auto debug_draw = DebugDrawSystem::create(DebugDrawSystem::InitContext{
-		.renderer	= &*renderer,
-		.arena_perm = &arena_perm0.arena,
-		.arena_temp = &arena_temp0.arena,
-	});
+	auto debug_draw = DebugDrawSystem::create(
+		DebugDrawSystem::InitContext{
+			.renderer	= &*renderer,
+			.arena_perm = &arena_perm0.arena,
+			.arena_temp = &arena_temp0.arena,
+		}
+	);
 	XR_PROPAGATE_ERROR(debug_draw);
 
 	auto sprite_sys =
@@ -1742,18 +1808,20 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 	XR_PROPAGATE_ERROR(scene_result);
 
 	SceneResources scene_resources{SceneResources::from_scene(&*scene_result, raw_ptr(renderer))};
-	auto game_sim = GameSimulation::create(InitContext{
-		.surface_width	= main_window->width(),
-		.surface_height = main_window->height(),
-		.perm			= arena_perm,
-		.temp			= arena_temp,
-		.renderer		= raw_ptr(renderer),
-		.config_sys		= xr_app_config,
-		.scene_def		= &*scene_result,
-		.ui				= raw_ptr(ui),
-		.win			= &*main_window,
-		.co_runtime		= raw_ptr(cor_runtime),
-	});
+	auto game_sim = GameSimulation::create(
+		InitContext{
+			.surface_width	= main_window->width(),
+			.surface_height = main_window->height(),
+			.perm			= arena_perm,
+			.temp			= arena_temp,
+			.renderer		= raw_ptr(renderer),
+			.config_sys		= xr_app_config,
+			.scene_def		= &*scene_result,
+			.ui				= raw_ptr(ui),
+			.win			= &*main_window,
+			.co_runtime		= raw_ptr(cor_runtime),
+		}
+	);
 
 	if (!game_sim) {
 		return tl::make_unexpected(MiscError{.what = "game sim creation error"});
@@ -1776,12 +1844,12 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 			.addressModeV	  = VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE,
 			.addressModeW	  = VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE,
 			.mipLodBias		  = 0.0f,
-			.anisotropyEnable = false,
+			.anisotropyEnable = true,
 			.maxAnisotropy	  = 1.0f,
 			.compareEnable	  = false,
 			.compareOp		  = VK_COMPARE_OP_NEVER,
 			.minLod			  = 0.0f,
-			.maxLod			  = 8.0f,
+			.maxLod			  = 1.0f,
 			.borderColor	  = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
 		},
 		*renderer
@@ -1810,6 +1878,7 @@ tl::expected<GameMain, ProgramError> GameMain::create(MemoryArena* arena_perm, M
 		std::move(game_sim),
 		skybox_bindless,
 		std::move(skybox_result->pipeline),
+		std::move(skybox_result->p_quad_skybox),
 	};
 }
 
@@ -1832,10 +1901,15 @@ void GameMain::hookup_event_delegates() {
 
 void GameMain::event_handler(const xray::ui::window_event& wnd_evt) {
 	if (is_input_event(wnd_evt)) {
-		if (wnd_evt.event.key.keycode == xray::ui::KeySymbol::escape &&
-			wnd_evt.event.key.type == event_action_type::press) {
+		const key_event& ke = wnd_evt.event.key;
+
+		if (ke.keycode == xray::ui::KeySymbol::escape && ke.type == event_action_type::press) {
 			_window.quit();
 			return;
+		}
+
+		if (ke.type == event_action_type::press && ke.keycode == KeySymbol::f5) {
+			_skybox.use_quad_skybox = !_skybox.use_quad_skybox;
 		}
 	}
 
@@ -1888,60 +1962,83 @@ void GameMain::loop_event(const xray::ui::window_loop_event& loop_event) {
 	vkCmdSetViewport(frd.cmd_buf, 0, 1, &viewport);
 	vkCmdSetScissor(frd.cmd_buf, 0, 1, &scissor);
 
-	_game_sim->loop_event(RenderEvent{
-		.loop_event = loop_event,
-		.frame_data = &frd,
-		.renderer	= raw_ptr(_vkrenderer),
-		.ui			= xray::base::raw_ptr(_ui),
-		.g_ubo_data = g_ubo_mapping->as<FrameGlobalData>(),
-		.dbg_draw	= raw_ptr(_debug_draw),
-		.sprites	= raw_ptr(_sprite_sys),
-		.shapes_sys = raw_ptr(_shapes_sys),
-		.sdef		= raw_ptr(_scenedef),
-		.sres		= raw_ptr(_sceneres),
-		.delta		= delta,
-		.arena_perm = _arena_perm,
-		.arena_temp = _arena_temp,
-		.co_runtime = raw_ptr(_co_runtime),
-		.cam		= &_game_sim->camera(),
-		.hud_cfg	= raw_ptr(_hud_config),
-	});
+	_game_sim->loop_event(
+		RenderEvent{
+			.loop_event = loop_event,
+			.frame_data = &frd,
+			.renderer	= raw_ptr(_vkrenderer),
+			.ui			= xray::base::raw_ptr(_ui),
+			.g_ubo_data = g_ubo_mapping->as<FrameGlobalData>(),
+			.dbg_draw	= raw_ptr(_debug_draw),
+			.sprites	= raw_ptr(_sprite_sys),
+			.shapes_sys = raw_ptr(_shapes_sys),
+			.sdef		= raw_ptr(_scenedef),
+			.sres		= raw_ptr(_sceneres),
+			.delta		= delta,
+			.arena_perm = _arena_perm,
+			.arena_temp = _arena_temp,
+			.co_runtime = raw_ptr(_co_runtime),
+			.cam		= &_game_sim->camera(),
+			.hud_cfg	= raw_ptr(_hud_config),
+		}
+	);
 
 	_debug_draw->render(DebugDrawSystem::RenderContext{.renderer = raw_ptr(_vkrenderer), .frd = &frd});
 
-	if (const ProceduralGeometryEntry* pe = _scenedef->get_geometry("cube")) {
-		vkCmdBindPipeline(frd.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _skybox.p_skybox.handle());
-
-		const VkBuffer vertex_buffers[] = {_scenedef->procedural.vertex_buffer.buffer_handle()};
-		const VkDeviceSize offsets[]	= {0};
-
-		vkCmdBindVertexBuffers(frd.cmd_buf, 0, 1, vertex_buffers, offsets);
-		vkCmdBindIndexBuffer(frd.cmd_buf, _scenedef->procedural.index_buffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32);
-
+	if (_skybox.use_quad_skybox) {
+		vkCmdBindPipeline(frd.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _skybox.p_skybox_quad.handle());
 		using xray::U32;
 		const U32 push_const = frd.id | (destructure_bindless_resource_handle(_skybox.skybox.first).first << 8);
 		vkCmdPushConstants(
 			frd.cmd_buf,
-			_skybox.p_skybox.layout(),
+			_skybox.p_skybox_quad.layout(),
 			VK_SHADER_STAGE_ALL,
 			0,
 			static_cast<U32>(sizeof(push_const)),
 			&push_const
 		);
-		vkCmdDrawIndexed(frd.cmd_buf, pe->vertex_index_count.y, 1, pe->buffer_offsets.y, pe->buffer_offsets.x, 0);
+		vkCmdDraw(frd.cmd_buf, 6, 1, 0, 0);
+	} else {
+		if (const ProceduralGeometryEntry* pe = _scenedef->get_geometry("cube")) {
+			vkCmdBindPipeline(frd.cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _skybox.p_skybox.handle());
+
+			const VkBuffer vertex_buffers[] = {_scenedef->procedural.vertex_buffer.buffer_handle()};
+			const VkDeviceSize offsets[]	= {0};
+
+			vkCmdBindVertexBuffers(frd.cmd_buf, 0, 1, vertex_buffers, offsets);
+			vkCmdBindIndexBuffer(
+				frd.cmd_buf, _scenedef->procedural.index_buffer.buffer_handle(), 0, VK_INDEX_TYPE_UINT32
+			);
+
+			using xray::U32;
+			const U32 push_const = frd.id | (destructure_bindless_resource_handle(_skybox.skybox.first).first << 8);
+			vkCmdPushConstants(
+				frd.cmd_buf,
+				_skybox.p_skybox.layout(),
+				VK_SHADER_STAGE_ALL,
+				0,
+				static_cast<U32>(sizeof(push_const)),
+				&push_const
+			);
+			vkCmdDrawIndexed(frd.cmd_buf, pe->vertex_index_count.y, 1, pe->buffer_offsets.y, pe->buffer_offsets.x, 0);
+		}
 	}
 
-	_sprite_sys->render(SpriteSystemRenderContext{
-		.renderer	= raw_ptr(_vkrenderer),
-		.frame_data = &frd,
-		.sres		= raw_ptr(_sceneres),
-	});
+	_sprite_sys->render(
+		SpriteSystemRenderContext{
+			.renderer	= raw_ptr(_vkrenderer),
+			.frame_data = &frd,
+			.sres		= raw_ptr(_sceneres),
+		}
+	);
 
-	_shapes_sys->render(ShapeSystemRenderContext{
-		.renderer	= raw_ptr(_vkrenderer),
-		.frame_data = &frd,
-		.sres		= raw_ptr(_sceneres),
-	});
+	_shapes_sys->render(
+		ShapeSystemRenderContext{
+			.renderer	= raw_ptr(_vkrenderer),
+			.frame_data = &frd,
+			.sres		= raw_ptr(_sceneres),
+		}
+	);
 
 	//
 	// move the UBO mapping into the lambda so that the data is flushed before the rendering starts

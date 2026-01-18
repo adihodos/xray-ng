@@ -82,6 +82,12 @@ inline constexpr T megabytes(const T value) noexcept {
 	return kilobytes(value) * 1024;
 }
 
+template <typename T>
+	requires std::is_integral_v<T>
+inline constexpr T gigabytes(const T value) noexcept {
+	return megabytes(value) * 1024;
+}
+
 void os_output_debug_string(const char* str) noexcept;
 
 bool os_is_debugger_present() noexcept;
