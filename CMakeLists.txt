@@ -146,6 +146,7 @@ target_include_directories(unordered_dense INTERFACE ${CMAKE_SOURCE_DIR}/third_p
 
 add_library(au INTERFACE)
 target_include_directories(au INTERFACE ${CMAKE_SOURCE_DIR}/third_party/au/include)
+target_link_libraries(au INTERFACE fmt::fmt)
 
 # https://dhashe.com/how-to-build-highly-debuggable-c-binaries.html
 add_library(xray-set-compile-options-lib INTERFACE)

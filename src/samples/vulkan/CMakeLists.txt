@@ -23,7 +23,8 @@ set(project_sources
 	${proj_src_dir}/blue.noise.poisson.disk.sampler.hpp
 	${proj_src_dir}/blue.noise.poisson.disk.sampler.cc
     ${proj_src_dir}/terrain.hpp
-    ${proj_src_dir}/terrain.cc)
+    ${proj_src_dir}/terrain.cc
+  )
 
 set(shader_src_dir "${PROJECT_SOURCE_DIR}/shaders")
 set(shader_files ${shader_src_dir}/triangle/tri.vert

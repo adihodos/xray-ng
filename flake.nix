@@ -29,12 +29,13 @@
             nvimpager
             helix
 
-            # gcc
-            llvmPackages_19.lldb
+            gcc15
+            clang-tools
+            # llvmPackages_19.lldb
             # llvmPackages_19.libllvm
-            llvmPackages_19.libcxx
-            llvmPackages_19.clang
-            llvmPackages_19.clang-tools
+            # llvmPackages_19.libcxx
+            # llvmPackages_19.clang
+            # llvmPackages_19.clang-tools
             # clang
             
             gdb

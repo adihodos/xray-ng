@@ -37,7 +37,12 @@ Physics engine:
 - support for DrawText3D (will also be usefull everywhere else in the engine)
 
 Solar system:
+Should be the prio
 https://wgsullivan.wordpress.com/previous-work/opengl-solar-system/
 
 Audio
 https://github.com/mackron/miniaudio/tree/master
+
+Better ship controls
+https://github.com/brihernandez/MouseFlight
+
