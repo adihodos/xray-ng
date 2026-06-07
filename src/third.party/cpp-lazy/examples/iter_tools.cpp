@@ -1,0 +1,230 @@
+#include <Lz/algorithm/for_each.hpp>
+#include <Lz/iter_tools.hpp>
+#include <iostream>
+#include <map>
+#include <vector>
+
+int main() {
+#ifdef LZ_HAS_CXX_17
+    // -------------------------------------- Lines---------------------------------------------------------------
+    std::string text = "Hello\nWorld\n!";
+    auto lines = lz::lines(text); // or: `text | lz::lines;`
+    for (const auto& line : lines) {
+        std::cout.write(line.data(), static_cast<std::streamsize>(line.size()));
+        std::cout << '\n';
+    }
+    // "Hello"
+    // "World"
+    // "!"
+    std::cout << '\n';
+
+    lz::string_view text2 = "Hello\nWorld\n!";
+    auto lines2 =
+        lz::lines(text2); // or: `text | lz::lines;` Does not hold a reference to the original string, since it is a string_view
+    for (const auto& line : lines2) {
+        std::cout.write(line.data(), static_cast<std::streamsize>(line.size()));
+        std::cout << '\n';
+    }
+    // "Hello"
+    // "World"
+    // "!"
+    std::cout << '\n';
+
+#else
+
+    // ------------------------------------ Lines ---------------------------------------------------------------------
+    std::string text = "Hello\nWorld\n!";
+    auto lines = lz::lines(text); // or: `text | lz::lines;`
+    lz::for_each(lines, [](const lz::string_view& line) {
+        std::cout.write(line.data(), static_cast<std::streamsize>(line.size()));
+        std::cout << '\n';
+    });
+    // "Hello"
+    // "World"
+    // "!"
+    std::cout << '\n';
+
+    lz::string_view text2 = "Hello\nWorld\n!";
+    auto lines2 =
+        lz::lines(text2); // or: `text | lz::lines;` Does not hold a reference to the original string, since it is a string_view
+    lz::for_each(lines2, [](const lz::string_view& line) {
+        std::cout.write(line.data(), static_cast<std::streamsize>(line.size()));
+        std::cout << '\n';
+    });
+    // "Hello"
+    // "World"
+    // "!"
+    std::cout << '\n';
+
+#endif
+
+    // -------------------------------- As --------------------------------------------------
+    std::vector<int> numbers = { 1, 2, 3, 4, 5 };
+#ifdef LZ_HAS_CXX_11
+
+    auto floats = lz::as<float>{}(numbers); // or: `numbers | lz::as<float>{};`
+
+#else
+
+    auto floats = lz::as<float>(numbers); // or: `numbers | lz::as<float>;`
+
+#endif
+
+    for (const auto& f : floats) {
+        std::cout << f << ' ';
+    }
+    // 1.0 2.0 3.0 4.0 5.0
+    std::cout << '\n';
+
+    // --------------------------------- Get_nth ----------------------------------------------------
+    std::vector<std::tuple<int, int, int>> three_tuple_vec = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 } };
+#ifdef LZ_HAS_CXX_11
+
+    auto nth_elements = lz::get_nth<2>{}(three_tuple_vec); // or: `three_tuple_vec | lz::get_nth<2>{};`
+
+#else
+
+    auto nth_elements = lz::get_nth<2>(three_tuple_vec); // or: `three_tuple_vec | lz::get_nth<2>;`
+
+#endif
+    for (const auto& elem : nth_elements) {
+        std::cout << elem << ' ';
+    }
+    // 3 6 9
+    std::cout << '\n';
+
+    // ------------------------------------- Keys and Values ----------------------------------------------
+    std::map<int, std::string> m = { { 1, "hello" }, { 2, "world" }, { 3, "!" } };
+    auto keys = lz::keys(m);     // or: `m | lz::keys;`
+    auto values = lz::values(m); // or: `m | lz::values;`
+
+    for (const auto& key : keys) {
+        std::cout << key << ' ';
+    }
+    // 1 2 3
+    std::cout << '\n';
+
+    for (const auto& value : values) {
+        std::cout << value << ' ';
+    }
+    // hello world !
+    std::cout << '\n';
+
+    // ---------------------------------------- Get nths ------------------------------------------------
+    std::vector<std::tuple<int, int, int>> three_tuple_vec2 = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 } };
+#ifdef LZ_HAS_CXX_11
+    auto nths = lz::get_nths<0, 2>{}(three_tuple_vec2); // or: `three_tuple_vec2 | lz::get_nths<0, 2>{};`
+#else
+    auto nths = lz::get_nths<0, 2>(three_tuple_vec2); // or: `three_tuple_vec2 | lz::get_nths<0, 2>;`
+#endif
+    for (const auto& tup : nths) {
+        std::cout << '(' << std::get<0>(tup) << ", " << std::get<1>(tup) << ") ";
+    }
+    // (1, 3) (4, 6) (7, 9)
+    std::cout << '\n';
+
+    // ------------------------------------- Filter map --------------------------------------
+    std::vector<int> vec = { 1, 2, 3, 4, 5 };
+    auto fm = lz::filter_map(vec, [](int i) { return i % 2 == 0; }, [](int i) { return i * 2; });
+    // or: `vec | lz::filter_map([](int i) { return i % 2 == 0; }, [](int i) { return i * 2; });`
+    for (const auto& f : fm) {
+        std::cout << f << ' ';
+    }
+    // 4 8
+    std::cout << '\n';
+
+    // ------------------------------------- Select -----------------------------------------
+    std::vector<int> select_numbers = { 1, 2, 3, 4, 5 };
+    std::vector<bool> selectors = { true, false, true, false, true };
+    auto selected = lz::select(select_numbers, selectors); // or: `select_numbers | lz::select(selectors);`
+    for (const auto& s : selected) {
+        std::cout << s << ' ';
+    }
+    // 1 3 5
+    std::cout << '\n';
+
+    // ------------------------------------- Drop back while ---------------------------------------
+    std::vector<int> drop_back_numbers = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    auto drop_back_iterable = lz::drop_back_while(drop_back_numbers, [](int i) { return i >= 7; });
+    // or: `drop_back_numbers | lz::drop_back_while([](int i) { return i >= 7; });`
+    for (const auto& db : drop_back_iterable) {
+        std::cout << db << ' ';
+    }
+    // 1 2 3 4 5 6
+    std::cout << '\n';
+
+    // ------------------------------------- Trim string ----------------------------------------------
+    std::string trim_text = "   Hello World!   ";
+    auto trimmed = lz::trim(trim_text); // or: `trim_text | lz::trim;`
+    for (const auto& t : trimmed) {
+        std::cout << t << ' ';
+    }
+    // Hello World!
+    std::cout << '\n';
+
+    // ------------------------------------- Trim ----------------------------------------
+    std::vector<int> trim_numbers = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    auto trimmed_numbers = lz::trim(trim_numbers, [](int i) { return i < 3; }, [](int i) { return i > 7; });
+    // or: `trim_numbers | lz::trim([](int i) { return i < 3; }, [](int i) { return i > 7; });`
+    for (const auto& tn : trimmed_numbers) {
+        std::cout << tn << ' ';
+    }
+    // 3 4 5 6 7
+    std::cout << '\n';
+
+    // ------------------------------------- Unzip with ----------------------------------------------------------
+    std::vector<std::tuple<int, int>> zipped = { std::make_tuple(1, 6), std::make_tuple(2, 7), std::make_tuple(3, 8) };
+    auto unzipped = lz::unzip_with(zipped, [](int a, int b) { return a + b; });
+    for (const auto& u : unzipped) {
+        std::cout << u << ' ';
+    }
+    // 7 9 11
+    std::cout << '\n';
+
+    // ------------------------------------- iter_decay ----------------------------------------------------------
+    std::vector<int> decay_numbers = { 1, 2, 3, 4, 5 };
+    // decay_iterable is now a forward iterator, also returns a sentinel. If it were bidirectional, it would not return a
+    // sentinel.
+    auto decay_iterable = decay_numbers | lz::iter_decay(std::forward_iterator_tag{});
+
+#ifdef LZ_HAS_CXX_17
+    for (const auto& d : decay_iterable) {
+        std::cout << d << ' ';
+    }
+    // 1 2 3 4 5
+    std::cout << '\n';
+#else
+    lz::for_each(decay_iterable, [](int i) { std::cout << i << ' '; });
+    // 1 2 3 4 5
+    std::cout << '\n';
+#endif
+
+    // ------------------------------------- pad ----------------------------------------------------------
+    std::vector<int> pad_numbers = { 1, 2, 3 };
+    auto padded = pad_numbers | lz::pad(0, 2); // {1, 2, 3, 0, 0} by value
+
+#ifndef LZ_HAS_CXX_17
+    lz::for_each(padded, [](int p) { std::cout << p << ' '; });
+    // 1 2 3 0 0
+#else
+    for (const auto d : padded) {
+        std::cout << d << ' ';
+    }
+    // 1 2 3 0 0
+#endif
+    std::cout << '\n';
+
+    auto to_pad = 3;
+    auto padded_ref = pad_numbers | lz::pad(std::ref(to_pad), 2); // {1, 2, 3, 3, 3} by reference
+#ifndef LZ_HAS_CXX_17
+    lz::for_each(padded_ref, [](std::reference_wrapper<int> p) { std::cout << p << ' '; });
+    // 1 2 3 3 3
+#else
+    for (std::reference_wrapper<int> p : padded_ref) {
+        std::cout << p << ' ';
+    }
+#endif
+    std::cout << '\n';
+
+    // 1 2 3 3 3
+}

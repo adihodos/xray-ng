@@ -28,10 +28,12 @@ compile_commands.json
 .cache/*
 
 # Build results
+__pycache__/
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
+[Tt]emp/
 x64/
 x86/
 [Bb]uild*/
@@ -41,6 +43,7 @@ bld/
 [Oo]ut/
 [Bb]in/
 [Gg]en/
+[Oo]utputs/
 #  Uncomment the following line in case you need and you don't have the release build type files in your app
 # release/
 
@@ -246,3 +249,14 @@ _Pvt_Extensions
 # VSCode
 .vscode/*
 !.vscode/settings.json
+
+# Devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml

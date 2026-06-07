@@ -1,0 +1,425 @@
+#pragma once
+
+#include <filesystem>
+#include <initializer_list>
+#include <span>
+#include <tuple>
+#include <vector>
+#include <utility>
+
+#include <tl/optional.hpp>
+
+#include <vulkan/vulkan_core.h>
+
+#include "xray/base/xray.misc.hpp"
+#include "xray/base/concurrency/spin.mutex.hpp"
+#include "xray/rendering/colors/rgb_color.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.work.package.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.handles.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
+
+namespace xray::base {
+struct MemoryArena;
+}
+
+namespace xray::rendering {
+
+namespace detail {
+
+struct SyncState {
+	std::vector<xrUniqueVkFence> fences;
+	std::vector<xrUniqueVkSemaphore> rendering_sem;
+	std::vector<xrUniqueVkSemaphore> present_sem;
+};
+
+struct SwapchainState {
+	xrUniqueVkSwapchainKHR swapchain;
+	std::vector<VkImage> swapchain_images;
+	std::vector<xrUniqueVkImageView> swapchain_imageviews;
+	std::vector<UniqueImage> depth_stencil_images;
+	std::vector<xrUniqueVkImageView> depth_stencil_image_views;
+	SyncState sync;
+};
+
+struct SurfaceState {
+	xrUniqueVkSurfaceKHR surface;
+	VkSurfaceCapabilitiesKHR caps;
+	VkSurfaceFormatKHR format;
+	VkPresentModeKHR present_mode;
+	VkFormat depth_stencil_format;
+};
+
+struct PresentationState {
+	static constexpr const uint32_t STATE_SWAPCHAIN_SUBOPTIMAL{0x1};
+	uint32_t frame_index{};
+	uint32_t max_frames{};
+	uint32_t acquired_image{};
+	uint32_t state_bits{};
+	SurfaceState surface_state;
+	SwapchainState swapchain_state;
+	std::vector<VkCommandBuffer> command_buffers;
+};
+
+struct PhysicalDeviceData {
+	VkPhysicalDevice device;
+	struct Properties {
+		VkPhysicalDeviceProperties2 base;
+		VkPhysicalDeviceVulkan11Properties vk11;
+		VkPhysicalDeviceVulkan12Properties vk12;
+		VkPhysicalDeviceVulkan13Properties vk13;
+		VkPhysicalDeviceDescriptorIndexingProperties descriptor_indexing;
+	} properties;
+
+	VkPhysicalDeviceMemoryProperties2 memory_properties;
+};
+
+struct InstanceState {
+	xrUniqueVkInstance handle;
+	xrUniqueVkDebugUtilsMessengerEXT debug;
+};
+
+struct Queue {
+	uint32_t index;
+	VkQueue handle;
+	xrUniqueVkCommandPool cmd_pool;
+};
+
+struct RenderingAttachments {
+	uint32_t view_mask;
+	// [0, size - 2) - color attachments
+	// [size - 2, ...) - dept + stencil
+	std::vector<VkFormat> attachments;
+};
+
+struct RenderState {
+	PhysicalDeviceData dev_physical;
+	xrUniqueVkDevice dev_logical;
+	xrUniqueBufferWithMemory staging_buffer;
+	UniqueMemoryMapping mapped_staging_buffer;
+	std::atomic_uintptr_t staging_buffer_offset;
+	std::vector<Queue> queues;
+	xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_cmd_pool_mutex;
+	// xray::base::unique_pointer<xray::base::concurrency::spin_mutex[]> queue_submit_mutex;
+	RenderingAttachments attachments;
+
+	RenderState(
+		const PhysicalDeviceData& pd,
+		xrUniqueVkDevice&& logical,
+		xrUniqueBufferWithMemory&& staging,
+		UniqueMemoryMapping&& mapped_staging,
+		std::vector<Queue>&& qs,
+		RenderingAttachments&& atts
+	)
+		: dev_physical{pd},
+		  dev_logical{std::move(logical)},
+		  staging_buffer{std::move(staging)},
+		  mapped_staging_buffer{std::move(mapped_staging)},
+		  staging_buffer_offset{0},
+		  queues{std::move(qs)},
+		  queue_cmd_pool_mutex{new xray::base::concurrency::spin_mutex[queues.size()]},
+		  // queue_submit_mutex{new xray::base::concurrency::spin_mutex[queues.size()]},
+		  attachments{std::move(atts)} {}
+
+	RenderState(RenderState&& rhs) noexcept
+		: dev_physical(std::move(rhs.dev_physical)),
+		  dev_logical(std::move(rhs.dev_logical)),
+		  staging_buffer(std::move(rhs.staging_buffer)),
+		  mapped_staging_buffer(std::move(rhs.mapped_staging_buffer)),
+		  staging_buffer_offset(rhs.staging_buffer_offset.load()),
+		  queues(std::move(rhs.queues)),
+		  queue_cmd_pool_mutex(std::move(rhs.queue_cmd_pool_mutex)),
+		  // queue_submit_mutex(std::move(rhs.queue_submit_mutex)),
+		  attachments(std::move(rhs.attachments)) {}
+};
+
+}  // namespace detail
+
+struct FrameRenderData {
+	uint32_t id;
+	uint32_t max_frames;
+	VkCommandBuffer cmd_buf;
+	VkExtent2D fbsize;
+	struct {
+		float width;
+		float height;
+	} fb_f32;
+};
+
+struct RenderBufferingSetup {
+	uint32_t frame_id;
+	uint32_t buffers;
+};
+
+struct BufferWithDeviceMemoryPair {
+	StagingBufferHandle buffer;
+	StagingBufferMemoryHandle memory;
+};
+
+struct StagingBuffer {
+	VkBuffer buf;
+	VkDeviceMemory mem;
+};
+
+enum class QueueType : uint8_t {
+	Graphics,
+	Transfer,
+	Compute,
+};
+
+struct RendererConfig;
+
+struct [[nodiscard]] QueuedJob {
+	VkCommandBuffer buffer;
+	QueueType queue_type;
+};
+
+class VulkanRenderer;
+
+struct [[nodiscard]] QueueSubmitWaitToken {
+public:
+	QueueSubmitWaitToken(VulkanRenderer* r, VkCommandBuffer cmd_buf, xrUniqueVkFence&& fence, QueueType qtype) noexcept
+		: _r{r}, _cmdbuf{cmd_buf}, _fence{xray::base::unique_pointer_release(fence)}, _queue_type{qtype} {}
+
+	QueueSubmitWaitToken(QueueSubmitWaitToken&& rhs) noexcept
+		: _r{rhs._r},
+		  _cmdbuf{std::exchange(rhs._cmdbuf, VK_NULL_HANDLE)},
+		  _fence{std::exchange(rhs._fence, VK_NULL_HANDLE)},
+		  _queue_type{rhs._queue_type},
+		  _waited_on{std::exchange(rhs._waited_on, true)} {}
+
+	QueueSubmitWaitToken(const QueueSubmitWaitToken&)			  = delete;
+	QueueSubmitWaitToken& operator=(const QueueSubmitWaitToken&&) = delete;
+
+	QueueSubmitWaitToken& operator=(QueueSubmitWaitToken&& rhs) noexcept {
+		_queue_type	   = rhs._queue_type;
+		_r			   = rhs._r;
+		rhs._cmdbuf	   = std::exchange(_cmdbuf, rhs._cmdbuf);
+		rhs._fence	   = std::exchange(_fence, rhs._fence);
+		rhs._waited_on = std::exchange(_waited_on, rhs._waited_on);
+		return *this;
+	}
+
+	~QueueSubmitWaitToken();
+
+	VkCommandBuffer command_buffer() const noexcept { return _cmdbuf; }
+	VkFence fence() const noexcept { return _fence; }
+	QueueType queue() const noexcept { return _queue_type; }
+
+private:
+	friend class VulkanRenderer;
+
+	VulkanRenderer* _r;
+	VkCommandBuffer _cmdbuf;
+	VkFence _fence;
+	QueueType _queue_type;
+	bool _waited_on{false};
+};
+
+struct [[nodiscard]] DebugMarkerEndScoped {
+public:
+	explicit DebugMarkerEndScoped(VkCommandBuffer cmd_buf) noexcept : cmdbuf{cmd_buf} {}
+
+	DebugMarkerEndScoped(const DebugMarkerEndScoped&)			 = delete;
+	DebugMarkerEndScoped& operator=(const DebugMarkerEndScoped&) = delete;
+	DebugMarkerEndScoped(DebugMarkerEndScoped&& other) noexcept : cmdbuf{std::exchange(other.cmdbuf, nullptr)} {}
+
+	~DebugMarkerEndScoped() {
+		if (cmdbuf) {
+			vkfn::CmdEndDebugUtilsLabelEXT(cmdbuf);
+		}
+	}
+
+private:
+	VkCommandBuffer cmdbuf{};
+};
+
+class VulkanRenderer {
+private:
+	struct PrivateConstructionToken {
+		explicit PrivateConstructionToken() = default;
+	};
+
+public:
+	static tl::optional<VulkanRenderer> create(
+		xray::base::MemoryArena& arena, const WindowPlatformData& win_data, const RendererConfig& cfg
+	);
+
+	VulkanRenderer(
+		PrivateConstructionToken,
+		detail::InstanceState instance_state,
+		detail::RenderState render_state,
+		detail::PresentationState presentation_state,
+		BindlessSystem bindless
+	);
+
+	FrameRenderData start_frame();
+
+	void begin_rendering(
+		const FrameRenderData&,
+		const float red,
+		const float green,
+		const float blue,
+		const float depth	   = 1.0f,
+		const uint32_t stencil = 0
+	);
+
+	void end_rendering();
+	
+	void clear_attachments(
+		VkCommandBuffer cmd_buf,
+		const float red,
+		const float green,
+		const float blue,
+		const float depth	   = 1.0,
+		const uint32_t stencil = 0
+	);
+
+	void wait_device_idle() noexcept;
+	VkDevice device() const noexcept { return xray::base::raw_ptr(_render_state.dev_logical); }
+	const detail::PhysicalDeviceData& physical() const noexcept { return _render_state.dev_physical; }
+	const detail::SurfaceState& surface_state() const noexcept { return _presentation_state.surface_state; }
+
+	std::tuple<uint32_t, std::span<const VkFormat>, VkFormat, VkFormat> pipeline_render_create_info() const noexcept {
+		const size_t att_count = _render_state.attachments.attachments.size();
+
+		return {
+			_render_state.attachments.view_mask,
+			std::span{_render_state.attachments.attachments.cbegin(), att_count - 2},
+			_render_state.attachments.attachments[att_count - 2],
+			_render_state.attachments.attachments[att_count - 1],
+		};
+	}
+
+	RenderBufferingSetup buffering_setup() const noexcept {
+		return {_presentation_state.frame_index, _presentation_state.max_frames};
+	}
+
+	uint32_t max_inflight_frames() const noexcept { return _presentation_state.max_frames; }
+
+	uint32_t find_allocation_memory_type(const uint32_t memory_requirements, const VkMemoryPropertyFlags required_flags)
+		const noexcept;
+
+	// @group Bindless resource handling
+	const BindlessSystem& bindless_sys() const noexcept { return _bindless; }
+	BindlessSystem& bindless_sys() noexcept { return _bindless; }
+	// @endgroup
+
+	// @group Debugging
+	template <typename VkObjectType>
+	void dbg_set_object_name(VkObjectType vkobj, const char* name) const noexcept;
+	void dbg_set_object_name(const uint64_t object, const VkObjectType obj_type, const char* name) const noexcept;
+	[[nodiscard]] DebugMarkerEndScoped dbg_marker_begin(
+		VkCommandBuffer cmd_buf, const char* name, const rgb_color color
+	) noexcept;
+	void dbg_marker_end(VkCommandBuffer cmd_buf) noexcept;
+	void dbg_marker_insert(VkCommandBuffer cmd_buf, const char* name, const rgb_color color) noexcept;
+	// @endgroup
+
+	// @group Misc
+	void add_shader_include_directories(std::initializer_list<std::filesystem::path> include_dirs) {
+		_shader_include_directories.assign(include_dirs);
+	}
+
+	std::span<const std::filesystem::path> shader_include_directories() const noexcept {
+		return std::span{_shader_include_directories};
+	}
+	// @endgroup
+
+	/// @group Queue functions
+	std::tuple<VkQueue, uint32_t, VkCommandPool> queue_data(const uint32_t idx) const noexcept {
+		return {
+			_render_state.queues[idx].handle,
+			_render_state.queues[idx].index,
+			xray::base::unique_pointer_get_ptr(_render_state.queues[idx].cmd_pool)
+		};
+	}
+
+	struct QueueData {
+		VkQueue handle;
+		uint32_t family;
+		VkCommandPool cmdpool;
+		std::reference_wrapper<xray::base::concurrency::spin_mutex> cmdpool_lock;
+		// std::reference_wrapper<xray::base::concurrency::spin_mutex> submit_lock;
+	};
+
+	QueueData queue_data(const QueueType qtype) noexcept {
+		return QueueData{
+			.handle	 = _render_state.queues[static_cast<uint32_t>(qtype)].handle,
+			.family	 = _render_state.queues[static_cast<uint32_t>(qtype)].index,
+			.cmdpool = xray::base::unique_pointer_get_ptr(_render_state.queues[static_cast<uint32_t>(qtype)].cmd_pool),
+			.cmdpool_lock = std::reference_wrapper{_render_state.queue_cmd_pool_mutex[static_cast<uint32_t>(qtype)]},
+			// .submit_lock  = std::reference_wrapper{_render_state.queue_submit_mutex[static_cast<uint32_t>(qtype)]},
+		};
+	}
+
+	std::tuple<uint32_t, uint32_t> queue_family_indices() const noexcept {
+		return {_render_state.queues[0].index, _render_state.queues[1].index};
+	}
+	//
+	uintptr_t reserve_staging_buffer_memory(const size_t bytes) noexcept {
+		const uintptr_t aligned_size = xray::base::align<uintptr_t>(
+			bytes, this->_render_state.dev_physical.properties.base.properties.limits.nonCoherentAtomSize
+		);
+		return _render_state.staging_buffer_offset.fetch_add(aligned_size);
+	}
+
+	uintptr_t staging_buffer_memory() const noexcept {
+		return reinterpret_cast<uintptr_t>(_render_state.mapped_staging_buffer._mapped_memory);
+	}
+
+	VkBuffer staging_buffer() const noexcept { return _render_state.staging_buffer.handle<VkBuffer>(); }
+
+	void queue_image_ownership_transfer(const BindlessResourceHandle_Image img) { _ownership_transfers.push_back(img); }
+
+	[[nodiscard]] tl::expected<QueuedJob, VulkanError> create_job(const QueueType qtype) noexcept;
+	[[nodiscard]] tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(QueuedJob queued_job) noexcept;
+	void consume_wait_token(QueueSubmitWaitToken wait_token) noexcept;
+	void consume_many_wait_tokens(xray::base::MemoryArena& arena, std::span<QueueSubmitWaitToken> tokens);
+	/// @endgroup
+
+private:
+	const detail::Queue& graphics_queue() const noexcept { return _render_state.queues[0]; }
+	const detail::Queue& transfer_queue() const noexcept { return _render_state.queues[1]; }
+
+	enum class SwapchainReacquireAfterSuboptimal { Always_, Never_ };
+
+	void handle_swapchain_suboptimal_out_of_date(const SwapchainReacquireAfterSuboptimal reacquire);
+
+	detail::InstanceState _instance_state;
+	detail::RenderState _render_state;
+	detail::PresentationState _presentation_state;
+	BindlessSystem _bindless;
+	std::vector<std::filesystem::path> _shader_include_directories;
+	std::vector<BindlessResourceHandle_Image> _ownership_transfers;
+};
+
+template <typename VkObjectType>
+void VulkanRenderer::dbg_set_object_name(VkObjectType vkobj, const char* name) const noexcept {
+	const uint64_t object_handle = reinterpret_cast<uint64_t>(vkobj);
+	if constexpr (std::is_same_v<VkBuffer, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_BUFFER, name);
+	} else if constexpr (std::is_same_v<VkImage, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_IMAGE, name);
+	} else if constexpr (std::is_same_v<VkCommandPool, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_COMMAND_POOL, name);
+	} else if constexpr (std::is_same_v<VkQueue, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_QUEUE, name);
+	} else if constexpr (std::is_same_v<VkImageView, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_IMAGE_VIEW, name);
+	} else if constexpr (std::is_same_v<VkPipeline, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_PIPELINE, name);
+	} else if constexpr (std::is_same_v<VkPipelineLayout, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_PIPELINE_LAYOUT, name);
+	} else if constexpr (std::is_same_v<VkDescriptorSetLayout, VkObjectType>) {
+		dbg_set_object_name(object_handle, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, name);
+	} else {
+		static_assert(false, "Unsupported object type!");
+	}
+}
+
+uint32_t vk_format_bytes_size(const VkFormat format);
+
+}  // namespace xray::rendering

@@ -30,98 +30,98 @@
 #include "xray/ui/events.pretty.print.hpp"
 #include "xray/ui/events.gamepad.hpp"
 
-auto
-fmt::formatter<xray::ui::mouse_button>::format(const xray::ui::mouse_button value, format_context& ctx) const
-    -> format_context::iterator
-{
-    fmt::string_view name{ "unknown" };
-    using namespace xray::ui;
-
-#define MOUSE_BUTTON_ENUM_ENTRY(x)                                                                                     \
-    case x: {                                                                                                          \
-        name = std::string_view{ #x };                                                                                 \
-    } break
-
-    switch (value) {
-        MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button1);
-        MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button2);
-        MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button3);
-        MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button4);
-        MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button5);
-        default:
-            break;
-    }
-#undef MOUSE_BUTTON_ENUM_ENTRY
-
-    return formatter<string_view>::format(name, ctx);
-}
-
-auto
-fmt::formatter<xray::ui::GamepadAxis>::format(const xray::ui::GamepadAxis value, format_context& ctx) const
-    -> format_context::iterator
-{
-    fmt::string_view name{ "unknown" };
-    using namespace xray::ui;
-
-#define GAMEPAD_AXIS_ENUM_ENTRY(x)                                                                                     \
-    case x: {                                                                                                          \
-        name = std::string_view{ #x };                                                                                 \
-    } break
-
-    switch (value) {
-        GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::LeftX);
-        GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::LeftY);
-        GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::RightX);
-        GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::RightY);
-        GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::LeftZ);
-        GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::RightZ);
-        default:
-            break;
-    }
-#undef GAMEPAD_AXIS_ENUM_ENTRY
-    return formatter<string_view>::format(name, ctx);
-}
-
-auto
-fmt::formatter<xray::ui::GamepadButton>::format(const xray::ui::GamepadButton value, format_context& ctx) const
-    -> format_context::iterator
-{
-    fmt::string_view name{ "unknown" };
-    using namespace xray::ui;
-
-#define GAMEPAD_BUTTON_ENUM_ENTRY(x)                                                                                   \
-    case x: {                                                                                                          \
-        name = std::string_view{ #x };                                                                                 \
-    } break
-
-    switch (value) {
-        GAMEPAD_BUTTON_ENUM_ENTRY(GamepadButton::Left);
-        GAMEPAD_BUTTON_ENUM_ENTRY(GamepadButton::Left2);
-        GAMEPAD_BUTTON_ENUM_ENTRY(GamepadButton::Right);
-        GAMEPAD_BUTTON_ENUM_ENTRY(GamepadButton::Right2);
-        default:
-            break;
-    }
-#undef GAMEPAD_BUTTON_ENUM_ENTRY
-    return formatter<string_view>::format(name, ctx);
-}
-
-auto
-fmt::formatter<xray::ui::event_action_type>::format(const xray::ui::event_action_type value, format_context& ctx) const
-    -> format_context::iterator
-{
-    fmt::string_view name{ "unknown" };
-    using namespace xray::ui;
-
-    switch (value) {
-        default:
-        case event_action_type::press:
-            name = "event_action_type::press";
-            break;
-
-        case event_action_type::release:
-            name = "event_action_type::release";
-            break;
-    }
-    return formatter<string_view>::format(name, ctx);
-}
+// auto
+// fmt::formatter<xray::ui::mouse_button>::format(const xray::ui::mouse_button value, format_context& ctx) const
+//     -> format_context::iterator
+// {
+//     fmt::string_view name{ "unknown" };
+//     using namespace xray::ui;
+// 
+// #define MOUSE_BUTTON_ENUM_ENTRY(x)                                                                                     \
+//     case x: {                                                                                                          \
+//         name = std::string_view{ #x };                                                                                 \
+//     } break
+// 
+//     switch (value) {
+//         MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button1);
+//         MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button2);
+//         MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button3);
+//         MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button4);
+//         MOUSE_BUTTON_ENUM_ENTRY(mouse_button::button5);
+//         default:
+//             break;
+//     }
+// #undef MOUSE_BUTTON_ENUM_ENTRY
+// 
+//     return formatter<string_view>::format(name, ctx);
+// }
+// 
+// auto
+// fmt::formatter<xray::ui::GamepadAxis>::format(const xray::ui::GamepadAxis value, format_context& ctx) const
+//     -> format_context::iterator
+// {
+//     fmt::string_view name{ "unknown" };
+//     using namespace xray::ui;
+// 
+// #define GAMEPAD_AXIS_ENUM_ENTRY(x)                                                                                     \
+//     case x: {                                                                                                          \
+//         name = std::string_view{ #x };                                                                                 \
+//     } break
+// 
+//     switch (value) {
+//         GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::LeftX);
+//         GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::LeftY);
+//         GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::RightX);
+//         GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::RightY);
+//         GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::LeftZ);
+//         GAMEPAD_AXIS_ENUM_ENTRY(GamepadAxis::RightZ);
+//         default:
+//             break;
+//     }
+// #undef GAMEPAD_AXIS_ENUM_ENTRY
+//     return formatter<string_view>::format(name, ctx);
+// }
+// 
+// auto
+// fmt::formatter<xray::ui::GamepadButton>::format(const xray::ui::GamepadButton value, format_context& ctx) const
+//     -> format_context::iterator
+// {
+//     fmt::string_view name{ "unknown" };
+//     using namespace xray::ui;
+// 
+// #define GAMEPAD_BUTTON_ENUM_ENTRY(x)                                                                                   \
+//     case x: {                                                                                                          \
+//         name = std::string_view{ #x };                                                                                 \
+//     } break
+// 
+//     switch (value) {
+//         GAMEPAD_BUTTON_ENUM_ENTRY(GamepadButton::Left);
+//         GAMEPAD_BUTTON_ENUM_ENTRY(GamepadButton::Left2);
+//         GAMEPAD_BUTTON_ENUM_ENTRY(GamepadButton::Right);
+//         GAMEPAD_BUTTON_ENUM_ENTRY(GamepadButton::Right2);
+//         default:
+//             break;
+//     }
+// #undef GAMEPAD_BUTTON_ENUM_ENTRY
+//     return formatter<string_view>::format(name, ctx);
+// }
+// 
+// auto
+// fmt::formatter<xray::ui::event_action_type>::format(const xray::ui::event_action_type value, format_context& ctx) const
+//     -> format_context::iterator
+// {
+//     fmt::string_view name{ "unknown" };
+//     using namespace xray::ui;
+// 
+//     switch (value) {
+//         default:
+//         case event_action_type::press:
+//             name = "event_action_type::press";
+//             break;
+// 
+//         case event_action_type::release:
+//             name = "event_action_type::release";
+//             break;
+//     }
+//     return formatter<string_view>::format(name, ctx);
+// }

@@ -3,9 +3,8 @@
 #include <vector>
 #include <unordered_map>
 
-#define TINYGLTF_IMPLEMENTATION
 #include <tiny_gltf.h>
-#include <mio/mmap.hpp>
+#include <mio/mio.hpp>
 
 #include "xray/base/logger.hpp"
 #include "xray/math/objects/aabb3_math.hpp"
@@ -475,11 +474,11 @@ LoadedGeometry::extract_single_node_data(void* vertex_buffer,
     this_node->bounding_sphere =
         math::sphere3f{ this_node->boundingbox.center(), math::length(this_node->boundingbox.extents()) };
 
-    XR_LOG_INFO("Node {}, offsets {} {}, vertices {}, indices {}",
-                nodes[node_id].name,
-                nodes[node_id].vertex_offset,
-                nodes[node_id].index_offset,
-                nodes[node_id].vertex_count,
-                nodes[node_id].index_count);
+    // XR_LOG_INFO("Node {}, offsets {} {}, vertices {}, indices {}",
+                // nodes[node_id].name,
+                // nodes[node_id].vertex_offset,
+                // nodes[node_id].index_offset,
+                // nodes[node_id].vertex_count,
+                // nodes[node_id].index_count);
 }
 }

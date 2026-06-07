@@ -32,8 +32,7 @@ xray::rendering::ShapesDrawingSystem::create(VulkanRenderer& renderer)
     XR_VK_PROPAGATE_ERROR(shapes_sbo);
 
     void* mapped_buffer{};
-    const VkResult map_result = WRAP_VULKAN_FUNC(
-        vkMapMemory, renderer.device(), shapes_sbo->memory_handle(), 0, VK_WHOLE_SIZE, 0, &mapped_buffer);
+    const VkResult map_result =         vkMapMemory( renderer.device(), shapes_sbo->memory_handle(), 0, VK_WHOLE_SIZE, 0, &mapped_buffer);
 
     XR_VK_CHECK_RESULT(map_result);
 

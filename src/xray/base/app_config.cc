@@ -1,8 +1,6 @@
 #include "xray/base/app_config.hpp"
-#include "xray/base/config_settings.hpp"
 
 #include <filesystem>
-#include <fmt/std.h>
 
 #if defined(XRAY_OS_IS_POSIX_FAMILY)
 #include <unistd.h>
@@ -12,6 +10,10 @@
 #else
 #error Not implemented for this OS
 #endif
+
+#include "xray/base/config_settings.hpp"
+#include "xray/base/xray.debug.hpp"
+#include "xray/base/xray.stringview.hpp"
 
 using namespace xray::base;
 
@@ -32,8 +34,8 @@ std::filesystem::path get_process_path() {
 		scratch_buffer[bytes_out] = 0;
 		return std::filesystem::path{scratch_buffer};
 	}
-	#else
-	#error Unsupported OS!
+#else
+#error Unsupported OS!
 #endif
 
 	return std::filesystem::current_path();
@@ -62,9 +64,10 @@ xray::base::ConfigSystem::ConfigSystem() {
 
 	//
 	// if this file exists it specifies overrides for the folders
-	const auto cfg_path = FileSys.RootPathAbsolute / "config/app_config.conf";
-	assert(fs::exists(cfg_path));
-	assert(fs::file_size(cfg_path) > 0);
+	const auto cfg_path = FileSys.RootPathAbsolute / "config/app.config.conf";
+	XRAY_ASSERT(
+		fs::exists(cfg_path), "Missing config file %" PRI_xrStringView_t, FMT_xrStringView_t(cfg_path.generic_string())
+	);
 
 	config_file app_conf_file;
 	if (!app_conf_file.read_file(cfg_path.generic_string().c_str())) {
@@ -117,12 +120,12 @@ xray::base::ConfigSystem::ConfigSystem() {
 
 		if (!path_value) {
 			auto dotpos = path_load_info.conf_file_entry_name.find('.');
-			assert(dotpos != std::string_view::npos);
+			XRAY_ASSERT_NOMSG(dotpos != std::string_view::npos);
 			const std::string_view item_name	  = path_load_info.conf_file_entry_name.substr(dotpos + 1);
 			const std::filesystem::path item_path = FileSys.RootPathAbsolute / item_name;
 
-			assert(std::filesystem::exists(item_path));
-			assert(std::filesystem::is_directory(item_path));
+			XRAY_ASSERT_NOMSG(std::filesystem::exists(item_path));
+			XRAY_ASSERT_NOMSG(std::filesystem::is_directory(item_path));
 
 			*path_load_info.path = item_path;
 		} else {
@@ -130,8 +133,17 @@ xray::base::ConfigSystem::ConfigSystem() {
 
 			if (!path_load_info.path->is_absolute()) *path_load_info.path = paths_.root_path / *path_load_info.path;
 
-			assert(std::filesystem::exists(*path_load_info.path));
-			assert(std::filesystem::is_directory(*path_load_info.path));
+			XRAY_ASSERT(
+				std::filesystem::exists(*path_load_info.path),
+				"Path %" PRI_xrStringView_t " does not exist!",
+				FMT_xrStringView_t(path_load_info.path->generic_string())
+			);
+
+			XRAY_ASSERT(
+				std::filesystem::is_directory(*path_load_info.path),
+				"Path %" PRI_xrStringView_t " is not a directory.",
+				FMT_xrStringView_t(path_load_info.path->generic_string())
+			);
 		}
 	}
 }

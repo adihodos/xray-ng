@@ -4,15 +4,16 @@
 #include <system_error>
 
 #include <vulkan/vulkan.h>
-#include <vulkan/vulkan.hpp>
-#include <ktx.h>
-#include <mio/mmap.hpp>
+#include <ktx/ktx.h>
+//
+// TODO: get rid of mio maybe ?!
+#include <mio/mio.hpp>
 
 #include "xray/base/xray.fmt.hpp"
+#include "xray/base/logger.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/thread.local.context.hpp"
 #include "xray/base/containers/arena.vector.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
 //
@@ -359,18 +360,17 @@ xray::rendering::VulkanImage::create_image_view(const xray::rendering::VulkanRen
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 			},
-		.subresourceRange =
-			VkImageSubresourceRange{
-				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel	= 0,
-				.levelCount		= _info.levelCount,
-				.baseArrayLayer = 0,
-				.layerCount		= _info.layerCount,
-			},
+		.subresourceRange = VkImageSubresourceRange{
+			.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+			.baseMipLevel	= 0,
+			.levelCount		= _info.levelCount,
+			.baseArrayLayer = 0,
+			.layerCount		= _info.layerCount,
+		},
 	};
 
 	const VkResult create_res =
-		WRAP_VULKAN_FUNC(vkCreateImageView, renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
+		vkCreateImageView(renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
 	XR_VK_CHECK_RESULT(create_res);
 
 	return tl::expected<xrUniqueVkImageView, VulkanError>{tl::in_place, std::move(img_view)};
@@ -429,7 +429,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 
 	xrUniqueVkImage image{nullptr, VkResourceDeleter_VkImage{renderer.device()}};
 	const VkResult img_create_res =
-		WRAP_VULKAN_FUNC(vkCreateImage, renderer.device(), &vk_create_info, nullptr, base::raw_ptr_ptr(image));
+		vkCreateImage(renderer.device(), &vk_create_info, nullptr, base::raw_ptr_ptr(image));
 	XR_VK_CHECK_RESULT(img_create_res);
 
 	const VkImageMemoryRequirementsInfo2 mem_req_info{
@@ -450,21 +450,20 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 	};
 
 	xrUniqueVkDeviceMemory image_memory{nullptr, VkResourceDeleter_VkDeviceMemory{renderer.device()}};
-	const VkResult mem_alloc_res = WRAP_VULKAN_FUNC(
-		vkAllocateMemory, renderer.device(), &mem_alloc_info, nullptr, base::raw_ptr_ptr(image_memory)
-	);
+	const VkResult mem_alloc_res =
+		vkAllocateMemory(renderer.device(), &mem_alloc_info, nullptr, base::raw_ptr_ptr(image_memory));
 	XR_VK_CHECK_RESULT(mem_alloc_res);
 
 	XR_LOG_INFO(
-		"Image {} {:p} -> mem {:p}, size {}",
-		create_info.tag_name,
+		"Image %s %p -> mem %p, size %zu",
+		create_info.tag_name ? create_info.tag_name : "anonymous",
 		(const void*)base::raw_ptr(image),
 		(const void*)base::raw_ptr(image_memory),
 		mem_alloc_info.allocationSize
 	);
 
 	const VkResult bind_res =
-		WRAP_VULKAN_FUNC(vkBindImageMemory, renderer.device(), base::raw_ptr(image), base::raw_ptr(image_memory), 0);
+		vkBindImageMemory(renderer.device(), base::raw_ptr(image), base::raw_ptr(image_memory), 0);
 	XR_VK_CHECK_RESULT(bind_res);
 
 	if (create_info.tag_name) {
@@ -517,12 +516,11 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 					.layerCount		= create_info.layers,
 				},
 			.imageOffset = {},
-			.imageExtent =
-				{
-					create_info.width,
-					create_info.height,
-					create_info.depth,
-				},
+			.imageExtent = {
+				create_info.width,
+				create_info.height,
+				create_info.depth,
+			},
 		};
 
 		vkCmdCopyBufferToImage(
@@ -570,18 +568,17 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 			},
-		.subresourceRange =
-			VkImageSubresourceRange{
-				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel	= 0,
-				.levelCount		= 1,
-				.baseArrayLayer = 0,
-				.layerCount		= create_info.layers,
-			},
+		.subresourceRange = VkImageSubresourceRange{
+			.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+			.baseMipLevel	= 0,
+			.levelCount		= 1,
+			.baseArrayLayer = 0,
+			.layerCount		= create_info.layers,
+		},
 	};
 
 	const VkResult create_res =
-		WRAP_VULKAN_FUNC(vkCreateImageView, renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
+		vkCreateImageView(renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
 	XR_VK_CHECK_RESULT(create_res);
 
 	return VulkanImage{
@@ -610,7 +607,11 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 	std::error_code err_code{};
 	const mio::mmap_source texf{mio::make_mmap_source(load_info.path.generic_string(), err_code)};
 	if (err_code) {
-		XR_LOG_ERR("Failed to open texture file {}, error {}", load_info.path.generic_string(), err_code.message());
+		XR_LOG_ERR(
+			"Failed to open texture file %s, error %s",
+			load_info.path.generic_string().c_str(),
+			err_code.message().c_str()
+		);
 		return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
 	}
 
@@ -623,7 +624,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 	);
 
 	if (tex_load_result != KTX_SUCCESS) {
-		XR_LOG_ERR("Failed to load KTX2 texture, {}", static_cast<int32_t>(tex_load_result));
+		XR_LOG_ERR("Failed to load KTX2 texture, %d", static_cast<I32>(tex_load_result));
 		return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
 	}
 
@@ -682,8 +683,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 	}
 
 	VkImageFormatProperties imageFormatProperties;
-	const VkResult image_supported_chk_res = WRAP_VULKAN_FUNC(
-		vkGetPhysicalDeviceImageFormatProperties,
+	const VkResult image_supported_chk_res = vkGetPhysicalDeviceImageFormatProperties(
 		renderer.physical().device,
 		vkFormat,
 		imageType,
@@ -708,7 +708,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 		VkFormatFeatureFlags formatFeatureFlags;
 		VkFormatFeatureFlags neededFeatures = VK_FORMAT_FEATURE_BLIT_DST_BIT | VK_FORMAT_FEATURE_BLIT_SRC_BIT;
 
-		WRAP_VULKAN_FUNC(vkGetPhysicalDeviceFormatProperties, renderer.physical().device, vkFormat, &formatProperties);
+		vkGetPhysicalDeviceFormatProperties(renderer.physical().device, vkFormat, &formatProperties);
 		if (load_info.tiling == VK_IMAGE_TILING_OPTIMAL)
 			formatFeatureFlags = formatProperties.optimalTilingFeatures;
 		else
@@ -733,8 +733,6 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 		return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
 	}
 
-	const bool canUseFasterPath{true};	// always true for KTX2 and no need to bother since
-										// we only support KTX2
 	ktx_uint32_t elementSize   = ktxTexture_GetElementSize(ktxTexture(loaded_ktx));
 	const uint64_t textureSize = ktxTexture_GetDataSizeUncompressed(ktxTexture(loaded_ktx));
 
@@ -793,7 +791,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 			}
 
 			// Iterate over mip levels to set up the copy regions.
-			const ktxResult kResult =
+			[[maybe_unused]] const ktxResult kResult =
 				ktxTexture_IterateLevels(ktxTexture(loaded_ktx), ktx_internal_details::optimalTilingCallback, &cbData);
 			// XXX Check for possible errors.
 		}
@@ -828,8 +826,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 		};
 
 		VkImage img_handle{};
-		const VkResult create_result =
-			WRAP_VULKAN_FUNC(vkCreateImage, renderer.device(), &imageCreateInfo, nullptr, &img_handle);
+		const VkResult create_result = vkCreateImage(renderer.device(), &imageCreateInfo, nullptr, &img_handle);
 		if (create_result != VK_SUCCESS) {
 			return XR_MAKE_VULKAN_ERROR(create_result);
 		}
@@ -858,7 +855,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 		xrUniqueVkDeviceMemory image_memory{
 			[d = renderer.device(), ma = &mem_alloc_info, &img_alloc_result]() {
 				VkDeviceMemory image_memory{};
-				img_alloc_result = WRAP_VULKAN_FUNC(vkAllocateMemory, d, ma, nullptr, &image_memory);
+				img_alloc_result = vkAllocateMemory(d, ma, nullptr, &image_memory);
 				return image_memory;
 			}(),
 			VkResourceDeleter_VkDeviceMemory{renderer.device()},
@@ -876,7 +873,7 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 			.memoryOffset = 0,
 		};
 
-		const VkResult bind_img_mem_result = WRAP_VULKAN_FUNC(vkBindImageMemory2, renderer.device(), 1, &bind_mem_info);
+		const VkResult bind_img_mem_result = vkBindImageMemory2(renderer.device(), 1, &bind_mem_info);
 		if (bind_img_mem_result != VK_SUCCESS) {
 			return XR_MAKE_VULKAN_ERROR(bind_img_mem_result);
 		}
@@ -940,25 +937,23 @@ tl::expected<xray::rendering::VulkanImage, xray::rendering::VulkanError> xray::r
 					VK_COMPONENT_SWIZZLE_IDENTITY,
 					VK_COMPONENT_SWIZZLE_IDENTITY,
 				},
-			.subresourceRange =
-				VkImageSubresourceRange{
-					.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-					.baseMipLevel	= 0,
-					.levelCount		= numImageLevels,
-					.baseArrayLayer = 0,
-					.layerCount		= numImageLayers,
-				},
+			.subresourceRange = VkImageSubresourceRange{
+				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel	= 0,
+				.levelCount		= numImageLevels,
+				.baseArrayLayer = 0,
+				.layerCount		= numImageLayers,
+			},
 		};
 
-		const VkResult create_res = WRAP_VULKAN_FUNC(
-			vkCreateImageView, renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view)
-		);
+		const VkResult create_res =
+			vkCreateImageView(renderer.device(), &img_view_create, nullptr, base::raw_ptr_ptr(img_view));
 		XR_VK_CHECK_RESULT(create_res);
 
 		if (load_info.tag_name) {
 			renderer.dbg_set_object_name(raw_ptr(image), load_info.tag_name);
 			char scratch_buff[128];
-			xray::base::format_to_n(scratch_buff, "{}::imageview", load_info.tag_name);
+			xray::base::format_to_n(scratch_buff, "%s::imageview", load_info.tag_name);
 			renderer.dbg_set_object_name(raw_ptr(img_view), scratch_buff);
 		}
 
@@ -1051,10 +1046,7 @@ VkImageMemoryBarrier2 xray::rendering::make_image_layout_memory_barrier(
 
 		default:
 			// Value not used by callers, so not supported.
-			XR_LOG_ERR(
-				"Unsupported value for previous layoutr of image: {}",
-				vk::to_string(static_cast<vk::ImageLayout>(previous_layout))
-			);
+			XR_LOG_ERR("Unsupported value for previous layout of image: %d", previous_layout);
 			assert(false);
 			break;
 	}
@@ -1099,9 +1091,7 @@ VkImageMemoryBarrier2 xray::rendering::make_image_layout_memory_barrier(
 			break;
 		default:
 			/* Value not used by callers, so not supported. */
-			XR_LOG_ERR(
-				"Unsupported value for new layout of image: {}", vk::to_string(static_cast<vk::ImageLayout>(new_layout))
-			);
+			XR_LOG_ERR("Unsupported value for new layout of image: %d", new_layout);
 			assert(false);
 			break;
 	}

@@ -28,9 +28,7 @@
 
 #include "xray/scene/scene.definition.hpp"
 
-#include <Lz/concatenate.hpp>
-#include <Lz/algorithm/for_each.hpp>
-
+#include "xray/base/logger.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
 xray::scene::SceneResources xray::scene::SceneResources::from_scene(
@@ -85,7 +83,7 @@ xray::scene::SceneResources xray::scene::SceneResources::from_scene(
 		));
 	}
 
-	XR_LOG_INFO("Image slot start (color texture) {}", sdef->materials_nongltf.image_slot_start);
+	XR_LOG_INFO("Image slot start (color texture) %u", sdef->materials_nongltf.image_slot_start);
 	const uint32_t sbo_chunks = r->buffering_setup().buffers;
 
 	SceneResources scene_resources{
@@ -117,15 +115,17 @@ xray::scene::SceneResources xray::scene::SceneResources::from_scene(
 	r->queue_image_ownership_transfer(scene_resources.null_tex.first);
 	r->queue_image_ownership_transfer(scene_resources.color_tex.first);
 
-	lz::for_each(
-		lz::concat(scene_resources.materials_tex, scene_resources.materials_gltf),
-		[r](const BindlessImageResourceHandleEntryPair& e) { r->queue_image_ownership_transfer(e.first); }
-	);
+	for (const BindlessImageResourceHandleEntryPair& e : scene_resources.materials_tex)
+		r->queue_image_ownership_transfer(e.first);
+
+	for (const BindlessImageResourceHandleEntryPair& e : scene_resources.materials_gltf)
+		r->queue_image_ownership_transfer(e.first);
 
 	return scene_resources;
 }
 
-const xray::scene::ProceduralGeometryEntry* xray::scene::SceneDefinition::get_geometry(const std::string_view name
+const xray::scene::ProceduralGeometryEntry* xray::scene::SceneDefinition::get_geometry(
+	const std::string_view name
 ) const noexcept {
 	for (const ProceduralGeometryEntry& entry : procedural.procedural_geometries) {
 		if (entry.name == name) {

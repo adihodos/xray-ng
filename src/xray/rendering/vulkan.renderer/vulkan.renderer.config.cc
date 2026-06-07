@@ -1,22 +1,18 @@
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
-#include "xray/base/serialization/rfl.libconfig/config.save.hpp"
-#include "xray/base/serialization/rfl.libconfig/config.load.hpp"
 
-xray::rendering::RendererConfig
-xray::rendering::RendererConfig::from_file(const std::filesystem::path& file_path)
-{
-    RendererConfig config{};
-    const rfl::Result<RendererConfig> loaded_config = rfl::libconfig::read<RendererConfig>(file_path);
+#include "xray/base/xray.stringview.hpp"
+#include "xray/base/serialization/serialization.hpp"
 
-    if (loaded_config) {
-        config = loaded_config.value();
-    }
-
-    return config;
+//
+// TODO: doesnt look like this class has much purpose ...
+xray::rendering::RendererConfig xray::rendering::RendererConfig::from_file(
+	xray::base::MemoryArena& arena, const xray::base::xrStringView_t file_path
+) {
+	RendererConfig config{};
+	base::deserialize_from_file(arena, config, file_path);
+	return config;
 }
 
-void
-xray::rendering::RendererConfig::WriteToFile(const std::filesystem::path& path)
-{
-    rfl::libconfig::save(path.generic_string(), *this);
+void xray::rendering::RendererConfig::WriteToFile(const xray::base::xrStringView_t path) {
+	base::serialize_to_file(*this, path);
 }

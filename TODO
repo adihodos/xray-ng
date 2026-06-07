@@ -46,3 +46,12 @@ https://github.com/mackron/miniaudio/tree/master
 Better ship controls
 https://github.com/brihernandez/MouseFlight
 
+
+COMPILE TIME SUCK:
+- remove Lz
+- remove rfl - [x] done
+- remove fmt - [x] done
+- https://github.com/Quuxplusone/from-scratch/tree/master
+- https://www.foonathan.net/2020/09/move-forward/
+- https://medium.com/@caglayandokme/is-there-an-ultimate-makefile-part-2-libraries-7a628bf77c2a
+- https://github.com/trcrsired/Portable-Cpp-Guideline

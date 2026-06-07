@@ -1,7 +1,0 @@
-add_subdirectory(base)
-add_subdirectory(math)
-add_subdirectory(physics)
-add_subdirectory(rendering)
-add_subdirectory(scene)
-add_subdirectory(ui)
-add_subdirectory(stargen)

@@ -6,6 +6,7 @@
 
 #include <tl/expected.hpp>
 
+#include "xray/base/xray.slice.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 
@@ -193,9 +194,8 @@ tl::expected<DebugDrawSystem::RenderStateVulkan, VulkanError> DebugDrawSystem::R
 	XR_VK_PROPAGATE_ERROR(graphicsPipeline);
 
 	void* ptr_mem{};
-	const VkResult mmap_result = WRAP_VULKAN_FUNC(
-		vkMapMemory, init.renderer->device(), vertexBuffer->memory_handle(), 0, VK_WHOLE_SIZE, 0, &ptr_mem
-	);
+	const VkResult mmap_result =
+		vkMapMemory(init.renderer->device(), vertexBuffer->memory_handle(), 0, VK_WHOLE_SIZE, 0, &ptr_mem);
 	XR_VK_CHECK_RESULT(mmap_result);
 
 	std::vector<vertex_pc*> vertexMemoryMappings{};
@@ -270,17 +270,20 @@ void DebugDrawSystem::draw_frustrum(const math::MatrixWithInvertedMatrixPair4f& 
 	};
 
 	// NDC -> view space
-	alignas(math::vec3f) std::byte scratch_buffer[std::size(planes_points) * sizeof(math::vec3f)];
-	base::MemoryArena scratch_pad{scratch_buffer};
-	base::containers::vector<math::vec3f> points{scratch_pad};
+	alignas(math::vec3f) U8 scratch_buffer[std::size(planes_points) * sizeof(math::vec3f) + xr_size_of(base::MemoryArena)];
+	base::MemoryArena* scratch_pad = base::MemoryArena::create_with_storage_block(base::slice_from_array(scratch_buffer));
+	base::containers::vector<math::vec3f> points{*scratch_pad};
 	points.reserve(std::size(planes_points));
 
 	for (const math::vec3f& p : planes_points) {
-		const math::vec4f unprojected = math::mul_point(mtx.inverted, math::vec4f{p});
 		if (std::fabs(p.w) < 1.0e-5) {
 			return;
 		}
-		points.push_back(math::vec3f{p.x / p.w, p.y / p.w, p.z / p.w});
+
+		const math::vec4f unprojected = math::mul_point(mtx.inverted, math::vec4f{p});
+		points.push_back(
+			math::vec3f{unprojected.x / unprojected.w, unprojected.y / unprojected.w, unprojected.z / unprojected.w}
+		);
 	}
 
 	if (points.size() == 8) draw_box(std::span{points}, color);

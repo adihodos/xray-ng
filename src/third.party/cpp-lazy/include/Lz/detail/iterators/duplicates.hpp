@@ -1,0 +1,229 @@
+#pragma once
+
+#ifndef LZ_DUPLICATES_ITERATOR_HPP
+#define LZ_DUPLICATES_ITERATOR_HPP
+
+#include <Lz/algorithm/find_if.hpp>
+#include <Lz/detail/fake_ptr_proxy.hpp>
+#include <Lz/detail/iterator.hpp>
+#include <Lz/detail/traits/iterator_categories.hpp>
+#include <Lz/detail/traits/strict_iterator_traits.hpp>
+#include <Lz/util/default_sentinel.hpp>
+
+namespace lz {
+namespace detail {
+
+template<class Iterable, class BinaryPredicate, class = void>
+class duplicates_iterator;
+
+template<class Iterable, class BinaryPredicate>
+class duplicates_iterator<Iterable, BinaryPredicate, enable_if_t<is_ra<iter_t<Iterable>>::value>>
+    : public iterator<duplicates_iterator<Iterable, BinaryPredicate>, std::pair<ref_t<iter_t<Iterable>>, size_t>,
+                      fake_ptr_proxy<std::pair<ref_t<iter_t<Iterable>>, size_t>>, diff_type<iter_t<Iterable>>,
+                      bidi_strongest_cat<iter_cat_t<iter_t<Iterable>>>, default_sentinel_t> {
+
+    using it = iter_t<Iterable>;
+    using traits = std::iterator_traits<it>;
+
+public:
+    using value_type = std::pair<typename traits::value_type, size_t>;
+    using reference = std::pair<typename traits::reference, size_t>;
+    using pointer = fake_ptr_proxy<reference>;
+    using difference_type = typename traits::difference_type;
+
+private:
+    it _last{};
+    it _first{};
+    Iterable _iterable{};
+    mutable BinaryPredicate _compare{};
+
+    LZ_CONSTEXPR_CXX_14 void next() {
+        _last =
+            detail::find_if(_first, _iterable.end(), [this](typename traits::reference val) { return _compare(*_first, val); });
+    }
+
+public:
+    constexpr duplicates_iterator(const duplicates_iterator&) = default;
+    LZ_CONSTEXPR_CXX_14 duplicates_iterator& operator=(const duplicates_iterator&) = default;
+
+#ifdef LZ_HAS_CONCEPTS
+
+    constexpr duplicates_iterator()
+        requires(std::default_initializable<it> && std::default_initializable<Iterable> &&
+                 std::default_initializable<BinaryPredicate>)
+    = default;
+
+#else
+
+    template<class I = it,
+             class = enable_if_t<std::is_default_constructible<I>::value && std::is_default_constructible<Iterable>::value &&
+                                 std::is_default_constructible<BinaryPredicate>::value>>
+    constexpr duplicates_iterator() noexcept(std::is_nothrow_default_constructible<it>::value &&
+                                             std::is_nothrow_default_constructible<Iterable>::value &&
+                                             std::is_nothrow_default_constructible<BinaryPredicate>::value) {
+    }
+
+#endif
+    template<class I>
+    LZ_CONSTEXPR_CXX_14 duplicates_iterator(I&& iterable, it i, BinaryPredicate compare) :
+        _last{ std::move(i) },
+        _first{ std::move(_last) }, // last is assigned in next()
+        _iterable{ std::forward<I>(iterable) },
+        _compare{ std::move(compare) } {
+        next();
+    }
+
+    LZ_CONSTEXPR_CXX_14 duplicates_iterator& operator=(default_sentinel_t) {
+        _first = _iterable.end();
+        return *this;
+    }
+
+    LZ_CONSTEXPR_CXX_14 reference dereference() const {
+        LZ_ASSERT_DEREFERENCABLE(!eq(lz::default_sentinel));
+        return { *_first, static_cast<size_t>(_last - _first) };
+    }
+
+    LZ_CONSTEXPR_CXX_14 pointer arrow() const {
+        return fake_ptr_proxy<reference>(**this);
+    }
+
+    LZ_CONSTEXPR_CXX_14 void increment() {
+        LZ_ASSERT_INCREMENTABLE(!eq(lz::default_sentinel));
+        _first = std::move(_last);
+        next();
+    }
+
+    LZ_CONSTEXPR_CXX_14 void decrement() {
+        LZ_ASSERT_DECREMENTABLE(_first != _iterable.begin());
+        _last = _first;
+
+        for (--_first; _first != _iterable.begin(); --_first) {
+            auto prev = std::prev(_first);
+            if (_compare(*prev, *_first)) {
+                return;
+            }
+        }
+    }
+
+    LZ_CONSTEXPR_CXX_14 bool eq(const duplicates_iterator& other) const {
+        LZ_ASSERT_COMPATIBLE(_iterable.begin() == other._iterable.begin() && _iterable.end() == other._iterable.end());
+        return _first == other._first;
+    }
+
+    LZ_CONSTEXPR_CXX_14 bool eq(default_sentinel_t) const {
+        return _first == _iterable.end();
+    }
+};
+
+template<class Iterable, class BinaryPredicate>
+class duplicates_iterator<Iterable, BinaryPredicate, enable_if_t<!is_ra<iter_t<Iterable>>::value>>
+    : public iterator<duplicates_iterator<Iterable, BinaryPredicate>, std::pair<ref_t<iter_t<Iterable>>, size_t>,
+                      fake_ptr_proxy<std::pair<ref_t<iter_t<Iterable>>, size_t>>, diff_type<iter_t<Iterable>>,
+                      iter_cat_t<iter_t<Iterable>>, default_sentinel_t> {
+
+    using it = iter_t<Iterable>;
+    using traits = std::iterator_traits<iter_t<Iterable>>;
+
+public:
+    using value_type = std::pair<typename traits::value_type, size_t>;
+    using reference = std::pair<typename traits::reference, size_t>;
+    using pointer = fake_ptr_proxy<reference>;
+    using difference_type = typename traits::difference_type;
+
+private:
+    it _last{};
+    it _first{};
+    Iterable _iterable{};
+    difference_type _last_distance{};
+    mutable BinaryPredicate _compare{};
+
+    LZ_CONSTEXPR_CXX_14 void next() {
+        _last_distance = 0;
+        _last = detail::find_if(_first, _iterable.end(), [this](typename traits::reference val) {
+            const auto condition = _compare(*_first, val);
+            if (!condition) {
+                ++_last_distance;
+            }
+            return condition;
+        });
+    }
+
+public:
+    constexpr duplicates_iterator(const duplicates_iterator&) = default;
+    LZ_CONSTEXPR_CXX_14 duplicates_iterator& operator=(const duplicates_iterator&) = default;
+
+#ifdef LZ_HAS_CONCEPTS
+
+    constexpr duplicates_iterator()
+        requires(std::default_initializable<it> && std::default_initializable<Iterable> &&
+                 std::default_initializable<BinaryPredicate>)
+    = default;
+
+#else
+
+    template<class I = it,
+             class = enable_if_t<std::is_default_constructible<I>::value && std::is_default_constructible<Iterable>::value &&
+                                 std::is_default_constructible<BinaryPredicate>::value>>
+    constexpr duplicates_iterator() noexcept(std::is_nothrow_default_constructible<I>::value &&
+                                             std::is_nothrow_default_constructible<Iterable>::value &&
+                                             std::is_nothrow_default_constructible<BinaryPredicate>::value) {
+    }
+
+#endif
+
+    template<class I>
+    LZ_CONSTEXPR_CXX_14 duplicates_iterator(I&& iterable, it i, BinaryPredicate compare) :
+        _last{ std::move(i) },
+        _first{ std::move(_last) },
+        _iterable{ std::forward<I>(iterable) },
+        _compare{ std::move(compare) } {
+        next();
+    }
+
+    LZ_CONSTEXPR_CXX_14 duplicates_iterator& operator=(default_sentinel_t) {
+        _first = _iterable.end();
+        return *this;
+    }
+
+    LZ_CONSTEXPR_CXX_14 reference dereference() const {
+        LZ_ASSERT_DEREFERENCABLE(!eq(lz::default_sentinel));
+        return { *_first, _last_distance };
+    }
+
+    LZ_CONSTEXPR_CXX_14 pointer arrow() const {
+        return fake_ptr_proxy<reference>(**this);
+    }
+
+    LZ_CONSTEXPR_CXX_14 void increment() {
+        LZ_ASSERT_INCREMENTABLE(!eq(lz::default_sentinel));
+        _first = std::move(_last);
+        next();
+    }
+
+    LZ_CONSTEXPR_CXX_14 void decrement() {
+        LZ_ASSERT_DECREMENTABLE(_first != _iterable.begin());
+        _last_distance = 1;
+        _last = _first;
+
+        for (--_first; _first != _iterable.begin(); --_first, ++_last_distance) {
+            const auto prev = std::prev(_first);
+            if (_compare(*prev, *_first)) {
+                return;
+            }
+        }
+    }
+
+    LZ_CONSTEXPR_CXX_14 bool eq(const duplicates_iterator& other) const {
+        LZ_ASSERT_COMPATIBLE(_iterable.begin() == other._iterable.begin() && _iterable.end() == other._iterable.end());
+        return _first == other._first;
+    }
+
+    LZ_CONSTEXPR_CXX_14 bool eq(default_sentinel_t) const {
+        return _first == _iterable.end();
+    }
+};
+
+} // namespace detail
+} // namespace lz
+
+#endif

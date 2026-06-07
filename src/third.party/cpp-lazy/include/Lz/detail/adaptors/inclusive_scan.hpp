@@ -1,0 +1,195 @@
+#pragma once
+
+#ifndef LZ_INCLUSIVE_SCAN_ADAPTOR_HPP
+#define LZ_INCLUSIVE_SCAN_ADAPTOR_HPP
+
+#include <Lz/detail/adaptors/fn_args_holder.hpp>
+#include <Lz/detail/iterables/inclusive_scan.hpp>
+#include <Lz/detail/procs/operators.hpp>
+#include <Lz/detail/traits/is_invocable.hpp>
+#include <Lz/detail/traits/is_iterable.hpp>
+
+namespace lz {
+namespace detail {
+struct inclusive_scan_adaptor {
+    using adaptor = inclusive_scan_adaptor;
+
+#ifdef LZ_HAS_CONCEPTS
+
+    /**
+     * @brief Performs an inclusive scan on a container. The first element will be the result of the binary operation with init
+     * value and the first element of the input iterable. The second element will be the previous result + the next value of the
+     * input iterable, the third element will be previous result + the next value of the input iterable, etc. It contains a
+     * .size() method if the input iterable also has a .size() method. Its end() function returns a sentinel rather than an
+     * iterator and its iterator category is forward. Example:
+     * ```cpp
+     * std::vector<int> vec = { 1, 2, 3, 4, 5 };
+     * // std::plus is used as the default binary operation
+     * auto scan = lz::inclusive_scan(vec, 0); // scan = { 1, 3, 6, 10, 15 }
+     * // so 0 + 1 (= 1), 1 + 2 (= 3), 3 + 3 (= 6), 6 + 4 (= 10), 10 + 5 (= 15)
+     *
+     * // or
+     * auto scan = vec | lz::inclusive_scan(0); // scan = { 1, 3, 6, 10, 15 }
+     * // you can also add a custom operator:
+     * auto scan = vec | lz::inclusive_scan(0, std::plus<int>{}); // scan = { 1, 3, 6, 10, 15 }
+     * // When working with pipe expressions, you always need to specify the init value. When working with 'regular' functions,
+     * you
+     * // can omit the init value, in which case it will be a default constructed object of the type of the container.
+     * // Example
+     * auto scan = lz::inclusive_scan(vec);
+     * auto scan = lz::inclusive_scan(vec, 0);
+     * // auto scan = vec | lz::inclusive_scan; // uses 0 and std::plus
+     * auto scan = vec | lz::inclusive_scan(0);
+     * ```
+     * @param iterable The iterable to perform the inclusive scan on.
+     * @param init The initial value to start the inclusive scan with.
+     * @param binary_op The binary operation to perform on the elements. The default is std::plus.
+     * @return An iterable that performs an inclusive scan on the input iterable.
+     */
+    template<class Iterable, class T = val_iterable_t<Iterable>, class BinaryOp = LZ_BIN_OP(plus, val_iterable_t<Iterable>)>
+    [[nodiscard]] constexpr inclusive_scan_iterable<remove_ref_t<Iterable>, T, BinaryOp>
+    operator()(Iterable&& iterable, T init = {}, BinaryOp binary_op = {}) const
+        requires(std::invocable<BinaryOp, T, T>)
+    {
+        return { std::forward<Iterable>(iterable), std::move(init), std::move(binary_op) };
+    }
+
+    /**
+     * @brief Performs an inclusive scan on a container. The first element will be the result of the binary operation with init
+     * value and the first element of the input iterable. The second element will be the previous result + the next value of the
+     * input iterable, the third element will be previous result + the next value of the input iterable, etc. It contains a
+     * .size() method if the input iterable also has a .size() method. Its end() function returns a sentinel rather than an
+     * iterator and its iterator category is forward. Example:
+     * ```cpp
+     * std::vector<int> vec = { 1, 2, 3, 4, 5 };
+     * // std::plus is used as the default binary operation
+     * auto scan = lz::inclusive_scan(vec, 0); // scan = { 1, 3, 6, 10, 15 }
+     * // so 0 + 1 (= 1), 1 + 2 (= 3), 3 + 3 (= 6), 6 + 4 (= 10), 10 + 5 (= 15)
+     *
+     * // you can also add a custom operator:
+     * auto scan = vec | lz::inclusive_scan(0, std::plus<int>{}); // scan = { 1, 3, 6, 10, 15 }
+     * // When working with pipe expressions, you always need to specify the init value. When working with 'regular' functions,
+     * you
+     * // can omit the init value, in which case it will be a default constructed object of the type of the container.
+     * // Example
+     * auto scan = lz::inclusive_scan(vec);
+     * auto scan = lz::inclusive_scan(vec, 0);
+     * // auto scan = vec | lz::inclusive_scan; // uses 0 and std::plus
+     * auto scan = vec | lz::inclusive_scan(0);
+     * ```
+     * @param init The initial value to start the inclusive scan with.
+     * @param binary_op The binary operation to perform on the elements. The default is std::plus.
+     * @return An adaptor that can be used in pipe expressions.
+     */
+    template<class T, class BinaryOp = LZ_BIN_OP(plus, T)>
+    [[nodiscard]] constexpr fn_args_holder<adaptor, remove_cvref_t<T>, BinaryOp>
+    operator()(T&& init, BinaryOp binary_op = {}) const
+        requires(std::invocable<BinaryOp, remove_cvref_t<T>, remove_cvref_t<T>>)
+    {
+        return { std::forward<T>(init), std::move(binary_op) };
+    }
+
+#else
+
+    // clang-format off
+
+    /**
+     * @brief Performs an inclusive scan on a container. The first element will be the result of the binary operation with init value
+     * and the first element of the input iterable. The second element will be the previous result + the next value of the input
+     * iterable, the third element will be previous result + the next value of the input iterable, etc. It contains a .size() method
+     * if the input iterable also has a .size() method. Its end() function returns a sentinel rather than an iterator and its iterator
+     * category is forward. Example:
+     * ```cpp
+     * std::vector<int> vec = { 1, 2, 3, 4, 5 };
+     * // std::plus is used as the default binary operation
+     * auto scan = lz::inclusive_scan(vec, 0); // scan = { 1, 3, 6, 10, 15 }
+     * // so 0 + 1 (= 1), 1 + 2 (= 3), 3 + 3 (= 6), 6 + 4 (= 10), 10 + 5 (= 15)
+     *
+     * // or
+     * auto scan = vec | lz::inclusive_scan(0); // scan = { 1, 3, 6, 10, 15 }
+     * // you can also add a custom operator:
+     * auto scan = vec | lz::inclusive_scan(0, std::plus<int>{}); // scan = { 1, 3, 6, 10, 15 }
+     * // When working with pipe expressions, you always need to specify the init value. When working with 'regular' functions, you
+     * // can omit the init value, in which case it will be a default constructed object of the type of the container.
+     * // Example
+     * auto scan = lz::inclusive_scan(vec);
+     * auto scan = lz::inclusive_scan(vec, 0);
+     * // auto scan = vec | lz::inclusive_scan; // uses 0 and std::plus
+     * auto scan = vec | lz::inclusive_scan(0);
+     * ```
+     * @param iterable The iterable to perform the inclusive scan on.
+     * @param init The initial value to start the inclusive scan with.
+     * @param binary_op The binary operation to perform on the elements. The default is std::plus.
+     * @return An iterable that performs an inclusive scan on the input iterable.
+     */
+    template<class Iterable, class T = val_iterable_t<Iterable>, class BinaryOp = LZ_BIN_OP(plus, val_iterable_t<Iterable>)>
+    LZ_NODISCARD constexpr 
+    enable_if_t<is_invocable<BinaryOp, T, T>::value, inclusive_scan_iterable<remove_ref_t<Iterable>, T, BinaryOp>>
+    operator()(Iterable&& iterable, T init = {}, BinaryOp binary_op = {}) const {
+        return { std::forward<Iterable>(iterable), std::move(init), std::move(binary_op) };
+    }
+
+    /**
+     * @brief Performs an inclusive scan on a container. The first element will be the result of the binary operation with init value
+     * and the first element of the input iterable. The second element will be the previous result + the next value of the input
+     * iterable, the third element will be previous result + the next value of the input iterable, etc. It contains a .size() method
+     * if the input iterable also has a .size() method. Its end() function returns a sentinel rather than an iterator and its iterator
+     * category is forward. Example:
+     * ```cpp
+     * std::vector<int> vec = { 1, 2, 3, 4, 5 };
+     * // std::plus is used as the default binary operation
+     * auto scan = lz::inclusive_scan(vec, 0); // scan = { 1, 3, 6, 10, 15 }
+     * // so 0 + 1 (= 1), 1 + 2 (= 3), 3 + 3 (= 6), 6 + 4 (= 10), 10 + 5 (= 15)
+     *
+     * // you can also add a custom operator:
+     * auto scan = vec | lz::inclusive_scan(0, std::plus<int>{}); // scan = { 1, 3, 6, 10, 15 }
+     * // When working with pipe expressions, you always need to specify the init value. When working with 'regular' functions, you
+     * // can omit the init value, in which case it will be a default constructed object of the type of the container.
+     * // Example
+     * auto scan = lz::inclusive_scan(vec);
+     * auto scan = lz::inclusive_scan(vec, 0);
+     * // auto scan = vec | lz::inclusive_scan; // uses 0 and std::plus
+     * auto scan = vec | lz::inclusive_scan(0);
+     * ```
+     * @param init The initial value to start the inclusive scan with.
+     * @param binary_op The binary operation to perform on the elements. The default is std::plus.
+     * @return An adaptor that can be used in pipe expressions.
+     */
+    template<class T, class BinaryOp = LZ_BIN_OP(plus, T)>
+    LZ_NODISCARD constexpr 
+    enable_if_t<is_invocable<BinaryOp, remove_cvref_t<T>, remove_cvref_t<T>>::value, fn_args_holder<adaptor, remove_cvref_t<T>, BinaryOp>>
+    operator()(T&& init, BinaryOp binary_op = {}) const {
+        return { std::forward<T>(init), std::move(binary_op) };
+    }
+
+    // clang-format on
+
+#endif
+};
+} // namespace detail
+} // namespace lz
+
+#ifdef LZ_HAS_CONCEPTS
+
+LZ_MODULE_EXPORT template<class Iterable>
+    requires(lz::iterable<Iterable>)
+[[nodiscard]] constexpr auto operator|(Iterable&& iterable, lz::detail::inclusive_scan_adaptor) {
+    return lz::detail::inclusive_scan_adaptor{}(std::forward<Iterable>(iterable), lz::detail::val_iterable_t<Iterable>{},
+                                                LZ_BIN_OP(plus, val_iterable_t<Iterable>){});
+}
+
+#else
+
+LZ_MODULE_EXPORT template<class Iterable>
+LZ_NODISCARD constexpr auto operator|(Iterable&& iterable, lz::detail::inclusive_scan_adaptor)
+    -> lz::detail::enable_if_t<lz::detail::is_iterable<Iterable>::value,
+                               decltype(lz::detail::inclusive_scan_adaptor{}(std::forward<Iterable>(iterable),
+                                                                             lz::detail::val_iterable_t<Iterable>{},
+                                                                             LZ_BIN_OP(plus, lz::detail::val_iterable_t<Iterable>){}))> {
+    return lz::detail::inclusive_scan_adaptor{}(std::forward<Iterable>(iterable), lz::detail::val_iterable_t<Iterable>{},
+                                                LZ_BIN_OP(plus, lz::detail::val_iterable_t<Iterable>){});
+}
+
+#endif
+
+#endif

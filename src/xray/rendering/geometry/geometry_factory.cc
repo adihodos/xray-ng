@@ -1122,7 +1122,7 @@ xray::rendering::geometry_factory::torus_knot(const TorusKnotParams& params)
         //
         // the radian "u" is used to calculate the position on the torus curve of the current tubular segment
         const float u = static_cast<float>(i) / static_cast<float>(params.tubular_segments) *
-                        static_cast<float>(params.p) * F32::TwoPi;
+			static_cast<float>(params.p) * math::F32Consts::TwoPi;
 
         //
         // now we calculate two points. P1 is our current position on the curve, P2 is a little farther ahead.
@@ -1147,7 +1147,7 @@ xray::rendering::geometry_factory::torus_knot(const TorusKnotParams& params)
             // now calculate the vertices. they are nothing more than an extrusion of the torus curve.
             // because we extrude a shape in the xy-plane, there is no need to calculate a z-value.
 
-            const float v = static_cast<float>(j) / static_cast<float>(params.radial_segments) * F32::TwoPi;
+            const float v = static_cast<float>(j) / static_cast<float>(params.radial_segments) * math::F32Consts::TwoPi;
             const float cx = -params.tube * std::cos(v);
             const float cy = params.tube * std::sin(v);
 

@@ -4,8 +4,9 @@
 #include <cassert>
 #include <numeric>
 
-#include "xray/base/memory.os.hpp"
+#include "xray/base/xray.os.hpp"
 #include "xray/base/memory.arena.hpp"
+#include "xray/base/xray.slice.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/logger.hpp"
 
@@ -62,7 +63,8 @@ void BasicMemoryPool::init_blocks() {
 		return blocks_size;
 	}();
 
-	_main_block = static_cast<std::byte*>(os_reserve_mem(required_size * 2));
+	xrSlice_t<U8> reserved_range = xrSys_ReserveMemory(nullptr, required_size * 2);
+	_main_block					 = reinterpret_cast<std::byte*>(reserved_range.s_ptr);
 
 	size_t main_block_offset = 0;
 	uintptr_t end_addr		 = reinterpret_cast<uintptr_t>(_main_block);
@@ -88,7 +90,8 @@ void BasicMemoryPool::init_blocks() {
 
 	const ptrdiff_t real_size = end_addr - reinterpret_cast<uintptr_t>(_main_block);
 	assert(real_size < required_size * 2);
-	void* reserved = os_commit_mem(_main_block, real_size);
+	xrSlice_t<U8> commit_range = xrSys_CommitMemory(reserved_range);
+	void* reserved			   = commit_range.s_ptr;
 
 	for (size_t idx = 0; idx < std::size(PoolConfigTable); ++idx) {
 		const MemPoolBlock* pool = &_pools[idx];
@@ -106,7 +109,7 @@ void BasicMemoryPool::init_blocks() {
 		}
 	}
 
-	xray::base::details::poison_memory_region(_main_block, real_size);
+	xray::base::poison_memory_region(_main_block, real_size);
 }
 
 [[nodiscard]] void* BasicMemoryPool::alloc_mem(const size_t size, const size_t alignment) {
@@ -124,7 +127,7 @@ void BasicMemoryPool::init_blocks() {
 	uintptr_t data_addr_start{};
 	for (;;) {
 		if (block_itr == std::end(_pools)) {
-			XR_LOG_ERR("No block can serve the requested size {} (align {})", size, alignment);
+			XR_LOG_ERR("No block can serve the requested size %zu (align %zu)", size, alignment);
 			print_report();
 			return nullptr;
 		}
@@ -133,7 +136,7 @@ void BasicMemoryPool::init_blocks() {
 			//
 			// TODO: handle this later
 			XR_LOG_ERR(
-				"Pool for objects of size {} is exhausted. Download more RAM I guess ...", block_itr->_alloc_size
+				"Pool for objects of size {%zu} is exhausted. Download more RAM I guess ...", block_itr->_alloc_size
 			);
 			print_report();
 			return nullptr;
@@ -158,7 +161,7 @@ void BasicMemoryPool::init_blocks() {
 
 	const size_t block_idx = block_itr->_free_idx;
 
-	xray::base::details::unpoison_memory_region(reinterpret_cast<void*>(hdr_addr_start), block_itr->_aligned_size);
+	xray::base::unpoison_memory_region(reinterpret_cast<void*>(hdr_addr_start), block_itr->_aligned_size);
 
 	PoolBlockHeaderTag* hdr = reinterpret_cast<PoolBlockHeaderTag*>(hdr_addr_start);
 	block_itr->_free_idx	= hdr->next_free;
@@ -224,7 +227,7 @@ void BasicMemoryPool::free_mem(void* ptr, const size_t size) {
 
 	block_itr->_deallocations += 1;
 
-	xray::base::details::poison_memory_region(
+	xray::base::poison_memory_region(
 		block_itr->_parent_block + block_itr->_offset + hdr->pool.block_offset * block_itr->_aligned_size,
 		block_itr->_aligned_size
 	);
@@ -260,14 +263,14 @@ void BasicMemoryPool::print_report() const noexcept {
 	});
 
 	XR_LOG_ERR(
-		"VulkanMemoryAllocator:\nTotal allocations: {}\nTotal deallocations: {}",
+		"VulkanMemoryAllocator:\nTotal allocations: %zu\nTotal deallocations: %zu",
 		pool_stats.alloc_count,
 		pool_stats.free_count
 	);
 
 	XR_LOG_ERR("Pools by allocations:");
 	for (const BlockStats& b : pool_stats.block_stats) {
-		XR_LOG_ERR("pool size: {} :: {} / {}", b.alloc_size, b.alloc_count, b.dealloc_count);
+		XR_LOG_ERR("pool size: %u :: %u / %u", b.alloc_size, b.alloc_count, b.dealloc_count);
 	}
 }
 

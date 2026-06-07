@@ -1,16 +1,10 @@
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 
-#include <Lz/map.hpp>
-#include <Lz/procs/to.hpp>
-#include <Lz/algorithm/find_if.hpp>
-#include <Lz/algorithm/accumulate.hpp>
-
 #include "xray/base/variant.helpers.hpp"
 #include "xray/base/logger.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/thread.local.context.hpp"
 #include "xray/base/containers/arena.vector.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.image.hpp"
 
@@ -100,7 +94,7 @@ xray::rendering::BindlessSystem::~BindlessSystem() {
 				} break;
 
 				default: {
-					XR_LOG_ERR("free bindless resource of type {} not handled!", std::to_underlying(resource_type));
+					XR_LOG_ERR("free bindless resource of type %d not handled!", std::to_underlying(resource_type));
 				} break;
 			}
 		}
@@ -154,12 +148,11 @@ tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError> xray
 		resource_table.try_emplace(static_cast<VulkanResourceType>(layout_template.res_type), set_index++);
 
 		uint32_t descriptor_count = layout_template.descriptor_count;
-		if (const auto limit_itr = lz::find_if(
-				descriptor_limits_by_type,
-				[&](const DescriptorCountLimit& limit) { return layout_template.res_type == limit.d_type; }
-			);
-			limit_itr != std::end(descriptor_limits_by_type)) {
-			descriptor_count = std::min(descriptor_count, limit_itr->d_limit);
+		for (size_t idx = 0; idx < std::size(descriptor_limits_by_type); ++idx) {
+			if (layout_template.res_type == descriptor_limits_by_type[idx].d_type) {
+				descriptor_count = std::min(descriptor_count, descriptor_limits_by_type[idx].d_limit);
+				break;
+			}
 		}
 
 		descriptor_pool_sizes.emplace_back(layout_template.res_type, descriptor_count);
@@ -192,13 +185,12 @@ tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError> xray
 		};
 
 		VkDescriptorSetLayout set_layout{};
-		const VkResult create_res =
-			WRAP_VULKAN_FUNC(vkCreateDescriptorSetLayout, device, &set_layout_info, nullptr, &set_layout);
+		const VkResult create_res = vkCreateDescriptorSetLayout(device, &set_layout_info, nullptr, &set_layout);
 		if (create_res != VK_SUCCESS) {
 			return XR_MAKE_VULKAN_ERROR(create_res);
 		}
 
-		XR_LOG_INFO("DS layout: {} -> {}", layout_template.tag, fmt::ptr(set_layout));
+		XR_LOG_INFO("DS layout: %s -> %p", layout_template.tag, set_layout);
 		set_layouts.push_back(set_layout);
 	}
 
@@ -216,7 +208,7 @@ tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError> xray
 			};
 
 			VkDescriptorPool pool{nullptr};
-			WRAP_VULKAN_FUNC(vkCreateDescriptorPool, device, &pool_create_info, nullptr, &pool);
+			vkCreateDescriptorPool(device, &pool_create_info, nullptr, &pool);
 			return pool;
 		}(),
 		VkResourceDeleter_VkDescriptorPool{device},
@@ -226,7 +218,7 @@ tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError> xray
 		return XR_MAKE_VULKAN_ERROR(VK_ERROR_OUT_OF_POOL_MEMORY);
 	}
 
-	XR_LOG_INFO("Bindless descriptor pool created @ {}", static_cast<void*>(raw_ptr(dpool)));
+	XR_LOG_INFO("Bindless descriptor pool created @ %p", static_cast<const void*>(raw_ptr(dpool)));
 
 	const VkPipelineLayoutCreateInfo bindless_pipeline_layout_create_info = {
 		.sType					= VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -239,15 +231,14 @@ tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError> xray
 	};
 
 	VkPipelineLayout bindless_pipeline_layout{};
-	const VkResult bindless_pcreate_result = WRAP_VULKAN_FUNC(
-		vkCreatePipelineLayout, device, &bindless_pipeline_layout_create_info, nullptr, &bindless_pipeline_layout
-	);
+	const VkResult bindless_pcreate_result =
+		vkCreatePipelineLayout(device, &bindless_pipeline_layout_create_info, nullptr, &bindless_pipeline_layout);
 
 	if (bindless_pcreate_result != VK_SUCCESS) {
 		return XR_MAKE_VULKAN_ERROR(bindless_pcreate_result);
 	}
 
-	XR_LOG_INFO("Bindless pipeline layout created @ {}", static_cast<void*>(bindless_pipeline_layout));
+	XR_LOG_INFO("Bindless pipeline layout created @ %p", static_cast<const void*>(bindless_pipeline_layout));
 
 	//
 	// allocate descriptor sets
@@ -260,16 +251,14 @@ tl::expected<xray::rendering::BindlessSystem, xray::rendering::VulkanError> xray
 	};
 
 	std::vector<VkDescriptorSet> descriptor_sets{set_layouts.size(), nullptr};
-	const VkResult alloc_result =
-		WRAP_VULKAN_FUNC(vkAllocateDescriptorSets, device, &set_allocate_info, descriptor_sets.data());
+	const VkResult alloc_result = vkAllocateDescriptorSets(device, &set_allocate_info, descriptor_sets.data());
 
 	if (alloc_result != VK_SUCCESS) {
 		return XR_MAKE_VULKAN_ERROR(alloc_result);
 	}
 
 	VkSampler new_sampler{};
-	const VkResult create_result =
-		WRAP_VULKAN_FUNC(vkCreateSampler, device, &DEFAULT_SAMPLER_ATTRIBUTES, nullptr, &new_sampler);
+	const VkResult create_result = vkCreateSampler(device, &DEFAULT_SAMPLER_ATTRIBUTES, nullptr, &new_sampler);
 	XR_VK_CHECK_RESULT(create_result);
 
 	return BindlessSystem{
@@ -308,7 +297,7 @@ xray::rendering::BindlessStorageImageResourceHandleEntryPair xray::rendering::Bi
 		return tbl_entry->handle_idx.fetch_add(1);
 	}();
 
-	XR_LOG_INFO("[[bindles]] - img {:#08x} -> {}", (uintptr_t)img_entry.handle, handle);
+	XR_LOG_INFO("[[bindles]] - img %p -> %u", static_cast<const void*>(img_entry.handle), handle);
 
 	if (tbl_entry->handle_idx >= tbl_entry->resources.size()) {
 		tbl_entry->resources.resize(
@@ -323,18 +312,18 @@ xray::rendering::BindlessStorageImageResourceHandleEntryPair xray::rendering::Bi
 		.storage_image = img_entry,
 	};
 
-	tbl_entry->writes.push_back(BindlessResourceDescriptorWrite{
-		.image =
-			WriteDescriptorImageInfo{
+	tbl_entry->writes.push_back(
+		BindlessResourceDescriptorWrite{
+			.image = WriteDescriptorImageInfo{
 				.dst_array = handle,
-				.img_info =
-					VkDescriptorImageInfo{
-						.sampler	 = nullptr,
-						.imageView	 = img_entry.image_view,
-						.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-					},
+				.img_info  = VkDescriptorImageInfo{
+					 .sampler	  = nullptr,
+					 .imageView	  = img_entry.image_view,
+					 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+				 },
 			}
-	});
+		}
+	);
 
 	const BindlessResourceHandle_StorageImage bindless_handle{
 		detail::BindlessResourceHandleHelper{handle, 1}.value,
@@ -369,7 +358,12 @@ xray::rendering::BindlessSystem::add_image(
 		return tbl_entry->handle_idx.fetch_add(1);
 	}();
 
-	XR_LOG_INFO("[[bindles]] - owned {}, img {:#08x} -> {}", img_entry.owned, (uintptr_t)img_entry.handle, handle);
+	XR_LOG_INFO(
+		"[[bindles]] - owned %s, img %p -> %u",
+		img_entry.owned ? "yes" : "no",
+		static_cast<const void*>(img_entry.handle),
+		handle
+	);
 
 	if (tbl_entry->handle_idx >= tbl_entry->resources.size()) {
 		tbl_entry->resources.resize(
@@ -390,18 +384,18 @@ xray::rendering::BindlessSystem::add_image(
 		smp = def_sampler_entry->second;
 	}
 
-	tbl_entry->writes.push_back(BindlessResourceDescriptorWrite{
-		.image =
-			WriteDescriptorImageInfo{
+	tbl_entry->writes.push_back(
+		BindlessResourceDescriptorWrite{
+			.image = WriteDescriptorImageInfo{
 				.dst_array = handle,
-				.img_info =
-					VkDescriptorImageInfo{
-						.sampler	 = smp,
-						.imageView	 = img_entry.image_view,
-						.imageLayout = img_entry.info.imageLayout,
-					},
+				.img_info  = VkDescriptorImageInfo{
+					 .sampler	  = smp,
+					 .imageView	  = img_entry.image_view,
+					 .imageLayout = img_entry.info.imageLayout,
+				 },
 			}
-	});
+		}
+	);
 
 	const BindlessResourceHandle_Image bindless_handle{
 		detail::BindlessResourceHandleHelper{handle, 1}.value,
@@ -429,14 +423,15 @@ xray::rendering::BindlessSystem::add_chunked_uniform_buffer(VulkanBuffer ubo, co
 	const auto [ubo_handle, ubo_mem] = ubo.buffer.release();
 
 	const uint32_t bindless_idx{tbl_entry->handle_idx.fetch_add(chunks)};
-	tbl_entry->resources.emplace_back(BindlessVulkanResource{
-		.uniform_buffer =
-			UBOResourceEntry{
+	tbl_entry->resources.emplace_back(
+		BindlessVulkanResource{
+			.uniform_buffer = UBOResourceEntry{
 				BindlessResourceEntry_UniformBuffer{ubo_handle, ubo_mem, ubo.aligned_size},
 				bindless_idx,
 				chunks,
 			}
-	});
+		}
+	);
 
 	const BindlessResourceHandle_UniformBuffer bindless_ubo_handle{
 		detail::BindlessResourceHandleHelper{bindless_idx, chunks}.value
@@ -445,18 +440,18 @@ xray::rendering::BindlessSystem::add_chunked_uniform_buffer(VulkanBuffer ubo, co
 	//
 	// write ubo data for descriptor update
 	for (uint32_t chunk_idx = 0; chunk_idx < chunks; ++chunk_idx) {
-		tbl_entry->writes.push_back(BindlessResourceDescriptorWrite{
-			.buffer =
-				WriteDescriptorBufferInfo{
+		tbl_entry->writes.push_back(
+			BindlessResourceDescriptorWrite{
+				.buffer = WriteDescriptorBufferInfo{
 					.dst_array = bindless_idx + chunk_idx,
-					.buff_info =
-						VkDescriptorBufferInfo{
-							.buffer = ubo_handle,
-							.offset = chunk_idx * ubo.aligned_size,
-							.range	= ubo.aligned_size,
-						},
+					.buff_info = VkDescriptorBufferInfo{
+						.buffer = ubo_handle,
+						.offset = chunk_idx * ubo.aligned_size,
+						.range	= ubo.aligned_size,
+					},
 				},
-		});
+			}
+		);
 	}
 
 	return std::pair{bindless_ubo_handle, tbl_entry->resources.back().uniform_buffer.ubo};
@@ -490,12 +485,11 @@ xray::rendering::BindlessSystem::add_chunked_storage_buffer(
 	const auto [ubo_handle, ubo_mem] = ssbo.buffer.release();
 
 	tbl_entry->resources[handle] = BindlessVulkanResource{
-		.storage_buffer =
-			SBOResourceEntry{
-				BindlessResourceEntry_StorageBuffer{ubo_handle, ubo_mem, ssbo.aligned_size},
-				handle,
-				chunks,
-			}
+		.storage_buffer = SBOResourceEntry{
+			BindlessResourceEntry_StorageBuffer{ubo_handle, ubo_mem, ssbo.aligned_size},
+			handle,
+			chunks,
+		}
 	};
 
 	const BindlessResourceHandle_StorageBuffer bindless_ubo_handle{
@@ -505,18 +499,18 @@ xray::rendering::BindlessSystem::add_chunked_storage_buffer(
 	//
 	// write ubo data for descriptor update
 	for (uint32_t chunk_idx = 0; chunk_idx < chunks; ++chunk_idx) {
-		tbl_entry->writes.push_back(BindlessResourceDescriptorWrite{
-			.buffer =
-				WriteDescriptorBufferInfo{
+		tbl_entry->writes.push_back(
+			BindlessResourceDescriptorWrite{
+				.buffer = WriteDescriptorBufferInfo{
 					.dst_array = handle + chunk_idx,
-					.buff_info =
-						VkDescriptorBufferInfo{
-							.buffer = ubo_handle,
-							.offset = chunk_idx * ssbo.aligned_size,
-							.range	= ssbo.aligned_size,
-						},
+					.buff_info = VkDescriptorBufferInfo{
+						.buffer = ubo_handle,
+						.offset = chunk_idx * ssbo.aligned_size,
+						.range	= ssbo.aligned_size,
+					},
 				}
-		});
+			}
+		);
 	}
 
 	return std::pair{bindless_ubo_handle, tbl_entry->resources[handle].storage_buffer.sbo};
@@ -628,52 +622,51 @@ void xray::rendering::BindlessSystem::flush_descriptors(const VulkanRenderer& re
 			case VulkanResourceType::SampledImage:
 			case VulkanResourceType::StorageImage: {
 				for (const BindlessResourceDescriptorWrite& d_write : resource_entry.writes) {
-					descriptor_writes.push_back(VkWriteDescriptorSet{
-						.sType			  = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-						.pNext			  = nullptr,
-						.dstSet			  = _descriptors[resource_entry.set_index],
-						.dstBinding		  = 0,
-						.dstArrayElement  = d_write.image.dst_array,
-						.descriptorCount  = 1,
-						.descriptorType	  = static_cast<VkDescriptorType>(resource_type),
-						.pImageInfo		  = &d_write.image.img_info,
-						.pBufferInfo	  = nullptr,
-						.pTexelBufferView = nullptr,
-					});
+					descriptor_writes.push_back(
+						VkWriteDescriptorSet{
+							.sType			  = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+							.pNext			  = nullptr,
+							.dstSet			  = _descriptors[resource_entry.set_index],
+							.dstBinding		  = 0,
+							.dstArrayElement  = d_write.image.dst_array,
+							.descriptorCount  = 1,
+							.descriptorType	  = static_cast<VkDescriptorType>(resource_type),
+							.pImageInfo		  = &d_write.image.img_info,
+							.pBufferInfo	  = nullptr,
+							.pTexelBufferView = nullptr,
+						}
+					);
 				}
 			} break;
 
 			case VulkanResourceType::UniformBuffer:
 			case VulkanResourceType::StorageBuffer: {
 				for (const BindlessResourceDescriptorWrite& d_write : resource_entry.writes) {
-					descriptor_writes.push_back(VkWriteDescriptorSet{
-						.sType			  = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-						.pNext			  = nullptr,
-						.dstSet			  = _descriptors[resource_entry.set_index],
-						.dstBinding		  = 0,
-						.dstArrayElement  = d_write.buffer.dst_array,
-						.descriptorCount  = 1,
-						.descriptorType	  = static_cast<VkDescriptorType>(resource_type),
-						.pImageInfo		  = nullptr,
-						.pBufferInfo	  = &d_write.buffer.buff_info,
-						.pTexelBufferView = nullptr,
-					});
+					descriptor_writes.push_back(
+						VkWriteDescriptorSet{
+							.sType			  = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+							.pNext			  = nullptr,
+							.dstSet			  = _descriptors[resource_entry.set_index],
+							.dstBinding		  = 0,
+							.dstArrayElement  = d_write.buffer.dst_array,
+							.descriptorCount  = 1,
+							.descriptorType	  = static_cast<VkDescriptorType>(resource_type),
+							.pImageInfo		  = nullptr,
+							.pBufferInfo	  = &d_write.buffer.buff_info,
+							.pTexelBufferView = nullptr,
+						}
+					);
 				}
 			} break;
 
 			default: {
-				XR_LOG_ERR("Resource type {} not handled for descriptor writes", std::to_underlying(resource_type));
+				XR_LOG_ERR("Resource type %d not handled for descriptor writes", std::to_underlying(resource_type));
 			} break;
 		}
 	}
 
-	WRAP_VULKAN_FUNC(
-		vkUpdateDescriptorSets,
-		renderer.device(),
-		static_cast<uint32_t>(descriptor_writes.size()),
-		descriptor_writes.data(),
-		0,
-		nullptr
+	vkUpdateDescriptorSets(
+		renderer.device(), static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr
 	);
 
 	for (auto& [resource_type, resource_entry] : _resource_table) {
@@ -704,8 +697,7 @@ tl::expected<VkSampler, xray::rendering::VulkanError> xray::rendering::BindlessS
 	}
 
 	VkSampler new_sampler{};
-	const VkResult create_result =
-		WRAP_VULKAN_FUNC(vkCreateSampler, renderer.device(), &sampler_info, nullptr, &new_sampler);
+	const VkResult create_result = vkCreateSampler(renderer.device(), &sampler_info, nullptr, &new_sampler);
 	XR_VK_CHECK_RESULT(create_result);
 
 	const auto inserted_entry = _sampler_table.emplace(sampler_info, new_sampler);
@@ -728,11 +720,11 @@ const xray::rendering::BindlessResourceEntry_Image* xray::rendering::BindlessSys
 		if (idx < itr->second.resources.size()) {
 			return &itr->second.resources[idx].image;
 		}
-		XR_LOG_ERR("sampled image {} not found!", idx);
+		XR_LOG_ERR("sampled image %u not found!", idx);
 		return nullptr;
 	}
 
-	XR_LOG_ERR("Trying to get an image entry {} but this bindless layout does not have sampled images.", idx);
+	XR_LOG_ERR("Trying to get an image entry %u but this bindless layout does not have sampled images.", idx);
 	return nullptr;
 }
 
@@ -748,11 +740,11 @@ const xray::rendering::BindlessResourceEntry_Image* xray::rendering::BindlessSys
 		if (idx < itr->second.resources.size()) {
 			return &itr->second.resources[idx].image;
 		}
-		XR_LOG_ERR("sampled image {} not found!", idx);
+		XR_LOG_ERR("sampled image %u not found!", idx);
 		return nullptr;
 	}
 
-	XR_LOG_ERR("Trying to get storage image entry {} but this bindless layout does not have storage images.", idx);
+	XR_LOG_ERR("Trying to get storage image entry %u but this bindless layout does not have storage images.", idx);
 	return nullptr;
 }
 
@@ -762,7 +754,7 @@ uint32_t xray::rendering::BindlessSystem::reserve_resource_slots(
 	auto itr = _resource_table.find(resource_type);
 	if (itr == std::end(_resource_table)) {
 		XR_LOG_ERR(
-			"Trying to reserve {} slots for resource type {} but this layout does not have any",
+			"Trying to reserve %u slots for resource type %d but this layout does not have any",
 			reserve_count,
 			std::to_underlying(resource_type)
 		);

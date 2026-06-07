@@ -3,117 +3,106 @@
 #include <filesystem>
 #include <type_traits>
 
-#include <fmt/format.h>
-
 #include "xray/base/logger.hpp"
 #include "xray/base/memory.arena.hpp"
+#include "xray/base/xray.fmt.arena.hpp"
 #include "xray/base/thread.local.context.hpp"
 #include "xray/base/containers/arena.string.hpp"
 
 using namespace xray::base;
 
-xray::base::stats_thread::stats_thread()
-{
+xray::base::stats_thread::stats_thread() {
 #if defined(XRAY_OS_IS_WINDOWS)
-    _events[0] = CreateEvent(nullptr, false, false, "QueryCollectEvent");
-    _events[1] = CreateEvent(nullptr, false, false, "ShutdownEvent");
+	_events[0] = CreateEvent(nullptr, false, false, "QueryCollectEvent");
+	_events[1] = CreateEvent(nullptr, false, false, "ShutdownEvent");
 #endif
-    _collector_thread = std::thread{ [this]() { this->run(); } };
+	_collector_thread = std::thread{[this]() { this->run(); }};
 }
 
-xray::base::stats_thread::~stats_thread() noexcept
-{
-    _collector_thread.join();
-}
+xray::base::stats_thread::~stats_thread() noexcept { _collector_thread.join(); }
 
-void
-xray::base::stats_thread::run()
-{
-    _proc_stats.values.resize(counter_type::last);
+void xray::base::stats_thread::run() {
+	_proc_stats.values.resize(counter_type::last);
 
 #if defined(XRAY_OS_IS_WINDOWS)
-    PdhOpenQuery(nullptr, 0, raw_handle_ptr(_proc_stats.query));
-    if (!_proc_stats.query)
-        return;
+	PdhOpenQuery(nullptr, 0, raw_handle_ptr(_proc_stats.query));
+	if (!_proc_stats.query) return;
 
-    _proc_stats.counters.resize(counter_type::last);
+	_proc_stats.counters.resize(counter_type::last);
 
-    static constexpr const char* const PERF_COUNTER_NAMES[] = { "% Processor Time",   "Working Set",
-                                                                "Thread Count",       "Virtual Bytes",
-                                                                "Virtual Bytes Peak", "Working Set Peak" };
+	static constexpr const char* const PERF_COUNTER_NAMES[] = {
+		"% Processor Time", "Working Set", "Thread Count", "Virtual Bytes", "Virtual Bytes Peak", "Working Set Peak"
+	};
 
-    {
-        char mod_path[512];
+	{
+		char mod_path[512];
 
 #if defined(XRAY_OS_IS_WINDOWS)
-        const size_t chars_count = GetModuleFileNameA(nullptr, mod_path, static_cast<DWORD>(std::size(mod_path)));
-        mod_path[chars_count] = 0;
+		const size_t chars_count = GetModuleFileNameA(nullptr, mod_path, static_cast<DWORD>(std::size(mod_path)));
+		mod_path[chars_count]	 = 0;
 #else
 #endif
-        const std::filesystem::path p{ mod_path };
-        const auto process_name = p.filename().stem().generic_string();
+		const std::filesystem::path p{mod_path};
+		const auto process_name = p.filename().stem().generic_string();
 
 		ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({});
-        containers::string counter_path_buff{*scratch_pad.arena};
+		containers::string counter_path_buff{*scratch_pad.arena};
 
 		for (uint32_t i = 0; i < counter_type::last; ++i) {
-            fmt::format_to(
-                std::back_inserter(counter_path_buff), "\\Process({})\\{}", process_name, PERF_COUNTER_NAMES[i]);
+			format_to(counter_path_buff, "\\Process(%s)\\%s", process_name, PERF_COUNTER_NAMES[i]);
 
-            const auto result =
-                PdhAddCounter(raw_handle(_proc_stats.query), counter_path_buff.data(), 0, &_proc_stats.counters[i]);
+			const auto result =
+				PdhAddCounter(raw_handle(_proc_stats.query), counter_path_buff.data(), 0, &_proc_stats.counters[i]);
 
-            if (result != ERROR_SUCCESS)
-                XR_LOG_DEBUG("Failed to add counter {}", counter_path_buff.data());
-        }
-    }
+			if (result != ERROR_SUCCESS) XR_LOG_DEBUG("Failed to add counter %s", counter_path_buff.c_str());
+		}
+	}
 
-    PdhCollectQueryDataEx(raw_handle(_proc_stats.query), 1, raw_handle(_events[thread_event::collect_query]));
+	PdhCollectQueryDataEx(raw_handle(_proc_stats.query), 1, raw_handle(_events[thread_event::collect_query]));
 
-    const HANDLE thr_events[] = { raw_handle(_events[thread_event::collect_query]),
-                                  raw_handle(_events[thread_event::shutdown]) };
+	const HANDLE thr_events[] = {
+		raw_handle(_events[thread_event::collect_query]), raw_handle(_events[thread_event::shutdown])
+	};
 
-    _initialized = true;
+	_initialized = true;
 
-    for (;;) {
-        const auto signaled_event = WaitForMultipleObjectsEx(2, thr_events, false, INFINITE, false);
+	for (;;) {
+		const auto signaled_event = WaitForMultipleObjectsEx(2, thr_events, false, INFINITE, false);
 
-        if (signaled_event == WAIT_OBJECT_0) {
-            //
-            // collect query data
-            for (uint32_t counter_idx = 0; counter_idx < counter_type::last; ++counter_idx) {
-                DWORD type{};
-                PDH_FMT_COUNTERVALUE counter_val;
-                const auto result =
-                    PdhGetFormattedCounterValue(_proc_stats.counters[counter_idx], PDH_FMT_DOUBLE, &type, &counter_val);
+		if (signaled_event == WAIT_OBJECT_0) {
+			//
+			// collect query data
+			for (uint32_t counter_idx = 0; counter_idx < counter_type::last; ++counter_idx) {
+				DWORD type{};
+				PDH_FMT_COUNTERVALUE counter_val;
+				const auto result =
+					PdhGetFormattedCounterValue(_proc_stats.counters[counter_idx], PDH_FMT_DOUBLE, &type, &counter_val);
 
-                if (result != ERROR_SUCCESS) {
-                    continue;
-                }
+				if (result != ERROR_SUCCESS) {
+					continue;
+				}
 
-                _proc_stats.values[counter_idx] = counter_val.doubleValue;
-            }
+				_proc_stats.values[counter_idx] = counter_val.doubleValue;
+			}
 
-            continue;
-        }
+			continue;
+		}
 
-        break;
-    }
+		break;
+	}
 
-    XR_LOG_DEBUG("Stats collect thread shutting down.");
+	XR_LOG_DEBUG("Stats collect thread shutting down.");
 #endif
 }
 
-xray::base::stats_thread::process_stats_info
-xray::base::stats_thread::process_stats() const noexcept
-{
-    process_stats_info psi;
-    psi.cpu_usage = _proc_stats.values[counter_type::cpu_usage];
-    psi.thread_count = static_cast<uint32_t>(_proc_stats.values[counter_type::thread_count]);
-    psi.vbytes_peak = static_cast<uint32_t>(_proc_stats.values[counter_type::virtual_bytes_peak]);
-    psi.virtual_bytes = static_cast<uint32_t>(_proc_stats.values[counter_type::virtual_bytes]);
-    psi.working_set = static_cast<uint32_t>(_proc_stats.values[counter_type::working_set]);
-    psi.work_set_peak = static_cast<uint32_t>(_proc_stats.values[counter_type::working_set_peak]);
+xray::base::stats_thread::process_stats_info xray::base::stats_thread::process_stats() const noexcept {
+	process_stats_info psi;
+	psi.cpu_usage	  = _proc_stats.values[counter_type::cpu_usage];
+	psi.thread_count  = static_cast<uint32_t>(_proc_stats.values[counter_type::thread_count]);
+	psi.vbytes_peak	  = static_cast<uint32_t>(_proc_stats.values[counter_type::virtual_bytes_peak]);
+	psi.virtual_bytes = static_cast<uint32_t>(_proc_stats.values[counter_type::virtual_bytes]);
+	psi.working_set	  = static_cast<uint32_t>(_proc_stats.values[counter_type::working_set]);
+	psi.work_set_peak = static_cast<uint32_t>(_proc_stats.values[counter_type::working_set_peak]);
 
-    return psi;
+	return psi;
 }

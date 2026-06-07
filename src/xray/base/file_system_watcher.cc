@@ -1,6 +1,9 @@
 #include "xray/base/file_system_watcher.hpp"
 
 #include "xray/base/logger.hpp"
+#if defined(XRAY_OS_IS_LINUX)
+#include <linux/limits.h>
+#endif
 
 namespace xray::base {
 
@@ -29,7 +32,7 @@ void FileSystemWatcher::add_watch(
 
 	_fs_watched_paths.emplace(path.string(), watch_descriptor);
 	_fs_watch_instances.emplace(watch_descriptor, FsWatchInstanceEntry{path, observer});
-	XR_LOG_INFO("Adding path to watch: {}", path.c_str());
+	XR_LOG_INFO("Adding path to watch: %s", path.c_str());
 
 	namespace fs = std::filesystem;
 	if (!fs::is_directory(path) || !recursive) return;
@@ -40,11 +43,11 @@ void FileSystemWatcher::add_watch(
 		const int32_t watch_desc =
 			syscall_wrapper(inotify_add_watch, raw_handle(_inotify_handle), dir_entry.path().c_str(), watch_flags);
 		if (watch_desc == -1) {
-			XR_LOG_ERR("inotify_add_watch failed on directory {}, errno {}", dir_entry.path().c_str(), errno);
+			XR_LOG_ERR("inotify_add_watch failed on directory %s, errno %d", dir_entry.path().c_str(), errno);
 			continue;
 		}
 
-		XR_LOG_INFO("Adding path to watch: {}", dir_entry.path().c_str());
+		XR_LOG_INFO("Adding path to watch: %s", dir_entry.path().c_str());
 		_fs_watched_paths[dir_entry.path()] = watch_desc;
 		_fs_watch_instances[watch_desc]		= FsWatchInstanceEntry{dir_entry.path(), observer};
 	}
@@ -65,7 +68,7 @@ void FileSystemWatcher::poll() {
 		}
 
 		if (bytes_read <= 0) {
-			XR_LOG_ERR("inotify read failure {}", errno);
+			XR_LOG_ERR("inotify read failure %d", errno);
 			return;
 		}
 

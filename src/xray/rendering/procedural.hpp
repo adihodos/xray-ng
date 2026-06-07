@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include <cstdint>
 #include <vector>
+#include <span>
 #include "xray/math/scalar4.hpp"
 
 namespace xray::rendering {
@@ -38,9 +38,13 @@ enum class XorPatternType
 {
     BnW,
     Colored,
+    ColoredHSV,
 };
 
 std::vector<math::vec4ui8>
 xor_pattern(const uint32_t width, const uint32_t height, const XorPatternType pattern);
+
+void
+xor_fill(const uint32_t width, const uint32_t height, const XorPatternType pattern, std::span<uint8_t> region);
 
 }

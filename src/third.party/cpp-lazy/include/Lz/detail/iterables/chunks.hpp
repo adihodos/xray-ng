@@ -1,0 +1,128 @@
+#pragma once
+
+#ifndef LZ_CHUNKS_ITERABLE_HPP
+#define LZ_CHUNKS_ITERABLE_HPP
+
+#include <Lz/detail/iterators/chunks.hpp>
+#include <Lz/detail/maybe_owned.hpp>
+#include <Lz/detail/traits/is_sentinel.hpp>
+#include <Lz/detail/traits/iterator_categories.hpp>
+
+namespace lz {
+namespace detail {
+template<class Iterable>
+class chunks_iterable : public lazy_view {
+
+    using inner = iter_t<Iterable>;
+
+public:
+    using iterator = chunks_iterator<maybe_owned<Iterable>>;
+    using const_iterator = iterator;
+    using value_type = typename iterator::value_type;
+    using sentinel = typename iterator::sentinel;
+
+private:
+    maybe_owned<Iterable> _iterable{};
+    typename iterator::difference_type _chunk_size{};
+
+public:
+#ifdef LZ_HAS_CONCEPTS
+
+    constexpr chunks_iterable()
+        requires(std::default_initializable<maybe_owned<Iterable>>)
+    = default;
+
+#else
+
+    template<class I = decltype(_iterable), class = enable_if_t<std::is_default_constructible<I>::value>>
+    constexpr chunks_iterable() noexcept(std::is_nothrow_default_constructible<I>::value) {
+    }
+
+#endif
+
+    template<class I>
+    LZ_CONSTEXPR_CXX_14 chunks_iterable(I&& iterable, const typename iterator::difference_type chunk_size) :
+        _iterable{ std::forward<I>(iterable) },
+        _chunk_size{ chunk_size } {
+        LZ_ASSERT(chunk_size > 0, "Chunk size must be greater than 0");
+    }
+
+#ifdef LZ_HAS_CONCEPTS
+
+    [[nodiscard]] constexpr size_t size() const
+        requires(sized<Iterable>)
+    {
+        return static_cast<size_t>((lz::size(_iterable) + (static_cast<size_t>(_chunk_size) - 1)) /
+                                   static_cast<size_t>(_chunk_size));
+    }
+
+#else
+
+    template<class I = Iterable>
+    LZ_NODISCARD constexpr enable_if_t<is_sized<I>::value, size_t> size() const {
+        return static_cast<size_t>((lz::size(_iterable) + (static_cast<size_t>(_chunk_size) - 1)) /
+                                   static_cast<size_t>(_chunk_size));
+    }
+
+#endif
+
+#ifdef LZ_HAS_CXX_17
+
+    [[nodiscard]] constexpr auto begin() const {
+        // Also counts for ra
+        if constexpr (is_bidi_tag_v<typename iterator::iterator_category>) {
+            return iterator{ _iterable, _iterable.begin(), _chunk_size };
+        }
+        else {
+            return iterator{ _iterable.begin(), _iterable.end(), _chunk_size };
+        }
+    }
+
+#else
+
+    template<class I = typename iterator::iterator_category>
+    LZ_NODISCARD LZ_CONSTEXPR_CXX_14 enable_if_t<!is_bidi_tag<I>::value, iterator> begin() const {
+        return { _iterable.begin(), _iterable.end(), _chunk_size };
+    }
+
+    template<class I = typename iterator::iterator_category>
+    LZ_NODISCARD LZ_CONSTEXPR_CXX_14 enable_if_t<is_bidi_tag<I>::value, iterator> begin() const {
+        return { _iterable, _iterable.begin(), _chunk_size };
+    }
+
+#endif
+
+#ifdef LZ_HAS_CXX_17
+
+    [[nodiscard]] constexpr auto end() const {
+        // Also counts for ra
+        if constexpr (is_bidi_tag_v<typename iterator::iterator_category> && !is_sentinel_v<inner, sentinel_t<Iterable>>) {
+            return iterator{ _iterable, _iterable.end(), _chunk_size };
+        }
+        else {
+            return lz::default_sentinel;
+        }
+    }
+
+#else
+
+    template<class I = typename iterator::iterator_category>
+    LZ_NODISCARD
+        LZ_CONSTEXPR_CXX_14 enable_if_t<is_bidi_tag<I>::value && !is_sentinel<inner, sentinel_t<Iterable>>::value, iterator>
+        end() const {
+        return { _iterable, _iterable.end(), _chunk_size };
+    }
+
+    template<class I = typename iterator::iterator_category>
+    LZ_NODISCARD constexpr enable_if_t<!is_bidi_tag<I>::value || is_sentinel<inner, sentinel_t<Iterable>>::value,
+                                       default_sentinel_t>
+    end() const {
+        return {};
+    }
+
+#endif
+};
+} // namespace detail
+} // namespace lz
+
+#endif

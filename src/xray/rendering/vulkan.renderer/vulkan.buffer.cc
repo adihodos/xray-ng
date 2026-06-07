@@ -2,16 +2,12 @@
 
 #include <cassert>
 
-#include <Lz/map.hpp>
-#include <Lz/algorithm/accumulate.hpp>
-
 #include "xray/base/logger.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/thread.local.context.hpp"
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 
 tl::expected<xray::rendering::VulkanBuffer, xray::rendering::VulkanError> xray::rendering::VulkanBuffer::create(
 	xray::rendering::VulkanRenderer& renderer, const xray::rendering::VulkanBufferCreateInfo& create_info
@@ -39,14 +35,14 @@ tl::expected<xray::rendering::VulkanBuffer, xray::rendering::VulkanError> xray::
 	const size_t aligned_bytes			 = base::align(create_info.bytes, alignment);
 	const size_t aligned_allocation_size = aligned_bytes * create_info.frames;
 
-	const size_t initial_data_size = lz::accumulate(
-		create_info.initial_data | lz::map([](const std::span<const uint8_t> data) { return data.size_bytes(); }), 0
-	);
-
+	size_t initial_data_size = 0;
+	for (const std::span<const U8> s : create_info.initial_data) {
+		initial_data_size += s.size_bytes();
+	}
 	assert(create_info.bytes >= initial_data_size);
 
 	XR_LOG_TRACE(
-		"Create buffer {}, bytes size = {}, alignment = {}, aligned size = {}, aligned allocation size = {}",
+		"Create buffer %s, bytes size = %zu, alignment = %zu, aligned size = %zu, aligned allocation size = %zu",
 		create_info.name_tag ? create_info.name_tag : "anonymous",
 		create_info.bytes,
 		alignment,
@@ -73,7 +69,7 @@ tl::expected<xray::rendering::VulkanBuffer, xray::rendering::VulkanError> xray::
 
 	VkBuffer buffer;
 	const VkResult create_result =
-		WRAP_VULKAN_FUNC(vkCreateBuffer, renderer.device(), &buffer_create_info, nullptr, &buffer);
+		vkCreateBuffer(renderer.device(), &buffer_create_info, nullptr, &buffer);
 	XR_VK_CHECK_RESULT(create_result);
 
 	if (create_info.name_tag) renderer.dbg_set_object_name(buffer, create_info.name_tag);
@@ -104,12 +100,12 @@ tl::expected<xray::rendering::VulkanBuffer, xray::rendering::VulkanError> xray::
 
 	VkDeviceMemory buffer_mem;
 	const VkResult alloc_mem_result =
-		WRAP_VULKAN_FUNC(vkAllocateMemory, renderer.device(), &mem_alloc_info, nullptr, &buffer_mem);
+		vkAllocateMemory(renderer.device(), &mem_alloc_info, nullptr, &buffer_mem);
 	xrUniqueVkDeviceMemory bm{buffer_mem, VkResourceDeleter_VkDeviceMemory{renderer.device()}};
 	XR_VK_CHECK_RESULT(alloc_mem_result);
 
 	const VkResult bind_buffer_mem_result{
-		WRAP_VULKAN_FUNC(vkBindBufferMemory, renderer.device(), raw_ptr(sb), raw_ptr(bm), 0)
+		vkBindBufferMemory(renderer.device(), raw_ptr(sb), raw_ptr(bm), 0)
 	};
 	XR_VK_CHECK_RESULT(bind_buffer_mem_result);
 
@@ -117,15 +113,16 @@ tl::expected<xray::rendering::VulkanBuffer, xray::rendering::VulkanError> xray::
 		//
 		// not immutable so just map + copy everything there is to copy
 		if (initial_data_size != 0) {
-			UniqueMemoryMapping::map_memory(renderer.device(), buffer_mem, 0, aligned_bytes)
-				.map([ci = &create_info](UniqueMemoryMapping mapping) {
-					uint8_t* copy_target = static_cast<uint8_t*>(mapping._mapped_memory);
+			[[maybe_unused]] const auto err =
+				UniqueMemoryMapping::map_memory(renderer.device(), buffer_mem, 0, aligned_bytes)
+					.map([ci = &create_info](UniqueMemoryMapping mapping) {
+						uint8_t* copy_target = static_cast<uint8_t*>(mapping._mapped_memory);
 
-					for (const std::span<const uint8_t> region : ci->initial_data) {
-						memcpy(copy_target, region.data(), region.size_bytes());
-						copy_target += region.size_bytes();
-					}
-				});
+						for (const std::span<const uint8_t> region : ci->initial_data) {
+							memcpy(copy_target, region.data(), region.size_bytes());
+							copy_target += region.size_bytes();
+						}
+					});
 		}
 	} else {
 		//
@@ -137,7 +134,7 @@ tl::expected<xray::rendering::VulkanBuffer, xray::rendering::VulkanError> xray::
 			base::ScratchPadArena scratch_pad{base::ThreadLocalContext::acquire_scratchpad({})};
 			base::containers::vector<VkBufferCopy> buffer_copies{*scratch_pad.arena};
 			buffer_copies.reserve(create_info.initial_data.size());
-			
+
 			VkDeviceSize bytes_count{};
 
 			for (std::span<const uint8_t> copy_rgn : create_info.initial_data) {

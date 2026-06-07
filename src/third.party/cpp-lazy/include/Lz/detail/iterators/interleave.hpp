@@ -1,0 +1,300 @@
+#pragma once
+
+#ifndef LZ_INTERLEAVED_ITERATOR_HPP
+#define LZ_INTERLEAVED_ITERATOR_HPP
+
+#include <Lz/detail/compiler_config.hpp>
+#include <Lz/detail/fake_ptr_proxy.hpp>
+#include <Lz/detail/iterator.hpp>
+#include <Lz/detail/procs/min_max.hpp>
+#include <Lz/detail/tuple_helpers.hpp>
+#include <cstdint>
+#include <limits>
+#include <numeric>
+
+#ifndef LZ_HAS_CXX_17
+#include <Lz/detail/procs/decompose.hpp>
+#endif
+
+namespace lz {
+namespace detail {
+
+template<class T>
+class interleave_sentinel {
+    T value{};
+
+    template<class, class>
+    friend class interleave_iterator;
+
+    template<class...>
+    friend class interleave_iterable;
+
+    explicit constexpr interleave_sentinel(T v) noexcept(std::is_nothrow_move_constructible<T>::value) : value{ std::move(v) } {
+    }
+
+public:
+#ifdef LZ_HAS_CXX_20
+    constexpr interleave_sentinel()
+        requires(std::default_initializable<T>)
+    = default;
+#else
+    template<class I = T, class = enable_if_t<std::is_default_constructible<I>::value>>
+    constexpr interleave_sentinel() noexcept(std::is_nothrow_default_constructible<I>::value) {
+    }
+#endif
+};
+
+template<class Iterators, class Sentinels>
+class interleave_iterator : public iterator<interleave_iterator<Iterators, Sentinels>, iter_tuple_common_ref_t<Iterators>,
+                                            fake_ptr_proxy<iter_tuple_common_ref_t<Iterators>>, iter_tuple_diff_type_t<Iterators>,
+                                            iter_tuple_iter_cat_t<Iterators>, interleave_sentinel<Sentinels>> {
+
+    using traits = std::iterator_traits<first_it_t<Iterators>>;
+
+public:
+    using value_type = typename traits::value_type;
+    using difference_type = iter_tuple_diff_type_t<Iterators>;
+    using reference = iter_tuple_common_ref_t<Iterators>;
+    using pointer = fake_ptr_proxy<reference>;
+
+private:
+    static_assert(tuple_size<Iterators>::value <= std::numeric_limits<std::uint_least8_t>::max(),
+                  "interleave_iterator tuple size exceeds uint_least8_t. This is not supported.");
+
+    static constexpr auto tup_size = static_cast<std::uint_least8_t>(tuple_size<Iterators>::value);
+
+    Iterators _iterators{};
+    // Using uint_least8_t because generally the max number of function parameters is 256
+    std::uint_least8_t _index{};
+
+    using is = make_index_sequence<tup_size>;
+
+#ifdef LZ_HAS_CXX_17
+
+    template<size_t I>
+    constexpr bool eq(const interleave_sentinel<Sentinels>& other) const {
+        if constexpr (I != tup_size - 1) {
+            return std::get<I>(_iterators) == std::get<I>(other.value) ? _index == 0 : eq<I + 1>(other);
+        }
+        else {
+            return std::get<I>(_iterators) == std::get<I>(other.value);
+        }
+    }
+
+    template<size_t I>
+    constexpr bool eq(const interleave_iterator& other) const {
+        if constexpr (I != tup_size - 1) {
+            return std::get<I>(_iterators) == std::get<I>(other._iterators) ? _index == other._index : eq<I + 1>(other);
+        }
+        else {
+            return std::get<I>(_iterators) == std::get<I>(other._iterators) && _index == other._index;
+        }
+    }
+
+#else
+
+    template<size_t I>
+    LZ_CONSTEXPR_CXX_14 enable_if_t<I != tup_size - 1, bool> eq(const interleave_sentinel<Sentinels>& other) const {
+        return std::get<I>(_iterators) == std::get<I>(other.value) ? _index == 0 : eq<I + 1>(other);
+    }
+
+    template<size_t I>
+    LZ_CONSTEXPR_CXX_14 enable_if_t<I == tup_size - 1, bool> eq(const interleave_sentinel<Sentinels>& other) const {
+        return std::get<I>(_iterators) == std::get<I>(other.value);
+    }
+
+    template<size_t I>
+    LZ_CONSTEXPR_CXX_14 enable_if_t<I != tup_size - 1, bool> eq(const interleave_iterator& other) const {
+        return std::get<I>(_iterators) == std::get<I>(other._iterators) ? _index == other._index : eq<I + 1>(other);
+    }
+
+    template<size_t I>
+    LZ_CONSTEXPR_CXX_14 enable_if_t<I == tup_size - 1, bool> eq(const interleave_iterator& other) const {
+        return std::get<I>(_iterators) == std::get<I>(other._iterators) && _index == other._index;
+    }
+
+#endif
+
+    template<size_t... Is>
+    LZ_CONSTEXPR_CXX_14 void increment(index_sequence<Is...>) {
+        ++_index;
+        if (_index != tup_size) {
+            return;
+        }
+#ifdef LZ_HAS_CXX_17
+        (++std::get<Is>(_iterators), ...);
+#else
+        decompose(++std::get<Is>(_iterators)...);
+#endif
+        _index = 0;
+    }
+
+    template<size_t... Is>
+    LZ_CONSTEXPR_CXX_14 void decrement(index_sequence<Is...>) {
+        if (_index == 0) {
+#ifdef LZ_HAS_CXX_17
+            (--std::get<Is>(_iterators), ...);
+#else
+            decompose(--std::get<Is>(_iterators)...);
+#endif
+            _index = tup_size - 1;
+            return;
+        }
+        --_index;
+    }
+
+#ifdef LZ_HAS_CXX_17
+
+    template<size_t I>
+    constexpr reference dereference() const {
+        if constexpr (I != tup_size - 1) {
+            return _index == I ? *std::get<I>(_iterators) : dereference<I + 1>();
+        }
+        else {
+            return *std::get<I>(_iterators);
+        }
+    }
+
+#else
+
+    template<size_t I>
+    LZ_CONSTEXPR_CXX_14 enable_if_t<I != tup_size - 1, reference> dereference() const {
+        return _index == I ? *std::get<I>(_iterators) : dereference<I + 1>();
+    }
+
+    template<size_t I>
+    LZ_CONSTEXPR_CXX_14 enable_if_t<I == tup_size - 1, reference> dereference() const noexcept {
+        return *std::get<I>(_iterators);
+    }
+
+#endif
+
+    template<size_t... Is>
+    LZ_CONSTEXPR_CXX_20 difference_type difference(const interleave_iterator& other, index_sequence<Is...>) const {
+
+        const difference_type distances[] = { static_cast<difference_type>(std::get<Is>(_iterators) -
+                                                                           std::get<Is>(other._iterators))... };
+        const auto sum =
+            std::accumulate(detail::begin(distances), detail::end(distances), difference_type{ 0 }, std::plus<difference_type>{});
+        return sum + (static_cast<difference_type>(_index) - static_cast<difference_type>(other._index));
+    }
+
+    template<size_t... Is>
+    LZ_CONSTEXPR_CXX_20 difference_type difference(const interleave_sentinel<Sentinels>& other, index_sequence<Is...>) const {
+
+        const difference_type distances[] = { static_cast<difference_type>(std::get<Is>(_iterators) -
+                                                                           std::get<Is>(other.value))... };
+        const auto sum = max_variadic(distances[Is]...) * static_cast<difference_type>(tup_size);
+        return sum + static_cast<difference_type>(_index);
+    }
+
+    template<size_t... Is>
+    LZ_CONSTEXPR_CXX_14 void plus_is(const difference_type n, index_sequence<Is...>) {
+        if (n == 0) {
+            return;
+        }
+#ifdef LZ_HAS_CXX_17
+        ((std::get<Is>(_iterators) += n), ...);
+#else
+        decompose(std::get<Is>(_iterators) += n...);
+#endif
+    }
+
+    template<size_t... I>
+    LZ_CONSTEXPR_CXX_14 void assign_sentinels(const interleave_sentinel<Sentinels>& end, index_sequence<I...>) {
+#ifdef LZ_HAS_CXX_17
+        ((std::get<I>(_iterators) = std::get<I>(end.value)), ...);
+#else
+        decompose(std::get<I>(_iterators) = std::get<I>(end.value)...);
+#endif
+    }
+
+public:
+#ifdef LZ_HAS_CONCEPTS
+
+    constexpr interleave_iterator()
+        requires(std::default_initializable<Sentinels>)
+    = default;
+
+#else
+
+    template<class I = Iterators, class = enable_if_t<std::is_default_constructible<I>::value>>
+    constexpr interleave_iterator() noexcept(std::is_nothrow_default_constructible<I>::value) {
+    }
+
+#endif
+
+    LZ_CONSTEXPR_CXX_14 interleave_iterator(Iterators iterators) : _iterators{ std::move(iterators) } {
+        static_assert(tup_size > 1, "interleaved_iterator must have at least two iterators");
+    }
+
+    LZ_CONSTEXPR_CXX_14 interleave_iterator& operator=(const interleave_sentinel<Sentinels>& end) {
+        assign_sentinels(end, is{});
+        _index = 0;
+        return *this;
+    }
+
+    LZ_CONSTEXPR_CXX_14 reference dereference() const {
+        return dereference<0>();
+    }
+
+    LZ_CONSTEXPR_CXX_14 pointer arrow() const {
+        return fake_ptr_proxy<decltype(**this)>(**this);
+    }
+
+    LZ_CONSTEXPR_CXX_14 void increment() {
+        increment(is{});
+    }
+
+    LZ_CONSTEXPR_CXX_14 void decrement() {
+        decrement(is{});
+    }
+
+    LZ_CONSTEXPR_CXX_14 difference_type difference(const interleave_iterator& other) const {
+        return difference(other, is{});
+    }
+
+    LZ_CONSTEXPR_CXX_14 difference_type difference(const interleave_sentinel<Sentinels>& other) const {
+        return difference(other, is{});
+    }
+
+    LZ_CONSTEXPR_CXX_14 void plus_is(difference_type n) {
+        if (n == 0) {
+            return;
+        }
+
+        using unsigned_diff = typename std::make_unsigned<difference_type>::type;
+        constexpr auto u_tup_size = static_cast<unsigned_diff>(tup_size);
+        const auto n_plus_index = static_cast<difference_type>(_index) + n;
+
+        if (n > 0) {
+            const auto u_n = static_cast<unsigned_diff>(n);
+            plus_is(n_plus_index / static_cast<difference_type>(tup_size), is{});
+            // clang-format off
+            _index = u_tup_size * (u_n / tup_size) == u_n
+                         ? 0 : static_cast<std::uint_least8_t>(static_cast<unsigned_diff>(n_plus_index) % u_tup_size);
+            // clang-format on
+            return;
+        }
+
+        const auto u_n = static_cast<unsigned_diff>(-n);
+        constexpr auto s_tup_size = static_cast<difference_type>(tup_size);
+        plus_is((n_plus_index - s_tup_size + 1) / s_tup_size, is{});
+        // clang-format off
+        _index = u_tup_size * (u_n / tup_size) == u_n ? 
+            0 : static_cast<std::uint_least8_t>((tup_size + n_plus_index % s_tup_size) % tup_size);
+        // clang-format on
+    }
+
+    LZ_CONSTEXPR_CXX_14 bool eq(const interleave_iterator& other) const {
+        return eq<0>(other);
+    }
+
+    LZ_CONSTEXPR_CXX_14 bool eq(const interleave_sentinel<Sentinels>& last) const {
+        return eq<0>(last);
+    }
+};
+} // namespace detail
+} // namespace lz
+
+#endif // LZ_INTERLEAVED_ITERATOR_HPP

@@ -3,30 +3,17 @@
 #include <span>
 #include <vector>
 #include <unordered_map>
-#include <memory_resource>
-#include <ranges>
-
-#include <fmt/core.h>
-#include <fmt/std.h>
 
 #include <tl/optional.hpp>
 #include <swl/variant.hpp>
-#include <mio/mmap.hpp>
+#include <mio/mio.hpp>
 
-#include <Lz/map.hpp>
-#include <Lz/algorithm/for_each.hpp>
-#include <Lz/algorithm/max_element.hpp>
-#include <Lz/algorithm/contains.hpp>
-#include <Lz/range.hpp>
-
-#include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_to_string.hpp>
 #include <shaderc/shaderc.hpp>
 #include <spirv_reflect.h>
 
 #include "xray/base/logger.hpp"
 #include "xray/base/xray.fmt.hpp"
+#include "xray/base/xray.fmt.arena.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/thread.local.context.hpp"
 #include "xray/base/containers/arena.string.hpp"
@@ -34,7 +21,6 @@
 #include "xray/base/containers/arena.vector.hpp"
 #include "xray/base/scoped_guard.hpp"
 #include "xray/base/variant.helpers.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.call.wrapper.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.unique.resource.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
 
@@ -64,7 +50,7 @@ tl::optional<ShaderTraits> shader_traits_from_shader_file(const std::filesystem:
 	if (shader_file.extension() == ".cs")
 		return ShaderTraits{VK_SHADER_STAGE_COMPUTE_BIT, shaderc_shader_kind::shaderc_compute_shader};
 
-	XR_LOG_CRITICAL("Unable to determine shader type from file extension {}", shader_file.generic_string());
+	XR_LOG_CRITICAL("Unable to determine shader type from file extension %s", shader_file.generic_string().c_str());
 	return tl::nullopt;
 }
 
@@ -136,7 +122,7 @@ shaderc_include_result* ShaderIncludesResolver::GetInclude(
 	const char* requested_source, shaderc_include_type type, const char* requesting_source, size_t include_depth
 ) {
 	XR_LOG_TRACE(
-		"Include request: source {}, type {}, requesting src {}, depth {}",
+		"Include request: source %s, type %u, requesting src %s, depth %zu",
 		requested_source,
 		static_cast<uint32_t>(type),
 		requesting_source,
@@ -212,7 +198,9 @@ shaderc_include_result* ShaderIncludesResolver::GetInclude(
 	std::error_code err_code{};
 	mio::mmap_source mapped_file{mio::make_mmap_source(included_file_path->generic_string(), err_code)};
 	if (err_code) {
-		XR_LOG_CRITICAL("Failed to mmap file {}, error {}", included_file_path->generic_string(), err_code.message());
+		XR_LOG_CRITICAL(
+			"Failed to mmap file %s, error %s", included_file_path->generic_string().c_str(), err_code.message().c_str()
+		);
 		_include_result = ShaderIncludesResolver::fail_include("mmap failure");
 		return &_include_result;
 	}
@@ -231,7 +219,7 @@ shaderc_include_result* ShaderIncludesResolver::GetInclude(
 		.content_length		= itr_entry->second.mapped_file.length(),
 	};
 
-	XR_LOG_TRACE("shader includer resolved {} to {}", requested_source, itr_entry->second.path);
+	XR_LOG_TRACE("shader includer resolved %s to %s", requested_source, itr_entry->second.path.c_str());
 	return &itr_entry->second.include_result;
 }
 
@@ -289,15 +277,15 @@ tl::optional<ShaderModuleWithSpirVBlob> create_shader_module_from_string(const S
 
 	if (preprocessed_result.GetCompilationStatus() != shaderc_compilation_status_success) {
 		XR_LOG_CRITICAL(
-			"Shader preprocess error: {}\nShader code:\n{}",
-			preprocessed_result.GetErrorMessage(),
+			"Shader preprocess error: %s\nShader code:\n%s",
+			preprocessed_result.GetErrorMessage().c_str(),
 			params.source_code.data()
 		);
 		return tl::nullopt;
 	}
 
 	if (params.build_options->compile_options & ShaderBuildOptions::Compile_DumpShaderCode) {
-		XR_LOG_DEBUG("Shader code:\n{}", std::string_view{preprocessed_result.cbegin(), preprocessed_result.cend()});
+		XR_LOG_DEBUG("Shader code:\n%s", preprocessed_result.cbegin());
 	}
 
 	const shaderc::SpvCompilationResult compilation_result{
@@ -320,8 +308,8 @@ tl::optional<ShaderModuleWithSpirVBlob> create_shader_module_from_string(const S
 	};
 
 	if (compilation_result.GetCompilationStatus() != shaderc_compilation_status_success) {
-		XR_LOG_CRITICAL("{}", compilation_result.GetErrorMessage());
-		XR_LOG_INFO("Dumping shader code:\n{}", params.source_code);
+		XR_LOG_CRITICAL("%s", compilation_result.GetErrorMessage().c_str());
+		XR_LOG_INFO("Dumping shader code:\n%s", params.source_code.data());
 		return tl::nullopt;
 	}
 
@@ -334,7 +322,7 @@ tl::optional<ShaderModuleWithSpirVBlob> create_shader_module_from_string(const S
 	};
 
 	VkShaderModule shader_module{};
-	WRAP_VULKAN_FUNC(vkCreateShaderModule, params.device, &shader_module_create_info, nullptr, &shader_module);
+	vkCreateShaderModule(params.device, &shader_module_create_info, nullptr, &shader_module);
 
 	return tl::make_optional<ShaderModuleWithSpirVBlob>(
 		xrUniqueVkShaderModule{
@@ -364,19 +352,26 @@ tl::optional<ShaderModuleWithSpirVBlob> create_shader_module_from_file(const Sha
 	std::error_code err_code{};
 	const mio::mmap_source shader_file{mio::make_mmap_source(path_gs.c_str(), err_code)};
 	if (err_code) {
-		XR_LOG_ERR("Failed to read shader file {}, error {:#x} - {}", path_gs, err_code.value(), err_code.message());
+		XR_LOG_ERR(
+			"Failed to read shader file %s, error %#08x - %s",
+			path_gs.c_str(),
+			err_code.value(),
+			err_code.message().c_str()
+		);
 		return {};
 	}
 
-	return create_shader_module_from_string(ShaderModuleCreateParams{
-		.device				 = params.device,
-		.shader_include_dirs = params.shader_include_dirs,
-		.source_code		 = string_view{shader_file.data(), shader_file.size()},
-		.shader_tag			 = path_gs,
-		.shader_traits		 = params.shader_traits,
-		.build_options		 = params.build_options,
-		.arena_perm			 = params.arena_perm,
-	});
+	return create_shader_module_from_string(
+		ShaderModuleCreateParams{
+			.device				 = params.device,
+			.shader_include_dirs = params.shader_include_dirs,
+			.source_code		 = string_view{shader_file.data(), shader_file.size()},
+			.shader_tag			 = path_gs,
+			.shader_traits		 = params.shader_traits,
+			.build_options		 = params.build_options,
+			.arena_perm			 = params.arena_perm,
+		}
+	);
 }
 
 struct SpirVReflectionResult {
@@ -400,10 +395,6 @@ tl::optional<SpirVReflectionResult> parse_spirv_binary(
 		XR_LOG_ERR("Failed to reflect shader module");
 		return tl::nullopt;
 	}
-	XR_LOG_TRACE(
-		"Reflected SPIR-V binary, stage {}",
-		vk::to_string(static_cast<vk::ShaderStageFlags>(shader_module.GetShaderStage()))
-	);
 
 	uint32_t descriptor_sets_count{};
 	if (spvReflectEnumerateDescriptorSets(&shader_module.GetShaderModule(), &descriptor_sets_count, nullptr) !=
@@ -477,12 +468,12 @@ tl::optional<SpirVReflectionResult> parse_spirv_binary(
 	for (uint32_t idx = 0; idx < push_constants_count; ++idx) {
 		const SpvReflectBlockVariable* reflect_push_const = push_constants[idx];
 		XR_LOG_INFO(
-			"Push constant {}, size = {}, padded size {}, stage = {}, offset = {}, word offset = {}, absolute "
-			"offset = {}",
+			"Push constant %s, size = %u, padded size %u, stage = %u, offset = %u, word offset = %u, absolute "
+			"offset = %u",
 			reflect_push_const->name ? reflect_push_const->name : "unnamed",
 			reflect_push_const->size,
 			reflect_push_const->padded_size,
-			vk::to_string(static_cast<vk::ShaderStageFlags>(shader_module.GetShaderStage())),
+			(U32)shader_module.GetShaderStage(),
 			reflect_push_const->offset,
 			reflect_push_const->word_offset.offset,
 			reflect_push_const->absolute_offset
@@ -523,11 +514,12 @@ tl::optional<SpirVReflectionResult> parse_spirv_binary(
 				0
 			);
 
-			XR_LOG_INFO("reflected variable: {}, type", reflected_variable->name);
+			XR_LOG_INFO("reflected variable: %s, type", reflected_variable->name);
 		}
 
-		ranges::sort(
-			input_attribute_descriptions,
+		std::sort(
+			input_attribute_descriptions.begin(),
+			input_attribute_descriptions.end(),
 			[](const VkVertexInputAttributeDescription& a, const VkVertexInputAttributeDescription& b) {
 				return a.location < b.location;
 			}
@@ -540,20 +532,6 @@ tl::optional<SpirVReflectionResult> parse_spirv_binary(
 			attr.offset = stride;
 			stride += vk_format_bytes_size(attr.format);
 		}
-
-		const VkVertexInputBindingDescription vertex_input_binding_description = {
-			.binding = 0, .stride = stride, .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-		};
-
-		const VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info = {
-			.sType							 = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-			.pNext							 = nullptr,
-			.flags							 = 0,
-			.vertexBindingDescriptionCount	 = 1,
-			.pVertexBindingDescriptions		 = &vertex_input_binding_description,
-			.vertexAttributeDescriptionCount = static_cast<uint32_t>(input_attribute_descriptions.size()),
-			.pVertexAttributeDescriptions	 = input_attribute_descriptions.data(),
-		};
 
 		return tl::make_optional<SpirVReflectionResult>(
 			std::move(dsets),
@@ -673,24 +651,28 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 		tl::optional<ShaderModuleWithSpirVBlob> shader_with_spirv{
 			[r = &renderer, s = &shader_source, stage, device, this]() {
 				if (const std::string_view* sv = swl::get_if<std::string_view>(&s->code_or_file_path)) {
-					return create_shader_module_from_string(ShaderModuleCreateParams{
-						.device				 = device,
-						.shader_include_dirs = r->shader_include_directories(),
-						.source_code		 = *sv,
-						.shader_tag			 = "string_view_shader",
-						.shader_traits		 = *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
-						.build_options		 = s,
-						.arena_perm			 = _arena_perm,
-					});
+					return create_shader_module_from_string(
+						ShaderModuleCreateParams{
+							.device				 = device,
+							.shader_include_dirs = r->shader_include_directories(),
+							.source_code		 = *sv,
+							.shader_tag			 = "string_view_shader",
+							.shader_traits = *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
+							.build_options = s,
+							.arena_perm	   = _arena_perm,
+						}
+					);
 				} else {
-					return create_shader_module_from_file(ShaderModuleCreateFromFileParams{
-						.device				 = device,
-						.file_path			 = *swl::get_if<filesystem::path>(&s->code_or_file_path),
-						.shader_include_dirs = r->shader_include_directories(),
-						.shader_traits		 = *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
-						.build_options		 = s,
-						.arena_perm			 = _arena_perm,
-					});
+					return create_shader_module_from_file(
+						ShaderModuleCreateFromFileParams{
+							.device				 = device,
+							.file_path			 = *swl::get_if<filesystem::path>(&s->code_or_file_path),
+							.shader_include_dirs = r->shader_include_directories(),
+							.shader_traits = *shader_traits_from_vk_stage(static_cast<VkShaderStageFlagBits>(stage)),
+							.build_options = s,
+							.arena_perm	   = _arena_perm,
+						}
+					);
 				}
 			}()
 		};
@@ -746,7 +728,8 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 				//
 				// if this was a vertex shader reflection object extract the vertex inputs
 				reflection.vertex_inputs.take().map(
-					[&vertex_input_state](pair<uint32_t, base::containers::vector<VkVertexInputAttributeDescription>> ia
+					[&vertex_input_state](
+						pair<uint32_t, base::containers::vector<VkVertexInputAttributeDescription>> ia
 					) { vertex_input_state = std::move(ia); }
 				);
 			}
@@ -809,7 +792,7 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 
 						default:
 							XR_LOG_ERR(
-								"Descriptor type {} is unsized array but there is no size specified for it in the "
+								"Descriptor type %d is unsized array but there is no size specified for it in the "
 								"pipeline creation data. Defaulting to 1.",
 								std::to_underlying(first_binding.descriptorType)
 							);
@@ -822,10 +805,11 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 				if (auto set_itr = pipeline_layout_deftable.find(set_id); set_itr != end(pipeline_layout_deftable)) {
 					if (set_itr->second.descriptorType == set_bindings[0].descriptorType) {
 						set_itr->second.stageFlags |= set_bindings[0].stageFlags;
-						set_itr->second.descriptorCount = max(set_itr->second.descriptorCount, fixed_descriptor_count);
+						set_itr->second.descriptorCount =
+							std::max(set_itr->second.descriptorCount, fixed_descriptor_count);
 					} else {
 						XR_LOG_ERR(
-							"Sets alias the same slot {} but the descriptor types are not compatibile ({} vs. {})",
+							"Sets alias the same slot %u but the descriptor types are not compatibile (%u vs. %u)",
 							set_id,
 							static_cast<uint32_t>(set_itr->second.descriptorType),
 							static_cast<uint32_t>(set_bindings[0].descriptorType)
@@ -840,30 +824,25 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 			push_constant_ranges = std::move(reflection.push_constants);
 		}
 
-		XR_LOG_INFO("Definition table: {}", pipeline_layout_deftable.size());
-		lz::for_each(
-			pipeline_layout_deftable,
-			[](const pair<uint32_t, VkDescriptorSetLayoutBinding>& set_with_binding) {
-				XR_LOG_INFO(
-					"Set {}, type {}, count {}, stage {} ",
-					set_with_binding.first,
-					vk::to_string(static_cast<vk::DescriptorType>(set_with_binding.second.descriptorType)),
-					(uint32_t)set_with_binding.second.descriptorCount,
-					vk::to_string(static_cast<vk::ShaderStageFlags>(set_with_binding.second.stageFlags))
-				);
-			}
-		);
+		XR_LOG_INFO("Definition table: %zu", pipeline_layout_deftable.size());
 
-		const uint32_t max_set_id =
-			pipeline_layout_deftable.empty()
-				? 0u
-				: *lz::max_element(
-					  pipeline_layout_deftable |
-					  lz::map([](const pair<uint32_t, VkDescriptorSetLayoutBinding>& dslb) { return dslb.first; })
-				  );
+		// for (const pair<const U32, VkDescriptorSetLayoutBinding>& set_with_binding : pipeline_layout_deftable) {
+		// 	XR_LOG_INFO(
+		// 		"Set %u, type %s, count %u, stage %s ",
+		// 		set_with_binding.first,
+		// 		vk::to_string(static_cast<vk::DescriptorType>(set_with_binding.second.descriptorType)).c_str(),
+		// 		(uint32_t)set_with_binding.second.descriptorCount,
+		// 		vk::to_string(static_cast<vk::ShaderStageFlags>(set_with_binding.second.stageFlags)).c_str()
+		// 	);
+		// }
+
+		U32 max_set_id = 0;
+		for (const pair<const U32, VkDescriptorSetLayoutBinding>& dslb : pipeline_layout_deftable) {
+			max_set_id = std::max(max_set_id, dslb.first);
+		}
 
 		vector<VkDescriptorSetLayout> desc_set_layouts{};
-		for (const uint32_t set_id : lz::range(max_set_id + 1)) {
+		for (U32 set_id = 0; set_id < max_set_id + 1; ++set_id) {
 			const VkDescriptorSetLayout set_layout = [device, p_tag, t = &pipeline_layout_deftable, r = &renderer](
 														 const uint32_t set_id
 													 ) -> VkDescriptorSetLayout {
@@ -885,9 +864,8 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 					};
 
 					VkDescriptorSetLayout set_layout{};
-					const VkResult set_layout_create_res = WRAP_VULKAN_FUNC(
-						vkCreateDescriptorSetLayout, device, &descriptor_set_layout_create_info, nullptr, &set_layout
-					);
+
+					vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, nullptr, &set_layout);
 
 					if (!p_tag.empty()) {
 						char scratch_buffer[256];
@@ -909,7 +887,7 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 		// and the fragment shader might have layout (set = 4, binding = ...)
 		// For sets 1 to 3 we need to create a "null" descriptor set layout with no bindings
 		// and assign it to those slots when creating the pipeline layout.
-		if (const bool layout_holes = lz::contains(desc_set_layouts, nullptr); layout_holes) {
+		if (std::find(desc_set_layouts.cbegin(), desc_set_layouts.cend(), nullptr) != desc_set_layouts.cend()) {
 			const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
 				.sType		  = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 				.pNext		  = nullptr,
@@ -919,9 +897,8 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 			};
 
 			VkDescriptorSetLayout set_layout{};
-			WRAP_VULKAN_FUNC(
-				vkCreateDescriptorSetLayout, device, &descriptor_set_layout_create_info, nullptr, &set_layout
-			);
+
+			vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, nullptr, &set_layout);
 
 			if (!set_layout) {
 				return XR_MAKE_VULKAN_ERROR(VK_ERROR_UNKNOWN);
@@ -946,7 +923,7 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 
 		VkPipelineLayout pipeline_layout{};
 		const VkResult layout_create_res =
-			WRAP_VULKAN_FUNC(vkCreatePipelineLayout, device, &pipeline_layout_create_info, nullptr, &pipeline_layout);
+			vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr, &pipeline_layout);
 
 		if (layout_create_res != VK_SUCCESS) {
 			return XR_MAKE_VULKAN_ERROR(layout_create_res);
@@ -975,23 +952,21 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 	XRAY_SCOPE_EXIT noexcept {
 		dbg_str.append(1, '\0');
 		XR_LOG_INFO(
-			"Pipeline type {} - creation info:\n{}",
-			dbg_str,
+			"Pipeline type %s - creation info:\n%s",
+			dbg_str.c_str(),
 			pipeline_kind == VulkanPipelineKind::Graphics ? "Graphics" : "Compute"
 		);
 	};
 
 	if (pipeline_kind == VulkanPipelineKind::Graphics) {
-		fmt::format_to(
-			std::back_inserter(dbg_str), "Vertex input description (stride {}) = {{\n", vertex_input_state->first
-		);
+		format_to(dbg_str, "Vertex input description (stride %u) = {{\n", vertex_input_state->first);
 
 		for (const VkVertexInputAttributeDescription& vtx_desc : vertex_input_state->second) {
-			fmt::format_to(
-				std::back_inserter(dbg_str),
-				"\n={{\n\t.location = {}\n\t.format = {}\n\t.offset = {}\n\t.binding = {}\n}},",
+			format_to(
+				dbg_str,
+				"\n={{\n\t.location = %u\n\t.format = %u\n\t.offset = %u\n\t.binding = %u\n}},",
 				vtx_desc.location,
-				vk::to_string(static_cast<vk::Format>(vtx_desc.format)),
+				(U32)vtx_desc.format,
 				vtx_desc.offset,
 				vtx_desc.binding
 			);
@@ -1017,9 +992,8 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 		};
 
 		VkPipeline compute_pipeline{};
-		const VkResult pipeline_create_result = WRAP_VULKAN_FUNC(
-			vkCreateComputePipelines, device, nullptr, 1, &pipeline_create_info, nullptr, &compute_pipeline
-		);
+		const VkResult pipeline_create_result =
+			vkCreateComputePipelines(device, nullptr, 1, &pipeline_create_info, nullptr, &compute_pipeline);
 
 		if (pipeline_create_result != VK_SUCCESS) {
 			return XR_MAKE_VULKAN_ERROR(pipeline_create_result);
@@ -1027,12 +1001,12 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 
 		if (!_tag_name.empty()) {
 			char scratch_buffer[256];
-			base::format_to_n(scratch_buffer, "p_{}", _tag_name);
+			base::format_to_n(scratch_buffer, "p_%s", _tag_name.data());
 			renderer.dbg_set_object_name(compute_pipeline, scratch_buffer);
 		}
 
 		return VulkanPipeline{
-			xrUniqueVkPipeline{compute_pipeline, VkResourceDeleter_VkPipeline{renderer.device()}},
+			compute_pipeline,
 			std::move(*pipeline_layout),
 		};
 	}
@@ -1065,10 +1039,10 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 
 	{
 		const auto ia = &input_assembly_create_info;
-		fmt::format_to(
-			std::back_inserter(dbg_str),
-			"InputAssembly = {{\n\t.topology = {}\n\t.primitiveRestartEnabled = {}\n}}\n",
-			vk::to_string(static_cast<vk::PrimitiveTopology>(ia->topology)),
+		format_to(
+			dbg_str,
+			"InputAssembly = {{\n\t.topology = %u\n\t.primitiveRestartEnabled = %s\n}}\n",
+			(U32)ia->topology,
 			ia->primitiveRestartEnable ? "true" : "false"
 		);
 	}
@@ -1110,26 +1084,6 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 		.lineWidth				 = _raster.line_width
 	};
 
-	{
-		const auto r = &rasterization_state_create_info;
-		fmt::format_to(
-			std::back_inserter(dbg_str),
-			"Rasterizer state = {{\n"
-			"\t.depthClampEnable = {}\n"
-			"\t.rasterizerDiscardEnable = {}\n"
-			"\t.polygonMode = {}\n"
-			"\t.cullMode = {}\n"
-			"\t.frontFace = {}\n"
-			"}}\n",
-			r->depthClampEnable,
-			r->rasterizerDiscardEnable,
-			vk::to_string(static_cast<vk::PolygonMode>(r->polygonMode)),
-			vk::to_string(static_cast<vk::CullModeFlags>(r->cullMode)),
-			vk::to_string(static_cast<vk::FrontFace>(r->frontFace))
-
-		);
-	}
-
 	const VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {
 		.sType				   = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 		.pNext				   = nullptr,
@@ -1157,25 +1111,6 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 		.maxDepthBounds		   = _depth_stencil.max_depth
 	};
 
-	{
-		const auto d = &depth_stencil_create_info;
-		fmt::format_to(
-			std::back_inserter(dbg_str),
-			"Depth stencil state = {{\n"
-			"\t.depthBoundsTestEnable = {}\n"
-			"\t.depthWriteEnable = {}\n"
-			"\t.depthCompareOp = {}\n"
-			"\t.minDepthBounds = {}\n"
-			"\t.maxDepthBounds = {}\n"
-			"}}\n",
-			d->depthBoundsTestEnable,
-			d->depthWriteEnable,
-			vk::to_string(static_cast<vk::CompareOp>(d->depthCompareOp)),
-			d->minDepthBounds,
-			d->maxDepthBounds
-		);
-	}
-
 	const VkPipelineColorBlendStateCreateInfo colorblend_state_create_info = {
 		.sType			 = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 		.pNext			 = nullptr,
@@ -1188,43 +1123,6 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 
 	};
 
-	{
-		const auto cb = &colorblend_state_create_info;
-		fmt::format_to(
-			std::back_inserter(dbg_str),
-			"ColorblendStateCreateInfo = {{\n\t.logicOpEnable = {}\n\t.logicOp = {}\n\t.attachmentCount = "
-			"{}\n\t.pAttachments = {{\n",
-			cb->logicOpEnable ? "true" : "false",
-			vk::to_string(static_cast<vk::LogicOp>(cb->logicOp)),
-			cb->attachmentCount
-		);
-
-		for (uint32_t i = 0; i < cb->attachmentCount; ++i) {
-			const auto* a = cb->pAttachments + i;
-			fmt::format_to(
-				std::back_inserter(dbg_str),
-				"\t\t{{ .blendEnable = {}"
-				"\n\t\t .srcColorBlendFactor = {}"
-				"\n\t\t .dstColorBlendFactor = {}"
-				"\n\t\t .colorBlendOp = {}"
-				"\n\t\t .srcAlphaBlendFactor = {}"
-				"\n\t\t .dstAlphaBlendFactor = {}"
-				"\n\t\t .alphaBlendOp = {}"
-				"\n\t\t .colorWriteMask = {}\n\t\t}},\n",
-				a->blendEnable ? "true" : "false",
-				vk::to_string(static_cast<vk::BlendFactor>(a->srcColorBlendFactor)),
-				vk::to_string(static_cast<vk::BlendFactor>(a->dstColorBlendFactor)),
-				vk::to_string(static_cast<vk::BlendOp>(a->colorBlendOp)),
-				vk::to_string(static_cast<vk::BlendFactor>(a->srcAlphaBlendFactor)),
-				vk::to_string(static_cast<vk::BlendFactor>(a->dstAlphaBlendFactor)),
-				vk::to_string(static_cast<vk::BlendOp>(a->alphaBlendOp)),
-				a->colorWriteMask
-			);
-		}
-
-		dbg_str.append("}\n");
-	}
-
 	const VkPipelineDynamicStateCreateInfo dynamic_state_create_info = {
 		.sType			   = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
 		.pNext			   = nullptr,
@@ -1232,14 +1130,6 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 		.dynamicStateCount = static_cast<uint32_t>(_dynstate.size()),
 		.pDynamicStates	   = _dynstate.empty() ? nullptr : _dynstate.data()
 	   };
-
-	{
-		dbg_str.append("DynamicState = {\n");
-		for (const VkDynamicState ds : _dynstate) {
-			fmt::format_to(std::back_inserter(dbg_str), "\t{},\n", vk::to_string(static_cast<vk::DynamicState>(ds)));
-		}
-		dbg_str.append("}\n");
-	}
 
 	const auto [view_mask, color_attachments, depth_attachment, stencil_attachment] =
 		renderer.pipeline_render_create_info();
@@ -1253,27 +1143,6 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 		.depthAttachmentFormat	 = depth_attachment,
 		.stencilAttachmentFormat = stencil_attachment,
 	};
-
-	{
-		const auto r = &pipeline_render_create_inf;
-		fmt::format_to(
-			std::back_inserter(dbg_str),
-			"PipelineRenderingCreateInfo = {{\n\t.viewMask = {},\n\t.colorAttactmentCount = "
-			"{},\n\t.pColorAttachmentFormats = {{",
-			r->viewMask,
-			r->colorAttachmentCount
-		);
-
-		for (const VkFormat fmt : color_attachments) {
-			fmt::format_to(std::back_inserter(dbg_str), "\n\t\t{},", vk::to_string(static_cast<vk::Format>(fmt)));
-		}
-		fmt::format_to(
-			std::back_inserter(dbg_str),
-			"\n\t}},\n\t.depthAtrtachmentFormat = {},\n\t.stencilAttachmentFormat = {},\n}}\n",
-			vk::to_string(static_cast<vk::Format>(r->depthAttachmentFormat)),
-			vk::to_string(static_cast<vk::Format>(r->stencilAttachmentFormat))
-		);
-	}
 
 	const VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {
 		.sType				 = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -1304,9 +1173,8 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 	};
 
 	VkPipeline pipeline{};
-	const VkResult pipeline_create_result = WRAP_VULKAN_FUNC(
-		vkCreateGraphicsPipelines, device, nullptr, 1, &graphics_pipeline_create_info, nullptr, &pipeline
-	);
+	const VkResult pipeline_create_result =
+		vkCreateGraphicsPipelines(device, nullptr, 1, &graphics_pipeline_create_info, nullptr, &pipeline);
 
 	if (pipeline_create_result != VK_SUCCESS) {
 		return XR_MAKE_VULKAN_ERROR(pipeline_create_result);
@@ -1314,14 +1182,19 @@ tl::expected<VulkanPipeline, VulkanError> VulkanPipelineBuilder::create(
 
 	if (!_tag_name.empty()) {
 		char scratch_buffer[256];
-		base::format_to_n(scratch_buffer, "p_{}", _tag_name);
+		base::format_to_n(scratch_buffer, "p_%s", _tag_name.data());
 		renderer.dbg_set_object_name(pipeline, scratch_buffer);
 	}
 
 	return VulkanPipeline{
-		xrUniqueVkPipeline{pipeline, VkResourceDeleter_VkPipeline{renderer.device()}},
+		pipeline,
 		std::move(*pipeline_layout),
 	};
+}
+
+VulkanPipeline::~VulkanPipeline() {
+	//
+	// TODO: destroy resource
 }
 
 void VulkanPipeline::release_resources(VkDevice device, const VkAllocationCallbacks* alloc_cb) {
@@ -1331,8 +1204,8 @@ void VulkanPipeline::release_resources(VkDevice device, const VkAllocationCallba
 		VariantVisitor{
 			[device, alloc_cb](OwnedLayout& owned_layout) {
 				for (VkDescriptorSetLayout dsl : owned_layout.set_layouts) {
-					WRAP_VULKAN_FUNC(vkDestroyDescriptorSetLayout, device, dsl, alloc_cb);
-					WRAP_VULKAN_FUNC(vkDestroyPipelineLayout, device, owned_layout.layout, alloc_cb);
+					vkDestroyDescriptorSetLayout(device, dsl, alloc_cb);
+					vkDestroyPipelineLayout(device, owned_layout.layout, alloc_cb);
 				}
 			},
 			[](BindlessLayout&) {},
