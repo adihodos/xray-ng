@@ -130,7 +130,7 @@ SOURCE_FILES = \
 	$(PRJ_SOURCE_CODE)/xray/game/code/system.memory.cc \
 	$(PRJ_SOURCE_CODE)/xray/game/code/system.physics.cc \
 	$(PRJ_SOURCE_CODE)/xray/game/code/system.physics.debug.renderer.cc \
-	$(PRJ_SOURCE_CODE)/xray/game/code/vulkan-main.cc \
+	$(PRJ_SOURCE_CODE)/xray/game/code/game.main.cc \
 	$(PRJ_SOURCE_CODE)/xray/game/code/serialize.inst.cc \
 	$(PRJ_SOURCE_CODE)/app/bulk.build.xray.01.cc \
 	$(PRJ_SOURCE_CODE)/app/bulk.build.xray.02.c \

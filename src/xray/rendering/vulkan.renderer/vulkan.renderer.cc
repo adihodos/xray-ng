@@ -10,7 +10,6 @@
 #include <mutex>
 
 #include <tl/optional.hpp>
-#include <swl/variant.hpp>
 
 #if defined(XRAY_PROFILING_ON)
 #include <tracy/Tracy.hpp>
@@ -32,8 +31,8 @@
 #include "xray/xray.hpp"
 #include "xray/base/xray.fmt.arena.hpp"
 #include "xray/base/xray.misc.hpp"
-#include "xray/base/variant.helpers.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/xray.debug.hpp"
 #include "xray/base/rangeless/fn.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/thread.local.context.hpp"
@@ -56,9 +55,6 @@ using namespace std;
 namespace fn = rangeless::fn;
 using fn::operators::operator%;
 using fn::operators::operator%=;
-
-template <typename T>
-struct variant_type_is_not_handled {};
 
 namespace xray::rendering {
 
@@ -83,42 +79,49 @@ void chain_structs(VulkanChainedStructs&... chained_structs) {
 }
 
 bool vk_renderer_check_physical_device_presentation_surface_support(
-	const WindowPlatformData& win_data, VkInstance instance, VkPhysicalDevice device, const uint32_t queue_index
+	const WindowPlatformData& win_data, VkInstance instance, VkPhysicalDevice device, const U32 queue_index
 ) {
 #if defined(XRAY_OS_IS_WINDOWS)
 	auto get_win32_presentation_support = reinterpret_cast<PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR>(
 		vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceWin32PresentationSupportKHR")
 	);
 
-	assert(get_win32_presentation_support != nullptr);
+	XRAY_ASSERT_NOMSG(get_win32_presentation_support != nullptr);
 	return get_win32_presentation_support(device, queue_index);
 #else
-	if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
-		PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR get_physical_device_xlib_presentation_support_khr =
-			reinterpret_cast<PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR>(
-				vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXlibPresentationSupportKHR")
-			);
+	switch (win_data.type) {
+		case WindowPlatformType::XLib: {
+			PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR get_physical_device_xlib_presentation_support_khr =
+				reinterpret_cast<PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR>(
+					vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXlibPresentationSupportKHR")
+				);
 
-		assert(get_physical_device_xlib_presentation_support_khr != nullptr);
-		return get_physical_device_xlib_presentation_support_khr(
-				   device, queue_index, reinterpret_cast<Display*>(xlib->display), xlib->visual
-			   ) == VK_TRUE;
+			XRAY_ASSERT_NOMSG(get_physical_device_xlib_presentation_support_khr != nullptr);
+
+			const WindowPlatformDataXlib* xlib = &win_data.xlib;
+			return get_physical_device_xlib_presentation_support_khr(
+					   device, queue_index, reinterpret_cast<Display*>(xlib->display), xlib->visual
+				   ) == VK_TRUE;
+		} break;
+
+		case WindowPlatformType::Xcb: {
+			PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR get_physical_device_xcb_presentation_support_khr =
+				reinterpret_cast<PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR>(
+					vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXcbPresentationSupportKHR")
+				);
+
+			XRAY_ASSERT_NOMSG(get_physical_device_xcb_presentation_support_khr != nullptr);
+			const WindowPlatformDataXcb* xcb = &win_data.xcb;
+			return get_physical_device_xcb_presentation_support_khr(
+					   device, queue_index, reinterpret_cast<xcb_connection_t*>(xcb->connection), xcb->visual
+				   ) == VK_TRUE;
+		} break;
+
+		default: {
+			XRAY_ASSERT(false, "Unhandled platform data %u", static_cast<U32>(win_data.type));
+			return false;
+		}
 	}
-
-	if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
-		PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR get_physical_device_xcb_presentation_support_khr =
-			reinterpret_cast<PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR>(
-				vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXcbPresentationSupportKHR")
-			);
-
-		assert(get_physical_device_xcb_presentation_support_khr != nullptr);
-		return get_physical_device_xcb_presentation_support_khr(
-				   device, queue_index, reinterpret_cast<xcb_connection_t*>(xcb->connection), xcb->visual
-			   ) == VK_TRUE;
-	}
-
-	XR_LOG_ERR("Unsupported Windowing system ...");
-	return false;
 #endif
 }
 }  // namespace details
@@ -159,7 +162,7 @@ VkBool32 r_vk_debug_msg_output(
 	VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
 	VkDebugUtilsMessageTypeFlagsEXT messageTypes,
 	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-	void* pUserData
+	[[maybe_unused]] void* pUserData
 ) {
 	xray::base::MemoryArena* arena =
 		base::MemoryArena::create_with_storage_block(base::slice_from_array(kTisButALocalScratch));
@@ -209,15 +212,15 @@ VkBool32 r_vk_debug_msg_output(
 
 	format_to(
 		dbg_str,
-		"[%s][%d]: %s\n",
+		"[%s][%d]: %s",
 		pCallbackData->pMessageIdName ? pCallbackData->pMessageIdName : "unnamed message",
 		pCallbackData->messageIdNumber,
 		pCallbackData->pMessage ? pCallbackData->pMessage : "-"
 	);
 
-	xray::base::log(log_level, "%s", dbg_str.c_str());
+	base::xrSys_DebugPrintRaw(log_level, dbg_str.c_str(), static_cast<ISIZE>(dbg_str.size()));
 
-	const uint32_t kSeverityStackTraces = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
+	constexpr U32 kSeverityStackTraces = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
 		// | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
 		;
 
@@ -228,10 +231,14 @@ VkBool32 r_vk_debug_msg_output(
 			vk_stacktrace::current(xray::base::MemoryArenaAllocator<std::stacktrace_entry>{scratch_arena});
 
 		dbg_str.clear();
+		ISIZE frame_id = 0;
 		for (const std::stacktrace_entry& e : stack_trace) {
-			format_to(dbg_str, "%s:%d %s\n", e.source_file().c_str(), e.source_line(), e.description().c_str());
+			format_to(
+				dbg_str, "\n#%ld %s:%d %s", frame_id, e.source_file().c_str(), e.source_line(), e.description().c_str()
+			);
+			frame_id += 1;
 		}
-		xray::base::log(log_level, "%s", dbg_str.c_str());
+		base::xrSys_DebugPrintRaw(log_level, dbg_str.c_str(), static_cast<ISIZE>(dbg_str.size()));
 	}
 	return VK_FALSE;
 }
@@ -269,7 +276,13 @@ tl::optional<PresentToSurface> create_xcb_surface(const WindowPlatformDataXcb& w
 	if (!surface_khr) return tl::nullopt;
 
 	XR_LOG_INFO("Surface (XCB) created: %p", reinterpret_cast<const void*>(raw_ptr(surface_khr)));
-	return tl::make_optional<PresentToSurface>(PresentToWindowSurface{win_platform_data, std::move(surface_khr)});
+	return tl::make_optional<PresentToSurface>(PresentToWindowSurface{
+		WindowPlatformData{
+			.type = WindowPlatformType::Xcb,
+			.xcb  = win_platform_data,
+		},
+		std::move(surface_khr)
+	});
 }
 
 tl::optional<PresentToSurface> create_xlib_surface(
@@ -296,23 +309,25 @@ tl::optional<PresentToSurface> create_xlib_surface(
 
 	XR_LOG_INFO("Surface created: %p", reinterpret_cast<const void*>(raw_ptr(surface_khr)));
 	return tl::make_optional<PresentToSurface>(PresentToWindowSurface{
-		win_platform_data,
+		WindowPlatformData{
+			.type = WindowPlatformType::XLib,
+			.xlib = win_platform_data,
+		},
 		std::move(surface_khr),
 	});
 }
 
 #endif
 
-uint32_t vk_find_allocation_memory_type(
+U32 vk_find_allocation_memory_type(
 	const VkPhysicalDeviceMemoryProperties& memory_properties,
-	const uint32_t memory_requirements,
+	const U32 memory_requirements,
 	const VkMemoryPropertyFlags required_flags
 ) {
 	// XR_LOG_TRACE("Memory required:\n{:0>32b}\n{:0>32b}", memory_requirements, required_flags);
-	for (uint32_t memory_type = 0, memory_types_count = memory_properties.memoryTypeCount;
-		 memory_type < memory_types_count;
+	for (U32 memory_type = 0, memory_types_count = memory_properties.memoryTypeCount; memory_type < memory_types_count;
 		 ++memory_type) {
-		const uint32_t memory_type_bits = 1 << memory_type;
+		const U32 memory_type_bits = 1 << memory_type;
 
 		// XR_LOG_TRACE("Device memory {:0>32b}, heap index {}, mem type {}",
 		//              memory_properties.memoryTypes[memory_type].propertyFlags,
@@ -337,25 +352,19 @@ struct SwapchainStateCreationInfo {
 	VkSurfaceFormatKHR fmt;
 	VkPresentModeKHR present_mode;
 	std::reference_wrapper<const VkPhysicalDeviceMemoryProperties> mem_props;
-	uint32_t image_count;
+	U32 image_count;
 	VkExtent3D dimensions;
 	VkFormat depth_att_format;
 };
 
 tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainStateCreationInfo& create_info);
 
-struct QueueFamilyIndices {
-	uint32_t graphics;
-	uint32_t compute;
-	uint32_t transfer;
-};
-
 tl::optional<QueueFamilyIndices> vk_renderer_pick_queue_families(
 	xray::base::MemoryArena& arena, VkPhysicalDevice phys_device, VkSurfaceKHR surface
 ) {
 	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({&arena});
 
-	uint32_t queue_families_count{};
+	U32 queue_families_count{};
 	vkGetPhysicalDeviceQueueFamilyProperties2(phys_device, &queue_families_count, nullptr);
 	if (queue_families_count == 0) {
 		return tl::nullopt;
@@ -375,24 +384,24 @@ tl::optional<QueueFamilyIndices> vk_renderer_pick_queue_families(
 		return tl::nullopt;
 	}
 
-	tl::optional<uint32_t> q_graphics{};
-	tl::optional<uint32_t> q_compute{};
-	tl::optional<uint32_t> q_transfer{};
+	tl::optional<U32> q_graphics{};
+	tl::optional<U32> q_compute{};
+	tl::optional<U32> q_transfer{};
 
-	for (size_t queue_index = 0; queue_index < queue_family_props.size(); ++queue_index) {
+	for (USIZE queue_index = 0; queue_index < queue_family_props.size(); ++queue_index) {
 		if (q_graphics && q_compute && q_transfer) {
 			break;
 		}
 
-		const auto& queue_props	 = queue_family_props[queue_index];
-		uint32_t max_queue_count = queue_props.queueFamilyProperties.queueCount;
+		const auto& queue_props = queue_family_props[queue_index];
+		U32 max_queue_count		= queue_props.queueFamilyProperties.queueCount;
 		if (!q_graphics && (queue_props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
 			VkBool32 has_wsi_support	= VK_FALSE;
 			const VkResult query_result = vkGetPhysicalDeviceSurfaceSupportKHR(
-				phys_device, static_cast<uint32_t>(queue_index), surface, &has_wsi_support
+				phys_device, static_cast<U32>(queue_index), surface, &has_wsi_support
 			);
 			if (query_result == VK_SUCCESS && has_wsi_support) {
-				q_graphics = static_cast<uint32_t>(queue_index);
+				q_graphics = static_cast<U32>(queue_index);
 				max_queue_count -= 1;
 			}
 		}
@@ -402,7 +411,7 @@ tl::optional<QueueFamilyIndices> vk_renderer_pick_queue_families(
 		}
 
 		if (!q_compute && (queue_props.queueFamilyProperties.queueFlags & VK_QUEUE_COMPUTE_BIT)) {
-			q_compute = static_cast<uint32_t>(queue_index);
+			q_compute = static_cast<U32>(queue_index);
 			max_queue_count -= 1;
 		}
 
@@ -411,7 +420,7 @@ tl::optional<QueueFamilyIndices> vk_renderer_pick_queue_families(
 		}
 
 		if (!q_transfer && (queue_props.queueFamilyProperties.queueFlags & VK_QUEUE_TRANSFER_BIT)) {
-			q_transfer = static_cast<uint32_t>(queue_index);
+			q_transfer = static_cast<U32>(queue_index);
 			max_queue_count -= 1;
 		}
 	}
@@ -453,15 +462,21 @@ tl::optional<PresentToSurface> vk_renderer_create_surface(const WindowPlatformDa
 	}
 
 #else
-	if (const WindowPlatformDataXlib* xlib = swl::get_if<WindowPlatformDataXlib>(&win_data)) {
-		return create_xlib_surface(*xlib, instance);
-	}
+	switch (win_data.type) {
+		case WindowPlatformType::XLib: {
+			return create_xlib_surface(win_data.xlib, instance);
+		} break;
 
-	if (const WindowPlatformDataXcb* xcb = swl::get_if<WindowPlatformDataXcb>(&win_data)) {
-		return create_xcb_surface(*xcb, instance);
+		case WindowPlatformType::Xcb: {
+			return create_xcb_surface(win_data.xcb, instance);
+		} break;
+
+		default: {
+			XRAY_ASSERT(false, "Unhandled windowing system %u", static_cast<U32>(win_data.type));
+			return tl::nullopt;
+		}
 	}
 #endif
-	return tl::nullopt;
 }
 
 struct R_PhysicalDeviceSetup {
@@ -489,7 +504,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 ) {
 	ScratchPadArena scratch_pad = ThreadLocalContext::acquire_scratchpad({&arena});
 
-	uint32_t phys_devs_count{};
+	U32 phys_devs_count{};
 
 	vkEnumeratePhysicalDevices(instance, &phys_devs_count, nullptr);
 	if (phys_devs_count == 0) {
@@ -583,7 +598,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 		}
 
 		const tl::optional<VkSurfaceFormatKHR> surface_format = [&]() -> tl::optional<VkSurfaceFormatKHR> {
-			uint32_t surface_fmts_count{};
+			U32 surface_fmts_count{};
 			vkGetPhysicalDeviceSurfaceFormatsKHR(phys_device, surface, &surface_fmts_count, nullptr);
 			if (surface_fmts_count == 0) {
 				XR_LOG_INFO("No supported surface format found ...");
@@ -624,7 +639,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 		}
 
 		const tl::optional<VkPresentModeKHR> present_mode = [&]() -> tl::optional<VkPresentModeKHR> {
-			uint32_t present_modes_count{};
+			U32 present_modes_count{};
 			vkGetPhysicalDeviceSurfacePresentModesKHR(phys_device, surface, &present_modes_count, nullptr);
 			if (present_modes_count == 0) {
 				XR_LOG_INFO("No presentation modes supported");
@@ -666,7 +681,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 			return tl::nullopt;
 		}
 
-		XR_LOG_INFO("best present mode is %u -> %s", static_cast<uint32_t>(*present_mode), "TODO: VkPresent to string");
+		XR_LOG_INFO("best present mode is %u -> %s", static_cast<U32>(*present_mode), "TODO: VkPresent to string");
 
 		const tl::optional<QueueFamilyIndices> queue_families =
 			vk_renderer_pick_queue_families(arena, phys_device, surface);
@@ -683,7 +698,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 		//
 		// list device extensions
 		{
-			uint32_t extensions_count{};
+			U32 extensions_count{};
 			vkEnumerateDeviceExtensionProperties(phys_device, nullptr, &extensions_count, nullptr);
 			if (extensions_count != 0) {
 				containers::vector<VkExtensionProperties> device_exts_list{*scratch_pad.arena};
@@ -727,7 +742,7 @@ tl::optional<R_PhysicalDeviceSetup> vk_renderer_pick_physical_device(
 }
 
 struct RQueue_t {
-	uint32_t index{};
+	U32 index{};
 	VkQueue handle{};
 	VkCommandPool cmd_pool{};
 };
@@ -745,24 +760,24 @@ tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
 
 	struct QueueCreationData {
 		VkDeviceQueueCreateInfo create_info;
-		uint32_t queue_index;
+		U32 queue_index;
 	};
 
 	struct QueueRetrievalData {
-		uint32_t family_index;
-		uint32_t queue_index;
+		U32 family_index;
+		U32 queue_index;
 	};
 
 	containers::vector<QueueRetrievalData> queue_retrieve_data{*scratch_pad.arena};
 	queue_retrieve_data.reserve(3);
 
-	containers::unordered_map<uint32_t, QueueCreationData> queue_create_list{*scratch_pad.arena};
+	containers::unordered_map<U32, QueueCreationData> queue_create_list{*scratch_pad.arena};
 
-	const uint32_t queue_indices[] = {
+	const U32 queue_indices[] = {
 		physical.queue_indices.graphics, physical.queue_indices.transfer, physical.queue_indices.compute
 	};
 
-	for (const uint32_t queue_family_index : queue_indices) {
+	for (const U32 queue_family_index : queue_indices) {
 		auto itr = queue_create_list.find(queue_family_index);
 		if (itr != end(queue_create_list)) {
 			itr->second.queue_index += 1;
@@ -816,11 +831,11 @@ tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
 		.sType					 = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.pNext					 = &phys_features,
 		.flags					 = 0,
-		.queueCreateInfoCount	 = static_cast<uint32_t>(size(queue_create_infos)),
+		.queueCreateInfoCount	 = static_cast<U32>(size(queue_create_infos)),
 		.pQueueCreateInfos		 = queue_create_infos.data(),
 		.enabledLayerCount		 = 0,
 		.ppEnabledLayerNames	 = nullptr,
-		.enabledExtensionCount	 = static_cast<uint32_t>(size(device_extensions)),
+		.enabledExtensionCount	 = static_cast<U32>(size(device_extensions)),
 		.ppEnabledExtensionNames = device_extensions.begin(),
 		.pEnabledFeatures		 = nullptr,
 	};
@@ -846,7 +861,7 @@ tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
 
 	//
 	// setup queues
-	const array<uint32_t, 3> queue_flags{
+	const array<U32, 3> queue_flags{
 		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
 		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -854,7 +869,7 @@ tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
 
 	array<RQueue_t, 3> queues{};
 
-	for (size_t i = 0; i < 3; ++i) {
+	for (USIZE i = 0; i < 3; ++i) {
 		const QueueRetrievalData& qrd = queue_retrieve_data[i];
 		RQueue_t& q_out				  = queues[i];
 
@@ -864,7 +879,7 @@ tl::optional<R_LogicalDeviceSetup> vk_renderer_setup_logical_device(
 			.sType			  = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 			.pNext			  = nullptr,
 			.flags			  = queue_flags[i],
-			.queueFamilyIndex = static_cast<uint32_t>(qrd.family_index),
+			.queueFamilyIndex = static_cast<U32>(qrd.family_index),
 		};
 
 		if (vkCreateCommandPool(logical_device, &cmd_pool_create_info, nullptr, &q_out.cmd_pool) != VK_SUCCESS) {
@@ -881,7 +896,7 @@ struct R_InstanceState {
 };
 
 tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena& arena) {
-	uint32_t instance_version{};
+	U32 instance_version{};
 	vkEnumerateInstanceVersion(&instance_version);
 
 	XR_LOG_INFO(
@@ -897,7 +912,7 @@ tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena
 	//
 	// output present extensions info
 	{
-		uint32_t property_count{};
+		U32 property_count{};
 		vkEnumerateInstanceExtensionProperties(nullptr, &property_count, nullptr);
 
 		if (property_count) {
@@ -913,7 +928,7 @@ tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena
 	//
 	// output layers info
 	{
-		uint32_t layer_count{};
+		U32 layer_count{};
 		vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
 		if (layer_count != 0) {
 			base::containers::vector<VkLayerProperties> layer_props{layer_count, *scratch_pad.arena};
@@ -973,7 +988,7 @@ tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena
 	const VkValidationFeaturesEXT validation_features{
 		.sType							= VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
 		.pNext							= &dbg_utils_msg_create_ext,
-		.enabledValidationFeatureCount	= static_cast<uint32_t>(std::size(enabled_validation_features)),
+		.enabledValidationFeatureCount	= static_cast<U32>(std::size(enabled_validation_features)),
 		.pEnabledValidationFeatures		= enabled_validation_features,
 		.disabledValidationFeatureCount = 0,
 		.pDisabledValidationFeatures	= nullptr,
@@ -988,9 +1003,9 @@ tl::optional<R_InstanceState> vk_renderer_setup_instance(xray::base::MemoryArena
 		.pNext					 = &validation_features,
 		.flags					 = 0,
 		.pApplicationInfo		 = &app_info,
-		.enabledLayerCount		 = static_cast<uint32_t>(std::size(enabled_layers)),
+		.enabledLayerCount		 = static_cast<U32>(std::size(enabled_layers)),
 		.ppEnabledLayerNames	 = enabled_layers,
-		.enabledExtensionCount	 = static_cast<uint32_t>(std::size(extensions_list)),
+		.enabledExtensionCount	 = static_cast<U32>(std::size(extensions_list)),
 		.ppEnabledExtensionNames = extensions_list,
 	};
 
@@ -1060,7 +1075,7 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 	if (!logical_device) return tl::nullopt;
 
 	tl::optional<detail::SwapchainState> swapchain_state = [&]() -> tl::optional<detail::SwapchainState> {
-		const uint32_t swapchain_image_count = [&]() {
+		const U32 swapchain_image_count = [&]() {
 			if (phys_device->surface_caps.maxImageCount == 0) {
 				//
 				// no limit for the maximum number of images
@@ -1069,23 +1084,28 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 			return std::min(phys_device->surface_caps.minImageCount + 1, phys_device->surface_caps.maxImageCount);
 		}();
 
-		const VkExtent3D swapchain_dimensions = swl::visit(
-			VariantVisitor{
+		const VkExtent3D swapchain_dimensions = [](const WindowPlatformData& win_data) {
 #if defined(XRAY_OS_IS_WINDOWS)
-				[](const WindowPlatformDataWin32& win32) {
-					return VkExtent3D{.width = win32.width, .height = win32.height, .depth = 1};
-				}
+			return VkExtent3D{.width = win_data.width, .height = win_data.height, .depth = 1};
 #else
-				[](const WindowPlatformDataXcb& xcb) {
-					return VkExtent3D{.width = xcb.width, .height = xcb.height, .depth = 1};
-				},
-				[](const WindowPlatformDataXlib& xlib) {
-					return VkExtent3D{.width = xlib.width, .height = xlib.height, .depth = 1};
-				},
+			switch (win_data.type) {
+				case WindowPlatformType::XLib: {
+					const WindowPlatformDataXlib* xlib = &win_data.xlib;
+					return VkExtent3D{.width = xlib->width, .height = xlib->height, .depth = 1};
+				} break;
+
+				case WindowPlatformType::Xcb: {
+					const WindowPlatformDataXcb* xcb = &win_data.xcb;
+					return VkExtent3D{.width = xcb->width, .height = xcb->height, .depth = 1};
+				} break;
+
+				default: {
+					XRAY_ASSERT(false, "Unhandled windowing system %u", static_cast<U32>(win_data.type));
+					return VkExtent3D{.width = 1920, .height = 1080, .depth = 1};
+				}
+			}
 #endif
-			},
-			win_data
-		);
+		}(win_data);
 
 		const SwapchainStateCreationInfo swapchain_state_create_info{
 			.device			   = logical_device->device_handle,
@@ -1116,7 +1136,7 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 			.pNext				= nullptr,
 			.commandPool		= logical_device->queues[to_underlying(QueueType::Graphics)].cmd_pool,
 			.level				= VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = static_cast<uint32_t>(swapchain_state->swapchain_imageviews.size()),
+			.commandBufferCount = static_cast<U32>(swapchain_state->swapchain_imageviews.size()),
 		};
 
 		vector<VkCommandBuffer> cmd_buffers{swapchain_state->swapchain_imageviews.size()};
@@ -1125,13 +1145,13 @@ tl::optional<VulkanRenderer> VulkanRenderer::create(
 		return cmd_buffers;
 	}()};
 
-	const uint32_t max_frames{static_cast<uint32_t>(swapchain_state->swapchain_images.size())};
+	const U32 max_frames{static_cast<U32>(swapchain_state->swapchain_images.size())};
 
 	const VkPushConstantRange graphics_bindless_push_consts[] = {
 		VkPushConstantRange{
 			.stageFlags = VK_SHADER_STAGE_ALL,
 			.offset		= 0,
-			.size		= static_cast<uint32_t>(sizeof(uint32_t)),
+			.size		= static_cast<U32>(sizeof(U32)),
 		},
 	};
 
@@ -1319,7 +1339,7 @@ VulkanRenderer::VulkanRenderer(
 	  _bindless{std::move(bindless)} {
 	const char* queue_names[] = {"graphics queue", "transfer queue"};
 	const char* pool_names[]  = {"cmd_pool_graphics", "cmd_pool_transfer"};
-	for (uint32_t qidx : {static_cast<uint32_t>(QueueType::Graphics), static_cast<uint32_t>(QueueType::Transfer)}) {
+	for (U32 qidx : {static_cast<U32>(QueueType::Graphics), static_cast<U32>(QueueType::Transfer)}) {
 		dbg_set_object_name(xray::base::raw_ptr(_render_state.queues[qidx].cmd_pool), pool_names[qidx]);
 		dbg_set_object_name(_render_state.queues[qidx].handle, queue_names[qidx]);
 	}
@@ -1365,7 +1385,7 @@ FrameRenderData VulkanRenderer::start_frame() {
 		}
 	}
 
-	// const uint32_t acquired_image{_presentation_state.acquired_image};
+	// const U32 acquired_image{_presentation_state.acquired_image};
 	//
 	// reset command buffer
 	vkResetCommandBuffer(_presentation_state.command_buffers[_presentation_state.frame_index], 0);
@@ -1396,11 +1416,11 @@ void VulkanRenderer::begin_rendering(
 	const float green,
 	const float blue,
 	const float depth,
-	const uint32_t stencil
+	const U32 stencil
 ) {
 	// ZoneScopedN("BeginRendering");
 
-	const uint32_t acquired_image{_presentation_state.acquired_image};
+	const U32 acquired_image{_presentation_state.acquired_image};
 
 	const VkRenderingAttachmentInfo color_attachment = {
 		.sType				= VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -1547,7 +1567,7 @@ void VulkanRenderer::begin_rendering(
 			.pMemoryBarriers		  = nullptr,
 			.bufferMemoryBarrierCount = 0,
 			.pBufferMemoryBarriers	  = nullptr,
-			.imageMemoryBarrierCount  = static_cast<uint32_t>(size(mem_barriers)),
+			.imageMemoryBarrierCount  = static_cast<U32>(size(mem_barriers)),
 			.pImageMemoryBarriers	  = mem_barriers.data(),
 		};
 
@@ -1562,7 +1582,7 @@ void VulkanRenderer::end_rendering() {
 	// ZoneScopedN("EndRendering");
 	vkCmdEndRendering(_presentation_state.command_buffers[_presentation_state.frame_index]);
 
-	const uint32_t acquired_swapchain_image = _presentation_state.acquired_image;
+	const U32 acquired_swapchain_image = _presentation_state.acquired_image;
 	//
 	// move rendered image from ATTACHMENT_OPTIMAL to SRC_PRESENT
 	const VkImageMemoryBarrier2 color_attachment_optimal_to_src_present = {
@@ -1662,9 +1682,9 @@ void VulkanRenderer::end_rendering() {
 	const VkPresentInfoKHR present_info = {
 		.sType				= VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.pNext				= nullptr,
-		.waitSemaphoreCount = static_cast<uint32_t>(size(present_wait_semaphores)),
+		.waitSemaphoreCount = static_cast<U32>(size(present_wait_semaphores)),
 		.pWaitSemaphores	= present_wait_semaphores,
-		.swapchainCount		= static_cast<uint32_t>(size(swap_chains)),
+		.swapchainCount		= static_cast<U32>(size(swap_chains)),
 		.pSwapchains		= swap_chains,
 		.pImageIndices		= &acquired_swapchain_image,
 		.pResults			= nullptr,
@@ -1695,8 +1715,8 @@ void VulkanRenderer::handle_swapchain_suboptimal_out_of_date(
 		 surface_caps.currentExtent.height != _presentation_state.surface_state.caps.currentExtent.height)) {
 		// XR_LOG_INFO("Suboptimal/out of date : surface caps = {}", surface_caps);
 
-		if (surface_caps.currentExtent.width == numeric_limits<uint32_t>::max() ||
-			surface_caps.currentExtent.height == numeric_limits<uint32_t>::max()) {
+		if (surface_caps.currentExtent.width == numeric_limits<U32>::max() ||
+			surface_caps.currentExtent.height == numeric_limits<U32>::max()) {
 			surface_caps.currentExtent = _presentation_state.surface_state.caps.currentExtent;
 		}
 
@@ -1710,7 +1730,7 @@ void VulkanRenderer::handle_swapchain_suboptimal_out_of_date(
 			.fmt			   = _presentation_state.surface_state.format,
 			.present_mode	   = _presentation_state.surface_state.present_mode,
 			.mem_props		   = _render_state.dev_physical.memory_properties.memoryProperties,
-			.image_count	   = static_cast<uint32_t>(_presentation_state.max_frames),
+			.image_count	   = static_cast<U32>(_presentation_state.max_frames),
 			.dimensions =
 				VkExtent3D{
 					.width	= surface_caps.currentExtent.width,
@@ -1731,7 +1751,7 @@ void VulkanRenderer::handle_swapchain_suboptimal_out_of_date(
 					_presentation_state.frame_index		   = 0;
 
 					if (reacquire == VulkanRenderer::SwapchainReacquireAfterSuboptimal::Always_) {
-						const uint32_t previous_acquired_image{_presentation_state.acquired_image};
+						const U32 previous_acquired_image{_presentation_state.acquired_image};
 
 						vkAcquireNextImageKHR(
 							raw_ptr(_render_state.dev_logical),
@@ -1762,12 +1782,7 @@ void VulkanRenderer::handle_swapchain_suboptimal_out_of_date(
 }
 
 void VulkanRenderer::clear_attachments(
-	VkCommandBuffer cmd_buf,
-	const float red,
-	const float green,
-	const float blue,
-	const float depth,
-	const uint32_t stencil
+	VkCommandBuffer cmd_buf, const float red, const float green, const float blue, const float depth, const U32 stencil
 ) {
 	const VkClearAttachment clear_attachments[] = {
 		VkClearAttachment{
@@ -1792,9 +1807,9 @@ void VulkanRenderer::clear_attachments(
 
 	vkCmdClearAttachments(
 		cmd_buf,
-		static_cast<uint32_t>(size(clear_attachments)),
+		static_cast<U32>(size(clear_attachments)),
 		clear_attachments,
-		static_cast<uint32_t>(size(clear_rects)),
+		static_cast<U32>(size(clear_rects)),
 		clear_rects
 	);
 }
@@ -1804,8 +1819,8 @@ void VulkanRenderer::wait_device_idle() noexcept {
 	vkDeviceWaitIdle(this->device());
 }
 
-uint32_t xray::rendering::VulkanRenderer::find_allocation_memory_type(
-	const uint32_t memory_requirements, const VkMemoryPropertyFlags required_flags
+U32 xray::rendering::VulkanRenderer::find_allocation_memory_type(
+	const U32 memory_requirements, const VkMemoryPropertyFlags required_flags
 ) const noexcept {
 	return vk_find_allocation_memory_type(
 		_render_state.dev_physical.memory_properties.memoryProperties, memory_requirements, required_flags
@@ -1880,7 +1895,7 @@ tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainState
 	//
 	// acquire images
 	vector<VkImage> swapchain_images{[&]() {
-		uint32_t swapchain_image_count{};
+		U32 swapchain_image_count{};
 		vkGetSwapchainImagesKHR(create_info.device, raw_ptr(swapchain), &swapchain_image_count, nullptr);
 
 		vector<VkImage> swapchain_images{swapchain_image_count};
@@ -1937,7 +1952,7 @@ tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainState
 	vector<xrUniqueVkImageView> depth_stencil_image_views;
 	vector<UniqueImage> depth_stencil_images;
 
-	for (uint32_t idx = 0; idx < create_info.image_count; ++idx) {
+	for (U32 idx = 0; idx < create_info.image_count; ++idx) {
 		const VkImageCreateInfo image_create_info = {
 			.sType	   = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 			.pNext	   = nullptr,
@@ -2033,34 +2048,34 @@ tl::optional<detail::SwapchainState> create_swapchain_state(const SwapchainState
 
 	//
 	// sync objects
-	const size_t sync_objects_count = swapchain_image_views.size();
-	vector<xrUniqueVkFence> fences	= [sync_objects_count, &create_info]() {
-		 vector<xrUniqueVkFence> fences{};
-		 fences.reserve(sync_objects_count);
+	const USIZE sync_objects_count = swapchain_image_views.size();
+	vector<xrUniqueVkFence> fences = [sync_objects_count, &create_info]() {
+		vector<xrUniqueVkFence> fences{};
+		fences.reserve(sync_objects_count);
 
-		 for (size_t idx = 0; idx < sync_objects_count; ++idx) {
-			 const VkFenceCreateInfo fence_create_info = {
-				 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-				 .pNext = nullptr,
-				 .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-			 };
+		for (USIZE idx = 0; idx < sync_objects_count; ++idx) {
+			const VkFenceCreateInfo fence_create_info = {
+				.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+				.pNext = nullptr,
+				.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+			};
 
-			 VkFence fence{};
-			 vkCreateFence(create_info.device, &fence_create_info, nullptr, &fence);
+			VkFence fence{};
+			vkCreateFence(create_info.device, &fence_create_info, nullptr, &fence);
 
-			 if (!fence) break;
+			if (!fence) break;
 
-			 fences.emplace_back(fence, VkResourceDeleter_VkFence{create_info.device});
-		 }
+			fences.emplace_back(fence, VkResourceDeleter_VkFence{create_info.device});
+		}
 
-		 return fences;
+		return fences;
 	}();
 
 	auto make_semaphores_fn = [sync_objects_count, device = create_info.device]() {
 		vector<xrUniqueVkSemaphore> semaphores{};
 		semaphores.reserve(sync_objects_count);
 
-		for (size_t idx = 0; idx < sync_objects_count; ++idx) {
+		for (USIZE idx = 0; idx < sync_objects_count; ++idx) {
 			const VkSemaphoreCreateInfo semaphore_create_info = {
 				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 				.pNext = nullptr,
@@ -2214,22 +2229,19 @@ xray::rendering::QueueSubmitWaitToken::~QueueSubmitWaitToken() {
 
 void xray::rendering::VulkanRenderer::consume_wait_token(QueueSubmitWaitToken wait_token) noexcept {
 	const VkFence fences[] = {wait_token.fence()};
-	vkWaitForFences(
-		device(), static_cast<uint32_t>(std::size(fences)), fences, true, std::numeric_limits<uint64_t>::max()
-	);
+	vkWaitForFences(device(), static_cast<U32>(std::size(fences)), fences, true, std::numeric_limits<uint64_t>::max());
 	vkDestroyFence(device(), fences[0], nullptr);
 	QueueData qdata = queue_data(wait_token.queue());
 	std::unique_lock<xray::base::concurrency::spin_mutex> pool_lock{qdata.cmdpool_lock};
 
 	const VkCommandBuffer cmd_buffs[] = {wait_token.command_buffer()};
-	vkFreeCommandBuffers(device(), qdata.cmdpool, static_cast<uint32_t>(std::size(cmd_buffs)), cmd_buffs);
+	vkFreeCommandBuffers(device(), qdata.cmdpool, static_cast<U32>(std::size(cmd_buffs)), cmd_buffs);
 	wait_token._waited_on = true;
 }
-
 void xray::rendering::VulkanRenderer::consume_many_wait_tokens(
-	xray::base::MemoryArena& arena, std::span<QueueSubmitWaitToken> tokens
+	xray::base::MemoryArena& arena, xray::base::xrSlice_t<QueueSubmitWaitToken> tokens
 ) {
-	if (tokens.empty()) return;
+	if (tokens.s_len == 0) return;
 
 	ScratchPadArena scratch_pad{&arena};
 	containers::vector<VkFence> wait_fences{arena};
@@ -2241,11 +2253,7 @@ void xray::rendering::VulkanRenderer::consume_many_wait_tokens(
 	}
 
 	vkWaitForFences(
-		device(),
-		static_cast<uint32_t>(wait_fences.size()),
-		wait_fences.data(),
-		true,
-		std::numeric_limits<uint64_t>::max()
+		device(), static_cast<U32>(wait_fences.size()), wait_fences.data(), true, std::numeric_limits<uint64_t>::max()
 	);
 
 	for (VkFence f : wait_fences) {
@@ -2261,11 +2269,11 @@ void xray::rendering::VulkanRenderer::consume_many_wait_tokens(
 		cmd_buffers.push_back(tok.command_buffer());
 	}
 	std::unique_lock<xray::base::concurrency::spin_mutex> pool_lock{qdata.cmdpool_lock};
-	vkFreeCommandBuffers(device(), qdata.cmdpool, static_cast<uint32_t>(std::size(cmd_buffers)), cmd_buffers.data());
+	vkFreeCommandBuffers(device(), qdata.cmdpool, static_cast<U32>(std::size(cmd_buffers)), cmd_buffers.data());
 }
 
-uint32_t vk_format_bytes_size(const VkFormat format) {
-	uint32_t result = 0;
+U32 vk_format_bytes_size(const VkFormat format) {
+	U32 result = 0;
 	switch (format) {
 		case VK_FORMAT_UNDEFINED:
 			result = 0;

@@ -75,17 +75,17 @@ xray::base::MemoryArena* xray::base::MemoryArena::create_with_storage_block(xrSl
 		  .block_type	  = BlockType_t::StaticStorageMem,
 	  };
 
-	XR_LOG_INFO(
-		"Arena with static storage block (%p - %ld)\n.start_ptr = %p,\n.end_ptr = %p,\n.commit_offset = %ld,\nusable "
-		"size = "
-		"%ld",
-		storage_block.s_ptr,
-		storage_block.s_len,
-		arena_ptr->start_ptr,
-		arena_ptr->end_ptr,
-		arena_ptr->commit_offset,
-		arena_ptr->usable_size()
-	);
+	// XR_LOG_INFO(
+	// 	"Arena with static storage block (%p - %ld)\n.start_ptr = %p,\n.end_ptr = %p,\n.commit_offset = %ld,\nusable "
+	// 	"size = "
+	// 	"%ld",
+	// 	storage_block.s_ptr,
+	// 	storage_block.s_len,
+	// 	arena_ptr->start_ptr,
+	// 	arena_ptr->end_ptr,
+	// 	arena_ptr->commit_offset,
+	// 	arena_ptr->usable_size()
+	// );
 
 	poison_memory_region(arena_ptr->start_ptr, arena_ptr->end_ptr - arena_ptr->start_ptr);
 	return arena_ptr;

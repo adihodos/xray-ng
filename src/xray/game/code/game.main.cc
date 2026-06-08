@@ -28,15 +28,13 @@
 
 /// \file main.cc
 
-#include <tl/optional.hpp>
-#include <ankerl/unordered_dense.h>
-
 #include "build.config.hpp"
 
 #include "xray/xray.hpp"
 #include "xray/base/xray.os.hpp"
 #include "xray/base/app_config.hpp"
 #include "xray/base/logger.hpp"
+#include "xray/base/expected.hpp"
 #include "xray/base/memory.arena.hpp"
 #include "xray/base/thread.local.context.hpp"
 #include "xray/base/serialization/serialization.hpp"
@@ -48,12 +46,13 @@
 #include "xray/math/axis.aligned.bounding.box.hpp"
 
 #include "xray/ui/platform.window.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.renderer.hpp"
+#include "xray/rendering/vulkan.renderer/vulkan.renderer.config.hpp"
 
 #include "hud.config.hpp"
 #include "hud.test.hpp"
 
 #include "xray/ui/platform.window.hpp"
-#include "xray/base/expected.hpp"
 
 // https://brevzin.github.io/c++/2025/06/26/json-reflection/
 
@@ -93,6 +92,7 @@ int main(int argc, char** argv) {
 	using namespace xray::base;
 	using namespace xray::math;
 	using namespace xray::ui;
+	using namespace xray::rendering;
 
 	XR_LOG_INFO("Config root = %s", ConfigSystem::instance()->config_root().c_str());
 
@@ -107,6 +107,11 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 
+	auto vulkan_renderer = VulkanRenderer::create(*main_arena.arena, window->platform_data(), RendererConfig{});
+	if (!vulkan_renderer) {
+		return EXIT_FAILURE;
+	}
+
 	while (window->core.state.flags.quit == false) {
 		window->tick();
 
@@ -118,7 +123,6 @@ int main(int argc, char** argv) {
 			break;
 		}
 
-	 
 		for (ISIZE keysym = static_cast<ISIZE>(KeySymbol::first); keysym < static_cast<ISIZE>(KeySymbol::count);
 			 ++keysym) {
 			if (window->core.keys[keysym].is_down) {
@@ -131,9 +135,12 @@ int main(int argc, char** argv) {
 					);
 				}
 			}
-
-			std::this_thread::yield();
 		}
+
+		const FrameRenderData frame_render_data = vulkan_renderer->start_frame();
+		vulkan_renderer->begin_rendering(frame_render_data, 0.0f, 0.0f, 1.0f);
+		vulkan_renderer->end_rendering();
+		std::this_thread::yield();
 	}
 
 	return 0;

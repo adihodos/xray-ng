@@ -1411,12 +1411,15 @@ xray::ui::PlatformWindow::~PlatformWindow() {
 }
 
 xray::rendering::WindowPlatformData xray::ui::PlatformWindow::platform_data() const noexcept {
-	return xray::rendering::WindowPlatformDataXlib{
-		.display = reinterpret_cast<uintptr_t>(raw_ptr(_platform->_display)),
-		.window	 = static_cast<uintptr_t>(raw_ptr(_platform->_window)),
-		.visual	 = static_cast<uintptr_t>(_platform->_visualid),
-		.width	 = static_cast<U32>(core.state.size.width),
-		.height	 = static_cast<U32>(core.state.size.height),
+	return xray::rendering::WindowPlatformData{
+		.type = xray::rendering::WindowPlatformType::XLib,
+		.xlib = xray::rendering::WindowPlatformDataXlib{
+			.display = reinterpret_cast<UPTR>(raw_ptr(_platform->_display)),
+			.window	 = static_cast<UPTR>(raw_ptr(_platform->_window)),
+			.visual	 = static_cast<UPTR>(_platform->_visualid),
+			.width	 = static_cast<U32>(core.state.size.width),
+			.height	 = static_cast<U32>(core.state.size.height),
+		},
 	};
 }
 

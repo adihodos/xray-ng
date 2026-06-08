@@ -1,46 +1,58 @@
 #pragma once
 
-#include <cstdint>
-#include <swl/variant.hpp>
+#include "xray/xray.hpp"
 
 namespace xray::rendering {
+
+enum class WindowPlatformType : U8 {
+#if defined(XRAY_OS_IS_WINDOWS)
+	Windows,
+#else
+	XLib,
+	Xcb,
+	Wayland,
+#endif
+};
 
 #if defined(XRAY_OS_IS_POSIX_FAMILY)
 
 struct WindowPlatformDataXcb {
-	uintptr_t connection;
-	uintptr_t window;
-	uintptr_t visual;
-	uint32_t width;
-	uint32_t height;
+	UPTR connection;
+	UPTR window;
+	UPTR visual;
+	U32 width;
+	U32 height;
 };
 
 struct WindowPlatformDataXlib {
-	uintptr_t display;
-	uintptr_t window;
-	uintptr_t visual;
-	uint32_t width;
-	uint32_t height;
+	UPTR display;
+	UPTR window;
+	UPTR visual;
+	U32 width;
+	U32 height;
 };
 
 #elif defined(XRAY_OS_IS_WINDOWS)
 
 struct WindowPlatformDataWin32 {
-	uintptr_t module;
-	uintptr_t window;
-	uint32_t width;
-	uint32_t height;
+	UPTR module_handle;
+	UPTR window;
+	U32 width;
+	U32 height;
 };
 
 #endif
 
+struct WindowPlatformData {
+	WindowPlatformType type;
+	union {
 #if defined(XRAY_OS_IS_WINDOWS)
-struct WindowPlatformDataWin32;
-using WindowPlatformData = swl::variant<WindowPlatformDataWin32>;
+		WindowPlatformDataWin32;
 #else
-struct WindowPlatformDataXcb;
-struct WindowPlatformDataXlib;
-using WindowPlatformData = swl::variant<WindowPlatformDataXcb, WindowPlatformDataXlib>;
+		WindowPlatformDataXcb xcb;
+		WindowPlatformDataXlib xlib;
 #endif
+	};
+};
 
 }  // namespace xray::rendering

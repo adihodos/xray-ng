@@ -16,9 +16,11 @@ in
     pkgs.mold
     pkgs.nnd
 
+    pkgs.libglvnd
     pkgs.vulkan-tools
     pkgs.vulkan-headers
     pkgs.vulkan-loader
+    pkgs.vulkan-loader.dev
     pkgs.vulkan-tools-lunarg
     pkgs.vulkan-utility-libraries
     pkgs.vulkan-caps-viewer

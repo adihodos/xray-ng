@@ -2,8 +2,6 @@
 
 #include <filesystem>
 #include <initializer_list>
-#include <span>
-#include <tuple>
 #include <vector>
 #include <utility>
 
@@ -11,6 +9,8 @@
 
 #include <vulkan/vulkan_core.h>
 
+#include "xray/xray.hpp"
+#include "xray/base/xray.slice.hpp"
 #include "xray/base/xray.misc.hpp"
 #include "xray/base/concurrency/spin.mutex.hpp"
 #include "xray/rendering/colors/rgb_color.hpp"
@@ -19,13 +19,14 @@
 #include "xray/rendering/vulkan.renderer/vulkan.bindless.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.error.hpp"
 #include "xray/rendering/vulkan.renderer/vulkan.handles.hpp"
-#include "xray/rendering/vulkan.renderer/vulkan.window.platform.data.hpp"
 
 namespace xray::base {
 struct MemoryArena;
 }
 
 namespace xray::rendering {
+
+struct WindowPlatformData;
 
 namespace detail {
 
@@ -236,6 +237,33 @@ private:
 	VkCommandBuffer cmdbuf{};
 };
 
+struct RenderingPipelineCreationInfo {
+	U32 mask{};
+	xray::base::xrSlice_t<const VkFormat> targets;
+	VkFormat depth;
+	VkFormat stencil;
+};
+
+// struct QueueData {
+// 	VkQueue handle;
+// 	U32 family;
+// 	VkCommandPool cmd_pool;
+// };
+
+struct QueueData {
+	VkQueue handle;
+	uint32_t family;
+	VkCommandPool cmdpool;
+	std::reference_wrapper<xray::base::concurrency::spin_mutex> cmdpool_lock;
+	// std::reference_wrapper<xray::base::concurrency::spin_mutex> submit_lock;
+};
+
+struct QueueFamilyIndices {
+	U32 graphics;
+	U32 compute;
+	U32 transfer;
+};
+
 class VulkanRenderer {
 private:
 	struct PrivateConstructionToken {
@@ -267,7 +295,7 @@ public:
 	);
 
 	void end_rendering();
-	
+
 	void clear_attachments(
 		VkCommandBuffer cmd_buf,
 		const float red,
@@ -282,14 +310,14 @@ public:
 	const detail::PhysicalDeviceData& physical() const noexcept { return _render_state.dev_physical; }
 	const detail::SurfaceState& surface_state() const noexcept { return _presentation_state.surface_state; }
 
-	std::tuple<uint32_t, std::span<const VkFormat>, VkFormat, VkFormat> pipeline_render_create_info() const noexcept {
-		const size_t att_count = _render_state.attachments.attachments.size();
+	RenderingPipelineCreationInfo pipeline_render_create_info() const noexcept {
+		const size_t att_count = static_cast<ISIZE>(_render_state.attachments.attachments.size());
 
-		return {
-			_render_state.attachments.view_mask,
-			std::span{_render_state.attachments.attachments.cbegin(), att_count - 2},
-			_render_state.attachments.attachments[att_count - 2],
-			_render_state.attachments.attachments[att_count - 1],
+		return RenderingPipelineCreationInfo{
+			.mask	 = _render_state.attachments.view_mask,
+			.targets = base::slice_from_ptr_and_len(_render_state.attachments.attachments.data(), att_count - 2),
+			.depth	 = _render_state.attachments.attachments[att_count - 2],
+			.stencil = _render_state.attachments.attachments[att_count - 1],
 		};
 	}
 
@@ -299,8 +327,9 @@ public:
 
 	uint32_t max_inflight_frames() const noexcept { return _presentation_state.max_frames; }
 
-	uint32_t find_allocation_memory_type(const uint32_t memory_requirements, const VkMemoryPropertyFlags required_flags)
-		const noexcept;
+	uint32_t find_allocation_memory_type(
+		const uint32_t memory_requirements, const VkMemoryPropertyFlags required_flags
+	) const noexcept;
 
 	// @group Bindless resource handling
 	const BindlessSystem& bindless_sys() const noexcept { return _bindless; }
@@ -323,40 +352,30 @@ public:
 		_shader_include_directories.assign(include_dirs);
 	}
 
-	std::span<const std::filesystem::path> shader_include_directories() const noexcept {
-		return std::span{_shader_include_directories};
+	xray::base::xrSlice_t<const std::filesystem::path> shader_include_directories() const noexcept {
+		return base::slice_from_ptr_and_len(
+			_shader_include_directories.data(), static_cast<ISIZE>(_shader_include_directories.size())
+		);
 	}
 	// @endgroup
 
 	/// @group Queue functions
-	std::tuple<VkQueue, uint32_t, VkCommandPool> queue_data(const uint32_t idx) const noexcept {
-		return {
-			_render_state.queues[idx].handle,
-			_render_state.queues[idx].index,
-			xray::base::unique_pointer_get_ptr(_render_state.queues[idx].cmd_pool)
-		};
-	}
-
-	struct QueueData {
-		VkQueue handle;
-		uint32_t family;
-		VkCommandPool cmdpool;
-		std::reference_wrapper<xray::base::concurrency::spin_mutex> cmdpool_lock;
-		// std::reference_wrapper<xray::base::concurrency::spin_mutex> submit_lock;
-	};
 
 	QueueData queue_data(const QueueType qtype) noexcept {
 		return QueueData{
-			.handle	 = _render_state.queues[static_cast<uint32_t>(qtype)].handle,
-			.family	 = _render_state.queues[static_cast<uint32_t>(qtype)].index,
+			.handle	 = _render_state.queues[static_cast<U32>(qtype)].handle,
+			.family	 = _render_state.queues[static_cast<U32>(qtype)].index,
 			.cmdpool = xray::base::unique_pointer_get_ptr(_render_state.queues[static_cast<uint32_t>(qtype)].cmd_pool),
 			.cmdpool_lock = std::reference_wrapper{_render_state.queue_cmd_pool_mutex[static_cast<uint32_t>(qtype)]},
 			// .submit_lock  = std::reference_wrapper{_render_state.queue_submit_mutex[static_cast<uint32_t>(qtype)]},
 		};
 	}
 
-	std::tuple<uint32_t, uint32_t> queue_family_indices() const noexcept {
-		return {_render_state.queues[0].index, _render_state.queues[1].index};
+	QueueFamilyIndices queue_family_indices() const noexcept {
+		return QueueFamilyIndices{
+			.graphics = _render_state.queues[0].index,
+			.transfer = _render_state.queues[1].index,
+		};
 	}
 	//
 	uintptr_t reserve_staging_buffer_memory(const size_t bytes) noexcept {
@@ -377,7 +396,7 @@ public:
 	[[nodiscard]] tl::expected<QueuedJob, VulkanError> create_job(const QueueType qtype) noexcept;
 	[[nodiscard]] tl::expected<QueueSubmitWaitToken, VulkanError> submit_job(QueuedJob queued_job) noexcept;
 	void consume_wait_token(QueueSubmitWaitToken wait_token) noexcept;
-	void consume_many_wait_tokens(xray::base::MemoryArena& arena, std::span<QueueSubmitWaitToken> tokens);
+	void consume_many_wait_tokens(xray::base::MemoryArena& arena, xray::base::xrSlice_t<QueueSubmitWaitToken> tokens);
 	/// @endgroup
 
 private:
